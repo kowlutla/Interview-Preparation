@@ -121,3 +121,24 @@ Choose based on end-to-end library support, operational expertise, throughput/la
 - [ ] Understand pinning concerns in the Java 21 release context.
 - [ ] Preserve resource limits, timeouts, cancellation, and backpressure.
 - [ ] Distinguish finalized virtual threads from preview scoped values.
+
+## Worked examples: virtual threads and resource limits
+
+### Example 1. Use one virtual thread per blocking task
+
+~~~java
+try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+    Future<String> response = executor.submit(() -> callBlockingService());
+    System.out.println(response.get());
+}
+~~~
+
+The virtual-thread-per-task executor is available in Java 21. The executor is AutoCloseable; closing it waits for submitted tasks to finish. Production code still needs explicit timeouts, error handling, cancellation, and downstream concurrency limits.
+
+### Example 2. Virtual threads do not increase database capacity
+
+A service may accept many more waiting tasks with virtual threads, but a database pool still has a finite number of connections. Bound concurrent database work with the connection pool or a semaphore, apply deadlines, and measure queue wait. Otherwise the application may move overload from the thread pool to the database queue.
+
+### Example 3. Avoid thread-per-task as a substitute for admission control
+
+Virtual threads make blocking tasks cheaper than one platform thread per task, but they do not make CPU-bound work free or remove memory costs for task state. Limit incoming work, bound retained queues and payloads, and protect downstream dependencies. Diagnose pinning and runtime behavior using documentation for the exact JDK release.
