@@ -64,6 +64,8 @@ For production debugging, state the symptom and impact, establish scope, gather 
 - For implementation questions about collections, garbage collectors, or JIT behavior, pin the discussion to the JDK release and implementation when it matters.
 - Update-release details (security fixes, time-zone data, vendor packaging and licensing) are different from feature-release language/API changes.
 
+Release quick reference: [Java 8–21 feature and status matrix](07-Java-Version-Features/00-Java-8-to-21-Feature-Status-Matrix.md). This matrix is a summary; use the release-specific JEP and API documentation for exact details.
+
 Official version starting points:
 - [JDK 21 documentation](https://docs.oracle.com/en/java/javase/21/)
 - [Java language changes for JDK 21](https://docs.oracle.com/en/java/javase/21/language/java-language-changes-release.html)
@@ -104,7 +106,7 @@ For each chapter:
 The handbook content has been authored directly on the repository's `main` branch. See the [README and live completion tracker](README.md) for the current file inventory and status.
 
 Current verified content scope:
-- 53 Q&A chapters with **999 numbered Q&As** across fundamentals, core language, collections, functional programming, concurrency, JVM internals, Java 8–21 release features, and advanced Java.
+- 55 Q&A chapters with **1,035 numbered Q&As** across fundamentals, core language, collections, functional programming, concurrency, JVM internals, Java 8–21 release features, and advanced Java.
 - 50 coding/output practice problems.
 - 85+ production troubleshooting scenarios across collections/concurrency, JVM/memory, performance, and root-cause analysis.
 - Five mock interviews, advanced cross-questioning, architecture trade-offs, rapid-fire revision, and a final revision checklist.
