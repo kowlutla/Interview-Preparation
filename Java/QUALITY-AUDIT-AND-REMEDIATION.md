@@ -12,13 +12,30 @@
 | Markdown files under `Java/` | 66 | Includes roadmap, README, reference index, Q&A, and practice material |
 | Q&A chapters | 53 | Across fundamentals, core language, collections, functional programming, concurrency, JVM, Java release features, and advanced Java |
 | Numbered Q&A headings | 999 | Counted from the `### Qn.` headings in all 53 Q&A chapter files |
-| Local Markdown links in README | 68 | All 68 relative Markdown targets resolve in the current repository tree |
+| Local Markdown links in README | 68 at initial baseline | All links resolved at initial check; the quality-audit link was subsequently added and also resolves |
 | Unchecked README tracker entries | 0 | Current navigation is marked authored; this does not mean every technical claim or code example has been independently validated |
 | Coding/output practice bank | 50 problems | Authored; examples still need systematic compilation and test validation |
 | Production scenarios | 85+ prompts and RCA examples | Authored across collections/concurrency, JVM/memory, performance, and root-cause analysis |
 | Mock interviews | 5 | Authored with evaluation guidance |
 
 These are structural checks. They do **not** establish that all answers are complete, all code compiles, all output predictions have been executed, all URLs are live, or every possible duplicate has been found.
+
+## 1A. First focused review — findings and validation
+
+The first manual review examined the Java execution chapter and representative Fundamentals, HashMap, Stream API, and Java Memory Model chapters.
+
+### Findings addressed in this pass
+
+- Added worked examples for mutable HashMap keys, explicit duplicate-key merging, stream side-effect elision, valid associative reduction, explicit list mutability, safe collection, volatile visibility, and the difference between visibility and compound atomicity.
+- Clarified in examples that a `HashMap` lookup after key mutation is not a portable fixed output; the observed `null` result illustrates a common failure mode.
+- Kept the Stream API warning precise: the Stream contract permits implementations to elide behavioral-parameter side effects when those effects do not affect the terminal result. On the tested JDK 21 build, `peek(...).count()` returned the correct count without populating the side-effect list.
+- Added a standalone validation log at [Java 21 Snippet Validation Log](audit/Java-21-Snippet-Validation-Log.md).
+
+### Local compile/run evidence
+
+OpenJDK 21.0.12.1 successfully compiled the standalone copies of the added collection, stream, and concurrency examples with `javac --release 21`. The mutable-key example printed `null` in the tested setup; the stream example printed count `3` with an empty `peek` side-effect list, and the associative sum returned `10`.
+
+This is a **small, targeted smoke test**, not a full handbook-wide validation. The examples have not yet been run against Java 8, 11, or 17, and a single-thread execution cannot prove concurrent correctness.
 
 ## 2. High-priority remediation
 
