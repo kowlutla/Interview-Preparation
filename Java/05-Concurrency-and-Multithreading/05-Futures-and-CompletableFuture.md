@@ -150,3 +150,31 @@ Avoid adopting asynchronous style solely to look scalable. Compare complexity, c
 - [ ] Avoid blocking the common pool or constrained executor.
 - [ ] Treat timeout as an unknown remote outcome when appropriate.
 - [ ] Test with controlled completion, not sleeps.
+
+## Worked examples: asynchronous composition
+
+### Example 1. Compose dependent stages instead of blocking between them
+
+~~~java
+CompletableFuture<User> user = fetchUserAsync(userId);
+CompletableFuture<Account> account =
+        user.thenCompose(u -> fetchAccountAsync(u.accountId()));
+~~~
+
+thenCompose flattens a dependent asynchronous operation. Using thenApply with a function that returns another CompletableFuture instead produces a nested future. Prefer composition to blocking on each stage, especially when the work shares a constrained executor.
+
+### Example 2. Combine independent calls
+
+~~~java
+CompletableFuture<Profile> profile = fetchProfileAsync(id);
+CompletableFuture<Preferences> preferences = fetchPreferencesAsync(id);
+
+CompletableFuture<View> view = profile.thenCombine(
+        preferences, View::new);
+~~~
+
+This models independent operations that are both needed for the result. Production code still needs deadlines, error policy, cancellation behavior, and a clear decision about whether partial results are allowed.
+
+### Example 3. Do not treat exceptionally as a universal retry mechanism
+
+exceptionally can translate a failure into a fallback value, but it does not distinguish transient failures from permanent failures automatically. Retry only when the operation is safe to retry, the failure is plausibly transient, the deadline allows it, and backoff/jitter plus an attempt limit are defined.
