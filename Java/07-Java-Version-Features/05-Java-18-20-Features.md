@@ -30,7 +30,7 @@ For Java 21 production code, use the finalized API and document the runtime base
 
 ### Q4. What was the status of Structured Concurrency in Java 19 and 20? *(Advanced)*
 
-Structured Concurrency was previewed in Java 19 and continued as a preview in Java 20 and Java 21 with API evolution. It was not a permanent Java 19/20 feature.
+Structured Concurrency was an incubator API in Java 19 and Java 20, then became a preview feature in Java 21 under JEP 453. It was not a permanent Java 19/20 feature. The status category matters: incubator and preview are distinct mechanisms with different release and API expectations.
 
 Preview APIs may change between releases, so do not build a stable public library contract around one preview iteration without an explicit migration plan.
 
@@ -78,9 +78,12 @@ Roll out incrementally with observability and rollback criteria. Record the vend
 2. [JDK 18 Documentation](https://docs.oracle.com/en/java/javase/18/)
 3. [JDK 19 Documentation](https://docs.oracle.com/en/java/javase/19/)
 4. [JDK 20 Documentation](https://docs.oracle.com/en/java/javase/20/)
-5. [JEP 444 — Virtual Threads (Final in Java 21)](https://openjdk.org/jeps/444)
-6. [JEP 440 — Record Patterns (Final in Java 21)](https://openjdk.org/jeps/440)
-7. [JEP 441 — Pattern Matching for switch (Final in Java 21)](https://openjdk.org/jeps/441)
+5. [JEP 428 — Structured Concurrency (Java 19 incubator)](https://openjdk.org/jeps/428)
+6. [JEP 437 — Structured Concurrency (Java 20 second incubator)](https://openjdk.org/jeps/437)
+7. [JEP 453 — Structured Concurrency (Java 21 preview)](https://openjdk.org/jeps/453)
+8. [JEP 444 — Virtual Threads (Final in Java 21)](https://openjdk.org/jeps/444)
+9. [JEP 440 — Record Patterns (Final in Java 21)](https://openjdk.org/jeps/440)
+10. [JEP 441 — Pattern Matching for switch (Final in Java 21)](https://openjdk.org/jeps/441)
 
 ## Chapter checklist
 
