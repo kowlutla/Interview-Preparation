@@ -36,6 +36,7 @@ Legend: `[x] chapter exists and is included; [ ] planned, not yet completed. A c
 - [x] [04 — Nested Classes and Initialization](02-Core-Language/04-Nested-Classes-and-Initialization.md)
 - [x] [05 — Modules and JPMS](02-Core-Language/05-Modules-and-JPMS.md)
 - [x] [06 — I/O, NIO and Serialization](02-Core-Language/06-IO-NIO-and-Serialization.md)
+- [x] [07 — Annotation Processing and Compiler Tooling](02-Core-Language/07-Annotation-Processing-and-Compiler-Tooling.md)
 
 ### 03 — Collections Framework
 - [x] [01 — Collections Overview](03-Collections-Framework/01-Collections-Overview.md)
@@ -133,7 +134,7 @@ Legend: `[x] chapter exists and is included; [ ] planned, not yet completed. A c
 | Deliverable | Target | Current status |
 |---|---:|---|
 | Foundation files | README, roadmap, seven fundamentals chapters plus core language, collections, and functional programming chapters | In progress |
-| Unique Q&A | 400+ | 1035 questions across 55 Q&A chapters |
+| Unique Q&A | 400+ | 1058 questions across 56 Q&A chapters |
 | Senior scenarios | 50+ | 85+ scenario prompts plus RCA examples authored |
 | Coding/output problems | 50+ | 50 problems authored |
 | Mock interviews | 5 | 5 mock interviews authored |
