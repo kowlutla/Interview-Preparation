@@ -153,3 +153,53 @@ The simplest correct mechanism is usually best. Consider contention, cancellatio
 - [ ] Explain safe publication, final-field semantics, and reordering.
 - [ ] Recognize CAS retries and the ABA problem.
 - [ ] Prefer simpler concurrency designs over timing assumptions.
+
+## Worked examples: visibility is not compound atomicity
+
+### Example 1. A volatile flag publishes a stop request
+
+\`\`\`java
+final class Worker implements Runnable {
+    private volatile boolean running = true;
+
+    void stop() {
+        running = false;
+    }
+
+    @Override public void run() {
+        while (running) {
+            doSmallUnitOfWork();
+        }
+    }
+
+    private void doSmallUnitOfWork() {
+        // One bounded unit of work; production code should avoid a busy-spin.
+    }
+}
+\`\`\`
+
+The volatile write of `false` happens-before a subsequent read of that value by another thread. This makes the flag's update visible. It does not guarantee prompt shutdown if the worker is blocked in an uninterruptible operation, and a real worker should generally use blocking coordination or interruption rather than spin continuously.
+
+### Example 2. Volatile does not make increment atomic
+
+\`\`\`java
+final class Counter {
+    private volatile int count;
+
+    void increment() {
+        count++; // read, add, write: not one atomic operation
+    }
+
+    int get() {
+        return count;
+    }
+}
+\`\`\`
+
+Two threads can read the same old value and overwrite one another's updates. Use `AtomicInteger.incrementAndGet()` for an independent counter, `LongAdder` for high-contention statistics where its semantics fit, or a lock when the update participates in a larger invariant.
+
+### Example 3. Safe publication requires an actual happens-before path
+
+Publishing a fully constructed object through a volatile reference, a synchronized handoff, a properly used concurrent collection, or the specified initialization-safety guarantees of final fields can establish visibility. Merely assigning a reference to an ordinary shared field and hoping another thread observes all constructor writes is not a synchronization strategy.
+
+The Java Memory Model's rules are normative; CPU intuition and tests that happen to pass do not prove correctness. See JLS Chapter 17 and the API contracts of the chosen coordination primitive.
