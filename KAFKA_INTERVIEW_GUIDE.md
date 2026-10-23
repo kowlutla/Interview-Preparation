@@ -1473,7 +1473,7 @@ Establish impact and data-integrity risk first. Stabilize the system with revers
 
 Senior-level incident handling protects correctness while restoring service—not just clearing lag.
 
-# Advanced scenario-based Q&A
+## Advanced scenario-based Q&A
 
 **Consistent answer format:** Each scenario includes the interviewer question, a detailed answer, and relevant follow-up questions with answers. Code and configuration are illustrative; verify settings against the Kafka and Spring Kafka versions used by your application.
 
