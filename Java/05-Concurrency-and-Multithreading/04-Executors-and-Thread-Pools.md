@@ -147,3 +147,48 @@ Metrics should reveal saturation before the service fails. Queue depth alone is 
 - [ ] Size pools from workload and downstream constraints.
 - [ ] Implement graceful shutdown and cooperative cancellation.
 - [ ] Monitor saturation, wait time, rejection, and task failures.
+
+## Worked examples: executor bounds and lifecycle
+
+### Example 1. Use a bounded executor when overload must be controlled
+
+~~~java
+ThreadPoolExecutor executor = new ThreadPoolExecutor(
+        4, 8, 30, TimeUnit.SECONDS,
+        new ArrayBlockingQueue<>(200),
+        new ThreadPoolExecutor.AbortPolicy());
+~~~
+
+The bounded queue makes overload visible instead of allowing an unbounded backlog to consume memory. Rejection must be handled at the submission boundary: return a clear overload response, shed optional work, or apply a documented fallback. Do not blindly retry rejected work into the same saturated pool.
+
+### Example 2. Observe task failures from submitted work
+
+~~~java
+Future<Integer> result = executor.submit(() -> {
+    throw new IllegalStateException("failed");
+});
+try {
+    result.get();
+} catch (ExecutionException e) {
+    Throwable cause = e.getCause();
+    // log safe context and apply the caller's failure policy
+}
+~~~
+
+With submit(), task failure is represented by the Future and becomes visible when its result is observed. Ignoring the Future can silently discard failures. For execute(), uncaught task failures follow different handling paths, so choose the API deliberately.
+
+### Example 3. Shut down gracefully
+
+~~~java
+executor.shutdown();
+try {
+    if (!executor.awaitTermination(10, TimeUnit.SECONDS)) {
+        executor.shutdownNow();
+    }
+} catch (InterruptedException e) {
+    executor.shutdownNow();
+    Thread.currentThread().interrupt();
+}
+~~~
+
+Shutdown policy is part of service lifecycle. The timeout should match the application's termination budget, and tasks must cooperate with interruption. shutdownNow() is best-effort; it does not guarantee that every running task stops immediately.
