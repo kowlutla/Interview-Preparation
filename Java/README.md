@@ -125,8 +125,8 @@ Legend: `[x] file started and included; [ ] planned, not yet completed. Completi
 
 | Deliverable | Target | Current status |
 |---|---:|---|
-| Foundation files | README, roadmap, first four fundamentals chapters | In progress |
-| Unique Q&A | 400+ | 141 questions across four fundamentals chapters |
+| Foundation files | README, roadmap, first six fundamentals chapters | In progress |
+| Unique Q&A | 400+ | 201 questions across six fundamentals chapters |
 | Senior scenarios | 50+ | Planned |
 | Coding/output problems | 50+ | Planned |
 | Mock interviews | 5 | Planned |
