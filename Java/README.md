@@ -67,13 +67,13 @@ Legend: `[x] file started and included; [ ] planned, not yet completed. Completi
 - [ ] [09 — Structured Concurrency and Scoped Values](05-Concurrency-and-Multithreading/09-Structured-Concurrency-and-Scoped-Values.md)
 
 ### 06 — JVM and Memory Management
-- [ ] [01 — JVM Architecture](06-JVM-and-Memory-Management/01-JVM-Architecture.md)
-- [ ] [02 — Class Loading and Bytecode](06-JVM-and-Memory-Management/02-Class-Loading-and-Bytecode.md)
-- [ ] [03 — Java Memory Areas](06-JVM-and-Memory-Management/03-Java-Memory-Areas.md)
-- [ ] [04 — Garbage Collection](06-JVM-and-Memory-Management/04-Garbage-Collection.md)
-- [ ] [05 — JIT and JVM Optimization](06-JVM-and-Memory-Management/05-JIT-and-JVM-Optimization.md)
-- [ ] [06 — Memory Leaks and OOM](06-JVM-and-Memory-Management/06-Memory-Leaks-and-OOM.md)
-- [ ] [07 — JVM Diagnostics and Tuning](06-JVM-and-Memory-Management/07-JVM-Diagnostics-and-Tuning.md)
+- [x] [01 — JVM Architecture](06-JVM-and-Memory-Management/01-JVM-Architecture.md)
+- [x] [02 — Class Loading and Bytecode](06-JVM-and-Memory-Management/02-Class-Loading-and-Bytecode.md)
+- [x] [03 — Java Memory Areas](06-JVM-and-Memory-Management/03-Java-Memory-Areas.md)
+- [x] [04 — Garbage Collection](06-JVM-and-Memory-Management/04-Garbage-Collection.md)
+- [x] [05 — JIT and JVM Optimization](06-JVM-and-Memory-Management/05-JIT-and-JVM-Optimization.md)
+- [x] [06 — Memory Leaks and OOM](06-JVM-and-Memory-Management/06-Memory-Leaks-and-OOM.md)
+- [x] [07 — JVM Diagnostics and Tuning](06-JVM-and-Memory-Management/07-JVM-Diagnostics-and-Tuning.md)
 
 ### 07 — Java Version Features
 - [ ] [01 — Java 8 Features](07-Java-Version-Features/01-Java-8-Features.md)
@@ -128,7 +128,7 @@ Legend: `[x] file started and included; [ ] planned, not yet completed. Completi
 | Deliverable | Target | Current status |
 |---|---:|---|
 | Foundation files | README, roadmap, seven fundamentals chapters plus core language, collections, and functional programming chapters | In progress |
-| Unique Q&A | 400+ | 639 questions across 27 substantive chapters |
+| Unique Q&A | 400+ | 801 questions across 39 substantive chapters |
 | Senior scenarios | 50+ | Planned |
 | Coding/output problems | 50+ | Planned |
 | Mock interviews | 5 | Planned |
