@@ -64,6 +64,7 @@ Legend: `[x] chapter exists and is included; [ ] planned, not yet completed. A c
 - [x] [07 — Deadlocks, Race Conditions and Thread Safety](05-Concurrency-and-Multithreading/07-Deadlocks-Race-Conditions-and-Thread-Safety.md)
 - [x] [08 — Virtual Threads (JDK 21)](05-Concurrency-and-Multithreading/08-Virtual-Threads-JDK-21.md)
 - [x] [09 — Structured Concurrency and Scoped Values](05-Concurrency-and-Multithreading/09-Structured-Concurrency-and-Scoped-Values.md)
+- [x] [10 — Coordination Primitives and Synchronizers](05-Concurrency-and-Multithreading/10-Coordination-Primitives-and-Synchronizers.md)
 
 ### 06 — JVM and Memory Management
 - [x] [01 — JVM Architecture](06-JVM-and-Memory-Management/01-JVM-Architecture.md)
@@ -81,6 +82,7 @@ Legend: `[x] chapter exists and is included; [ ] planned, not yet completed. A c
 - [x] [04 — Java 17 Features](07-Java-Version-Features/04-Java-17-Features.md)
 - [x] [05 — Java 18–20 Features](07-Java-Version-Features/05-Java-18-20-Features.md)
 - [x] [06 — Java 21 Features](07-Java-Version-Features/06-Java-21-Features.md)
+- [x] [00 — Java 8–21 Feature and Status Matrix](07-Java-Version-Features/00-Java-8-to-21-Feature-Status-Matrix.md)
 
 ### 08 — Advanced Java
 - [x] [01 — JDBC and Transactions](08-Advanced-Java/01-JDBC-and-Transactions.md)
@@ -113,6 +115,7 @@ Legend: `[x] chapter exists and is included; [ ] planned, not yet completed. A c
 
 - [Quality Audit and Remediation Plan](QUALITY-AUDIT-AND-REMEDIATION.md) — structural checks, priority-ranked correctness and coverage review, and release criteria.
 - [Coverage and Technical Review](COVERAGE-AND-TECHNICAL-REVIEW.md) — domain-by-domain coverage assessment, high-risk correctness rules, and known gaps.
+- [Java 8–21 Feature and Status Matrix](07-Java-Version-Features/00-Java-8-to-21-Feature-Status-Matrix.md) — release-by-release highlights and final/preview/incubator distinctions.
 - [Java 21 Snippet Validation Log](audit/Java-21-Snippet-Validation-Log.md) — initial compile/run evidence and validation limitations.
 - [Concurrency Worked-Example Pass](audit/Concurrency-Worked-Example-Pass.md) — review scope, examples added, and remaining validation work.
 
@@ -130,7 +133,7 @@ Legend: `[x] chapter exists and is included; [ ] planned, not yet completed. A c
 | Deliverable | Target | Current status |
 |---|---:|---|
 | Foundation files | README, roadmap, seven fundamentals chapters plus core language, collections, and functional programming chapters | In progress |
-| Unique Q&A | 400+ | 999 questions across 53 Q&A chapters |
+| Unique Q&A | 400+ | 1035 questions across 55 Q&A chapters |
 | Senior scenarios | 50+ | 85+ scenario prompts plus RCA examples authored |
 | Coding/output problems | 50+ | 50 problems authored |
 | Mock interviews | 5 | 5 mock interviews authored |
