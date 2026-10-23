@@ -113,7 +113,7 @@ Legend: `[x] file started and included; [ ] planned, not yet completed. Completi
 ## Quality contract
 
 - Question headings contain the question once; the answer starts immediately beneath the heading. No repeated question and no “Answer” label.
-- Questions are numbered consistently within each chapter (for example, `Q1`, `Q2`). The roadmap will track aggregate question counts when chapters are authored.
+- Questions are numbered consistently within each Q&A chapter (for example, `Q1`, `Q2`). The README and roadmap track the aggregate count.
 - Target at least **400 unique questions**, at least **50 production scenarios**, at least **50 coding/output problems**, and five mock interviews across the completed handbook.
 - Every version-sensitive claim should cite an official API specification, JEP, JLS/JVMS section, Oracle/OpenJDK documentation, or a reputable supplementary resource.
 - Preview and incubator APIs must be explicitly labeled with the release and status; do not present them as finalized features.
@@ -129,4 +129,4 @@ Legend: `[x] file started and included; [ ] planned, not yet completed. Completi
 | Coding/output problems | 50+ | 50 problems authored |
 | Mock interviews | 5 | 5 mock interviews authored |
 
-The current navigation marks files that have been authored. Remaining unchecked items are planned expansions or additional scenario chapters, not claims of completed content.
+All currently planned navigation links resolve to authored files. Content validation, duplicate-question review, and further depth improvements remain ongoing quality tasks.
