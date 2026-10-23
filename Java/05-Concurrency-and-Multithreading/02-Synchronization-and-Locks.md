@@ -146,3 +146,40 @@ Do not choose explicit locks just because they seem more advanced. Whichever mec
 - [ ] Prevent deadlock through consistent lock ordering.
 - [ ] Keep external calls outside critical sections where possible.
 - [ ] Diagnose contention using dumps and measurements.
+
+## Worked examples: locks and condition invariants
+
+### Example 1. Protect a compound invariant with one lock
+
+~~~java
+final class SafeCounter {
+    private int count;
+
+    synchronized void increment() {
+        count++;
+    }
+
+    synchronized int get() {
+        return count;
+    }
+}
+~~~
+
+The same monitor protects both the update and the read. Synchronizing only the writer or only the reader would not establish the intended mutual-exclusion protocol for all accesses. Keep the protected invariant and the lock boundary explicit.
+
+### Example 2. Wait in a loop that checks the condition
+
+~~~java
+synchronized (lock) {
+    while (!conditionIsTrue()) {
+        lock.wait();
+    }
+    consumeConditionProtectedState();
+}
+~~~
+
+A thread can wake without the application condition being true, and another thread may consume the condition before this thread reacquires the monitor. The loop rechecks the invariant after every wake-up. The condition and state must be guarded by the same coordination protocol.
+
+### Example 3. Avoid lock-order deadlocks
+
+If transfer code must lock two accounts, impose one stable ordering rule and acquire both locks in that order. Without a global ordering, thread A can hold lock X while waiting for Y, while thread B holds Y while waiting for X. Thread dumps can expose the cycle; prevention is generally safer than attempting to recover automatically.
