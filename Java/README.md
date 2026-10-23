@@ -30,26 +30,27 @@ Legend: `[x] file started and included; [ ] planned, not yet completed. Completi
 - [x] [07 — Strings and Text Processing](01-Java-Fundamentals/07-Strings-and-Text-Processing.md)
 
 ### 02 — Core Language
-- [ ] [01 — Exception Handling](02-Core-Language/01-Exception-Handling.md)
-- [ ] [02 — Generics](02-Core-Language/02-Generics.md)
-- [ ] [03 — Enums and Annotations](02-Core-Language/03-Enums-and-Annotations.md)
-- [ ] [04 — Reflection and Dynamic Proxies](02-Core-Language/04-Reflection-and-Dynamic-Proxies.md)
+- [x] [01 — Object Class and Contracts](02-Core-Language/01-Object-Class-and-Contracts.md)
+- [x] [02 — Enums and Annotations](02-Core-Language/02-Enums-and-Annotations.md)
+- [x] [03 — Reflection and Dynamic Proxies](02-Core-Language/03-Reflection-and-Dynamic-Proxies.md)
+- [x] [04 — Generics and Type System](01-Java-Fundamentals/05-Generics-and-Type-System.md)
+- [x] [05 — Exceptions and Error Handling](01-Java-Fundamentals/06-Exceptions-and-Error-Handling.md)
 - [ ] [05 — Modules and JPMS](02-Core-Language/05-Modules-and-JPMS.md)
 - [ ] [06 — I/O, NIO and Serialization](02-Core-Language/06-IO-NIO-and-Serialization.md)
 
 ### 03 — Collections Framework
-- [ ] [01 — Collections Overview](03-Collections-Framework/01-Collections-Overview.md)
-- [ ] [02 — List and ArrayList](03-Collections-Framework/02-List-and-ArrayList.md)
-- [ ] [03 — Set and HashSet](03-Collections-Framework/03-Set-and-HashSet.md)
-- [ ] [04 — Map and HashMap](03-Collections-Framework/04-Map-and-HashMap.md)
+- [x] [01 — Collections Overview](03-Collections-Framework/01-Collections-Overview.md)
+- [x] [02 — List and ArrayList](03-Collections-Framework/02-List-and-ArrayList.md)
+- [x] [03 — Set and HashSet](03-Collections-Framework/03-Set-and-HashSet.md)
+- [x] [04 — Map and HashMap](03-Collections-Framework/04-Map-and-HashMap.md)
 - [ ] [05 — TreeMap and Sorted Collections](03-Collections-Framework/05-TreeMap-and-Sorted-Collections.md)
 - [ ] [06 — Queue, Deque and PriorityQueue](03-Collections-Framework/06-Queue-Deque-and-PriorityQueue.md)
 - [ ] [07 — Iterators and Collection Internals](03-Collections-Framework/07-Iterators-and-Collection-Internals.md)
 
 ### 04 — Java 8 and Functional Programming
-- [ ] [01 — Lambda Expressions](04-Java-8-and-Functional-Programming/01-Lambda-Expressions.md)
+- [x] [01 — Lambda Expressions](04-Java-8-and-Functional-Programming/01-Lambda-Expressions.md)
 - [ ] [02 — Functional Interfaces](04-Java-8-and-Functional-Programming/02-Functional-Interfaces.md)
-- [ ] [03 — Stream API](04-Java-8-and-Functional-Programming/03-Stream-API.md)
+- [x] [03 — Stream API](04-Java-8-and-Functional-Programming/03-Stream-API.md)
 - [ ] [04 — Collectors and Spliterators](04-Java-8-and-Functional-Programming/04-Collectors-and-Spliterators.md)
 - [ ] [05 — Optional](04-Java-8-and-Functional-Programming/05-Optional.md)
 - [ ] [06 — Date-Time API](04-Java-8-and-Functional-Programming/06-Date-Time-API.md)
@@ -126,8 +127,8 @@ Legend: `[x] file started and included; [ ] planned, not yet completed. Completi
 
 | Deliverable | Target | Current status |
 |---|---:|---|
-| Foundation files | README, roadmap, first seven fundamentals chapters | In progress |
-| Unique Q&A | 400+ | 229 questions across seven fundamentals chapters |
+| Foundation files | README, roadmap, seven fundamentals chapters plus core language, collections, and functional programming chapters | In progress |
+| Unique Q&A | 400+ | 415 questions across 16 substantive chapters |
 | Senior scenarios | 50+ | Planned |
 | Coding/output problems | 50+ | Planned |
 | Mock interviews | 5 | Planned |
