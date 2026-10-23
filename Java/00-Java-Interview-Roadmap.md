@@ -106,7 +106,7 @@ For each chapter:
 The handbook content has been authored directly on the repository's `main` branch. See the [README and live completion tracker](README.md) for the current file inventory and status.
 
 Current verified content scope:
-- 55 Q&A chapters with **1,035 numbered Q&As** across fundamentals, core language, collections, functional programming, concurrency, JVM internals, Java 8–21 release features, and advanced Java.
+- 56 Q&A chapters with **1,058 numbered Q&As** across fundamentals, core language, collections, functional programming, concurrency, JVM internals, Java 8–21 release features, and advanced Java.
 - 50 coding/output practice problems.
 - 85+ production troubleshooting scenarios across collections/concurrency, JVM/memory, performance, and root-cause analysis.
 - Five mock interviews, advanced cross-questioning, architecture trade-offs, rapid-fire revision, and a final revision checklist.
