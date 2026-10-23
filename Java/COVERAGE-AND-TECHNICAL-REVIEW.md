@@ -54,11 +54,16 @@ Use these rules when reviewing individual claims:
 
 The README's Core Language navigation repeated the Generics and Exceptions chapters already listed under Fundamentals and misnumbered the modules and I/O targets. A dedicated nested-classes/initialization chapter has been added to give this section a distinct topic; navigation should now be aligned with the actual filenames.
 
+## Confirmed technical correction
+
+- Corrected the Java 18–20 release chapter: Structured Concurrency was an incubator API in Java 19 and Java 20, then a preview feature in Java 21. Calling it a preview in Java 20 conflated two different API lifecycle categories. The release matrix and chapter now distinguish these statuses and link the relevant JEPs.
+
 ## Changes made during this review
 
 - Added a dedicated nested-classes and initialization chapter and corrected the Core Language navigation that previously duplicated generics/exceptions and misnumbered modules/I/O.
 - Added a dedicated annotation-processing and compiler-tooling chapter for processor rounds, retention/targets, javac --release, javap, jdeps, module-path, multi-release JARs, and ServiceLoader.
 - Added a Java 8–21 release feature/status matrix and expanded Java 21 coverage to include String Templates, the Foreign Function & Memory API, unnamed patterns/variables, unnamed classes/instance main methods, Vector API, the KEM API, dynamic-agent-loading preparation, and platform deprecation changes.
+- Reconciled the Java 21 feature status against the official Java 21 language update and JDK documentation; the matrix is now a quick index, with JEPs/specifications remaining the authority.
 - Added a dedicated concurrency coordination chapter covering CountDownLatch, CyclicBarrier, Phaser, Semaphore, BlockingQueue, Exchanger, ForkJoinPool, ReentrantReadWriteLock, StampedLock, and Condition.
 
 ## Recommended review order
