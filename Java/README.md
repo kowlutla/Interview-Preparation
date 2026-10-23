@@ -2,7 +2,7 @@
 
 A version-aware, technically deep Core Java handbook for Senior Software Engineer and Senior Backend Engineer interviews. The material emphasizes fundamentals, internal mechanics, trade-offs, debugging, production diagnosis, and the evolution from Java 8 through Java 21—with particular attention to Java 17 and Java 21.
 
-> **Status:** Core handbook coverage authored; validation and remaining depth expansion in progress. The handbook is being built chapter-by-chapter; unchecked items are not yet complete. A planned topic is not a claim that its full question set already exists.
+> **Status:** Broad first-pass coverage authored; topic completeness and technical review remain in progress. A chapter's existence does not certify every claim in it. See the [Coverage and Technical Review](COVERAGE-AND-TECHNICAL-REVIEW.md) for known gaps and the review criteria.
 
 ## Study path
 
@@ -15,7 +15,7 @@ A version-aware, technically deep Core Java handbook for Senior Software Enginee
 
 ## Handbook navigation and completion tracker
 
-Legend: `[x] file started and included; [ ] planned, not yet completed. Completion refers to substantive handbook coverage, not simply file existence.
+Legend: `[x] chapter exists and is included; [ ] planned, not yet completed. A checked chapter is not a certification that every claim has been independently verified.
 
 ### Roadmap
 - [x] [00 — Java Interview Roadmap](00-Java-Interview-Roadmap.md)
@@ -33,10 +33,9 @@ Legend: `[x] file started and included; [ ] planned, not yet completed. Completi
 - [x] [01 — Object Class and Contracts](02-Core-Language/01-Object-Class-and-Contracts.md)
 - [x] [02 — Enums and Annotations](02-Core-Language/02-Enums-and-Annotations.md)
 - [x] [03 — Reflection and Dynamic Proxies](02-Core-Language/03-Reflection-and-Dynamic-Proxies.md)
-- [x] [04 — Generics and Type System](01-Java-Fundamentals/05-Generics-and-Type-System.md)
-- [x] [05 — Exceptions and Error Handling](01-Java-Fundamentals/06-Exceptions-and-Error-Handling.md)
-- [x] [06 — Modules and JPMS](02-Core-Language/05-Modules-and-JPMS.md)
-- [x] [07 — I/O, NIO and Serialization](02-Core-Language/06-IO-NIO-and-Serialization.md)
+- [x] [04 — Nested Classes and Initialization](02-Core-Language/04-Nested-Classes-and-Initialization.md)
+- [x] [05 — Modules and JPMS](02-Core-Language/05-Modules-and-JPMS.md)
+- [x] [06 — I/O, NIO and Serialization](02-Core-Language/06-IO-NIO-and-Serialization.md)
 
 ### 03 — Collections Framework
 - [x] [01 — Collections Overview](03-Collections-Framework/01-Collections-Overview.md)
@@ -113,6 +112,7 @@ Legend: `[x] file started and included; [ ] planned, not yet completed. Completi
 ## Quality assurance
 
 - [Quality Audit and Remediation Plan](QUALITY-AUDIT-AND-REMEDIATION.md) — structural checks, priority-ranked correctness and coverage review, and release criteria.
+- [Coverage and Technical Review](COVERAGE-AND-TECHNICAL-REVIEW.md) — domain-by-domain coverage assessment, high-risk correctness rules, and known gaps.
 - [Java 21 Snippet Validation Log](audit/Java-21-Snippet-Validation-Log.md) — initial compile/run evidence and validation limitations.
 - [Concurrency Worked-Example Pass](audit/Concurrency-Worked-Example-Pass.md) — review scope, examples added, and remaining validation work.
 
