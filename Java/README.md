@@ -113,6 +113,7 @@ Legend: `[x] file started and included; [ ] planned, not yet completed. Completi
 ## Quality assurance
 
 - [Quality Audit and Remediation Plan](QUALITY-AUDIT-AND-REMEDIATION.md) — structural checks, priority-ranked correctness and coverage review, and release criteria.
+- [Java 21 Snippet Validation Log](audit/Java-21-Snippet-Validation-Log.md) — initial compile/run evidence and validation limitations.
 
 ## Quality contract
 
