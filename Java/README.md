@@ -96,9 +96,9 @@ Legend: `[x] file started and included; [ ] planned, not yet completed. Completi
 
 ### 10 — Real-World Scenarios
 - [x] [01 — 50 Collections, Concurrency, JVM, I/O and Security Scenarios](10-Real-World-Scenarios/01-Collections-and-Concurrency-Scenarios.md)
-- [ ] [02 — JVM and Memory Incidents](10-Real-World-Scenarios/02-JVM-and-Memory-Incidents.md)
-- [ ] [03 — Performance Troubleshooting](10-Real-World-Scenarios/03-Performance-Troubleshooting.md)
-- [ ] [04 — Production Debugging and Root-Cause Analysis](10-Real-World-Scenarios/04-Production-Debugging-and-Root-Cause-Analysis.md)
+- [x] [02 — JVM and Memory Incidents](10-Real-World-Scenarios/02-JVM-and-Memory-Incidents.md)
+- [x] [03 — Performance Troubleshooting](10-Real-World-Scenarios/03-Performance-Troubleshooting.md)
+- [x] [04 — Production Debugging and Root-Cause Analysis](10-Real-World-Scenarios/04-Production-Debugging-and-Root-Cause-Analysis.md)
 
 ### 11 — Senior Interview Preparation
 - [x] [01 — Advanced Cross-Questioning](11-Senior-Interview-Preparation/01-Advanced-Cross-Questioning.md)
@@ -124,8 +124,8 @@ Legend: `[x] file started and included; [ ] planned, not yet completed. Completi
 | Deliverable | Target | Current status |
 |---|---:|---|
 | Foundation files | README, roadmap, seven fundamentals chapters plus core language, collections, and functional programming chapters | In progress |
-| Unique Q&A | 400+ | 999 questions across 60 substantive chapters |
-| Senior scenarios | 50+ | 50 scenarios authored |
+| Unique Q&A | 400+ | 999 questions across 53 Q&A chapters |
+| Senior scenarios | 50+ | 85+ scenario prompts plus RCA examples authored |
 | Coding/output problems | 50+ | 50 problems authored |
 | Mock interviews | 5 | 5 mock interviews authored |
 
