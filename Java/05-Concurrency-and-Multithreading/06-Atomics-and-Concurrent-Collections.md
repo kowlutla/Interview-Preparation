@@ -147,3 +147,19 @@ groups.computeIfAbsent("a", key -> new ArrayList<>()).add("value");
 ~~~
 
 The map's own operations are concurrent, but the ArrayList stored as a value remains mutable and unsynchronized. If multiple threads mutate the same value, protect that value, use an appropriate concurrent value type, or redesign the update as an atomic map-level operation.
+
+## Additional review: common concurrency API selection
+
+| Requirement | Common choice | Important limitation |
+|---|---|---|
+| Exact atomic integer update | AtomicInteger | Does not protect a multi-variable invariant by itself |
+| High-contention statistics | LongAdder | sum() is not a linearizable snapshot of all concurrent updates |
+| Concurrent key/value operations | ConcurrentHashMap | Mutable values need their own thread-safety design |
+| Wait for N one-time events | CountDownLatch | Cannot be reset for another round |
+| Reusable phase coordination | CyclicBarrier or Phaser | Requires careful lifecycle and failure handling |
+| Limit concurrent access to a resource | Semaphore | Permit acquisition/release must be balanced |
+| Producer/consumer handoff with backpressure | BlockingQueue | Queue capacity and shutdown policy must be explicit |
+| Read-mostly access with versioned optimistic reads | StampedLock | Optimistic reads must validate; lock is not reentrant |
+| Task dependency and completion composition | CompletableFuture | Executor choice, deadlines, and cancellation still matter |
+
+Choose by invariant and lifecycle, not by popularity. A concurrent class does not automatically make a larger workflow atomic, bounded, or failure-safe.
