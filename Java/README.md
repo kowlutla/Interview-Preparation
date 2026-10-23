@@ -35,35 +35,35 @@ Legend: `[x] file started and included; [ ] planned, not yet completed. Completi
 - [x] [03 — Reflection and Dynamic Proxies](02-Core-Language/03-Reflection-and-Dynamic-Proxies.md)
 - [x] [04 — Generics and Type System](01-Java-Fundamentals/05-Generics-and-Type-System.md)
 - [x] [05 — Exceptions and Error Handling](01-Java-Fundamentals/06-Exceptions-and-Error-Handling.md)
-- [ ] [05 — Modules and JPMS](02-Core-Language/05-Modules-and-JPMS.md)
-- [ ] [06 — I/O, NIO and Serialization](02-Core-Language/06-IO-NIO-and-Serialization.md)
+- [x] [05 — Modules and JPMS](02-Core-Language/05-Modules-and-JPMS.md)
+- [x] [06 — I/O, NIO and Serialization](02-Core-Language/06-IO-NIO-and-Serialization.md)
 
 ### 03 — Collections Framework
 - [x] [01 — Collections Overview](03-Collections-Framework/01-Collections-Overview.md)
 - [x] [02 — List and ArrayList](03-Collections-Framework/02-List-and-ArrayList.md)
 - [x] [03 — Set and HashSet](03-Collections-Framework/03-Set-and-HashSet.md)
 - [x] [04 — Map and HashMap](03-Collections-Framework/04-Map-and-HashMap.md)
-- [ ] [05 — TreeMap and Sorted Collections](03-Collections-Framework/05-TreeMap-and-Sorted-Collections.md)
-- [ ] [06 — Queue, Deque and PriorityQueue](03-Collections-Framework/06-Queue-Deque-and-PriorityQueue.md)
-- [ ] [07 — Iterators and Collection Internals](03-Collections-Framework/07-Iterators-and-Collection-Internals.md)
+- [x] [05 — TreeMap and Sorted Collections](03-Collections-Framework/05-TreeMap-and-Sorted-Collections.md)
+- [x] [06 — Queue, Deque and PriorityQueue](03-Collections-Framework/06-Queue-Deque-and-PriorityQueue.md)
+- [x] [07 — Iterators and Collection Internals](03-Collections-Framework/07-Iterators-and-Collection-Internals.md)
 
 ### 04 — Java 8 and Functional Programming
 - [x] [01 — Lambda Expressions](04-Java-8-and-Functional-Programming/01-Lambda-Expressions.md)
-- [ ] [02 — Functional Interfaces](04-Java-8-and-Functional-Programming/02-Functional-Interfaces.md)
+- [x] [02 — Functional Interfaces](04-Java-8-and-Functional-Programming/02-Functional-Interfaces.md)
 - [x] [03 — Stream API](04-Java-8-and-Functional-Programming/03-Stream-API.md)
 - [ ] [04 — Collectors and Spliterators](04-Java-8-and-Functional-Programming/04-Collectors-and-Spliterators.md)
-- [ ] [05 — Optional](04-Java-8-and-Functional-Programming/05-Optional.md)
-- [ ] [06 — Date-Time API](04-Java-8-and-Functional-Programming/06-Date-Time-API.md)
+- [x] [05 — Optional](04-Java-8-and-Functional-Programming/05-Optional.md)
+- [x] [06 — Date-Time API](04-Java-8-and-Functional-Programming/06-Date-Time-API.md)
 
 ### 05 — Concurrency and Multithreading
-- [ ] [01 — Threads and Lifecycle](05-Concurrency-and-Multithreading/01-Threads-and-Lifecycle.md)
-- [ ] [02 — Synchronization and Locks](05-Concurrency-and-Multithreading/02-Synchronization-and-Locks.md)
-- [ ] [03 — Volatile and Java Memory Model](05-Concurrency-and-Multithreading/03-Volatile-and-Java-Memory-Model.md)
-- [ ] [04 — Executors and Thread Pools](05-Concurrency-and-Multithreading/04-Executors-and-Thread-Pools.md)
-- [ ] [05 — Futures and CompletableFuture](05-Concurrency-and-Multithreading/05-Futures-and-CompletableFuture.md)
-- [ ] [06 — Atomics and Concurrent Collections](05-Concurrency-and-Multithreading/06-Atomics-and-Concurrent-Collections.md)
-- [ ] [07 — Deadlocks, Race Conditions and Thread Safety](05-Concurrency-and-Multithreading/07-Deadlocks-Race-Conditions-and-Thread-Safety.md)
-- [ ] [08 — Virtual Threads (JDK 21)](05-Concurrency-and-Multithreading/08-Virtual-Threads-JDK-21.md)
+- [x] [01 — Threads and Lifecycle](05-Concurrency-and-Multithreading/01-Threads-and-Lifecycle.md)
+- [x] [02 — Synchronization and Locks](05-Concurrency-and-Multithreading/02-Synchronization-and-Locks.md)
+- [x] [03 — Volatile and Java Memory Model](05-Concurrency-and-Multithreading/03-Volatile-and-Java-Memory-Model.md)
+- [x] [04 — Executors and Thread Pools](05-Concurrency-and-Multithreading/04-Executors-and-Thread-Pools.md)
+- [x] [05 — Futures and CompletableFuture](05-Concurrency-and-Multithreading/05-Futures-and-CompletableFuture.md)
+- [x] [06 — Atomics and Concurrent Collections](05-Concurrency-and-Multithreading/06-Atomics-and-Concurrent-Collections.md)
+- [x] [07 — Deadlocks, Race Conditions and Thread Safety](05-Concurrency-and-Multithreading/07-Deadlocks-Race-Conditions-and-Thread-Safety.md)
+- [x] [08 — Virtual Threads (JDK 21)](05-Concurrency-and-Multithreading/08-Virtual-Threads-JDK-21.md)
 - [ ] [09 — Structured Concurrency and Scoped Values](05-Concurrency-and-Multithreading/09-Structured-Concurrency-and-Scoped-Values.md)
 
 ### 06 — JVM and Memory Management
@@ -128,7 +128,7 @@ Legend: `[x] file started and included; [ ] planned, not yet completed. Completi
 | Deliverable | Target | Current status |
 |---|---:|---|
 | Foundation files | README, roadmap, seven fundamentals chapters plus core language, collections, and functional programming chapters | In progress |
-| Unique Q&A | 400+ | 415 questions across 16 substantive chapters |
+| Unique Q&A | 400+ | 639 questions across 27 substantive chapters |
 | Senior scenarios | 50+ | Planned |
 | Coding/output problems | 50+ | Planned |
 | Mock interviews | 5 | Planned |
