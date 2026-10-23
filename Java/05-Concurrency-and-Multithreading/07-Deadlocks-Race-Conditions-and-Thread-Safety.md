@@ -135,3 +135,25 @@ Document the class's concurrency policy: immutable, thread-confined, thread-safe
 - [ ] Prevent deadlock through ordering and ownership.
 - [ ] Diagnose concurrency failures with dumps, metrics, and controlled tests.
 - [ ] Define a clear thread-safety contract for every shared component.
+
+## Worked examples: race detection and safe ownership
+
+### Example 1. A read-modify-write operation is not atomic
+
+~~~java
+class UnsafeCounter {
+    private int count;
+    void increment() { count++; }
+    int get() { return count; }
+}
+~~~
+
+Multiple threads can read the same old value and overwrite each other's updates. Use synchronization, an atomic type, or thread confinement depending on whether the count is an independent statistic or part of a larger invariant.
+
+### Example 2. Prefer immutable values across thread boundaries
+
+A fully initialized immutable value can often be shared safely when it is properly published. Immutability prevents later state mutation from racing, but it does not itself repair unsafe publication or make mutable objects referenced by its fields immutable. Design the entire reachable state graph deliberately.
+
+### Example 3. A thread dump is evidence, not the whole diagnosis
+
+Take multiple thread dumps a short interval apart and compare the same stacks, lock ownership, and thread states. Correlate with CPU, queue depth, request latency, and connection-pool metrics. One WAITING thread is often normal; a cycle of monitor ownership or repeated lack of progress is more informative.
