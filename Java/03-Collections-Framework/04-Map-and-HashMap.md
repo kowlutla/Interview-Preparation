@@ -170,3 +170,62 @@ If keys are attacker-controlled, evaluate adversarial hash patterns and resource
 - [ ] Understand null ambiguity and iteration-order guarantees.
 - [ ] Use atomic map methods for compound update intent.
 - [ ] Treat caches as lifecycle/concurrency policies, not just maps.
+
+## Worked examples: contracts in code
+
+### Example 1. A key must keep stable equality and hash state
+
+\`\`\`java
+import java.util.HashMap;
+import java.util.Map;
+
+final class UserKey {
+    private String email;
+
+    UserKey(String email) { this.email = email; }
+
+    @Override public boolean equals(Object other) {
+        return other instanceof UserKey that
+                && java.util.Objects.equals(email, that.email);
+    }
+
+    @Override public int hashCode() {
+        return java.util.Objects.hashCode(email);
+    }
+
+    void setEmail(String email) { this.email = email; }
+}
+
+class MutableKeyDemo {
+    public static void main(String[] args) {
+        Map<UserKey, String> map = new HashMap<>();
+        UserKey key = new UserKey("a@example.com");
+        map.put(key, "user");
+        key.setEmail("b@example.com");
+        System.out.println(map.get(key)); // typically null; do not rely on lookup
+    }
+}
+\`\`\`
+
+The map placed the entry using the hash value at insertion time. Mutating state used by `hashCode` or `equals` breaks the map's lookup assumptions. The safe design is an immutable key, not a workaround that attempts to reinsert keys after mutation.
+
+### Example 2. Use a map operation for a per-key computation
+
+\`\`\`java
+Map<String, java.util.List<String>> grouped = new HashMap<>();
+grouped.computeIfAbsent("team-a", ignored -> new java.util.ArrayList<>())
+       .add("service-1");
+\`\`\`
+
+This is appropriate for a thread-confined `HashMap`. It does not make the list safe for concurrent mutation. With a `ConcurrentHashMap`, the mapping computation has documented atomicity constraints, but mutating a returned mutable value still requires its own concurrency design. Keep mapping functions short and avoid recursively updating the same map.
+
+### Example 3. Choose a duplicate-key policy deliberately
+
+\`\`\`java
+Map<String, Integer> totals = new HashMap<>();
+totals.merge("orders", 1, Integer::sum);
+totals.merge("orders", 1, Integer::sum);
+System.out.println(totals.get("orders")); // 2
+\`\`\`
+
+`merge` expresses the duplicate policy as summation. For `Collectors.toMap`, supply a merge function when duplicate keys are expected; otherwise, the two-argument overload throws for duplicate mapped keys. Do not silently choose first/last if duplicates indicate invalid domain data.
