@@ -214,3 +214,47 @@ Readability and correctness outrank style preference. A senior engineer should b
 - [ ] Understand associativity and side-effect hazards in parallel streams.
 - [ ] Use primitive streams when they improve clarity and avoid unnecessary boxing.
 - [ ] Choose streams or loops based on clarity, correctness, and measured performance.
+
+## Worked examples: stream contracts and pitfalls
+
+### Example 1. Avoid side effects in intermediate operations
+
+\`\`\`java
+List<Integer> seen = new ArrayList<>();
+long count = Stream.of(1, 2, 3)
+        .peek(seen::add)
+        .count();
+\`\`\`
+
+Do not rely on `seen` being populated as a required business effect. Implementations can sometimes compute a terminal result directly when the source size is known and intermediate operations do not change it, so traversal side effects may be elided. Use an explicit terminal operation or a normal loop when side effects are part of the requirement.
+
+### Example 2. Reduce values with an associative operation
+
+\`\`\`java
+int sum = Stream.of(1, 2, 3, 4)
+        .parallel()
+        .reduce(0, Integer::sum);
+System.out.println(sum); // 10
+\`\`\`
+
+Addition of these integers is associative under Java's defined `int` arithmetic (including wraparound), and zero is an identity. A subtraction reduction is not associative, so parallel partitioning can change the result. For mutable containers, prefer `collect` rather than using `reduce` with a shared mutable identity.
+
+### Example 3. Make list mutability explicit
+
+\`\`\`java
+List<String> result = Stream.of("a", "b").toList(); // unmodifiable, Java 16+
+List<String> mutable = Stream.of("a", "b")
+        .collect(Collectors.toCollection(ArrayList::new));
+\`\`\`
+
+Do not assume `Collectors.toList()` promises an `ArrayList` or a specific mutability contract. Choose `toList()` when an unmodifiable result is desired on Java 16+, or `toCollection(ArrayList::new)` when the contract requires a mutable `ArrayList`.
+
+### Example 4. Keep parallel side effects out of shared mutable state
+
+\`\`\`java
+List<Integer> values = IntStream.range(0, 1_000)
+        .boxed()
+        .collect(Collectors.toList());
+\`\`\`
+
+A collector expresses the accumulation to the stream implementation. Replacing this with `parallel().forEach(sharedList::add)` on an ordinary `ArrayList` is unsafe because concurrent mutations race. Use a proper collector or a concurrent data structure only when its semantics match the requirement.
