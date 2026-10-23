@@ -2,13 +2,13 @@
 
 **Review baseline:** 2026-10-24  
 **Scope:** Core Java handbook targeting Java 8–21  
-**Purpose:** Assess syllabus coverage and specification-level accuracy without treating file existence or question count as proof of completeness.
+**Purpose:** Assess syllabus coverage and specification-level accuracy without treating file existence or question count as proof of completeness. Per the user's direction, this pass focuses on topic coverage and technical claims rather than compiling or executing code.
 
 ## Executive assessment
 
 The repository has broad coverage across Java fundamentals, core language, collections, streams, concurrency, JVM/GC, release features, JDBC/networking, security, performance, coding practice, production scenarios, and senior interview practice. However, a broad chapter inventory is not equivalent to a verified, exhaustive syllabus.
 
-The right status is **broad first-pass coverage; technical and topic-completeness review still required**. This review deliberately does not claim every answer has been independently proven correct.
+The repository now has **56 Q&A chapters and 1,058 numbered Q&As**, plus dedicated coding, scenario, and mock-interview material. The right status is **broad first-pass coverage; technical and topic-completeness review still required**. This is not a claim that every answer has undergone a line-by-line specification audit.
 
 ## Coverage matrix
 
@@ -22,13 +22,13 @@ The right status is **broad first-pass coverage; technical and topic-completenes
 | Functional programming and streams | Lambdas, interfaces, Stream, collectors, Optional, date/time | Broad | Collector associativity/identity, side-effect elision, encounter order, parallel cost, API release compatibility |
 | Concurrency and JMM | Threads, locks, volatile, executors, futures, atomics, races, virtual threads, preview APIs, synchronizers | Broad but high-risk | Happens-before precision, interruption/cancellation, pool starvation, concurrent value mutation, API-specific failure semantics |
 | JVM, class loading, memory, GC, JIT | Dedicated chapters and scenarios | Broad | Specification vs HotSpot detail; collector/version distinctions; native memory and container limits |
-| Java 8–21 release history | Release chapters 8–21 | Broad | Verify each feature's first release and final/preview/incubator/deprecated status; check later API changes |
+| Java 8–21 release history | Release chapters 8–21 plus dedicated status matrix | Broad; one confirmed status error corrected | Continue cross-checking every feature against release-specific JEPs and APIs; verify later API changes |
 | I/O, NIO, serialization | Core language chapter | Partial-to-broad | Charset correctness, channels/selectors, file traversal, serialization filters, resource lifecycle |
 | JDBC and transactions | Advanced Java chapter | Partial-to-broad | Isolation levels, autocommit, batch operations, pool ownership, timeout/cancellation and retry semantics |
 | Networking and HTTP | Advanced Java chapter | Partial-to-broad | DNS, TLS/hostname verification, timeouts, connection pooling, redirects, backpressure |
 | Security | Dedicated chapter | Broad baseline | Cryptographic API details, path traversal race cases, SSRF DNS/redirect controls, deserialization filters, secrets |
 | Performance and diagnostics | Performance, JVM tools, incident scenarios | Broad | JMH methodology, JFR workflow, tail latency, allocation vs retention, evidence-based tuning |
-| Testing and build tooling | Not a dedicated chapter in the current tree | Gap / optional scope | JUnit 5, Mockito, property-based/concurrency testing, Maven/Gradle, CI compatibility matrices |
+| Testing and build tooling | Build/compiler tools covered; no dedicated test-framework chapter | Optional extension rather than core JDK gap | JUnit 5, Mockito, property-based/concurrency testing, Maven/Gradle workflows, CI compatibility matrices |
 | Annotation processing and compiler tooling | Dedicated chapter added | Coverage added; depth review remains | Annotation processor lifecycle, service registration, javac diagnostics, javap, jdeps, multi-release JARs |
 | Localization and text correctness | Strings/text and date/time chapters | Gap to assess | Unicode code points vs UTF-16 code units, normalization, locale-sensitive formatting, charset boundaries |
 | Coding/output practice | 50-problem bank | Authored; breadth review needed | Ensure array/string, maps, streams, recursion, complexity, edge cases and output classification are balanced |
