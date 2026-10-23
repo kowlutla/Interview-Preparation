@@ -76,12 +76,12 @@ Legend: `[x] file started and included; [ ] planned, not yet completed. Completi
 - [x] [07 — JVM Diagnostics and Tuning](06-JVM-and-Memory-Management/07-JVM-Diagnostics-and-Tuning.md)
 
 ### 07 — Java Version Features
-- [ ] [01 — Java 8 Features](07-Java-Version-Features/01-Java-8-Features.md)
-- [ ] [02 — Java 9–11 Features](07-Java-Version-Features/02-Java-9-11-Features.md)
-- [ ] [03 — Java 12–16 Features](07-Java-Version-Features/03-Java-12-16-Features.md)
-- [ ] [04 — Java 17 Features](07-Java-Version-Features/04-Java-17-Features.md)
-- [ ] [05 — Java 18–20 Features](07-Java-Version-Features/05-Java-18-20-Features.md)
-- [ ] [06 — Java 21 Features](07-Java-Version-Features/06-Java-21-Features.md)
+- [x] [01 — Java 8 Features](07-Java-Version-Features/01-Java-8-Features.md)
+- [x] [02 — Java 9–11 Features](07-Java-Version-Features/02-Java-9-11-Features.md)
+- [x] [03 — Java 12–16 Features](07-Java-Version-Features/03-Java-12-16-Features.md)
+- [x] [04 — Java 17 Features](07-Java-Version-Features/04-Java-17-Features.md)
+- [x] [05 — Java 18–20 Features](07-Java-Version-Features/05-Java-18-20-Features.md)
+- [x] [06 — Java 21 Features](07-Java-Version-Features/06-Java-21-Features.md)
 
 ### 08 — Advanced Java
 - [ ] [01 — JDBC and Transactions](08-Advanced-Java/01-JDBC-and-Transactions.md)
@@ -128,7 +128,7 @@ Legend: `[x] file started and included; [ ] planned, not yet completed. Completi
 | Deliverable | Target | Current status |
 |---|---:|---|
 | Foundation files | README, roadmap, seven fundamentals chapters plus core language, collections, and functional programming chapters | In progress |
-| Unique Q&A | 400+ | 801 questions across 39 substantive chapters |
+| Unique Q&A | 400+ | 871 questions across 45 substantive chapters |
 | Senior scenarios | 50+ | Planned |
 | Coding/output problems | 50+ | Planned |
 | Mock interviews | 5 | Planned |
