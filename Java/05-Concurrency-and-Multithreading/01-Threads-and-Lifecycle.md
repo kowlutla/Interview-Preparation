@@ -136,3 +136,40 @@ Observe task failures explicitly through futures, structured logging, metrics, a
 - [ ] Explain races, confinement, and safe publication.
 - [ ] Use executors and coordination primitives rather than timing tricks.
 - [ ] Diagnose stuck threads with dumps and task-level observability.
+
+## Worked examples: lifecycle, joining, and interruption
+
+### Example 1. start() schedules a new thread; run() is an ordinary call
+
+~~~java
+Thread worker = new Thread(() -> System.out.println("worker"));
+worker.run();   // runs on the current thread
+worker.start(); // starts a separate thread
+~~~
+
+Calling run() directly does not create a new thread. The second call requests a new thread of execution. A Thread instance cannot be started more than once; attempting to restart it throws IllegalThreadStateException.
+
+### Example 2. Use join to wait for completion
+
+~~~java
+Thread worker = new Thread(() -> performBoundedWork());
+worker.start();
+worker.join();
+System.out.println("work completed");
+~~~
+
+join() waits for the target thread to terminate. In real code, decide how interruption of the waiting thread should be handled and whether a timeout is required. Do not rely on sleeps to coordinate completion; use lifecycle and synchronization primitives.
+
+### Example 3. Interruption is a cooperative cancellation request
+
+~~~java
+Thread worker = new Thread(() -> {
+    while (!Thread.currentThread().isInterrupted()) {
+        performOneBoundedStep();
+    }
+});
+worker.start();
+worker.interrupt();
+~~~
+
+Interruption does not forcibly terminate arbitrary code. Blocking methods may throw InterruptedException and clear the status; code must propagate, restore, or deliberately handle the request. A production task should define its cleanup and cancellation behavior.
