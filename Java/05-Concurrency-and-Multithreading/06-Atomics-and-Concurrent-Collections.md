@@ -116,3 +116,34 @@ Avoid asserting one specific interleaving unless synchronization explicitly enfo
 - [ ] Distinguish ConcurrentHashMap and concurrent collection iterator semantics.
 - [ ] Use atomic compound methods instead of check-then-act sequences.
 - [ ] Test correctness under contention and distinguish local from distributed guarantees.
+
+## Worked examples: atomic updates and concurrent maps
+
+### Example 1. Use compare-and-set for a small state transition
+
+~~~java
+AtomicInteger state = new AtomicInteger(0);
+boolean changed = state.compareAndSet(0, 1);
+System.out.println(changed); // true if state was 0 at the instant of the CAS
+~~~
+
+CAS atomically changes the value only if it equals the expected value. In retry loops, the update function may run more than once, so it must not perform non-idempotent external side effects. CAS also does not automatically protect a multi-variable invariant.
+
+### Example 2. Use LongAdder for contended statistics, not every counter
+
+~~~java
+LongAdder requests = new LongAdder();
+requests.increment();
+long observed = requests.sum();
+~~~
+
+LongAdder can improve throughput under high contention by spreading updates across cells, but sum() is not an atomic snapshot with respect to concurrent updates. It is well suited to statistics; it is not a replacement for a precise sequence number or a counter that must participate in a strict invariant.
+
+### Example 3. Concurrent map does not make contained objects thread-safe
+
+~~~java
+ConcurrentHashMap<String, List<String>> groups = new ConcurrentHashMap<>();
+groups.computeIfAbsent("a", key -> new ArrayList<>()).add("value");
+~~~
+
+The map's own operations are concurrent, but the ArrayList stored as a value remains mutable and unsynchronized. If multiple threads mutate the same value, protect that value, use an appropriate concurrent value type, or redesign the update as an atomic map-level operation.
