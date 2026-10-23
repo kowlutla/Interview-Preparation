@@ -245,3 +245,42 @@ Use structured logs, metrics, traces, correlation identifiers, and bounded error
 - [ ] Avoid swallowing interruption or returning from finally.
 - [ ] Design retries and transaction policies around idempotency and failure semantics.
 - [ ] Translate internal exceptions into safe, stable API responses.
+
+## Worked examples: exception contracts
+
+### Example 1. Try-with-resources preserves the primary exception
+
+~~~java
+class Resource implements AutoCloseable {
+    @Override public void close() throws Exception {
+        throw new Exception("close failed");
+    }
+}
+
+static void demonstrateSuppression() throws Exception {
+    try (Resource resource = new Resource()) {
+        throw new Exception("work failed");
+    }
+}
+~~~
+
+When both the body and close() fail, the exception from the body remains primary and the close failure is recorded as a suppressed exception. Inspect getSuppressed() during diagnosis. This behavior is safer than hand-written cleanup that accidentally replaces the original failure.
+
+### Example 2. Preserve interruption when you cannot propagate it
+
+~~~java
+try {
+    Thread.sleep(100);
+} catch (InterruptedException e) {
+    Thread.currentThread().interrupt();
+    return; // or stop/cancel the current operation
+}
+~~~
+
+Many blocking APIs clear the interrupted status when they throw InterruptedException. If the method cannot propagate the exception, restore the status and stop or transition to a defined cancellation path. Swallowing interruption can break shutdown, cancellation, and task ownership.
+
+### Example 3. Do not turn every failure into an empty result
+
+If a repository returns Optional.empty() for “record not found,” a database timeout should not also become Optional.empty(). Absence is a domain result; a timeout is an operational failure that may require retry, an error response, or a circuit-breaker policy.
+
+Keep error mapping at clear boundaries. Preserve causes for diagnostics, avoid leaking sensitive internals to clients, and do not retry a non-idempotent operation without a deduplication or reconciliation strategy.
