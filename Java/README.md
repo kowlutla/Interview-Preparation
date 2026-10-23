@@ -2,7 +2,7 @@
 
 A version-aware, technically deep Core Java handbook for Senior Software Engineer and Senior Backend Engineer interviews. The material emphasizes fundamentals, internal mechanics, trade-offs, debugging, production diagnosis, and the evolution from Java 8 through Java 21—with particular attention to Java 17 and Java 21.
 
-> **Status:** Foundation phase in progress. The handbook is being built chapter-by-chapter; unchecked items are not yet complete. A planned topic is not a claim that its full question set already exists.
+> **Status:** Core handbook coverage authored; validation and remaining depth expansion in progress. The handbook is being built chapter-by-chapter; unchecked items are not yet complete. A planned topic is not a claim that its full question set already exists.
 
 ## Study path
 
@@ -35,8 +35,8 @@ Legend: `[x] file started and included; [ ] planned, not yet completed. Completi
 - [x] [03 — Reflection and Dynamic Proxies](02-Core-Language/03-Reflection-and-Dynamic-Proxies.md)
 - [x] [04 — Generics and Type System](01-Java-Fundamentals/05-Generics-and-Type-System.md)
 - [x] [05 — Exceptions and Error Handling](01-Java-Fundamentals/06-Exceptions-and-Error-Handling.md)
-- [x] [05 — Modules and JPMS](02-Core-Language/05-Modules-and-JPMS.md)
-- [x] [06 — I/O, NIO and Serialization](02-Core-Language/06-IO-NIO-and-Serialization.md)
+- [x] [06 — Modules and JPMS](02-Core-Language/05-Modules-and-JPMS.md)
+- [x] [07 — I/O, NIO and Serialization](02-Core-Language/06-IO-NIO-and-Serialization.md)
 
 ### 03 — Collections Framework
 - [x] [01 — Collections Overview](03-Collections-Framework/01-Collections-Overview.md)
@@ -51,7 +51,7 @@ Legend: `[x] file started and included; [ ] planned, not yet completed. Completi
 - [x] [01 — Lambda Expressions](04-Java-8-and-Functional-Programming/01-Lambda-Expressions.md)
 - [x] [02 — Functional Interfaces](04-Java-8-and-Functional-Programming/02-Functional-Interfaces.md)
 - [x] [03 — Stream API](04-Java-8-and-Functional-Programming/03-Stream-API.md)
-- [ ] [04 — Collectors and Spliterators](04-Java-8-and-Functional-Programming/04-Collectors-and-Spliterators.md)
+- [x] [04 — Collectors and Spliterators](04-Java-8-and-Functional-Programming/04-Collectors-and-Spliterators.md)
 - [x] [05 — Optional](04-Java-8-and-Functional-Programming/05-Optional.md)
 - [x] [06 — Date-Time API](04-Java-8-and-Functional-Programming/06-Date-Time-API.md)
 
@@ -64,7 +64,7 @@ Legend: `[x] file started and included; [ ] planned, not yet completed. Completi
 - [x] [06 — Atomics and Concurrent Collections](05-Concurrency-and-Multithreading/06-Atomics-and-Concurrent-Collections.md)
 - [x] [07 — Deadlocks, Race Conditions and Thread Safety](05-Concurrency-and-Multithreading/07-Deadlocks-Race-Conditions-and-Thread-Safety.md)
 - [x] [08 — Virtual Threads (JDK 21)](05-Concurrency-and-Multithreading/08-Virtual-Threads-JDK-21.md)
-- [ ] [09 — Structured Concurrency and Scoped Values](05-Concurrency-and-Multithreading/09-Structured-Concurrency-and-Scoped-Values.md)
+- [x] [09 — Structured Concurrency and Scoped Values](05-Concurrency-and-Multithreading/09-Structured-Concurrency-and-Scoped-Values.md)
 
 ### 06 — JVM and Memory Management
 - [x] [01 — JVM Architecture](06-JVM-and-Memory-Management/01-JVM-Architecture.md)
@@ -84,35 +84,31 @@ Legend: `[x] file started and included; [ ] planned, not yet completed. Completi
 - [x] [06 — Java 21 Features](07-Java-Version-Features/06-Java-21-Features.md)
 
 ### 08 — Advanced Java
-- [ ] [01 — JDBC and Transactions](08-Advanced-Java/01-JDBC-and-Transactions.md)
-- [ ] [02 — Networking and Sockets](08-Advanced-Java/02-Networking-and-Sockets.md)
-- [ ] [03 — Design Patterns and SOLID](08-Advanced-Java/03-Design-Patterns-and-SOLID.md)
-- [ ] [04 — Security and Secure Coding](08-Advanced-Java/04-Security-and-Secure-Coding.md)
-- [ ] [05 — Performance and Benchmarking](08-Advanced-Java/05-Performance-and-Benchmarking.md)
-- [ ] [06 — Advanced Internals and APIs](08-Advanced-Java/06-Advanced-Internals-and-APIs.md)
+- [x] [01 — JDBC and Transactions](08-Advanced-Java/01-JDBC-and-Transactions.md)
+- [x] [02 — Networking and Sockets](08-Advanced-Java/02-Networking-and-Sockets.md)
+- [x] [03 — Design Patterns and SOLID](08-Advanced-Java/03-Design-Patterns-and-SOLID.md)
+- [x] [04 — Security and Secure Coding](08-Advanced-Java/04-Security-and-Secure-Coding.md)
+- [x] [05 — Performance and Benchmarking](08-Advanced-Java/05-Performance-and-Benchmarking.md)
+- [x] [06 — Advanced Internals and APIs](08-Advanced-Java/06-Advanced-Internals-and-APIs.md)
 
 ### 09 — Coding and Problem Solving
-- [ ] [01 — String and Array Problems](09-Coding-and-Problem-Solving/01-String-and-Array-Problems.md)
-- [ ] [02 — Collections Coding Problems](09-Coding-and-Problem-Solving/02-Collections-Coding-Problems.md)
-- [ ] [03 — Streams and Lambda Problems](09-Coding-and-Problem-Solving/03-Streams-and-Lambda-Problems.md)
-- [ ] [04 — Concurrency Coding Problems](09-Coding-and-Problem-Solving/04-Concurrency-Coding-Problems.md)
-- [ ] [05 — Output Prediction and Tricky Questions](09-Coding-and-Problem-Solving/05-Output-Prediction-and-Tricky-Questions.md)
+- [x] [01 — 50 Coding and Output Problems](09-Coding-and-Output/01-50-Coding-and-Output-Problems.md)
 
 ### 10 — Real-World Scenarios
-- [ ] [01 — Collections and Concurrency Scenarios](10-Real-World-Scenarios/01-Collections-and-Concurrency-Scenarios.md)
+- [x] [01 — 50 Collections, Concurrency, JVM, I/O and Security Scenarios](10-Real-World-Scenarios/01-Collections-and-Concurrency-Scenarios.md)
 - [ ] [02 — JVM and Memory Incidents](10-Real-World-Scenarios/02-JVM-and-Memory-Incidents.md)
 - [ ] [03 — Performance Troubleshooting](10-Real-World-Scenarios/03-Performance-Troubleshooting.md)
 - [ ] [04 — Production Debugging and Root-Cause Analysis](10-Real-World-Scenarios/04-Production-Debugging-and-Root-Cause-Analysis.md)
 
 ### 11 — Senior Interview Preparation
-- [ ] [01 — Advanced Cross-Questioning](11-Senior-Interview-Preparation/01-Advanced-Cross-Questioning.md)
-- [ ] [02 — Architecture and Trade-Offs](11-Senior-Interview-Preparation/02-Architecture-and-Trade-Offs.md)
-- [ ] [03 — Rapid-Fire Revision](11-Senior-Interview-Preparation/03-Rapid-Fire-Revision.md)
-- [ ] [04 — Mock Interviews](11-Senior-Interview-Preparation/04-Mock-Interviews.md)
-- [ ] [05 — Final Revision Checklist](11-Senior-Interview-Preparation/05-Final-Revision-Checklist.md)
+- [x] [01 — Advanced Cross-Questioning](11-Senior-Interview-Preparation/01-Advanced-Cross-Questioning.md)
+- [x] [02 — Architecture and Trade-Offs](11-Senior-Interview-Preparation/02-Architecture-and-Trade-Offs.md)
+- [x] [03 — Rapid-Fire Revision](11-Senior-Interview-Preparation/03-Rapid-Fire-Revision.md)
+- [x] [04 — Mock Interviews](11-Senior-Interview-Preparation/04-Mock-Interviews.md)
+- [x] [05 — Final Revision Checklist](11-Senior-Interview-Preparation/05-Final-Revision-Checklist.md)
 
 ### References
-- [ ] [Official Documentation and Resources](references/Official-Documentation-and-Resources.md)
+- [x] [Official Documentation and Resources](references/Official-Documentation-and-Resources.md)
 
 ## Quality contract
 
@@ -128,9 +124,9 @@ Legend: `[x] file started and included; [ ] planned, not yet completed. Completi
 | Deliverable | Target | Current status |
 |---|---:|---|
 | Foundation files | README, roadmap, seven fundamentals chapters plus core language, collections, and functional programming chapters | In progress |
-| Unique Q&A | 400+ | 871 questions across 45 substantive chapters |
-| Senior scenarios | 50+ | Planned |
-| Coding/output problems | 50+ | Planned |
-| Mock interviews | 5 | Planned |
+| Unique Q&A | 400+ | 999 questions across 60 substantive chapters |
+| Senior scenarios | 50+ | 50 scenarios authored |
+| Coding/output problems | 50+ | 50 problems authored |
+| Mock interviews | 5 | 5 mock interviews authored |
 
-This handbook will be delivered progressively. Its table of contents is the plan, not evidence that every linked future file already exists.
+The current navigation marks files that have been authored. Remaining unchecked items are planned expansions or additional scenario chapters, not claims of completed content.
