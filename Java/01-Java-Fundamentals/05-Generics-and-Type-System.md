@@ -255,3 +255,50 @@ Design signatures around the operations the method performs. Use wildcards for v
 - [ ] Explain invariance, erasure, raw types, bridge methods, and heap pollution.
 - [ ] Recognize restrictions on generic arrays, instanceof, and overload signatures.
 - [ ] Design APIs that preserve useful type relationships and diagnose unchecked casts.
+
+## Worked examples: generic contracts
+
+### Example 1. PECS makes producer and consumer roles explicit
+
+~~~java
+static double sum(List<? extends Number> values) {
+    double total = 0;
+    for (Number value : values) {
+        total += value.doubleValue();
+    }
+    return total;
+}
+
+static void addDefaults(List<? super Integer> target) {
+    target.add(0);
+    target.add(1);
+}
+~~~
+
+A ? extends Number list permits reading values as Number but not adding an arbitrary Number, because the actual list might be a List<Integer>. A ? super Integer list permits adding integers, but values read from it are only safely known as Object. PECS means Producer Extends, Consumer Super.
+
+### Example 2. Generic types are invariant
+
+~~~java
+List<Integer> integers = new ArrayList<>();
+// List<Number> numbers = integers; // compile-time error
+List<? extends Number> numbers = integers; // safe read view
+Number first = numbers.isEmpty() ? 0 : numbers.get(0);
+~~~
+
+If List<Integer> were assignable to List<Number>, code could add a Double to a list intended to contain integers. A bounded wildcard expresses a safe relationship without pretending the parameterized types are interchangeable.
+
+### Example 3. Raw types can bypass compile-time checks
+
+~~~java
+List<String> names = new ArrayList<>();
+List raw = names;       // raw-type warning
+raw.add(42);             // unchecked call warning
+// String name = names.get(0); // ClassCastException at runtime
+~~~
+
+Raw types exist primarily for compatibility with legacy code. They bypass generic checking and can create heap pollution. Keep raw/unchecked operations at narrow interoperability boundaries and make warnings visible during builds.
+
+### Example 4. Type erasure does not erase every runtime type fact
+
+A runtime object still has a concrete class, and arrays retain their component type. But the type argument of an ordinary List<String> is not generally available as a distinct runtime class token. This is why new List<String>[10] is illegal and why code cannot generally test value instanceof List<String>. APIs that need runtime type information should accept an explicit Class<T> token or a carefully designed type descriptor where appropriate.
