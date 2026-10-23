@@ -1,0 +1,134 @@
+# Complete Java Interview Q&A Handbook (JDK 8–21)
+
+A version-aware, technically deep Core Java handbook for Senior Software Engineer and Senior Backend Engineer interviews. The material emphasizes fundamentals, internal mechanics, trade-offs, debugging, production diagnosis, and the evolution from Java 8 through Java 21—with particular attention to Java 17 and Java 21.
+
+> **Status:** Foundation phase in progress. The handbook is being built chapter-by-chapter; unchecked items are not yet complete. A planned topic is not a claim that its full question set already exists.
+
+## Study path
+
+1. Start with the [roadmap](00-Java-Interview-Roadmap.md) and establish your JDK/toolchain.
+2. Study language fundamentals before collections and functional programming.
+3. Study concurrency together with the Java Memory Model; then move to JVM internals and diagnostics.
+4. Read each version chapter chronologically, paying special attention to what is finalized versus preview/incubator.
+5. Work through coding/output questions, then incident scenarios and mock interviews.
+6. Revisit the official references before interviews; version-sensitive details can change between feature releases and update releases.
+
+## Handbook navigation and completion tracker
+
+Legend: `[x] file started and included; [ ] planned, not yet completed. Completion refers to substantive handbook coverage, not simply file existence.
+
+### Roadmap
+- [x] [00 — Java Interview Roadmap](00-Java-Interview-Roadmap.md)
+
+### 01 — Java Fundamentals
+- [x] [01 — Java Basics and Execution](01-Java-Fundamentals/01-Java-Basics-and-Execution.md)
+- [ ] [02 — Data Types and Control Flow](01-Java-Fundamentals/02-Data-Types-and-Control-Flow.md)
+- [ ] [03 — OOP Principles](01-Java-Fundamentals/03-OOP-Principles.md)
+- [ ] [04 — Classes, Interfaces and Records](01-Java-Fundamentals/04-Classes-Interfaces-and-Records.md)
+- [ ] [05 — Strings and Immutability](01-Java-Fundamentals/05-Strings-and-Immutability.md)
+- [ ] [06 — Object Class and Contracts](01-Java-Fundamentals/06-Object-Class-and-Contracts.md)
+
+### 02 — Core Language
+- [ ] [01 — Exception Handling](02-Core-Language/01-Exception-Handling.md)
+- [ ] [02 — Generics](02-Core-Language/02-Generics.md)
+- [ ] [03 — Enums and Annotations](02-Core-Language/03-Enums-and-Annotations.md)
+- [ ] [04 — Reflection and Dynamic Proxies](02-Core-Language/04-Reflection-and-Dynamic-Proxies.md)
+- [ ] [05 — Modules and JPMS](02-Core-Language/05-Modules-and-JPMS.md)
+- [ ] [06 — I/O, NIO and Serialization](02-Core-Language/06-IO-NIO-and-Serialization.md)
+
+### 03 — Collections Framework
+- [ ] [01 — Collections Overview](03-Collections-Framework/01-Collections-Overview.md)
+- [ ] [02 — List and ArrayList](03-Collections-Framework/02-List-and-ArrayList.md)
+- [ ] [03 — Set and HashSet](03-Collections-Framework/03-Set-and-HashSet.md)
+- [ ] [04 — Map and HashMap](03-Collections-Framework/04-Map-and-HashMap.md)
+- [ ] [05 — TreeMap and Sorted Collections](03-Collections-Framework/05-TreeMap-and-Sorted-Collections.md)
+- [ ] [06 — Queue, Deque and PriorityQueue](03-Collections-Framework/06-Queue-Deque-and-PriorityQueue.md)
+- [ ] [07 — Iterators and Collection Internals](03-Collections-Framework/07-Iterators-and-Collection-Internals.md)
+
+### 04 — Java 8 and Functional Programming
+- [ ] [01 — Lambda Expressions](04-Java-8-and-Functional-Programming/01-Lambda-Expressions.md)
+- [ ] [02 — Functional Interfaces](04-Java-8-and-Functional-Programming/02-Functional-Interfaces.md)
+- [ ] [03 — Stream API](04-Java-8-and-Functional-Programming/03-Stream-API.md)
+- [ ] [04 — Collectors and Spliterators](04-Java-8-and-Functional-Programming/04-Collectors-and-Spliterators.md)
+- [ ] [05 — Optional](04-Java-8-and-Functional-Programming/05-Optional.md)
+- [ ] [06 — Date-Time API](04-Java-8-and-Functional-Programming/06-Date-Time-API.md)
+
+### 05 — Concurrency and Multithreading
+- [ ] [01 — Threads and Lifecycle](05-Concurrency-and-Multithreading/01-Threads-and-Lifecycle.md)
+- [ ] [02 — Synchronization and Locks](05-Concurrency-and-Multithreading/02-Synchronization-and-Locks.md)
+- [ ] [03 — Volatile and Java Memory Model](05-Concurrency-and-Multithreading/03-Volatile-and-Java-Memory-Model.md)
+- [ ] [04 — Executors and Thread Pools](05-Concurrency-and-Multithreading/04-Executors-and-Thread-Pools.md)
+- [ ] [05 — Futures and CompletableFuture](05-Concurrency-and-Multithreading/05-Futures-and-CompletableFuture.md)
+- [ ] [06 — Atomics and Concurrent Collections](05-Concurrency-and-Multithreading/06-Atomics-and-Concurrent-Collections.md)
+- [ ] [07 — Deadlocks, Race Conditions and Thread Safety](05-Concurrency-and-Multithreading/07-Deadlocks-Race-Conditions-and-Thread-Safety.md)
+- [ ] [08 — Virtual Threads (JDK 21)](05-Concurrency-and-Multithreading/08-Virtual-Threads-JDK-21.md)
+- [ ] [09 — Structured Concurrency and Scoped Values](05-Concurrency-and-Multithreading/09-Structured-Concurrency-and-Scoped-Values.md)
+
+### 06 — JVM and Memory Management
+- [ ] [01 — JVM Architecture](06-JVM-and-Memory-Management/01-JVM-Architecture.md)
+- [ ] [02 — Class Loading and Bytecode](06-JVM-and-Memory-Management/02-Class-Loading-and-Bytecode.md)
+- [ ] [03 — Java Memory Areas](06-JVM-and-Memory-Management/03-Java-Memory-Areas.md)
+- [ ] [04 — Garbage Collection](06-JVM-and-Memory-Management/04-Garbage-Collection.md)
+- [ ] [05 — JIT and JVM Optimization](06-JVM-and-Memory-Management/05-JIT-and-JVM-Optimization.md)
+- [ ] [06 — Memory Leaks and OOM](06-JVM-and-Memory-Management/06-Memory-Leaks-and-OOM.md)
+- [ ] [07 — JVM Diagnostics and Tuning](06-JVM-and-Memory-Management/07-JVM-Diagnostics-and-Tuning.md)
+
+### 07 — Java Version Features
+- [ ] [01 — Java 8 Features](07-Java-Version-Features/01-Java-8-Features.md)
+- [ ] [02 — Java 9–11 Features](07-Java-Version-Features/02-Java-9-11-Features.md)
+- [ ] [03 — Java 12–16 Features](07-Java-Version-Features/03-Java-12-16-Features.md)
+- [ ] [04 — Java 17 Features](07-Java-Version-Features/04-Java-17-Features.md)
+- [ ] [05 — Java 18–20 Features](07-Java-Version-Features/05-Java-18-20-Features.md)
+- [ ] [06 — Java 21 Features](07-Java-Version-Features/06-Java-21-Features.md)
+
+### 08 — Advanced Java
+- [ ] [01 — JDBC and Transactions](08-Advanced-Java/01-JDBC-and-Transactions.md)
+- [ ] [02 — Networking and Sockets](08-Advanced-Java/02-Networking-and-Sockets.md)
+- [ ] [03 — Design Patterns and SOLID](08-Advanced-Java/03-Design-Patterns-and-SOLID.md)
+- [ ] [04 — Security and Secure Coding](08-Advanced-Java/04-Security-and-Secure-Coding.md)
+- [ ] [05 — Performance and Benchmarking](08-Advanced-Java/05-Performance-and-Benchmarking.md)
+- [ ] [06 — Advanced Internals and APIs](08-Advanced-Java/06-Advanced-Internals-and-APIs.md)
+
+### 09 — Coding and Problem Solving
+- [ ] [01 — String and Array Problems](09-Coding-and-Problem-Solving/01-String-and-Array-Problems.md)
+- [ ] [02 — Collections Coding Problems](09-Coding-and-Problem-Solving/02-Collections-Coding-Problems.md)
+- [ ] [03 — Streams and Lambda Problems](09-Coding-and-Problem-Solving/03-Streams-and-Lambda-Problems.md)
+- [ ] [04 — Concurrency Coding Problems](09-Coding-and-Problem-Solving/04-Concurrency-Coding-Problems.md)
+- [ ] [05 — Output Prediction and Tricky Questions](09-Coding-and-Problem-Solving/05-Output-Prediction-and-Tricky-Questions.md)
+
+### 10 — Real-World Scenarios
+- [ ] [01 — Collections and Concurrency Scenarios](10-Real-World-Scenarios/01-Collections-and-Concurrency-Scenarios.md)
+- [ ] [02 — JVM and Memory Incidents](10-Real-World-Scenarios/02-JVM-and-Memory-Incidents.md)
+- [ ] [03 — Performance Troubleshooting](10-Real-World-Scenarios/03-Performance-Troubleshooting.md)
+- [ ] [04 — Production Debugging and Root-Cause Analysis](10-Real-World-Scenarios/04-Production-Debugging-and-Root-Cause-Analysis.md)
+
+### 11 — Senior Interview Preparation
+- [ ] [01 — Advanced Cross-Questioning](11-Senior-Interview-Preparation/01-Advanced-Cross-Questioning.md)
+- [ ] [02 — Architecture and Trade-Offs](11-Senior-Interview-Preparation/02-Architecture-and-Trade-Offs.md)
+- [ ] [03 — Rapid-Fire Revision](11-Senior-Interview-Preparation/03-Rapid-Fire-Revision.md)
+- [ ] [04 — Mock Interviews](11-Senior-Interview-Preparation/04-Mock-Interviews.md)
+- [ ] [05 — Final Revision Checklist](11-Senior-Interview-Preparation/05-Final-Revision-Checklist.md)
+
+### References
+- [ ] [Official Documentation and Resources](references/Official-Documentation-and-Resources.md)
+
+## Quality contract
+
+- Question headings contain the question once; the answer starts immediately beneath the heading. No repeated question and no “Answer” label.
+- Questions are numbered consistently within each chapter (for example, `Q1`, `Q2`). The roadmap will track aggregate question counts when chapters are authored.
+- Target at least **400 unique questions**, at least **50 production scenarios**, at least **50 coding/output problems**, and five mock interviews across the completed handbook.
+- Every version-sensitive claim should cite an official API specification, JEP, JLS/JVMS section, Oracle/OpenJDK documentation, or a reputable supplementary resource.
+- Preview and incubator APIs must be explicitly labeled with the release and status; do not present them as finalized features.
+- Prefer runnable examples, explicit assumptions, complexity analysis where relevant, and diagnostic commands that can be used in production-like environments.
+
+## Progress snapshot
+
+| Deliverable | Target | Current status |
+|---|---:|---|
+| Foundation files | README, roadmap, first fundamentals chapter | In progress |
+| Unique Q&A | 400+ | 35 questions in the initial chapter draft |
+| Senior scenarios | 50+ | Planned |
+| Coding/output problems | 50+ | Planned |
+| Mock interviews | 5 | Planned |
+
+This handbook will be delivered progressively. Its table of contents is the plan, not evidence that every linked future file already exists.
