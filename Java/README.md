@@ -110,6 +110,10 @@ Legend: `[x] file started and included; [ ] planned, not yet completed. Completi
 ### References
 - [x] [Official Documentation and Resources](references/Official-Documentation-and-Resources.md)
 
+## Quality assurance
+
+- [Quality Audit and Remediation Plan](QUALITY-AUDIT-AND-REMEDIATION.md) — structural checks, priority-ranked correctness and coverage review, and release criteria.
+
 ## Quality contract
 
 - Question headings contain the question once; the answer starts immediately beneath the heading. No repeated question and no “Answer” label.
