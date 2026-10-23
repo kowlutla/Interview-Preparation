@@ -101,3 +101,9 @@ The handbook is ready for a release candidate only when:
 ## 5. First implementation target
 
 Start with a **coverage matrix and a correctness pass over Java Fundamentals, Collections, Streams, and Concurrency**. These topics are foundational, frequently cross-questioned, and especially sensitive to subtle specification errors. Record each finding, fix the underlying chapter, and then continue through JVM, release features, I/O/security, and advanced APIs.
+
+## 1B. Concurrency worked-example pass
+
+Worked examples have now been added to the core concurrency chapters covering thread lifecycle, join and interruption, monitor/condition invariants, lock ordering, bounded executors, task failure observation, graceful shutdown, CompletableFuture composition, CAS, LongAdder, concurrent map values, safe ownership, virtual-thread resource limits, and volatile publication.
+
+This is an instructional improvement, not a full formal verification. The next concurrency audit should still review the API contracts and test examples that claim concurrent outcomes, especially races and cancellation behavior. The new examples must be compiled with all required imports and supporting types before being counted as fully validated.
