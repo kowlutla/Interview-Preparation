@@ -24,7 +24,7 @@ Legend: `[x] file started and included; [ ] planned, not yet completed. Completi
 - [x] [01 — Java Basics and Execution](01-Java-Fundamentals/01-Java-Basics-and-Execution.md)
 - [x] [02 — Data Types and Control Flow](01-Java-Fundamentals/02-Data-Types-and-Control-Flow.md)
 - [x] [03 — OOP Principles](01-Java-Fundamentals/03-OOP-Principles.md)
-- [ ] [04 — Classes, Interfaces and Records](01-Java-Fundamentals/04-Classes-Interfaces-and-Records.md)
+- [x] [04 — Classes, Interfaces and Records](01-Java-Fundamentals/04-Classes-Interfaces-and-Records.md)
 - [ ] [05 — Strings and Immutability](01-Java-Fundamentals/05-Strings-and-Immutability.md)
 - [ ] [06 — Object Class and Contracts](01-Java-Fundamentals/06-Object-Class-and-Contracts.md)
 
@@ -125,8 +125,8 @@ Legend: `[x] file started and included; [ ] planned, not yet completed. Completi
 
 | Deliverable | Target | Current status |
 |---|---:|---|
-| Foundation files | README, roadmap, first three fundamentals chapters | In progress |
-| Unique Q&A | 400+ | 111 questions across three fundamentals chapters |
+| Foundation files | README, roadmap, first four fundamentals chapters | In progress |
+| Unique Q&A | 400+ | 141 questions across four fundamentals chapters |
 | Senior scenarios | 50+ | Planned |
 | Coding/output problems | 50+ | Planned |
 | Mock interviews | 5 | Planned |
