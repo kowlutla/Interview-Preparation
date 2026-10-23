@@ -383,3 +383,50 @@ In production code reviews, simplify expressions with side effects rather than p
 - [ ] Explain short-circuit evaluation, precedence, associativity, and evaluation order.
 - [ ] Reason about switch, loop control, scope, finally, and abrupt completion.
 - [ ] Solve output questions by tracking types and state step by step.
+
+## Worked examples: type rules and control flow
+
+### Example 1. Integer arithmetic happens before a widening assignment
+
+~~~java
+long product = 50_000 * 50_000;
+System.out.println(product); // -1794967296
+long correct = 50_000L * 50_000;
+System.out.println(correct); // 2500000000
+~~~
+
+In the first expression, both operands are int, so multiplication is performed as int and overflows before assignment to long. Widening the already-overflowed result cannot recover the lost value. Make at least one operand long before multiplication when the intended result requires long range.
+
+### Example 2. Compound assignment includes an implicit conversion
+
+~~~java
+byte value = 10;
+value += 1;       // legal: compound assignment includes a cast
+// value = value + 1; // compile-time error without an explicit cast
+System.out.println(value); // 11
+~~~
+
+The expression value + 1 is evaluated as int due to binary numeric promotion. Compound assignment converts the result back to the left-hand variable's type. Legality does not imply safety from information loss or overflow.
+
+### Example 3. Short-circuit operators control right-operand evaluation
+
+~~~java
+int calls = 0;
+boolean first = false && (++calls > 0);
+boolean second = true || (++calls > 0);
+System.out.println(calls); // 0
+~~~
+
+For &&, the right operand is evaluated only when the left operand is true. For ||, it is evaluated only when the left operand is false. The non-short-circuit boolean operators & and | evaluate both operands. Avoid hiding required business side effects inside boolean expressions.
+
+### Example 4. Floating-point equality is not decimal arithmetic
+
+~~~java
+System.out.println(0.1 + 0.2 == 0.3); // false
+~~~
+
+Binary floating-point represents many decimal fractions approximately. For monetary quantities, use a deliberately designed decimal representation such as BigDecimal constructed from decimal strings, with explicit scale and rounding policy. For numerical algorithms, choose a tolerance based on the error model rather than applying an arbitrary epsilon everywhere.
+
+### Example 5. Avoid replacing a pending outcome in finally
+
+A finally block normally runs during abrupt completion of try/catch flow, subject to process termination and other exceptional circumstances. Returning or throwing from finally can suppress a pending exception or replace a return value. Use try-with-resources for resource cleanup and keep finally blocks from changing control flow unnecessarily.
