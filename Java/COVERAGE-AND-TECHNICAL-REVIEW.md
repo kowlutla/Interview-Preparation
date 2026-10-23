@@ -17,10 +17,10 @@ The right status is **broad first-pass coverage; technical and topic-completenes
 | Java execution, types, OOP, strings, exceptions | Fundamentals chapters | Strong baseline | Check language corner cases, initialization, overload/override, equality and immutability |
 | Nested classes and initialization | New dedicated chapter | Added in this review | Verify order, active-use rules, initialization errors, constant variables |
 | Generics and type system | Fundamentals chapter | Broad | Wildcards, capture conversion, heap pollution, bridge methods, erasure boundaries |
-| Annotations and reflection | Enums/annotations; reflection/proxies | Partial-to-broad | Annotation processing, retention/targets, repeatable/type-use annotations, module access |
+| Annotations and reflection | Enums/annotations; reflection/proxies; annotation processing/compiler tooling | Broad baseline | Review retention/targets, repeatable/type-use annotations, module access and processor security |
 | Collections | List, Set, Map, sorted, queues, iterators | Broad | Contract guarantees vs implementation details, complexity caveats, fail-fast limitations |
 | Functional programming and streams | Lambdas, interfaces, Stream, collectors, Optional, date/time | Broad | Collector associativity/identity, side-effect elision, encounter order, parallel cost, API release compatibility |
-| Concurrency and JMM | Threads, locks, volatile, executors, futures, atomics, races, virtual threads, preview APIs | Broad but high-risk | Happens-before precision, interruption/cancellation, synchronizer APIs, pool starvation, concurrent value mutation |
+| Concurrency and JMM | Threads, locks, volatile, executors, futures, atomics, races, virtual threads, preview APIs, synchronizers | Broad but high-risk | Happens-before precision, interruption/cancellation, pool starvation, concurrent value mutation, API-specific failure semantics |
 | JVM, class loading, memory, GC, JIT | Dedicated chapters and scenarios | Broad | Specification vs HotSpot detail; collector/version distinctions; native memory and container limits |
 | Java 8–21 release history | Release chapters 8–21 | Broad | Verify each feature's first release and final/preview/incubator/deprecated status; check later API changes |
 | I/O, NIO, serialization | Core language chapter | Partial-to-broad | Charset correctness, channels/selectors, file traversal, serialization filters, resource lifecycle |
@@ -29,7 +29,7 @@ The right status is **broad first-pass coverage; technical and topic-completenes
 | Security | Dedicated chapter | Broad baseline | Cryptographic API details, path traversal race cases, SSRF DNS/redirect controls, deserialization filters, secrets |
 | Performance and diagnostics | Performance, JVM tools, incident scenarios | Broad | JMH methodology, JFR workflow, tail latency, allocation vs retention, evidence-based tuning |
 | Testing and build tooling | Not a dedicated chapter in the current tree | Gap / optional scope | JUnit 5, Mockito, property-based/concurrency testing, Maven/Gradle, CI compatibility matrices |
-| Annotation processing and compiler tooling | Some reflection and build/bytecode material | Gap to assess | Annotation processor lifecycle, service registration, javac diagnostics, javap, jdeps, multi-release JARs |
+| Annotation processing and compiler tooling | Dedicated chapter added | Coverage added; depth review remains | Annotation processor lifecycle, service registration, javac diagnostics, javap, jdeps, multi-release JARs |
 | Localization and text correctness | Strings/text and date/time chapters | Gap to assess | Unicode code points vs UTF-16 code units, normalization, locale-sensitive formatting, charset boundaries |
 | Coding/output practice | 50-problem bank | Authored; breadth review needed | Ensure array/string, maps, streams, recursion, complexity, edge cases and output classification are balanced |
 | Production scenarios | Scenario and RCA chapters | Broad | Ensure each has evidence, competing hypotheses, safe mitigation, root cause and prevention |
@@ -53,6 +53,13 @@ Use these rules when reviewing individual claims:
 ## Repository hygiene finding
 
 The README's Core Language navigation repeated the Generics and Exceptions chapters already listed under Fundamentals and misnumbered the modules and I/O targets. A dedicated nested-classes/initialization chapter has been added to give this section a distinct topic; navigation should now be aligned with the actual filenames.
+
+## Changes made during this review
+
+- Added a dedicated nested-classes and initialization chapter and corrected the Core Language navigation that previously duplicated generics/exceptions and misnumbered modules/I/O.
+- Added a dedicated annotation-processing and compiler-tooling chapter for processor rounds, retention/targets, javac --release, javap, jdeps, module-path, multi-release JARs, and ServiceLoader.
+- Added a Java 8–21 release feature/status matrix and expanded Java 21 coverage to include String Templates, the Foreign Function & Memory API, unnamed patterns/variables, unnamed classes/instance main methods, Vector API, the KEM API, dynamic-agent-loading preparation, and platform deprecation changes.
+- Added a dedicated concurrency coordination chapter covering CountDownLatch, CyclicBarrier, Phaser, Semaphore, BlockingQueue, Exchanger, ForkJoinPool, ReentrantReadWriteLock, StampedLock, and Condition.
 
 ## Recommended review order
 
