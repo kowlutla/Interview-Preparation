@@ -203,3 +203,32 @@ Two threads can read the same old value and overwrite one another's updates. Use
 Publishing a fully constructed object through a volatile reference, a synchronized handoff, a properly used concurrent collection, or the specified initialization-safety guarantees of final fields can establish visibility. Merely assigning a reference to an ordinary shared field and hoping another thread observes all constructor writes is not a synchronization strategy.
 
 The Java Memory Model's rules are normative; CPU intuition and tests that happen to pass do not prove correctness. See JLS Chapter 17 and the API contracts of the chosen coordination primitive.
+
+## Worked example: publication, visibility, and ordering
+
+### Example. A volatile reference can publish prior initialization writes
+
+~~~java
+final class Config {
+    final int limit;
+    Config(int limit) { this.limit = limit; }
+}
+
+final class ConfigHolder {
+    private volatile Config current;
+
+    void publish() {
+        current = new Config(100);
+    }
+
+    Config read() {
+        return current;
+    }
+}
+~~~
+
+The volatile write to current happens-before a subsequent read that observes that write. The construction writes that precede publication are therefore visible to the observing thread under the Java Memory Model. This does not make later mutations to Config safe; the example is deliberately immutable. A plain shared reference without a suitable happens-before path does not provide the same guarantee.
+
+### Checklist for a shared-state claim
+
+When reviewing a concurrency answer, identify: the shared variable, every read/write, the synchronization mechanism, the happens-before edge, whether the operation is compound, and whether object state can mutate after publication. “It usually works” and a passing stress test do not establish correctness.
