@@ -34,7 +34,7 @@
 - [x] Recheck the dated compatibility snapshot against the current official Framework, Boot, and Spring Cloud pages; correct the Boot 4.1.2 requirements paragraph and standardize Q&A heading levels in the advanced ecosystem chapter.
 - [x] Check all internal Markdown targets across the 68 Spring Markdown files and the root/Spring index links; no missing local targets were found. Scan local fragment links; none were present. Targeted official external-link checks were completed for the core reference index, but this was not a crawler of every external URL in every chapter.
 - [x] Manually review all 11 detailed reference-solution files for obvious API-contract, exception-handling, security, and example-consistency issues. Compilation/runtime execution remain intentionally out of scope; no example is claimed as compiled or tested.
-- [x] Confirm all 85 exercises have a reference approach, common-mistake note, and validation points; 11 detailed solution files now provide implementation patterns for selected exercises, with 83 exercise-to-solution links. Not every exercise is a fully runnable end-to-end project.
+- [x] Confirm all 85 exercises have a reference approach, common-mistake note, and validation points; 11 detailed solution files now provide implementation patterns for selected exercises, with 85 exercise-to-solution links. Not every exercise is a fully runnable end-to-end project.
 - [x] Review all 75 incident and architecture/design scenarios against their relevant diagnostic/design structure, trade-offs, prevention/recovery guidance, and follow-up prompts.
 - [x] Confirm all five mock interview tracks exist and follow increasing scope/difficulty; they are authored practice prompts, not transcripts of real interviews.
 - [x] Update handbook indexes and review status to reflect completed structural/first-pass audits without claiming exhaustive technical certification.
@@ -130,7 +130,7 @@ These are manual documentation/API-version corrections only. No compilation or r
 
 ### Exercise-format consistency pass — 2026-10-24
 
-Reviewed the 85 exercise entries structurally. All 85 now include a reference approach/solution section, a common-mistake note, and validation points. Added 54 missing common-mistake notes across exercises 26–85 and aligned the exercise index wording with the agreed review scope (manual technical/API-version review; no compilation or execution). The four exercise files now have complete structural coverage for those fields. This does not yet mean every reference approach is a complete implementation: depth and solution sufficiency remain an explicit review item, and the nine detailed solution documents cover selected patterns rather than all 85 exercises.
+Reviewed the 85 exercise entries structurally. All 85 now include a reference approach/solution section, a common-mistake note, and validation points. Added 54 missing common-mistake notes across exercises 26–85 and aligned the exercise index wording with the agreed review scope (manual technical/API-version review; no compilation or execution). The four exercise files now have complete structural coverage for those fields. This does not yet mean every reference approach is a complete implementation: depth and solution sufficiency remain an explicit review item, and the eleven detailed solution documents cover selected patterns rather than one fully runnable implementation for all 85 exercises.
 
 ### Official-reference URL audit — targeted pass — 2026-10-24
 
