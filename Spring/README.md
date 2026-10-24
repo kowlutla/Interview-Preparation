@@ -2,7 +2,7 @@
 
 A version-aware handbook for Java backend engineers preparing for practical and senior-level interviews. It emphasizes framework mechanics, implementation, debugging, production trade-offs, and version-aware learning.
 
-> **Status:** Broad first-pass content is now present across the requested topic areas. A heading-based inventory of the authored Q&A files currently shows 589 numbered Q&A headings across the category and tricky-question chapters. This is a preliminary count, not a claim that every item has passed duplicate/depth review. The exercise and scenario targets are met by numbered entries, and five mock-interview files exist.
+> **Status:** Broad first-pass content is now present across the requested topic areas. A heading-based inventory of the authored Q&A files currently shows 609 numbered Q&A headings across the category and tricky-question chapters. This is a preliminary count, not a claim that every item has passed duplicate/depth review. The exercise and scenario targets are met by numbered entries, and five mock-interview files exist.
 
 ## Audience and prerequisites
 
@@ -20,7 +20,8 @@ Designed for engineers with roughly 2–6 years of Java backend experience. Prer
 8. [Caching](18-Caching/README.md), [async and scheduling](19-Async-and-Scheduling/README.md), [events and messaging](20-Events-and-Messaging/README.md)
 9. [Spring Cloud and microservices](21-Spring-Cloud-and-Microservices/README.md), [deployment](22-Deployment-and-Production-Readiness/README.md), [performance and troubleshooting](23-Performance-and-Troubleshooting/README.md)
 10. [Internals and advanced topics](24-Internals-and-Advanced-Topics/README.md), [version evolution and migration](25-Version-Evolution-and-Migration/README.md)
-11. Practice the [coding exercises](26-Coding-Exercises/01-Core-and-REST-Exercises.md), [real-world scenarios](27-Real-World-Scenarios/01-Container-Web-Transactions.md), [mock interviews](28-Mock-Interviews/01-Junior-Spring-Fundamentals.md), and [common mistakes/tricky questions](29-Common-Mistakes-and-Tricky-Questions/01-Container-Proxies-and-Configuration.md).
+11. Read [advanced Spring ecosystem topics](31-Advanced-Ecosystem/README.md) for Spring Batch, Modulith, GraphQL, WebSocket, AOT/native images, virtual threads, and specialized Spring projects.
+12. Practice the [coding exercises](26-Coding-Exercises/01-Core-and-REST-Exercises.md), [real-world scenarios](27-Real-World-Scenarios/01-Container-Web-Transactions.md), [mock interviews](28-Mock-Interviews/01-Junior-Spring-Fundamentals.md), and [common mistakes/tricky questions](29-Common-Mistakes-and-Tricky-Questions/01-Container-Proxies-and-Configuration.md).
 
 ## Practice collections
 
@@ -68,11 +69,12 @@ See the [coverage inventory and technical review checklist](COVERAGE-AND-TECHNIC
 - [x] Root README integration and Spring handbook directory
 - [x] Roadmap, compatibility notes, and interview strategy
 - [x] Initial Q&A chapters for all requested core topic categories
-- [x] 589 numbered Q&A headings counted across authored Q&A chapters (duplicate and depth audit still required)
+- [x] Advanced ecosystem chapter covering specialized Spring projects and architecture choices
+- [x] 609 numbered Q&A headings counted across authored Q&A chapters (duplicate and depth audit still required)
 - [x] 85 numbered coding exercises
 - [x] 75 numbered production scenarios
 - [x] Five mock interview files
-- [ ] Full question deduplication and answer-depth review
+- [ ] Full question deduplication and answer-depth review (including the new advanced ecosystem chapter)
 - [ ] Verify every version-specific claim against exact official release docs
 - [ ] Compile/run all code examples and complete runnable test projects where exercises currently provide solution outlines
 - [ ] Check every Markdown link and all technical references
