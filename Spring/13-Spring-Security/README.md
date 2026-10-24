@@ -58,7 +58,7 @@ Store password hashes using a supported adaptive password encoder, such as the f
 
 ### Q13. What is the purpose of a PasswordEncoder?
 
-It abstracts password hashing and matching. Password hashing is intentionally one-way; authentication compares a submitted password with the stored hash through the encoder rather than decrypting the stored value.
+It defines how passwords are encoded and how a submitted password is checked against a stored encoded value. Use an adaptive password-hashing algorithm with cost parameters appropriate to the deployment; never decrypt a password or store plaintext. A delegating encoder can identify the algorithm for each stored hash and support gradual upgrades when the preferred algorithm or work factor changes.
 
 ### Q14. What is method security's proxy limitation?
 
