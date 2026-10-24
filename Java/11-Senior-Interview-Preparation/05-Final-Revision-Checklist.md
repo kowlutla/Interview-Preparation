@@ -77,7 +77,18 @@ Use this checklist in the final 2–3 weeks before interviews. Mark a topic comp
 - [ ] Diagnose p95/p99 regressions with traces, metrics, logs, and runtime evidence.
 - [ ] Explain root cause, mitigation, correction, regression test, and prevention in incidents.
 
-## 8. Interview practice
+## 8. Testing and build tooling
+
+- [ ] Distinguish unit, integration, and end-to-end test boundaries.
+- [ ] Use JUnit Jupiter lifecycle, parameterized tests, and assertions deliberately.
+- [ ] Use Mockito for meaningful collaborator boundaries without over-mocking.
+- [ ] Test asynchronous and concurrent behavior with explicit coordination, not sleeps.
+- [ ] Use an injected Clock for deterministic business-time tests.
+- [ ] Understand when a real database/Testcontainers integration test is necessary.
+- [ ] Verify Maven/Gradle test lifecycle, test discovery, JDK toolchains, and CI runtime matrix.
+- [ ] Treat coverage as a diagnostic metric rather than proof of correctness.
+
+## 9. Interview practice
 
 - [ ] Complete all 50 coding/output problems under time limits.
 - [ ] Solve at least 10 problems without looking at reference approaches.
