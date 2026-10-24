@@ -26,11 +26,11 @@ Use documentation corresponding to the exact major/minor version used by the pro
 - [Spring Authorization Server Reference](https://docs.spring.io/spring-authorization-server/reference/)
 - [Spring Cloud Contract Reference](https://docs.spring.io/spring-cloud-contract/reference/)
 - [Spring Cloud project and compatibility](https://spring.io/projects/spring-cloud)
-- [Spring Cloud reference](https://docs.spring.io/spring-cloud/docs/current/reference/html/)
+- [Spring Cloud release-train reference](https://docs.spring.io/spring-cloud-release/reference/)
 
 ## Supporting technologies
 - [Jakarta Bean Validation](https://jakarta.ee/specifications/bean-validation/)
-- [Project Reactor reference](https://projectreactor.io/docs/core/release/reference/)
+- [Project Reactor reference](https://projectreactor.io/docs/core/release/reference/index.html)
 - [Micrometer documentation](https://docs.micrometer.io/)
 - [Testcontainers for Java](https://java.testcontainers.org/)
 - [Java SE documentation](https://docs.oracle.com/en/java/javase/)
