@@ -204,3 +204,17 @@ Sampled the Java Memory Model/volatile chapter, CompletableFuture chapter, Java 
 
 No additional confirmed substantive correction was identified in these sampled passages. This was a targeted manual review, not a line-by-line certification and not a compile/run validation. The semantic duplicate-question audit and continued review of unexamined chapter bodies remain open.
 
+### Semantic duplicate-question audit — first pass — 2026-10-24
+
+Compared question headings and sampled answer bodies across the handbook's Q&A chapters, with emphasis on repeated concurrency, collection, class-loading, and JVM concepts. The goal is to distinguish purposeful spaced reinforcement from questions that ask the same thing without adding a new angle.
+
+**Confirmed overlap reduced:**
+- In Synchronization and Locks, replaced the repeated “four Coffman conditions” question with a practical question about enforcing a global lock acquisition order. The dedicated deadlock/thread-safety chapter retains the canonical Coffman-condition explanation.
+- In Coordination Primitives and Synchronizers, changed the generic BlockingQueue definition into a focused question on its memory-consistency guarantee. The Collections Queue chapter retains the basic definition; the concurrent-collections chapter covers producer/consumer use and overload implications.
+- In JVM Architecture, reframed the repeated “What is deoptimization?” question around state reconstruction and correctness when speculative JIT assumptions fail. The JIT chapter retains the concise definition.
+- In Advanced Internals and APIs, reframed the direct-buffer question around lifecycle, pooling risks, and native-memory monitoring rather than repeating the basic definition from Java Memory Areas.
+
+**Repeated concepts retained where the learning purpose differs:** class loading and linkage are introduced in the Java execution chapter then treated in depth in JVM chapters; Future is introduced in executor fundamentals then expanded through CompletableFuture composition; safe publication and interruption appear in both foundational thread material and deeper memory-model/cancellation discussions; Spliterator is treated from collection traversal and stream-reduction perspectives; memory/GC symptoms recur in diagnostic chapters and incident scenarios. These overlaps are useful when the later question tests a distinct contract or diagnostic workflow.
+
+**Remaining limitation:** this was a heading comparison plus targeted answer-level inspection, not a fully automated semantic similarity evaluation of every answer. Continue reviewing overlapping clusters, especially Java-version summaries versus dedicated feature chapters, and keep questions only when their angle is meaningfully distinct. No compile/run validation was performed.
+
