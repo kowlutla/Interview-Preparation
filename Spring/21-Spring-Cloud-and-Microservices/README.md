@@ -30,11 +30,6 @@ Use supported instrumentation and trace-context propagation across HTTP and mess
 
 It does not make a slow or failing service healthy, guarantee session consistency, or remove the need for timeouts and retries. Health checks, balancing algorithm, connection reuse, request distribution, and overload behavior all affect outcomes.
 
-## Official references
-
-- [Spring Cloud project and compatibility](https://spring.io/projects/spring-cloud)
-- [Spring Cloud release-train reference documentation](https://docs.spring.io/spring-cloud-release/reference/)
-
 ### Q8. What is the difference between a retry and a circuit breaker?
 
 A retry repeats a selected operation after a failure; a circuit breaker suppresses calls when recent outcomes indicate a dependency is unhealthy. Retries can amplify load, while a breaker can reject calls that might have succeeded. Configure both around an explicit deadline and operation semantics.
@@ -54,3 +49,8 @@ Discovery should ideally expose instances that are eligible to receive traffic, 
 ### Q12. How do you avoid duplicate resilience policies across gateway and service clients?
 
 Assign clear ownership for timeouts, retries, and rate limits at each hop. Document the total request budget, avoid nested retries that multiply attempts, and test the combined system under a dependency outage.
+
+## Official references
+
+- [Spring Cloud project and compatibility](https://spring.io/projects/spring-cloud)
+- [Spring Cloud release-train reference documentation](https://docs.spring.io/spring-cloud-release/reference/)
