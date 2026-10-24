@@ -139,3 +139,7 @@ Rechecked the question-number sequence in all 25 core chapter files and all seve
 ### Prerelease API nuance — test bean overrides — 2026-10-24
 
 The official Framework 7.1 prerelease notes add constructor-parameter support for `@MockitoBean`/`@MockitoSpyBean`. The testing chapter and tricky-question answer now distinguish that prerelease capability from stable Framework 7.0 usage, avoiding accidental advice to use a newer API form on a stable baseline.
+
+### Chapter section-order audit — 2026-10-24
+
+A follow-up structural scan found several Q&A batches had been appended after the Official references section even though their question numbering was continuous. Reordered the affected blocks so all Q&A appears before references in these chapters: Spring Boot Fundamentals, Spring MVC/REST, Data Access/Transactions, Spring Data JPA, Spring Security, Testing, Reactive/WebFlux, Actuator/Observability, Caching, Spring Cloud, and Version Evolution/Migration. The section-order scan found no additional affected core chapter or the advanced ecosystem chapter after these corrections. This preserves all questions and their numbering; it is a layout/navigation correction, not a content-count increase.
