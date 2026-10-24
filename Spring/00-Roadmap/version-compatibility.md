@@ -20,6 +20,7 @@ The official documentation snapshot checked on 2026-10-24 lists Spring Framework
 - RestClient was introduced in Spring Framework 6.1. Spring Framework 7.0 deprecates RestTemplate in favor of RestClient; existing systems may still use RestTemplate, but new code should follow the target framework's migration guidance.
 - Not every javax.* package moved. For example, javax.sql remains part of Java SE. Migrate only APIs whose specifications moved to Jakarta namespaces.
 - Modern servlet security uses SecurityFilterChain beans. WebSecurityConfigurerAdapter is a legacy pattern removed from modern Spring Security.
+- Boot 4 has a more modular dependency/starter layout, including dedicated test modules for supported technologies. Review the Boot 4 migration guide if you depend on non-starter artifacts or test auto-configuration; `@MockBean`/`@SpyBean` support was removed in favor of `@MockitoBean`/`@MockitoSpyBean`, and MVC/client test support may require explicit test auto-configuration annotations.
 - Let the Boot dependency-management BOM control managed dependency versions unless there is a documented reason to override them.
 - Distinguish a Spring Framework feature from Boot auto-configuration for that feature. Framework API availability does not imply identical Boot setup across release lines.
 
