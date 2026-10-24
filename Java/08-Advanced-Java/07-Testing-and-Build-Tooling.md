@@ -3,7 +3,7 @@
 **Target level:** Intermediate → Senior  
 **Scope:** Java 8–21 applications; framework examples use JUnit Jupiter 5 and Mockito where stated
 
-Testing is part of Java engineering, not a final cleanup step. Strong tests verify observable behavior, isolate nondeterminism, model dependency boundaries honestly, and run consistently across developer machines and CI. Build tooling should make the JDK, dependency graph, test lifecycle, and supported runtime matrix explicit.
+Testing is part of Java engineering, not a final cleanup step. Strong tests verify observable behavior, isolate nondeterminism, model dependency boundaries honestly, and run consistently across developer machines and CI. Build tooling should make the JDK, dependency graph, test lifecycle, and supported runtime matrix explicit. Framework versions also have JDK baselines: Mockito 5 requires Java 11+, while Mockito 4 supports Java 8; select dependencies to match the project's declared runtime baseline.
 
 ## 1. Test strategy and JUnit 5
 
