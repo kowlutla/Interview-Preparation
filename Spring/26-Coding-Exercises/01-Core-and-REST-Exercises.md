@@ -117,6 +117,8 @@ Enable configuration-properties scanning or register the type explicitly, and in
 
 **Reference approach:** Put a `@ConditionalOnMissingBean(NotificationSender.class)` factory method in Boot auto-configuration, and register it using the metadata format for the selected Boot version.
 
+**Related detailed solution:** [Configuration binding and validation patterns](Reference-Solutions/06-Configuration-and-Validation.md)
+
 **Common mistake:** Treating the condition as a replacement for a proper library registration test.
 
 **Validation:** Test both default creation and application override.
@@ -146,6 +148,8 @@ Enable configuration-properties scanning or register the type explicitly, and in
 **Problem:** Debit one account and credit another in one database transaction.
 
 **Reference approach:** Place the operation behind a proxied service transaction boundary, validate both accounts, and allow failures requiring rollback to escape the boundary or configure explicit rollback rules.
+
+**Related detailed solution:** [Transactional transfer and rollback testing](Reference-Solutions/02-Transaction-Reference-Solution.md)
 
 **Common mistake:** Catching and swallowing the exception inside the transaction.
 
