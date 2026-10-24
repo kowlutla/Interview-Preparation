@@ -76,3 +76,15 @@ This was a focused manual review, not a guarantee that every snippet in the hand
 - [Spring Boot current system requirements](https://docs.spring.io/spring-boot/system-requirements.html)
 - [Spring Cloud compatibility](https://spring.io/projects/spring-cloud)
 - [Spring REST clients](https://docs.spring.io/spring-framework/reference/integration/rest-clients.html)
+
+## Continued audit update — 2026-10-24
+
+### Version snapshot and transaction semantics
+
+- Refreshed the compatibility page and migration Q&A from Framework 7.0.9 / 7.1.0-M2 to the official current snapshot of Framework 7.0.10 stable and 7.1.0-RC1 prerelease. Boot 4.1.2 remains the latest stable line in the official system-requirements page and requires Framework 7.0.10 or above. These are dated observations, not permanent support guarantees.
+- Reframed the repeated REQUIRED-versus-REQUIRES_NEW question into the more operationally useful connection-pool starvation risk from nested independent transactions. The propagation basics remain in the earlier question.
+- Checked all seven tricky-question files for exact repeated question titles; none were found within that collection. This does not establish semantic uniqueness across the whole handbook, and deliberate reinforcement of core topics still needs judgment-based review.
+
+### Repository-wide local Markdown target check
+
+Checked relative Markdown links across all 68 Markdown files under Spring/, plus the repository root README and the Spring main README, against the current GitHub tree. No missing local Markdown targets were found in this pass. Counts from the index checks were 2/2 root README links and 52/52 Spring README links. This check validates local targets only; it does not verify external URL reachability, anchor correctness on every target page, or technical correctness of linked documentation.
