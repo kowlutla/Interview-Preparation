@@ -200,7 +200,7 @@ These exercises complement [Core and REST exercises](01-Core-and-REST-Exercises.
 
 **Reference approach:** Enable method security in the test context, invoke through the Spring proxy, and test allowed and denied principals.
 
-**Related detailed solution:** [JWT resource-server configuration and authorization](Reference-Solutions/03-Security-Reference-Solution.md)
+**Related detailed solution:** [Testcontainers and HTTP client patterns](Reference-Solutions/05-Testcontainers-and-Client-Reference.md)
 
 **Common mistake:** Directly constructing the service, thereby bypassing method-security interception.
 
