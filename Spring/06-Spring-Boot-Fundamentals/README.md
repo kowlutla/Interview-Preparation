@@ -70,4 +70,4 @@ Ahead-of-time processing prepares application metadata/code paths for scenarios 
 
 ### Q16. Does a successful Boot startup guarantee production correctness?
 
-No. It verifies only the initialization path exercised. Runtime authorization, dependency timeouts, pool saturation, message redelivery, shutdown, and load behavior require tests and operational validation.
+No. Startup proves only that the initialization path completed under the conditions present at that moment. It does not prove authorization rules, downstream timeouts, database pool capacity, message redelivery, schema compatibility, graceful shutdown, or behavior under load. Validate those with integration and failure-path tests, production-like load, and runtime signals such as readiness, latency, error rate, and saturation.
