@@ -45,11 +45,11 @@ Do not replace a lock with a semaphore simply because both can block. Choose bas
 
 ## 2. Producer-consumer and work distribution
 
-### Q7. What is BlockingQueue? *(Intermediate)*
+### Q7. What memory-consistency guarantee does BlockingQueue provide? *(Advanced)*
 
-BlockingQueue supports thread-safe handoff and buffering between producers and consumers. Operations such as put/take can block when the queue is full or empty, depending on the queue's capacity and operation used.
+The Java concurrency API specifies that actions in a thread before placing an object into a BlockingQueue happen-before actions after another thread accesses or removes that element from the queue. This makes the queue a safe handoff mechanism for the state established before publication.
 
-Choose a bounded queue when overload must be controlled. Queue capacity, rejection behavior, shutdown signaling, and consumer failure handling are part of the design—not optional implementation details.
+That guarantee does not make later unsynchronized mutations to the handed-off object safe. Prefer immutable messages or transfer ownership clearly, and use additional synchronization if producer and consumer continue mutating shared state after handoff.
 
 ### Q8. How do bounded and unbounded queues affect a thread pool? *(Senior)*
 
