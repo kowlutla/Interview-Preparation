@@ -11,6 +11,8 @@ This is a compact reference implementation for exercises covering DTOs, construc
 
 ## Request and response DTOs
 
+Place each public top-level record in its own Java source file (for example, `CreateOrderRequest.java` and `OrderResponse.java`) under the package shown below.
+
 ```java
 package example.orders.api;
 
