@@ -120,7 +120,7 @@ These exercises complement [Core and REST exercises](01-Core-and-REST-Exercises.
 
 **Reference approach:** Prefer established tracing instrumentation where possible. If accepting a caller-provided ID, validate its length and characters, prevent log injection, and establish trust rules.
 
-**Related detailed solution:** [Actuator health and metrics](Reference-Solutions/08-Actuator-and-Metrics.md)
+**Related chapter:** [Actuator and observability](../17-Actuator-and-Observability/README.md)
 
 **Common mistake:** Accepting arbitrary caller-provided correlation values without length/character validation.
 
