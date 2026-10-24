@@ -57,11 +57,11 @@ Tiered compilation uses different execution and compilation levels, gathering pr
 
 Compilation thresholds and exact tiers are implementation and configuration details. Use JFR, compiler logs, and JVM diagnostics when investigating a specific runtime rather than assuming one universal threshold.
 
-### Q9. What is deoptimization? *(Advanced)*
+### Q9. Why does deoptimization preserve correctness when JIT assumptions fail? *(Advanced)*
 
-Deoptimization lets the JVM abandon optimized machine code when assumptions used by the optimization no longer hold, returning execution to a less optimized representation while preserving program semantics. Optimizations may rely on profiling assumptions such as observed types or call targets.
+The JIT may optimize code using speculative assumptions—for example, that a call site usually sees a particular implementation. If an assumption becomes invalid, the JVM can transfer execution to a less optimized form and reconstruct the logical interpreter-visible state, including locals and operand-stack values, at a suitable deoptimization point.
 
-Deoptimization is a normal runtime mechanism, not necessarily a bug. Excessive deoptimization or unstable profiles can affect performance, so inspect compiler diagnostics and workload behavior before tuning.
+This mechanism lets the JIT optimize aggressively without changing Java program semantics. It is distinct from an application exception or a crash; investigate repeated deoptimization only when measurements connect it to a performance problem.
 
 ### Q10. What is escape analysis? *(Advanced)*
 
