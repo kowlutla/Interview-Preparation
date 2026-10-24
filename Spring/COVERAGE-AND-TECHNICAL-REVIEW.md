@@ -107,7 +107,7 @@ These are manual documentation/API-version corrections only. No compilation or r
 
 ### Exercise navigation and scenario review — 2026-10-24
 
-- Added 60 links from exercise prompts to the nine detailed reference-solution files where a direct implementation pattern exists (REST/DTOs, transactions, security, cache/async, clients/Testcontainers, configuration/validation, outbox/idempotency, Actuator/metrics, and scheduled work/resilience). This improves navigation but does not claim that every exercise now has a fully runnable implementation.
+- Added exercise navigation to the nine detailed reference-solution files where a direct implementation pattern exists (REST/DTOs, transactions, security, cache/async, clients/Testcontainers, configuration/validation, outbox/idempotency, Actuator/metrics, and scheduled work/resilience). After refining relevance, the exercise bank contains 58 detailed-solution cross-links and three links to core chapters. This improves navigation but does not claim that every exercise now has a fully runnable implementation.
 - Read through the complete 1–75 production-scenario set. Each scenario or design prompt has a diagnostic/reasoning path, a resolution or design direction, trade-offs/prevention or failure modes, and a follow-up question. No new factual correction was confirmed in this pass. The scenarios are still narrative guidance, not substitutes for environment-specific runbooks or executable incident drills.
 - Refined the Spring Boot testing guidance to state that `@MockBean`/`@SpyBean` were deprecated for removal in Boot 3.4 and removed in Boot 4, with `@MockitoBean`/`@MockitoSpyBean` as the modern path. The exact annotation API remains tied to the selected Framework/Boot line.
 - The local Markdown target audit remains clean after the added exercise links; external URL reachability and anchor correctness are still a separate audit item.
@@ -116,7 +116,7 @@ These are manual documentation/API-version corrections only. No compilation or r
 
 - Added the Spring Framework 6.2+ global rollback-policy nuance: traditional defaults roll back on unchecked exceptions and Errors, while transaction management can opt into `ALL_EXCEPTIONS`; explicit rules and caught exceptions still matter. This is reflected in the core transaction Q&A and tricky-question collection.
 - Added Boot 4 modular-starter/test-module and test-annotation migration guidance to the compatibility page. The reference guide should remain version-specific: Boot 4 removed `@MockBean`/`@SpyBean` support, and tests may need explicit MVC/client test auto-configuration rather than relying on older `@SpringBootTest` behavior.
-- Rechecked the updated exercise files after adding navigation links to detailed solutions and related chapters: 62 local Markdown links were found in the four exercise files, and every target resolves. This includes 60 newly added solution cross-links plus two chapter/pre-existing local links.
+- Rechecked the updated exercise files after adding navigation links to detailed solutions and related chapters: 62 local Markdown links were found in the four exercise files, and every target resolves. This includes 58 detailed-solution cross-links, three chapter links, and one pre-existing local link.
 
 ### Exercise-format consistency pass — 2026-10-24
 
