@@ -234,13 +234,13 @@ Use this bank after studying the handbook chapters. For each coding problem, sta
 
 **Answer:** No. Use LinkedHashMap for insertion-order iteration or TreeMap for sorted keys.
 
-### Problem 45. What does this print?
+### Problem 45. What happens when a list is structurally modified during enhanced-for iteration?
     List<Integer> xs = new ArrayList<>(Arrays.asList(1, 2, 3));
     for (Integer x : xs) {
-        if (x == 2) xs.remove(x);
+        if (x == 1) xs.remove(x);
     }
 
-**Answer:** It may throw ConcurrentModificationException after structural modification; do not mutate the collection directly during enhanced-for traversal. Use removeIf or Iterator.remove.
+**Answer:** With the standard ArrayList iterator, the next iteration typically detects the structural modification and throws ConcurrentModificationException. Fail-fast detection is best-effort, not a contractual synchronization guarantee. The similar-looking variant that removes `2` from `[1, 2, 3]` can finish without throwing because the iterator may not call `next()` again; never rely on the exception for correctness. Use `Iterator.remove()` or `removeIf`.
 
 ### Problem 46. What is the primary exception?
     try {
