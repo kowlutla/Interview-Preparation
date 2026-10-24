@@ -108,7 +108,7 @@ Never rely on transient alone as a complete secret-management strategy. Data may
 
 Native deserialization can instantiate classes and invoke behavior as an object graph is reconstructed. Gadget chains in the available classpath can turn attacker-controlled streams into code execution or other severe effects.
 
-Avoid native Java deserialization for untrusted input. If unavoidable, apply a strict ObjectInputFilter allowlist and resource limits, keep dependencies patched, and test the actual reachable class graph. Filtering is defense in depth, not a reason to accept arbitrary serialized data.
+Avoid native Java deserialization for untrusted input. `ObjectInputFilter` was added in Java 9; on Java 9+, apply a strict allowlist and resource limits if deserialization cannot be avoided. Java 8 deployments do not have this standard filtering API, so the safest policy is to avoid deserializing untrusted streams. Keep dependencies patched and test the actual reachable class graph. Filtering is defense in depth, not a reason to accept arbitrary serialized data.
 
 ### Q16. What is the difference between Externalizable and Serializable? *(Advanced)*
 
