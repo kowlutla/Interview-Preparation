@@ -34,12 +34,6 @@ Use Boot's condition evaluation report, enable the relevant debug diagnostics, a
 
 No. Boot supports non-web applications as well as servlet and reactive web applications. The application type and dependencies influence which infrastructure is configured. Avoid adding web starters to background jobs that do not need HTTP endpoints.
 
-## Official references
-
-- [Spring Boot reference](https://docs.spring.io/spring-boot/reference/)
-- [Auto-configuration](https://docs.spring.io/spring-boot/reference/using/auto-configuration.html)
-- [Creating an executable JAR](https://docs.spring.io/spring-boot/maven-plugin/packaging.html)
-
 ### Q9. What is the difference between a starter and auto-configuration?
 
 A starter declares a curated dependency set. Auto-configuration is conditional configuration that registers infrastructure when prerequisites match. Adding a starter often brings libraries that allow auto-configuration to activate, but the two concepts are distinct.
@@ -71,3 +65,9 @@ Ahead-of-time processing prepares application metadata/code paths for scenarios 
 ### Q16. Does a successful Boot startup guarantee production correctness?
 
 No. Startup proves only that the initialization path completed under the conditions present at that moment. It does not prove authorization rules, downstream timeouts, database pool capacity, message redelivery, schema compatibility, graceful shutdown, or behavior under load. Validate those with integration and failure-path tests, production-like load, and runtime signals such as readiness, latency, error rate, and saturation.
+
+## Official references
+
+- [Spring Boot reference](https://docs.spring.io/spring-boot/reference/)
+- [Auto-configuration](https://docs.spring.io/spring-boot/reference/using/auto-configuration.html)
+- [Creating an executable JAR](https://docs.spring.io/spring-boot/maven-plugin/packaging.html)
