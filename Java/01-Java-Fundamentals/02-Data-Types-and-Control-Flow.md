@@ -219,7 +219,7 @@ The difference is invisible when used as a standalone statement. Avoid combining
 
 The expression condition ? expr1 : expr2 selects one branch at runtime, but its type is determined at compile time from both alternatives and Java's typing rules. Numeric promotion, boxing, unboxing, and reference typing can affect the result.
 
-    var value = true ? 1 : 2L; // long
+    long value = true ? 1 : 2L; // long
 
 Do not infer the type solely from the branch that happens to execute.
 
