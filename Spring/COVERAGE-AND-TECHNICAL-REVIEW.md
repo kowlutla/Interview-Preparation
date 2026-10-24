@@ -45,7 +45,8 @@
 - Checked the Q&A heading sequence in all 25 core chapters, the advanced ecosystem chapter, and all seven tricky-question files. Numbering is continuous within each file, with no gaps or duplicate question numbers found.
 - Checked exercise numbering across all four exercise files: 1–85 is continuous with no gaps or overlaps.
 - Checked scenario numbering across all seven scenario files: 1–75 is continuous with no gaps or overlaps.
-- Checked relative/local Markdown links across all 68 Markdown files under `Spring/` against the repository tree. No missing local file targets were found. This check does not validate fragment anchors or external URL availability.
+- Checked relative/local Markdown links across all 68 Markdown files under `Spring/` against the repository tree. No missing local file targets were found. This check does not validate fragment anchors.
+- Opened the main official reference links for Framework, Boot, Batch, Modulith, GraphQL, Session, Integration, Authorization Server, Cloud Contract, Cloud compatibility, Boot system requirements/migration, Framework release list/7.1 preview, and REST clients. The sampled official pages loaded; a full availability check of every external URL is still pending.
 - Checked for the specific formatting defect where a question is repeated verbatim as the first non-empty line immediately below its heading. No instances were found in those 33 Q&A files.
 - These are structural checks only. They do not prove semantic uniqueness, answer correctness, link validity, or runnable-code correctness; those remain separate review tasks.
 
