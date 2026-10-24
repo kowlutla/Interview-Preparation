@@ -14,7 +14,7 @@
 | Mock interviews | 5 interview files | Count target met; answers are model discussion prompts, not transcripts |
 | Topic categories | Parts A–Y plus a dedicated advanced ecosystem chapter; exercises/scenarios/mock interviews/tricky questions/references added | Initial breadth present; depth review remains |
 | Official documentation | Dedicated references plus per-topic links | Sampled core official URLs were opened successfully on 2026-10-24; a repository-wide external-URL audit remains incomplete |
-| Code validation | Nine detailed reference-solution files added for REST API, transactions, security, cache/async, Testcontainers/client, configuration/validation, outbox/idempotency, Actuator/metrics, and scheduled work/resilience | Not yet compiled as a single runnable sample application |
+| Code validation | Eleven detailed reference-solution files added, including core/operations and testing/cloud patterns, alongside REST API, transactions, security, cache/async, Testcontainers/client, configuration/validation, outbox/idempotency, Actuator/metrics, and scheduled work/resilience | Not yet compiled as a single runnable sample application |
 
 ## High-priority technical review notes
 
@@ -117,7 +117,7 @@ These are manual documentation/API-version corrections only. No compilation or r
 
 ### Exercise navigation and scenario review — 2026-10-24
 
-- Added exercise navigation to the nine detailed reference-solution files where a direct implementation pattern exists (REST/DTOs, transactions, security, cache/async, clients/Testcontainers, configuration/validation, outbox/idempotency, Actuator/metrics, and scheduled work/resilience). After refining relevance, the exercise bank contains 58 detailed-solution cross-links and three links to core chapters. This improves navigation but does not claim that every exercise now has a fully runnable implementation.
+- Added two detailed reference-solution files for 25 exercises that previously had only short reference approaches. The handbook now has 11 detailed reference-solution files and 83 exercise-to-solution links, plus three links to core chapters. The added files cover pagination, conditional beans, profiles, lifecycle cleanup, reactive composition, startup diagnostics, Problem Details, multi-data-source boundaries, rate limiting, uploads, startup runners, query-count tests, auto-configuration tests, reactive context, memory investigations, upgrade smoke suites, JSON serialization, context caching, startup conditions, pool saturation, gateway routes, load balancing, and BOM upgrades. This improves navigation but does not claim that every exercise now has a fully runnable implementation.
 - Read through the complete 1–75 production-scenario set. Each scenario or design prompt has a diagnostic/reasoning path, a resolution or design direction, trade-offs/prevention or failure modes, and a follow-up question. No new factual correction was confirmed in this pass. The scenarios are still narrative guidance, not substitutes for environment-specific runbooks or executable incident drills.
 - Refined the Spring Boot testing guidance to state that `@MockBean`/`@SpyBean` were deprecated for removal in Boot 3.4 and removed in Boot 4, with `@MockitoBean`/`@MockitoSpyBean` as the modern path. The exact annotation API remains tied to the selected Framework/Boot line.
 - The local Markdown target audit remains clean after the added exercise links; external URL reachability and anchor correctness are still a separate audit item.
@@ -184,3 +184,10 @@ The generic Boot system-requirements page currently renders Boot 4.1.0 (Java 17 
 - Rechecked the seven tricky-question files after edits: all 320 questions remain numbered continuously and no exact repeated titles exist within the tricky-question collection.
 - Intentional reinforcement remains useful for interview practice, but a global human semantic review of every answer pair is still not certified complete. Do not interpret a title similarity scan as exhaustive deduplication.
 - Reviewed all five mock-interview files for progression and follow-up prompts. They progress from fundamentals through mid-level implementation, senior troubleshooting, microservices, and product-company scenarios; no compilation or execution was involved.
+
+
+### Expanded exercise solutions — 2026-10-24
+
+- Added 10-Core-and-Operations-Patterns.md and 11-Testing-and-Cloud-Patterns.md with detailed implementation patterns for 25 exercises that previously relied on concise reference approaches. The examples call out assumptions, version-dependent APIs, negative/failure-path tests, and operational trade-offs.
+- Added links from those exercises to the new solution files. The exercise bank now contains 11 detailed solution files and 83 exercise-to-solution links. Two exercises retain chapter-level references rather than a dedicated detailed solution because their existing approach is already small and directly scoped; review the exact index count before describing coverage.
+- These solutions remain illustrative and were not compiled or executed. Several code fragments rely on domain classes and dependencies defined by their exercises; they are not a single ready-to-run application.
