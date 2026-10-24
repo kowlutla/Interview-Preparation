@@ -94,3 +94,18 @@ The README's Core Language navigation repeated the Generics and Exceptions chapt
 - [JEP 453 — Structured Concurrency (Java 21 preview)](https://openjdk.org/jeps/453)
 - [JEP 446 — Scoped Values (Java 21 preview)](https://openjdk.org/jeps/446)
 - [JEP 444 — Virtual Threads (final in Java 21)](https://openjdk.org/jeps/444)
+
+## Review log — 2026-10-24
+
+### Areas reviewed in this pass
+
+- **Stream API and collectors:** Reviewed laziness, short-circuiting, single-use streams, reduction associativity, mutable reduction, collector characteristics, toList() versus Collectors.toList(), parallel side effects, and Spliterator characteristics. No substantive contract error was confirmed in the reviewed passages. The guidance aligns with the Java SE Stream and Collector contracts:
+  - [Java SE 21 Stream package specification](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/package-summary.html)
+  - [Java SE 21 Collector API](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/Collector.html)
+  - [Java SE 21 Collector characteristics](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/Collector.Characteristics.html)
+- **JMM and executors:** Reviewed happens-before, volatile publication, data-race definition, final-field caveats, task cancellation, Future failure observation, bounded queues, rejection, shutdown, and starvation deadlocks. No confirmed substantive error was identified in the sampled passages.
+- **HashMap and Java-version compatibility:** Found a worked example using pattern matching for instanceof without a version label in a Java 8–21 chapter. Rewrote that example using Java 8-compatible instanceof and cast syntax. This is a source-example compatibility correction, not a code compilation or execution validation.
+
+### Review boundary
+
+This pass was a targeted content review. It did not compile or execute examples and does not certify every question in these chapters. Continue with the remaining Collections contracts, JVM/GC claims, I/O/serialization, JDBC, networking, and security.
