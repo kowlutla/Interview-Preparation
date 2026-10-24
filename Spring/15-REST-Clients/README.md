@@ -4,7 +4,9 @@
 
 ### Q1. How do RestTemplate, RestClient, and WebClient differ?
 
-`RestTemplate` is the established synchronous client API; `RestClient` is a newer fluent synchronous API in modern Spring Framework versions; `WebClient` supports non-blocking reactive I/O and can also be used in other interaction styles. Verify framework baseline and support status before selecting one. Do not choose WebClient solely because it is newer.
+RestTemplate is the established synchronous template-style client; it is deprecated in Spring Framework 7.0 in favor of RestClient. RestClient is a fluent synchronous client introduced in Framework 6.1. WebClient is designed for non-blocking reactive I/O and streaming. Verify the framework baseline before using RestClient; do not assume it exists in older Framework versions.
+
+For new synchronous integrations on Framework 6.1+, evaluate RestClient. For non-blocking reactive pipelines, consider WebClient. Existing RestTemplate applications should follow the official migration guide and can migrate incrementally.
 
 ### Q2. How should outbound timeouts be configured?
 
@@ -26,7 +28,12 @@ Use an explicit trust model: service credentials, token exchange, or carefully s
 
 Capture latency, outcome, timeout/retry counts, and dependency identity with low-cardinality metric labels. Add distributed tracing when supported and avoid logging sensitive request bodies. Separate caller-side timeouts from server-side error responses during diagnosis.
 
+### Q7. What are HTTP Service Clients?
+
+Modern Spring Framework versions support declarative HTTP service interfaces backed by a configured client adapter. They can reduce boilerplate for stable service contracts, but still need explicit timeout, authentication, error mapping, and observability configuration. Verify availability and configuration details for the target Framework release.
+
 ## Official references
 
 - [Spring Framework REST clients](https://docs.spring.io/spring-framework/reference/integration/rest-clients.html)
-- [WebClient](https://docs.spring.io/spring-framework/reference/web/webflux-webclient.html)
+- [Spring Framework 6.1 RestClient announcement](https://spring.io/blog/2023/07/13/new-in-spring-6-1-restclient/)
+- [Spring Framework HTTP Service Clients](https://docs.spring.io/spring-framework/reference/integration/rest-clients.html)
