@@ -43,9 +43,11 @@ Requests may hold connections too long, transactions may be long-running, querie
 - [Spring transaction management](https://docs.spring.io/spring-framework/reference/data-access/transaction.html)
 - [JDBC abstraction](https://docs.spring.io/spring-framework/reference/data-access/jdbc.html)
 
-### Q10. What is the difference between REQUIRED and REQUIRES_NEW?
+### Q10. What resource-pool risk does REQUIRES_NEW introduce?
 
-REQUIRED joins an existing transaction or creates one. REQUIRES_NEW suspends the current transaction and starts an independent transaction when supported. The inner transaction can commit even if the outer transaction later rolls back, and it can require another connection while the outer one remains suspended.
+When an outer transaction holds a connection and a proxied inner call starts a REQUIRES_NEW transaction, the outer resources may remain bound while the inner transaction needs another connection. Under high concurrency, a small pool can become exhausted or cause threads to wait for connections held by their own suspended outer transactions.
+
+Use REQUIRES_NEW only when independent commit semantics are required. Size and test the connection pool against nested transactional call patterns, keep transaction scopes short, and remember that self-invocation may prevent the intended propagation from being applied.
 
 ### Q11. When is NESTED propagation useful?
 
