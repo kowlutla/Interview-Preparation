@@ -36,7 +36,8 @@
 - [ ] Manually review code snippets for API/version consistency and stated assumptions. Compilation and runtime execution are intentionally out of scope; do not describe examples as compiled or tested.
 - [ ] Revisit code snippets for imports, API availability, exception behavior, and configuration completeness.
 - [ ] Confirm all 85 exercises have a sufficiently complete reference solution, not only a high-level approach.
-- [ ] Confirm all 75 scenarios include symptoms, diagnostic evidence, root cause, solution, trade-offs, prevention, and follow-up questions.
+- [ ] Confirm operational incident scenarios include symptoms, diagnostic evidence, root cause, mitigation, prevention, and follow-up questions.
+- [ ] Confirm architecture/design scenarios state requirements, constraints, reasoning, alternatives/trade-offs, validation, and follow-up questions.
 - [ ] Review all five mock interviews for natural progression, follow-up depth, and technical correctness.
 - [ ] Update the handbook README only when the relevant audit item is genuinely complete.
 
