@@ -95,6 +95,8 @@ These exercises complement [Core and REST exercises](01-Core-and-REST-Exercises.
 **Reference approach:** Configure structured logging for the selected Boot version, propagate supported trace context, and redact sensitive fields at source. Avoid duplicate logging of the same exception at every layer.
 
 **Related chapter:** [Actuator and observability](../17-Actuator-and-Observability/README.md)
+**Additional reference solution:** [Implementation notes and examples](Reference-Solutions/08-Actuator-and-Metrics.md)
+
 
 **Common mistake:** Logging secrets or using user/request identifiers as metric labels.
 
@@ -131,6 +133,8 @@ These exercises complement [Core and REST exercises](01-Core-and-REST-Exercises.
 **Reference approach:** Prefer established tracing instrumentation where possible. If accepting a caller-provided ID, validate its length and characters, prevent log injection, and establish trust rules.
 
 **Related chapter:** [Actuator and observability](../17-Actuator-and-Observability/README.md)
+**Additional reference solution:** [Implementation notes and examples](Reference-Solutions/08-Actuator-and-Metrics.md)
+
 
 **Common mistake:** Accepting arbitrary caller-provided correlation values without length/character validation.
 
