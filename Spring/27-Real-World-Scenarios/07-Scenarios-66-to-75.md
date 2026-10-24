@@ -8,7 +8,7 @@
 
 **Resolution:** Make readiness reflect the minimum state needed to serve safely; keep warmup bounded and optional work asynchronous where appropriate.
 
-**Prevent:** Test first-request behavior on cold instances.
+**Prevention:** Test first-request behavior on cold instances.
 
 **Follow-up:** Why can lazy initialization move failure into the request path?
 
@@ -20,7 +20,7 @@
 
 **Resolution:** Use a deliberate shared session strategy or stateless token design where appropriate, and secure session cookies.
 
-**Prevent:** Test across multiple replicas and failover.
+**Prevention:** Test across multiple replicas and failover.
 
 **Follow-up:** What are the trade-offs of sticky sessions?
 
@@ -32,7 +32,7 @@
 
 **Resolution:** Enforce authorization at the appropriate service/resource boundary and keep request-layer rules coherent.
 
-**Prevent:** Test every route and direct service invocation paths.
+**Prevention:** Test every route and direct service invocation paths.
 
 **Follow-up:** Why is UI hiding not authorization?
 
@@ -44,7 +44,7 @@
 
 **Resolution:** Synchronize clocks and apply narrowly justified skew tolerance; do not disable expiry validation.
 
-**Prevent:** Monitor time synchronization and test boundary claims.
+**Prevention:** Monitor time synchronization and test boundary claims.
 
 **Follow-up:** What security risk comes from excessive clock-skew tolerance?
 
@@ -56,7 +56,7 @@
 
 **Resolution:** Use appropriate levels, structured fields, redaction, sampling where safe, and metrics for high-volume counts.
 
-**Prevent:** Load-test logging volume and define retention policy.
+**Prevention:** Load-test logging volume and define retention policy.
 
 **Follow-up:** Why should an exception not be logged at every layer?
 
@@ -68,7 +68,7 @@
 
 **Resolution:** Restrict access and encryption, minimize retention, and follow incident procedures if exposed.
 
-**Prevent:** Treat heap dumps as sensitive production data.
+**Prevention:** Treat heap dumps as sensitive production data.
 
 **Follow-up:** Why is a diagnostic artifact not automatically safe to share?
 
@@ -80,7 +80,7 @@
 
 **Resolution:** Fix slow work, bound retries, scale within partition and downstream capacity, or batch where semantics permit.
 
-**Prevent:** Alert on lag age and processing throughput.
+**Prevention:** Alert on lag age and processing throughput.
 
 **Follow-up:** Why can adding consumer threads fail to improve throughput?
 
@@ -92,7 +92,7 @@
 
 **Resolution:** Partition by the relevant key and serialize processing where required; avoid assuming order across partitions.
 
-**Prevent:** Test retries and rebalances with ordered updates.
+**Prevention:** Test retries and rebalances with ordered updates.
 
 **Follow-up:** What throughput trade-off comes with strict ordering?
 
@@ -104,7 +104,7 @@
 
 **Resolution:** Restore relay capacity, retry safely, and scale only within broker/database limits.
 
-**Prevent:** Alert on backlog age and verify replay procedures.
+**Prevention:** Alert on backlog age and verify replay procedures.
 
 **Follow-up:** Why is pending count alone sometimes less useful than oldest-event age?
 
@@ -116,6 +116,6 @@
 
 **Resolution:** Roll back or halt rollout while preserving diagnostics; fix the measured regression and rerun a representative test.
 
-**Prevent:** Use automated SLO-based rollout gates and version-correlated dashboards.
+**Prevention:** Use automated SLO-based rollout gates and version-correlated dashboards.
 
 **Follow-up:** Why can averages hide a canary regression?
