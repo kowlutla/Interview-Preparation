@@ -8,8 +8,8 @@ Ordinary Spring application events are in-process and not durable across process
 ### Q2. What does @TransactionalEventListener(AFTER_COMMIT) guarantee?
 It ties listener execution to the transaction commit phase when a transaction is active. It does not durably queue work after commit if the process crashes.
 
-### Q3. What is the outbox pattern's main benefit?
-It records state and an event intent in one local transaction, eliminating the uncoordinated dual-write gap. A relay still needs retries and duplicate handling.
+### Q3. Which failure window does an outbox close, and which failure window remains?
+Writing business state and an outbox record in one local transaction closes the gap where one commits but the other never exists. It does not remove the publish-then-crash-before-marking-sent window; the relay can publish duplicates. Design stable event identity, retries, and consumer idempotency for that remaining window.
 
 ### Q4. Does an outbox guarantee exactly-once publication?
 No. A relay can publish and crash before recording success, causing duplicate publication. Consumers should be idempotent.
