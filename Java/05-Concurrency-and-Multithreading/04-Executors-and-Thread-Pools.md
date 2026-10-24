@@ -57,7 +57,7 @@ shutdown stops accepting new tasks but allows previously submitted tasks to comp
 
 Tasks must respond cooperatively to interruption. A robust shutdown sequence typically calls shutdown, waits for a bounded interval, escalates to shutdownNow, and waits again while preserving interruption status.
 
-### Q9. What is Future? *(Intermediate)*
+### Q9. How does ExecutorService return a handle to a submitted task? *(Intermediate)*
 
 Future represents a result or completion state that may be available later. get waits for completion and returns the result or throws an exception; cancel requests cancellation; isDone and isCancelled inspect state.
 
