@@ -2,7 +2,7 @@
 
 An interview-first, version-aware handbook for Java backend engineers preparing for mid-level and senior-level interviews. It prioritizes clear explanations of framework mechanics, proxy/lifecycle behavior, debugging, trade-offs, failure modes, and version-aware decisions. Code is supporting material: use small illustrative snippets only when they clarify an interview concept; full runnable applications and exhaustive coding examples are not a goal.
 
-> **Status:** The content inventory includes 610 numbered Q&A headings across 25 core chapters, the advanced ecosystem chapter, and tricky-question chapters; 85 practice exercises, 75 real-world scenarios, and five mock-interview tracks are also present. These counts describe coverage, not proof that every answer has passed exhaustive semantic and technical review.
+> **Status:** The handbook is ready for interview preparation within its stated scope: 610 numbered Q&A headings across 25 core chapters, the advanced ecosystem chapter, and tricky-question chapters; 85 practice exercises, 75 real-world scenarios, and five mock-interview tracks. Structural checks and targeted technical reviews are recorded in the coverage tracker. This is not a claim of exhaustive answer-by-answer certification, global semantic deduplication, or a complete external-URL crawl.
 
 ## Audience and prerequisites
 
