@@ -6,6 +6,8 @@
 
 **Reference approach:** Configure a deliberate JWT authority converter that maps the issuer's documented claims to Spring Security authorities. Keep the mapping explicit and test it against real claim shapes.
 
+**Related detailed solution:** [JWT resource-server configuration and authorization](Reference-Solutions/03-Security-Reference-Solution.md)
+
 **Common mistake:** Assuming every identity provider uses the same roles claim.
 
 **Validation:** Test missing scopes, multiple scopes, wrong claim type, and allowed/denied endpoint access.
@@ -16,6 +18,8 @@
 
 **Reference approach:** Document how credentials are stored and sent, whether the browser attaches them automatically, and which endpoints use cookie/session authentication versus bearer tokens. Configure CSRF based on the threat model, not because the service is labelled REST.
 
+**Related detailed solution:** [JWT resource-server configuration and authorization](Reference-Solutions/03-Security-Reference-Solution.md)
+
 **Validation:** Test unsafe cross-site requests for cookie-authenticated flows.
 
 ## Exercise 73 — CORS allow-list
@@ -23,6 +27,8 @@
 **Problem:** Permit a known frontend origin without allowing arbitrary origins.
 
 **Reference approach:** Configure an explicit origin/method/header policy at the appropriate MVC/security boundary. Treat credentials as a separate decision and avoid wildcard origins with credentials.
+
+**Related detailed solution:** [JWT resource-server configuration and authorization](Reference-Solutions/03-Security-Reference-Solution.md)
 
 **Validation:** Test preflight and denied-origin responses; remember CORS is not server-side authorization.
 
@@ -32,6 +38,8 @@
 
 **Reference approach:** Configure the Spring Kafka error-handling mechanism supported by the selected version, classify failures, bound attempts, and preserve event identity.
 
+**Related detailed solution:** [Transactional outbox and idempotent consumer](Reference-Solutions/07-Outbox-and-Idempotency.md)
+
 **Validation:** Test transient recovery, non-retryable failure, dead-letter routing, and replay.
 
 ## Exercise 75 — Kafka consumer idempotency
@@ -40,6 +48,8 @@
 
 **Reference approach:** Use a durable event ID with a database uniqueness constraint or an idempotent domain operation. Couple deduplication and state changes transactionally where possible.
 
+**Related detailed solution:** [Transactional outbox and idempotent consumer](Reference-Solutions/07-Outbox-and-Idempotency.md)
+
 **Validation:** Process duplicates sequentially and concurrently, including a simulated crash after the side effect.
 
 ## Exercise 76 — Outbox relay
@@ -47,6 +57,8 @@
 **Problem:** Publish outbox records without losing events after a process crash.
 
 **Reference approach:** Poll or stream pending records, publish with a stable event key, and track progress with retryable states. Design for duplicate publication and add metrics for oldest pending event age.
+
+**Related detailed solution:** [Transactional outbox and idempotent consumer](Reference-Solutions/07-Outbox-and-Idempotency.md)
 
 **Validation:** Crash between publish and mark-sent, restart, and verify consumer idempotency.
 
@@ -72,6 +84,8 @@
 
 **Reference approach:** Integrate a supported circuit-breaker library, expose low-cardinality metrics, and choose thresholds from observed latency/error patterns rather than arbitrary defaults.
 
+**Related detailed solution:** [Scheduled work and resilience](Reference-Solutions/09-Scheduled-Work-and-Resilience.md)
+
 **Validation:** Force state transitions and verify alerts do not fire from a single harmless transient failure.
 
 ## Exercise 80 — Scheduled-job idempotency
@@ -79,6 +93,8 @@
 **Problem:** A scheduled task can be restarted halfway through its work.
 
 **Reference approach:** Track durable progress and make each unit of work safely repeatable. If cluster exclusivity is required, combine a distributed coordination strategy with idempotency.
+
+**Related detailed solution:** [Scheduled work and resilience](Reference-Solutions/09-Scheduled-Work-and-Resilience.md)
 
 **Validation:** Stop the process mid-batch and verify restart resumes safely.
 
@@ -96,6 +112,8 @@
 
 **Reference approach:** Derive a total deadline and allocate bounded per-call budgets; avoid nested retry loops that exceed the caller's deadline.
 
+**Related detailed solution:** [Scheduled work and resilience](Reference-Solutions/09-Scheduled-Work-and-Resilience.md)
+
 **Validation:** Inject slow calls and assert total response time remains within the documented bound.
 
 ## Exercise 83 — Secure Actuator
@@ -104,6 +122,8 @@
 
 **Reference approach:** Configure endpoint exposure and security rules explicitly for the chosen Boot version and deployment model.
 
+**Related detailed solution:** [Actuator health and metrics](Reference-Solutions/08-Actuator-and-Metrics.md)
+
 **Validation:** Test unauthenticated access to each exposed endpoint and ensure sensitive details are not returned.
 
 ## Exercise 84 — Kubernetes readiness behavior
@@ -111,6 +131,8 @@
 **Problem:** Keep a starting instance out of service until it can safely handle requests.
 
 **Reference approach:** Configure readiness and startup probes according to startup duration and application readiness semantics; avoid making liveness depend on every external dependency.
+
+**Related detailed solution:** [Actuator health and metrics](Reference-Solutions/08-Actuator-and-Metrics.md)
 
 **Validation:** Simulate slow startup and a transient dependency outage.
 
