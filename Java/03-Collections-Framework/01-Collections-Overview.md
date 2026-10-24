@@ -67,7 +67,7 @@ Do not build correctness around the exception always being thrown. For single-th
 
 An unmodifiable view rejects mutations through that view, but changes to a mutable backing collection can still be visible. An immutable collection has no externally observable mutable backing state under its contract. The term immutable is often used informally, so inspect the API.
 
-    List<String> backing = new ArrayList<>(List.of("a"));
+    List<String> backing = new ArrayList<>(Arrays.asList("a"));
     List<String> view = Collections.unmodifiableList(backing);
     backing.add("b");
     System.out.println(view); // [a, b]
@@ -163,7 +163,7 @@ Use the iterator's remove method when supported, or use collection methods desig
 
     Iterator<String> it = values.iterator();
     while (it.hasNext()) {
-        if (it.next().isBlank()) {
+        if (it.next().trim().isEmpty()) {
             it.remove();
         }
     }
