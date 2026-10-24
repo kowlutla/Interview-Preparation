@@ -46,7 +46,7 @@ A starter declares a curated dependency set. Auto-configuration is conditional c
 
 ### Q10. What is the condition evaluation report used for?
 
-It explains which auto-configuration conditions matched or failed. Use it alongside startup logs, effective properties, and the root exception to understand missing or unexpected beans.
+It lists auto-configuration conditions and explains why each configuration matched or backed off. Use it to investigate a missing bean, an unexpected default, or behavior that changed after adding a dependency. Correlate the report with the resolved classpath, active profiles, effective properties, and the first meaningful startup exception; do not assume every negative condition is an error.
 
 ### Q11. What is the purpose of SpringApplication events?
 
