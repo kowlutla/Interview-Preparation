@@ -17,7 +17,7 @@ Prefer standard interfaces for common behavior. Create a custom functional inter
 
 They compose predicates. and requires both predicates to pass and short-circuits if the first is false; or short-circuits if the first is true; negate reverses the result.
 
-    Predicate<String> nonBlank = s -> s != null && !s.isBlank();
+    Predicate<String> nonBlank = s -> s != null && !s.trim().isEmpty();
     Predicate<String> shortEnough = s -> s.length() < 100;
     Predicate<String> valid = nonBlank.and(shortEnough);
 
