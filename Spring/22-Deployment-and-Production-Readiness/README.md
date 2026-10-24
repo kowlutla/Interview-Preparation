@@ -6,9 +6,9 @@
 
 At minimum, it needs secure external configuration, bounded resource pools, meaningful readiness/liveness semantics, timeouts for remote dependencies, observable errors and latency, graceful shutdown, tested data migrations, and a rollback strategy. Exact requirements depend on the service's risk and workload.
 
-### Q2. Why is graceful shutdown important?
+### Q2. How should a deployment drain requests and background work before termination?
 
-It allows the application to stop accepting new work and finish or safely cancel in-flight work within a configured deadline. Long-running requests, consumers, scheduled jobs, and executor tasks each need a policy. Test termination under load rather than assuming process exit is graceful.
+Coordinate readiness removal, server graceful shutdown, consumer pause/stop, in-flight request deadlines, and the platform termination grace period. Consumers should acknowledge only after their work is safely committed, and durable jobs need checkpoints or retries if the process is terminated. Test the full sequence under load; a server's graceful-shutdown setting alone does not protect every background task.
 
 ### Q3. How should database pool size be selected?
 
