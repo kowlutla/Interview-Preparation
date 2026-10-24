@@ -61,7 +61,7 @@ It does not eliminate every lifecycle concern; value objects can themselves refe
 
 ### Q9. What is Cleaner? *(Advanced)*
 
-Cleaner provides a mechanism to run cleanup actions after an associated object becomes phantom reachable. It can support fallback cleanup for native resources, but execution is nondeterministic.
+Cleaner was introduced in Java 9. It provides a mechanism to run cleanup actions after an associated object becomes phantom reachable. It can support fallback cleanup for native resources, but execution is nondeterministic.
 
 Use AutoCloseable and try-with-resources for deterministic cleanup. Cleaner is a safety net, not a replacement for explicit close.
 
