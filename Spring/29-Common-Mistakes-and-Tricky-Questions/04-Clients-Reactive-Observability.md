@@ -26,8 +26,8 @@ No. Circuit breakers respond to observed failures; bulkheads isolate resource co
 ### Q8. What is a safe fallback?
 A fallback that preserves the domain contract, such as omitting a noncritical recommendation. It must not fabricate success for payment, authorization, or critical writes.
 
-### Q9. What is the difference between RestClient and WebClient?
-RestClient is synchronous and fluent; WebClient supports non-blocking reactive I/O. Choose based on runtime baseline and end-to-end workload.
+### Q9. How do you prevent WebClient connection-pool exhaustion under load?
+Set explicit connection-acquisition and response timeouts, bound concurrent requests, reuse a configured client/connection provider, and monitor active/pending connections and acquisition latency. Avoid creating a new client per request or allowing unbounded fan-out. Pool size should match downstream capacity; increasing it without limiting concurrency can move the bottleneck downstream rather than solve it.
 
 ### Q10. Is RestTemplate removed?
 It remains in existing applications and supported framework lines, but current client selection should follow the chosen version's official guidance rather than assuming new APIs are available everywhere.
