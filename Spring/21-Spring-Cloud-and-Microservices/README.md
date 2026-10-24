@@ -33,7 +33,7 @@ It does not make a slow or failing service healthy, guarantee session consistenc
 ## Official references
 
 - [Spring Cloud project and compatibility](https://spring.io/projects/spring-cloud)
-- [Spring Cloud reference documentation](https://docs.spring.io/spring-cloud/docs/current/reference/html/)
+- [Spring Cloud release-train reference documentation](https://docs.spring.io/spring-cloud-release/reference/)
 
 ### Q8. What is the difference between a retry and a circuit breaker?
 
