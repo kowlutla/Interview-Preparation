@@ -34,11 +34,6 @@ Optimistic locking detects conflicting updates, commonly using a version attribu
 
 The available interfaces vary by Spring Data version. Common options include `CrudRepository`, `ListCrudRepository`, `PagingAndSortingRepository`, and `JpaRepository`; do not assume inheritance relationships from one version apply unchanged to another. Select the smallest useful contract and consult the reference for the chosen release.
 
-## Official references
-
-- [Spring Data JPA reference](https://docs.spring.io/spring-data/jpa/reference/)
-- [Query methods](https://docs.spring.io/spring-data/jpa/reference/jpa/query-methods.html)
-
 ### Q9. Why can repository pagination return inconsistent results during concurrent writes?
 
 Offset pages are positional, so inserts/deletes between requests can shift records across page boundaries. A deterministic sort reduces ambiguity but does not create a consistent snapshot across independent requests. For large changing datasets, consider cursor/keyset pagination and document its consistency model.
@@ -62,3 +57,8 @@ Choose a consistent time basis, usually UTC instants for persisted event timesta
 ### Q14. How do you diagnose a query that is fast locally but slow in production?
 
 Compare data volume/distribution, indexes, database statistics, execution plan, lock contention, parameter selectivity, and network/connection wait. A unit test cannot substitute for an execution plan on representative production-like data.
+
+## Official references
+
+- [Spring Data JPA reference](https://docs.spring.io/spring-data/jpa/reference/)
+- [Query methods](https://docs.spring.io/spring-data/jpa/reference/jpa/query-methods.html)
