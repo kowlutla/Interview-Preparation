@@ -137,7 +137,7 @@ For most binary numeric operations, if either operand is double, the operation i
 
     int x = 5;
     long y = 2;
-    var result = x / y; // long, value 2
+    long result = x / y; // value 2; Java 8-compatible declaration
 
 Both operands are integral, so division truncates toward zero before any later conversion. A cast after division cannot recover a fraction already discarded.
 
