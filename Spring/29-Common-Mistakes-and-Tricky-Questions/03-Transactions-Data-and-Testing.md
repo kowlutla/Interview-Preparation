@@ -47,11 +47,11 @@ They improve readability and reduce positional binding mistakes, especially when
 ### Q15. How should SQL injection be prevented?
 Use parameter binding for values, whitelist identifiers that cannot be bound, and avoid concatenating untrusted input into SQL fragments.
 
-### Q16. What is the difference between Page and Slice?
-Page commonly exposes total-count metadata; Slice indicates whether more results exist without necessarily computing the total. Use the least expensive contract that meets product needs.
+### Q16. When is Slice preferable to Page for a high-volume listing API?
+Choose `Slice` when the client only needs next/previous navigation and does not need an exact total. This can avoid a separate count query, but it changes the API contract: the client cannot display a guaranteed total number of results. Make the choice from user experience and data-scale requirements rather than assuming one return type is universally better.
 
-### Q17. Why might a count query be slow?
-Complex joins and predicates may make total counting expensive. Inspect generated SQL and consider Slice or a customized count query when total totals are not essential.
+### Q17. How do you optimize a count query when the API truly requires a total?
+Inspect the generated count SQL and execution plan, ensure predicates and joins are necessary, and review indexes and database statistics. A custom count query may be simpler than the content query; avoid removing joins or filters if that changes the meaning of the total. If exact totals remain too costly, revisit whether the product contract genuinely requires them.
 
 ### Q18. What is a repository fragment?
 A custom implementation component composed with a Spring Data repository to handle behavior that derived methods or @Query do not express cleanly.
