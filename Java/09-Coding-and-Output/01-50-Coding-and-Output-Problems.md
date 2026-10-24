@@ -68,15 +68,17 @@ Use this bank after studying the handbook chapters. For each coding problem, sta
 
 ### Problem 11. Find the missing number in 0..n
 
+**Task:** Given an array of length n containing distinct integers from 0 through n, with exactly one value missing, return the missing value.
+
 **Reference approach:** XOR all expected indices and values, or use a long sum to avoid int overflow. Validate the uniqueness/range assumption.
 
 ### Problem 12. Find the second-largest distinct value
 
 **Reference approach:** One pass tracking largest and second largest with explicit presence flags. O(n) time, O(1) extra space. Test all-negative arrays and duplicates.
 
-### Problem 13. Rotate an array by k positions
+### Problem 13. Rotate an array right by k positions
 
-**Reference approach:** Three reversals, normalizing k with floorMod. O(n) time, O(1) extra space.
+**Reference approach:** Use three reversals, normalizing k with `Math.floorMod(k, n)` when the array is non-empty; handle an empty array before computing the modulus. O(n) time, O(1) extra space.
 
 ### Problem 14. Move zeroes to the end
 
