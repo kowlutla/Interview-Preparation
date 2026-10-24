@@ -111,7 +111,7 @@ These are manual documentation/API-version corrections only. No compilation or r
 
 - Added the Spring Framework 6.2+ global rollback-policy nuance: traditional defaults roll back on unchecked exceptions and Errors, while transaction management can opt into `ALL_EXCEPTIONS`; explicit rules and caught exceptions still matter. This is reflected in the core transaction Q&A and tricky-question collection.
 - Added Boot 4 modular-starter/test-module and test-annotation migration guidance to the compatibility page. The reference guide should remain version-specific: Boot 4 removed `@MockBean`/`@SpyBean` support, and tests may need explicit MVC/client test auto-configuration rather than relying on older `@SpringBootTest` behavior.
-- Rechecked the updated exercise files after adding navigation links to detailed solutions: 61 local Markdown links were found in the four exercise files, and every target resolves. The 60 newly added cross-links are included in this count alongside one pre-existing local link.
+- Rechecked the updated exercise files after adding navigation links to detailed solutions and related chapters: 62 local Markdown links were found in the four exercise files, and every target resolves. This includes 60 newly added solution cross-links plus two chapter/pre-existing local links.
 
 ### Exercise-format consistency pass — 2026-10-24
 
