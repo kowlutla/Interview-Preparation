@@ -28,6 +28,8 @@ These exercises complement [Core and REST exercises](01-Core-and-REST-Exercises.
 
 **Reference approach:** Use `@TransactionalEventListener(phase = AFTER_COMMIT)` when the action is an in-process reaction. For durable cross-process delivery, use an outbox instead.
 
+**Related detailed solution:** [Transactional outbox and idempotent consumer](Reference-Solutions/07-Outbox-and-Idempotency.md)
+
 **Validation:** Verify no listener action on rollback and expected behavior when no transaction is active.
 
 ## Exercise 29 — Idempotent message consumer
@@ -35,6 +37,8 @@ These exercises complement [Core and REST exercises](01-Core-and-REST-Exercises.
 **Problem:** Process a message at least once without applying its business effect twice.
 
 **Reference approach:** Persist a unique event identifier and business change atomically, with a uniqueness constraint and explicit duplicate handling.
+
+**Related detailed solution:** [Transactional outbox and idempotent consumer](Reference-Solutions/07-Outbox-and-Idempotency.md)
 
 **Common mistake:** Keeping deduplication IDs only in memory.
 
@@ -46,6 +50,8 @@ These exercises complement [Core and REST exercises](01-Core-and-REST-Exercises.
 
 **Reference approach:** Classify retryable failures, cap attempts, add backoff/jitter, and ensure the combined attempt durations fit the caller's deadline. Ensure operation idempotency.
 
+**Related detailed solution:** [Scheduled work and resilience](Reference-Solutions/09-Scheduled-Work-and-Resilience.md)
+
 **Validation:** Test transient recovery, permanent failure, and deadline exhaustion.
 
 ## Exercise 31 — Circuit-breaker fallback
@@ -53,6 +59,8 @@ These exercises complement [Core and REST exercises](01-Core-and-REST-Exercises.
 **Problem:** Protect a service from a failing dependency.
 
 **Reference approach:** Configure a supported circuit-breaker integration with measured thresholds, bounded timeouts, and a fallback that is semantically safe. Do not return fabricated success for critical writes.
+
+**Related detailed solution:** [Scheduled work and resilience](Reference-Solutions/09-Scheduled-Work-and-Resilience.md)
 
 **Validation:** Simulate open, half-open, and closed states and observe metrics.
 
@@ -78,6 +86,8 @@ These exercises complement [Core and REST exercises](01-Core-and-REST-Exercises.
 
 **Reference approach:** Configure executor lifecycle and await-termination behavior within the platform termination grace period. Define whether remaining work is persisted, retried, or discarded.
 
+**Related detailed solution:** [Cache invalidation and bounded async execution](Reference-Solutions/04-Cache-and-Async-Reference-Solution.md)
+
 **Validation:** Terminate under queued workload and verify the policy.
 
 ## Exercise 35 — Upload limits
@@ -94,6 +104,8 @@ These exercises complement [Core and REST exercises](01-Core-and-REST-Exercises.
 
 **Reference approach:** Prefer established tracing instrumentation where possible. If accepting a caller-provided ID, validate its length and characters, prevent log injection, and establish trust rules.
 
+**Related detailed solution:** [Actuator health and metrics](Reference-Solutions/08-Actuator-and-Metrics.md)
+
 **Validation:** Verify IDs propagate through synchronous calls and are not used as high-cardinality metric labels.
 
 ## Exercise 37 — Safe configuration exposure
@@ -102,6 +114,8 @@ These exercises complement [Core and REST exercises](01-Core-and-REST-Exercises.
 
 **Reference approach:** Restrict Actuator exposure, secure sensitive endpoints, and redact secrets in logs and support bundles.
 
+**Related detailed solution:** [Actuator health and metrics](Reference-Solutions/08-Actuator-and-Metrics.md)
+
 **Validation:** Assert unauthorized access is denied and known secret values never appear in diagnostic output.
 
 ## Exercise 38 — Readiness policy
@@ -109,6 +123,8 @@ These exercises complement [Core and REST exercises](01-Core-and-REST-Exercises.
 **Problem:** Keep an instance out of traffic when a critical dependency is unavailable, without causing restart loops.
 
 **Reference approach:** Model dependency health in readiness and keep liveness focused on process progress. Bound checks and define dependency criticality explicitly.
+
+**Related detailed solution:** [Actuator health and metrics](Reference-Solutions/08-Actuator-and-Metrics.md)
 
 **Validation:** Simulate dependency outage and verify readiness changes while liveness remains appropriate.
 
@@ -134,6 +150,8 @@ These exercises complement [Core and REST exercises](01-Core-and-REST-Exercises.
 
 **Reference approach:** Use a version column and translate a conflict into a documented retry or conflict response. Never blindly retry a business command without re-evaluating the latest state.
 
+**Related detailed solution:** [Transactional transfer and rollback testing](Reference-Solutions/02-Transaction-Reference-Solution.md)
+
 **Validation:** Run two concurrent transactions and assert one detects the conflict.
 
 ## Exercise 42 — Test async behavior
@@ -141,6 +159,8 @@ These exercises complement [Core and REST exercises](01-Core-and-REST-Exercises.
 **Problem:** Test a method returning CompletableFuture.
 
 **Reference approach:** Await the future with a bounded timeout, assert success/failure explicitly, and use a controllable executor or fake dependency to make timing deterministic.
+
+**Related detailed solution:** [Cache invalidation and bounded async execution](Reference-Solutions/04-Cache-and-Async-Reference-Solution.md)
 
 **Common mistake:** Adding arbitrary Thread.sleep calls.
 
@@ -152,6 +172,8 @@ These exercises complement [Core and REST exercises](01-Core-and-REST-Exercises.
 
 **Reference approach:** Enable method security in the test context, invoke through the Spring proxy, and test allowed and denied principals.
 
+**Related detailed solution:** [JWT resource-server configuration and authorization](Reference-Solutions/03-Security-Reference-Solution.md)
+
 **Common mistake:** Directly constructing the service, thereby bypassing method-security interception.
 
 **Validation:** Confirm a denied invocation never reaches the side effect.
@@ -161,6 +183,8 @@ These exercises complement [Core and REST exercises](01-Core-and-REST-Exercises.
 **Problem:** A production property differs from the value in application.yaml.
 
 **Reference approach:** Inspect active profiles and property sources, then identify environment variables, command-line arguments, deployment injection, and imported config that override the file.
+
+**Related detailed solution:** [Configuration binding and custom validation](Reference-Solutions/06-Configuration-and-Validation.md)
 
 **Validation:** Add a configuration binding test and document the intended source of truth.
 
@@ -178,6 +202,8 @@ These exercises complement [Core and REST exercises](01-Core-and-REST-Exercises.
 
 **Reference approach:** Use a client interceptor/filter or supported OAuth client integration with scoped credentials and token lifecycle management. Do not hardcode secrets or forward inbound tokens without audience/trust validation.
 
+**Related detailed solution:** [JWT resource-server configuration and authorization](Reference-Solutions/03-Security-Reference-Solution.md)
+
 **Validation:** Test missing credentials, expired token refresh, and destination allow-listing.
 
 ## Exercise 47 — Reactive context
@@ -193,6 +219,8 @@ These exercises complement [Core and REST exercises](01-Core-and-REST-Exercises.
 **Problem:** Avoid hundreds of concurrent recomputations for one expired key.
 
 **Reference approach:** Evaluate cache-provider-supported synchronization, request coalescing, staggered expiry, or controlled refresh. Keep the source call bounded and define behavior during cache failure.
+
+**Related detailed solution:** [Cache invalidation and bounded async execution](Reference-Solutions/04-Cache-and-Async-Reference-Solution.md)
 
 **Validation:** Launch concurrent requests and measure source-call count and tail latency.
 
