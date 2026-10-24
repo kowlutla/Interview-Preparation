@@ -126,3 +126,13 @@ The I/O chapter has a Java 8–21 scope, while two examples used later APIs with
 ### Repository audit metadata — 2026-10-24
 
 The separate `QUALITY-AUDIT-AND-REMEDIATION.md` baseline was stale at 66 Markdown files, 53 Q&A chapters, 999 questions, and 68 README links. Updated those figures to the latest recorded inventory: 74 Markdown files, 56 Q&A chapters, 1,058 numbered questions, and 76 README links resolving in the latest structural check. These counts should be regenerated/rechecked before release rather than treated as permanent values.
+
+### Cross-version example sweep — 2026-10-24
+
+- Updated core Stream API examples to use Java 8-compatible collection creation, filtering, and collection terminal operations, avoiding unlabelled use of `List.of`, `String.isBlank`, and `Stream.toList` in a chapter spanning Java 8–21.
+- Updated the Collections overview examples to avoid unlabelled Java 9 `List.of` and Java 11 `String.isBlank` calls.
+- Updated Lambda Expressions and Functional Interfaces examples to avoid unlabelled Java 11 `String.isBlank` usage.
+- Marked `Collectors.filtering` as Java 9+; `Collectors.teeing` was already identified as Java 12+ and `Stream.toList` as Java 16+.
+- Clarified the charset timeline in the I/O chapter: default charset could vary in Java 17 and earlier, while Java 18+ defaults to UTF-8 under JEP 400 (with compatibility configuration available). Explicit charset selection remains recommended for protocol/file contracts. See [JDK 18 release notes](https://www.oracle.com/java/technologies/javase/18-relnote-issues.html).
+
+These changes came from a targeted source-level/API-version scan, not from compilation or execution. The scan is not proof that no other unlabelled version-sensitive API remains; continue the same check across the remaining chapters.
