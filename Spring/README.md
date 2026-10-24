@@ -77,6 +77,7 @@ See the [coverage inventory and technical review checklist](COVERAGE-AND-TECHNIC
 - [x] Structural heading audit: continuous Q&A numbering and no immediate verbatim question repetition beneath headings
 - [x] Exercise numbering audit: 1–85 continuous
 - [x] Production-scenario numbering audit: 1–75 continuous
+- [x] Targeted local-link checks for root and main collection indexes (full repository-wide link audit remains pending)
 - [ ] Full semantic deduplication and answer-depth review (including the new advanced ecosystem chapter)
 - [ ] Verify every version-specific claim against exact official release docs
 - [ ] Manually review illustrative snippets for API/version consistency and clear assumptions (compilation/runtime testing is outside this review's scope)
