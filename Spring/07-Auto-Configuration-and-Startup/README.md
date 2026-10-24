@@ -18,9 +18,9 @@ Use the supported exclusion mechanisms, such as the exclude attribute on `@Sprin
 
 The registration metadata evolved. Older Boot generations commonly used `spring.factories` for auto-configuration candidates; modern Boot uses the dedicated `AutoConfiguration.imports` metadata for auto-configuration discovery. When building a starter, follow the documentation for the exact Boot baseline instead of copying old registration examples.
 
-### Q5. What is the difference between a BeanFactoryPostProcessor and a BeanPostProcessor during startup?
+### Q5. What can go wrong if a BeanFactoryPostProcessor triggers bean creation too early?
 
-The former modifies bean-definition metadata before ordinary bean instantiation; the latter can process bean instances before and after initialization. Infrastructure such as proxy creation uses instance post-processing. Accidentally triggering bean creation too early from infrastructure code can cause incomplete post-processing or ordering problems.
+A BeanFactoryPostProcessor runs before normal singleton instantiation, so eagerly requesting application beans during that phase can create them before all BeanPostProcessors are registered. Those beans may miss proxying or other instance-level processing and can produce lifecycle warnings. Keep factory post-processors focused on bean definitions, use static @Bean methods for infrastructure where required, and inspect startup logs when a bean unexpectedly lacks advice.
 
 ### Q6. What does ApplicationContext refresh mean?
 
