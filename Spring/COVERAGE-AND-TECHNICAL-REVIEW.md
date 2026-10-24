@@ -46,6 +46,17 @@
 - Checked for the specific formatting defect where a question is repeated verbatim as the first non-empty line immediately below its heading. No instances were found in those 33 Q&A files.
 - These are structural checks only. They do not prove semantic uniqueness, answer correctness, link validity, or runnable-code correctness; those remain separate review tasks.
 
+## Focused manual code review completed on 2026-10-24
+
+Reviewed all nine detailed reference-solution files for obvious API-contract and example-consistency issues without compiling or executing code. Corrections made:
+
+- Separated the REST request and response records into explicitly separate source files.
+- Added a malformed-JSON handler so invalid request bodies do not fall through to the generic 500 handler.
+- Clarified that JWT issuer configuration alone does not guarantee audience validation; an explicit audience validator is needed when the API requires one.
+- Changed the metrics example to derive its outcome tag from the operation result instead of accepting a potentially misleading caller-supplied value.
+
+This was a focused manual review, not a guarantee that every snippet in the handbook is error-free. Compilation and runtime testing remain intentionally out of scope for this review.
+
 ## Recent audit corrections
 
 - The original inventory was 589 (269 core-category Q&As plus 320 tricky questions). Added 20 advanced ecosystem Q&As and one migration question about preview-versus-stable releases. The current breakdown is 270 core-category Q&As, 20 advanced ecosystem Q&As, and 320 tricky questions: 610 total.
