@@ -38,12 +38,6 @@ CORS is a browser-enforced cross-origin access policy; CSRF is an attack in whic
 
 Enable method security using the supported configuration for the selected version and apply annotations such as @PreAuthorize at appropriate service boundaries. Because interception is proxy-based in common setups, self-invocation and proxy visibility matter. Authorization rules should be tested for both allowed and denied principals.
 
-## Official references
-
-- [Spring Security reference](https://docs.spring.io/spring-security/reference/)
-- [Servlet architecture](https://docs.spring.io/spring-security/reference/servlet/architecture.html)
-- [OAuth 2.0 Resource Server JWT](https://docs.spring.io/spring-security/reference/servlet/oauth2/resource-server/jwt.html)
-
 ### Q10. How should multiple SecurityFilterChain beans be ordered?
 
 Each chain has a request matcher and an order. The first matching chain is used, so a broad high-priority matcher can shadow a more specific chain. Keep matchers explicit and test both intended and unintended paths.
@@ -83,3 +77,9 @@ An AuthenticationEntryPoint handles a request that requires authentication but l
 ### Q19. What should security tests cover beyond a happy path?
 
 Cover anonymous access, authenticated-but-forbidden access, authorized access, malformed/expired tokens, wrong issuer or audience, authority mapping, CSRF where relevant, and tenant isolation. A successful test alone does not establish that forbidden requests are rejected.
+
+## Official references
+
+- [Spring Security reference](https://docs.spring.io/spring-security/reference/)
+- [Servlet architecture](https://docs.spring.io/spring-security/reference/servlet/architecture.html)
+- [OAuth 2.0 Resource Server JWT](https://docs.spring.io/spring-security/reference/servlet/oauth2/resource-server/jwt.html)
