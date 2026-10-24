@@ -16,6 +16,11 @@
 | Official documentation | Dedicated references plus per-topic links | Sampled core official URLs were opened successfully on 2026-10-24; a repository-wide external-URL audit remains incomplete |
 | Code validation | Eleven detailed reference-solution files added, including core/operations and testing/cloud patterns, alongside REST API, transactions, security, cache/async, Testcontainers/client, configuration/validation, outbox/idempotency, Actuator/metrics, and scheduled work/resilience | Not yet compiled as a single runnable sample application |
 
+
+## Review scope clarification — 2026-10-24
+
+The primary deliverable is an interview-focused reference, not a collection of complete coding projects. Review priorities are: (1) technically correct and explainable answers, (2) meaningful semantic distinction between questions, (3) current version/API guidance, and (4) clear diagnosis, trade-offs, and failure modes. Keep code examples to short snippets where they clarify a concept. Do not spend review time expanding every exercise into a full runnable application; no compilation or execution is expected for this handbook. Exercise entries remain optional practice material, and their solution depth is not a blocker for the interview-first handbook being complete.
+
 ## High-priority technical review notes
 
 1. **Version-sensitive claims:** Recheck against the exact target patch. Spring Framework 7 retains a Java 17 baseline and adopts Jakarta EE 11; Boot 4 requires Java 17+ and Framework 7.x. Framework 7 deprecates RestTemplate in favor of RestClient. Spring Cloud compatibility is release-train-specific.
