@@ -8,11 +8,11 @@
 
 | Requirement | Current inventory | Status |
 |---|---:|---|
-| Numbered Q&A headings | 589 counted across category and tricky-question files | Count target met; deduplication/depth audit remains |
+| Numbered Q&A headings | 609 counted across category and tricky-question files | Count target met; deduplication/depth audit remains |
 | Coding exercises | 85 numbered exercises | Count target met; runnable implementation depth varies |
 | Production scenarios | 75 numbered scenarios | Count target met; review each for investigation evidence and trade-offs |
 | Mock interviews | 5 interview files | Count target met; answers are model discussion prompts, not transcripts |
-| Topic categories | Parts A–Y represented by category files; exercises/scenarios/mock interviews/tricky questions/references added | Initial breadth present; depth review remains |
+| Topic categories | Parts A–Y plus a dedicated advanced ecosystem chapter; exercises/scenarios/mock interviews/tricky questions/references added | Initial breadth present; depth review remains |
 | Official documentation | Dedicated references plus per-topic links | Link and version audit remains |
 | Code validation | Nine detailed reference-solution files added for REST API, transactions, security, cache/async, Testcontainers/client, configuration/validation, outbox/idempotency, Actuator/metrics, and scheduled work/resilience | Not yet compiled as a single runnable sample application |
 
@@ -29,7 +29,7 @@
 
 ## Final review checklist
 
-- [ ] Review 589 questions for near-duplicates and shallow variations; retain the strongest formulation where concepts overlap.
+- [ ] Review 609 questions for near-duplicates and shallow variations; retain the strongest formulation where concepts overlap, including the advanced ecosystem chapter.
 - [ ] Expand answers that need deeper internal mechanics, examples, edge cases, and trade-offs.
 - [ ] Verify version-specific statements against versioned official docs and record the baseline.
 - [ ] Check every internal Markdown link and official external link.
@@ -39,6 +39,13 @@
 - [ ] Confirm all 75 scenarios include symptoms, diagnostic evidence, root cause, solution, trade-offs, prevention, and follow-up questions.
 - [ ] Review all five mock interviews for natural progression, follow-up depth, and technical correctness.
 - [ ] Update the handbook README only when the relevant audit item is genuinely complete.
+
+## Recent audit corrections
+
+- Recounted numbered Q&A headings from the 25 core category files (269) and seven tricky-question files (320): 589 before the new ecosystem chapter.
+- Added 20 advanced ecosystem Q&As covering Spring Batch, Modulith, GraphQL, WebSocket, AOT/native images, virtual threads, OAuth2 roles, Spring Session, Integration, Contract, and retry design. Current inventory: 609 numbered Q&A headings.
+- Removed a duplicated status sentence from the main README.
+- Refreshed the compatibility snapshot against current official documentation checked on 2026-10-24; the stable pages list Framework 7.0.10 and Boot 4.1.2. This remains a dated snapshot and must be rechecked before a real upgrade.
 
 ## Official sources checked for version-sensitive guidance
 
