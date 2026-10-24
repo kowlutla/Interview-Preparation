@@ -42,3 +42,39 @@ Requests may hold connections too long, transactions may be long-running, querie
 
 - [Spring transaction management](https://docs.spring.io/spring-framework/reference/data-access/transaction.html)
 - [JDBC abstraction](https://docs.spring.io/spring-framework/reference/data-access/jdbc.html)
+
+### Q10. What is the difference between REQUIRED and REQUIRES_NEW?
+
+REQUIRED joins an existing transaction or creates one. REQUIRES_NEW suspends the current transaction and starts an independent transaction when supported. The inner transaction can commit even if the outer transaction later rolls back, and it can require another connection while the outer one remains suspended.
+
+### Q11. When is NESTED propagation useful?
+
+Where the transaction manager and resource support it, NESTED can use a savepoint inside an existing transaction. It is not universally supported and should not be assumed equivalent to REQUIRES_NEW, which creates a separate transaction.
+
+### Q12. Why can a caught exception still lead to rollback failure at commit?
+
+An inner operation may mark the transaction rollback-only before the exception is caught. The outer method then returns normally, but commit cannot succeed and may result in an unexpected rollback exception. Trace where rollback-only was set rather than focusing only on the final return path.
+
+### Q13. What is the difference between a local transaction and a distributed workflow?
+
+A local transaction coordinates supported resources through one transaction manager. A workflow spanning HTTP services, databases, and a broker needs explicit reliability semantics such as outbox, idempotency, saga compensation, or a supported distributed transaction protocol where appropriate.
+
+### Q14. How can transaction boundaries affect connection pool usage?
+
+A transaction may hold a connection until completion. Long computation or remote calls inside the boundary increase hold time and pool pressure. Measure transaction duration and connection acquisition latency, and keep the critical section focused on required database work.
+
+### Q15. What is transaction-aware caching?
+
+It coordinates cache operations with transaction completion so changes are not made visible at an inappropriate phase. Exact behavior depends on the cache abstraction/provider configuration. Verify rollback and after-commit behavior rather than assuming cache eviction is automatically atomic with the database.
+
+### Q16. How should a service handle an optimistic-lock conflict?
+
+Treat it as a concurrency outcome, reload current state, and decide whether the business command can be retried or should return a conflict. Blind retries can repeat side effects or overwrite a newer decision.
+
+### Q17. Why can an in-memory database hide transaction defects?
+
+Its locking, isolation, dialect, and constraint behavior may differ from production. Test critical isolation and concurrency assumptions against the actual database engine and version.
+
+### Q18. How do you investigate a deadlock?
+
+Collect database deadlock diagnostics and transaction/query logs, map lock acquisition order, and identify cycles. Reduce transaction scope, access rows in consistent order where possible, and implement safe retry for database-detected transient deadlocks only when the business operation is repeatable.
