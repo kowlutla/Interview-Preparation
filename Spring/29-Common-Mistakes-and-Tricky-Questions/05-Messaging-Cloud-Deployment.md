@@ -14,8 +14,8 @@ Writing business state and an outbox record in one local transaction closes the 
 ### Q4. Does an outbox guarantee exactly-once publication?
 No. A relay can publish and crash before recording success, causing duplicate publication. Consumers should be idempotent.
 
-### Q5. What is consumer idempotency?
-Repeated processing of the same logical event has no additional business effect. Use durable identity and transactional constraints where needed.
+### Q5. What durable state is needed to make a message consumer idempotent?
+Persist a stable event or command identity and enforce uniqueness at the same consistency boundary as the business state change. In-memory deduplication is lost on restart and can fail under concurrency. If the effect is an external API call, a local deduplication row alone cannot make that remote side effect atomic; use provider idempotency or reconciliation.
 
 ### Q6. What is a dead-letter topic?
 A destination for messages that cannot be processed under the configured policy, enabling inspection and controlled replay. It requires monitoring and an operational ownership process.
