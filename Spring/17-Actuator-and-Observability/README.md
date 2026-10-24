@@ -30,3 +30,19 @@ Expose only the endpoints needed by the platform, restrict sensitive environment
 
 - [Spring Boot Actuator](https://docs.spring.io/spring-boot/reference/actuator/)
 - [Micrometer documentation](https://docs.micrometer.io/)
+
+### Q7. How should custom health indicators avoid cascading failures?
+
+Use short timeouts, avoid expensive full business operations, and distinguish critical readiness dependencies from optional dependencies. During a shared outage, health checks should not create more load than the business traffic they are diagnosing.
+
+### Q8. What is the difference between an application metric and a business metric?
+
+Application metrics measure technical behavior such as latency, errors, pool usage, and saturation. Business metrics measure outcomes such as completed orders or failed checkouts. Both are needed because a service can be technically healthy while business success degrades.
+
+### Q9. How do you design alerts from SLOs?
+
+Use indicators tied to user-visible reliability and choose windows/thresholds that provide actionable response time without excessive noise. Pair alerts with dashboards and runbooks; raw infrastructure thresholds alone may not indicate user impact.
+
+### Q10. Why must observability endpoints be reviewed after an upgrade?
+
+Endpoint availability, defaults, configuration properties, and integrations can change across release lines. Re-test exposure and authorization, especially for environment/configuration details, rather than assuming the previous deployment policy still applies.
