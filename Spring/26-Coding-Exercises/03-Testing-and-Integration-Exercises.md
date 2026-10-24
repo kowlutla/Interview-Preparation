@@ -6,6 +6,8 @@
 
 **Reference approach:** Construct the service directly with a fake or Mockito mock for its collaborator. Assert outcomes and interactions only where they are part of the contract.
 
+**Additional reference solution:** [Implementation notes and examples](Reference-Solutions/11-Testing-and-Cloud-Patterns.md)
+
 **Common mistake:** Loading the entire application context for a pure calculation.
 
 **Validation:** Include success, invalid input, and collaborator failure.
@@ -40,6 +42,8 @@
 
 **Reference approach:** Use the supported JSON test slice and assert stable fields, date formats, null handling, and unknown-field policy as appropriate.
 
+**Additional reference solution:** [Implementation notes and examples](Reference-Solutions/11-Testing-and-Cloud-Patterns.md)
+
 **Common mistake:** Asserting a brittle whole-JSON string while ignoring meaningful contract fields and compatibility.
 
 **Validation:** Include backward-compatibility expectations for fields consumed by clients.
@@ -61,6 +65,8 @@
 **Problem:** Reduce a slow test suite without losing confidence.
 
 **Reference approach:** Reuse consistent context configurations, avoid unnecessary unique test properties, and use slices for narrow behavior. Do not share mutable global state between tests.
+
+**Additional reference solution:** [Implementation notes and examples](Reference-Solutions/11-Testing-and-Cloud-Patterns.md)
 
 **Common mistake:** Adding @DirtiesContext broadly instead of identifying the shared state or unique context configuration.
 
@@ -144,6 +150,8 @@
 
 **Reference approach:** Use isolated application-context tests or Boot condition testing support to cover both property states.
 
+**Additional reference solution:** [Implementation notes and examples](Reference-Solutions/11-Testing-and-Cloud-Patterns.md)
+
 **Common mistake:** Testing only the enabled-property case and never verifying the disabled/default condition.
 
 **Validation:** Assert bean presence/absence and startup failure when a required dependency is missing.
@@ -201,6 +209,8 @@
 **Problem:** Demonstrate how slow database work affects request latency.
 
 **Reference approach:** Use a controlled integration test environment with a deliberately small pool and slow query, then inspect pool metrics and timeout behavior.
+
+**Additional reference solution:** [Implementation notes and examples](Reference-Solutions/11-Testing-and-Cloud-Patterns.md)
 
 **Common mistake:** Using an unbounded wait or leaving a slow database test able to hang CI.
 
