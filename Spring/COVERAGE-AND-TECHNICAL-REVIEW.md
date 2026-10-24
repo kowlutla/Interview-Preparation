@@ -82,7 +82,7 @@ This was a focused manual review, not a guarantee that every snippet in the hand
 
 ### Version snapshot and transaction semantics
 
-- Refreshed the compatibility page and migration Q&A from Framework 7.0.9 / 7.1.0-M2 to the official current snapshot of Framework 7.0.10 stable and 7.1.0-RC1 prerelease. Boot 4.1.2 remains the latest stable line in the official system-requirements page and requires Framework 7.0.10 or above. These are dated observations, not permanent support guarantees.
+- Rechecked the compatibility page and migration Q&A against official documentation on 2026-10-24: Framework 7.0.10 is stable, Framework 7.1.0-RC1 is a prerelease, and Boot 4.1.2 is stable and requires Framework 7.0.10 or above. These are dated observations, not permanent support guarantees.
 - Reframed the repeated REQUIRED-versus-REQUIRES_NEW question into the more operationally useful connection-pool starvation risk from nested independent transactions. The propagation basics remain in the earlier question.
 - Checked all seven tricky-question files for exact repeated question titles; none were found within that collection. This does not establish semantic uniqueness across the whole handbook, and deliberate reinforcement of core topics still needs judgment-based review.
 
