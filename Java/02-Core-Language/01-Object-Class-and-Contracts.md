@@ -166,11 +166,11 @@ Runtime type identity depends on both the binary name and the defining class loa
 
 This commonly appears in plugin systems, application servers, test isolation, and duplicated dependency deployments. Diagnose the defining loader of each Class object and the dependency graph; comparing only class names is insufficient.
 
-### Q24. Should finalize be used to release sockets, files, or database connections? *(Senior)*
+### Q24. How should a legacy class that relies on finalization be migrated? *(Senior)*
 
-No. Finalization timing is nondeterministic, finalizers can delay reclamation, and finalization has been deprecated for removal. Use explicit close operations and try-with-resources. For complex native-resource wrappers, Cleaner may be a fallback safety net while explicit close remains the primary path.
+Identify the resource being released and introduce an explicit, idempotent close operation, normally through AutoCloseable. Update callers to use try-with-resources and define behavior for repeated close calls, partial initialization, and cleanup failures. If a native-resource wrapper needs a last-resort safety net, Cleaner may be considered, but it must not be the normal lifecycle mechanism.
 
-Test resource release on success, exception, and cancellation paths. Do not assume the garbage collector will promptly close a file descriptor or return a database connection to a pool.
+Migrate call sites before removing legacy cleanup behavior, test success and exceptional paths, and verify that sockets, file descriptors, native allocations, and pooled connections are released deterministically. Finalization is deprecated for removal and should not be retained as the primary cleanup contract.
 
 ### Q25. What is a reliable checklist for implementing a value object's contract? *(Senior)*
 
