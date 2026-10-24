@@ -122,8 +122,8 @@ Test conditions with and without optional classes/properties, default beans, use
 ### Q40. Why should library auto-configuration be version-specific?
 Registration metadata and supported APIs can change across Boot generations. A starter should target and test a declared compatibility baseline.
 
-### Q41. What is a condition evaluation report?
-It records why auto-configuration conditions matched or did not match. It is a diagnostic aid, not a replacement for reading the original exception and configuration.
+### Q41. How can the condition evaluation report explain a missing auto-configuration?
+Find the relevant auto-configuration and inspect which condition did not match: missing class, property value, bean already present, or web-application type. Then validate the underlying assumption against the resolved classpath and effective configuration. A negative condition is often expected back-off behavior, not a framework defect.
 
 ### Q42. Why can adding a dependency change application behavior?
 It may add classes that activate conditional auto-configuration, change managed versions, or introduce duplicate components. Review resolved dependencies and condition outcomes.
