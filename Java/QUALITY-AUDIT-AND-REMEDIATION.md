@@ -12,7 +12,7 @@
 | Markdown files under `Java/` | 75 | Latest recorded repository inventory; includes roadmap, README, review documents, references, Q&A, and practice material |
 | Q&A chapters | 57 | Latest recorded inventory across fundamentals, core language, collections, functional programming, concurrency, JVM, Java release features, and advanced Java |
 | Numbered Q&A headings | 1,083 | Latest recorded count from `### Qn.` headings across 56 Q&A chapter files; recount before release because the inventory can change |
-| Local Markdown links in README | 77 in the latest recorded check | All 76 resolved in the latest recorded navigation check; rerun after further README changes |
+| Local Markdown links in README | 77 in the latest recorded check | All 77 resolved in the current navigation check; rerun after further README changes |
 | Unchecked README tracker entries | 0 | Current navigation is marked authored; this does not mean every technical claim or code example has been independently validated |
 | Coding/output practice bank | 50 problems | Authored; examples still need systematic compilation and test validation |
 | Production scenarios | 85+ prompts and RCA examples | Authored across collections/concurrency, JVM/memory, performance, and root-cause analysis |
@@ -65,7 +65,7 @@ These are scoped follow-up items, not claims that every listed subtopic is entir
 - [ ] Add follow-up questions to important senior-level topics and answer those follow-ups.
 - [ ] Standardize difficulty tags, prerequisites, complexity notation, code formatting, and Java-version labels.
 - [ ] Review conceptual overlap between fundamentals/core language, concurrency scenarios, JVM chapters, and rapid-fire revision.
-- [ ] Make coding questions self-contained: input constraints, assumptions, expected behavior, edge cases, complexity, and a tested reference solution.
+- [ ] Make coding questions self-contained: input constraints, assumptions, expected behavior, edge cases, complexity, and a manually reviewed reference solution; do not compile or execute it unless explicitly requested.
 - [ ] For output questions, separate compile-time error, runtime exception, and normal output explicitly.
 - [ ] Keep the main learning chapters instructional; keep rapid-fire material concise and link to deeper explanations.
 
@@ -75,7 +75,7 @@ These are scoped follow-up items, not claims that every listed subtopic is entir
 2. **Correctness pass:** review language and API contracts, version status, and tricky output claims.
 3. **Example review:** inspect snippets for syntax, API/version compatibility, assumptions, and stated output. Do not compile or execute examples unless explicitly requested; keep that boundary visible in the audit.
 4. **Depth and duplication pass:** identify answers that are shallow, repetitive, or inconsistent and revise them in place.
-5. **Practice-bank validation:** verify all 50 problems, test edge cases, and add tested reference implementations where appropriate.
+5. **Practice-bank validation:** review all 50 problems, reason through edge cases, and add reference implementations where appropriate. Do not compile or execute code unless explicitly requested.
 6. **Scenario review:** ensure each production scenario includes evidence, likely hypotheses, mitigation, root cause, correction, and prevention.
 7. **Navigation and release check:** recount questions, verify local links, update the README and roadmap, and publish a concise completion report.
 
@@ -89,7 +89,7 @@ The handbook is ready for a release candidate only when:
 - Runnable examples are manually reviewed for syntax/API/version alignment or clearly labeled as illustrative/pseudocode; no compile/run certification is claimed unless separately requested.
 - Version-sensitive claims cite an authoritative source.
 - Duplicate and inconsistent questions have been reviewed.
-- Coding/output problems have expected results and edge cases reasoned through manually; automated execution is not a release prerequisite for this review.
+- Coding/output problems have expected results and edge cases reasoned through manually; code compilation/execution is outside the agreed scope unless explicitly requested.
 - README progress reflects the real state of validation, not merely file existence.
 
 ## 5. Current implementation target
