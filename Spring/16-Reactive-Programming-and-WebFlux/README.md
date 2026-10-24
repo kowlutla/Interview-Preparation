@@ -36,7 +36,7 @@ A method parameter explicitly carries data through a call graph; Reactor Context
 
 ### Q9. What is the danger of onErrorResume used too broadly?
 
-`onErrorResume` replaces an error signal with another publisher; used too broadly, it can hide a database outage or programming defect behind an apparently successful response. Recover only failures with a domain-valid fallback, preserve the original cause in logs/metrics, and distinguish expected absence (such as an optional record) from infrastructure failure. Avoid returning empty data for critical dependencies unless the API contract explicitly permits it.
+`onErrorResume` replaces an error signal with another publisher; used too broadly, it can hide a database outage or programming defect behind an apparently successful response. Recover only failures with a domain-valid fallback, preserve the original cause in logs and metrics, and distinguish expected absence (such as an optional record) from infrastructure failure. Avoid returning empty data for critical dependencies unless the API contract explicitly permits it.
 
 ### Q10. Why can flatMap increase concurrency unexpectedly?
 
