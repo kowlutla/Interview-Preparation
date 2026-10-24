@@ -9,10 +9,10 @@
 
 | Check | Result | Interpretation |
 |---|---|---|
-| Markdown files under `Java/` | 74 | Latest recorded repository inventory; includes roadmap, README, review documents, references, Q&A, and practice material |
-| Q&A chapters | 56 | Latest recorded inventory across fundamentals, core language, collections, functional programming, concurrency, JVM, Java release features, and advanced Java |
-| Numbered Q&A headings | 1,058 | Latest recorded count from `### Qn.` headings across 56 Q&A chapter files; recount before release because the inventory can change |
-| Local Markdown links in README | 76 in the latest recorded check | All 76 resolved in the latest recorded navigation check; rerun after further README changes |
+| Markdown files under `Java/` | 75 | Latest recorded repository inventory; includes roadmap, README, review documents, references, Q&A, and practice material |
+| Q&A chapters | 57 | Latest recorded inventory across fundamentals, core language, collections, functional programming, concurrency, JVM, Java release features, and advanced Java |
+| Numbered Q&A headings | 1,078 | Latest recorded count from `### Qn.` headings across 56 Q&A chapter files; recount before release because the inventory can change |
+| Local Markdown links in README | 77 in the latest recorded check | All 76 resolved in the latest recorded navigation check; rerun after further README changes |
 | Unchecked README tracker entries | 0 | Current navigation is marked authored; this does not mean every technical claim or code example has been independently validated |
 | Coding/output practice bank | 50 problems | Authored; examples still need systematic compilation and test validation |
 | Production scenarios | 85+ prompts and RCA examples | Authored across collections/concurrency, JVM/memory, performance, and root-cause analysis |
@@ -54,7 +54,7 @@ The original gap list has been reassessed against the chapters added since the f
 
 - **Covered in dedicated chapters:** concurrency synchronizers and coordination; executor sizing, cancellation, rejection and shutdown; Java I/O/NIO and serialization; networking and HTTP Client; annotation processing/compiler tooling; modules/classpath/module-path and multi-release JARs; Java 8–21 feature/status matrix; security and secure coding; production troubleshooting scenarios.
 - **Partially covered / keep under review:** WatchService and AsynchronousFileChannel depth; Unicode grapheme-cluster handling, locale-sensitive formatting and normalization policy; deeper API-specific behavior across database drivers and HTTP client implementations.
-- **Still a useful extension:** a dedicated testing and build-tooling chapter for JUnit 5, Mockito, test isolation, parameterized tests, deterministic concurrency tests, property-based testing concepts, Testcontainers, Maven/Gradle test lifecycle and toolchains, coverage reporting, and CI compatibility matrices. Existing JMH/JFR/diagnostic-tool material should be linked rather than duplicated.
+- **Newly covered:** a dedicated testing and build-tooling chapter now addresses JUnit 5, Mockito, deterministic asynchronous/concurrency tests, property-based testing concepts, Testcontainers, Maven Surefire/Failsafe, Gradle testing, toolchains, and CI compatibility matrices. Review its depth against the exact build stack used by target employers; avoid duplicating existing JMH/JFR/diagnostic-tool material.
 
 These are scoped follow-up items, not claims that every listed subtopic is entirely absent. Compare against current chapter bodies before adding content, avoid duplicate questions, and prioritize gaps that improve Java backend interview readiness.
   
