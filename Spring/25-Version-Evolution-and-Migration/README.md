@@ -34,10 +34,16 @@ Determine the replacement and reason for deprecation from official documentation
 
 A Bill of Materials centralizes compatible dependency versions so related libraries are aligned. Boot's dependency management reduces manual version selection. Overriding managed dependencies can be necessary, but should be evidence-based and tested for binary compatibility.
 
+### Q13. How should you treat Spring Framework 7.1 preview documentation?
+
+As of 2026-10-24, the official Framework 7.1 release-notes page is a preview for a release scheduled for November 2026, while 7.0.10 is listed as the current stable release. Use preview notes to plan compatibility work, but do not present preview-only changes as released behavior or choose a preview for production without an explicit risk decision. Re-check the official release list and target version's migration guide when the stable release is published.
+
 ## Official references
 
 - [Spring Framework versions and support](https://github.com/spring-projects/spring-framework/wiki/Spring-Framework-Versions)
 - [Spring Framework 7.0 release notes](https://github.com/spring-projects/spring-framework/wiki/Spring-Framework-7.0-Release-Notes)
+- [Spring Framework 7.1 preview release notes](https://github.com/spring-projects/spring-framework/wiki/Spring-Framework-7.1-Release-Notes)
+- [Spring Framework releases](https://github.com/spring-projects/spring-framework/releases)
 - [Spring Boot 4.0 system requirements](https://docs.spring.io/spring-boot/4.0/system-requirements.html)
 - [Spring Boot current system requirements](https://docs.spring.io/spring-boot/system-requirements.html)
 - [Spring Boot 4.0 migration guide](https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide)
