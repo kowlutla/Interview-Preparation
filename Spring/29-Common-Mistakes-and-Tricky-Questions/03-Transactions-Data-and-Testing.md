@@ -26,8 +26,8 @@ It depends on the transaction infrastructure and coordination model. Two ordinar
 ### Q8. Why keep transactions short?
 Long transactions hold connections and locks, increase contention, and make failure recovery harder. Avoid remote calls and lengthy computation inside database transaction boundaries.
 
-### Q9. What is transaction isolation's practical limitation?
-Database implementations differ, and isolation labels do not fully predict every engine's behavior. Test concurrency assumptions against the production database.
+### Q9. How can snapshot isolation still permit a write-skew anomaly?
+Two transactions can read the same snapshot, update different rows, and each commit even though their combined result violates a cross-row invariant. A simple row version may not detect this because they update different records. Enforce the invariant with an appropriate constraint, locking strategy, or serializable isolation where justified, and test the concurrent interleaving against the production database engine.
 
 ### Q10. What should an API do when optimistic locking rejects a stale update?
 Treat the failed version check as a concurrency conflict: reload the latest state if the business operation can be re-evaluated, or return a documented conflict/precondition response such as 409 or 412 where appropriate. Do not silently overwrite the newer update or blindly retry a command whose side effects cannot be repeated safely.
