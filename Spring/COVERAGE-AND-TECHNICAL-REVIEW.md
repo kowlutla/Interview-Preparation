@@ -63,6 +63,7 @@ This was a focused manual review, not a guarantee that every snippet in the hand
 ## Recent audit corrections
 
 - The original inventory was 589 (269 core-category Q&As plus 320 tricky questions). Added 20 advanced ecosystem Q&As and one migration question about preview-versus-stable releases. The current breakdown is 270 core-category Q&As, 20 advanced ecosystem Q&As, and 320 tricky questions: 610 total.
+- During the title-level semantic review, refined two clearly overlapping REST chapter questions (content negotiation versus media-type/payload failures; safe upload design versus large-upload streaming) and one migration question that repeated the Jakarta baseline. Some concept overlap between core chapters and the deliberately tricky-question collection is intentional reinforcement, not automatically a duplicate.
 - Added 20 advanced ecosystem Q&As covering Spring Batch, Modulith, GraphQL, WebSocket, AOT/native images, virtual threads, OAuth2 roles, Spring Session, Integration, Contract, and retry design. Current inventory: 610 numbered Q&A headings.
 - Removed a duplicated status sentence from the main README.
 - Refreshed the compatibility snapshot against current official documentation checked on 2026-10-24; the stable pages list Framework 7.0.10 and Boot 4.1.2. This remains a dated snapshot and must be rechecked before a real upgrade.
