@@ -43,3 +43,19 @@ A Bill of Materials centralizes compatible dependency versions so related librar
 - [Spring Boot 4.0 migration guide](https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide)
 - [Spring Cloud compatibility](https://spring.io/projects/spring-cloud)
 - [Spring REST clients](https://docs.spring.io/spring-framework/reference/integration/rest-clients.html)
+
+### Q9. What are notable Spring Framework 7 additions worth checking during migration?
+
+Framework 7 introduces new capabilities including programmatic bean registration, core resilience features, API versioning support, HTTP Service Client configuration improvements, and RestTestClient. Availability and exact APIs should be verified against the 7.0 reference and the Boot line managing it; do not backport assumptions to Framework 6.x.
+
+### Q10. What changed in the Jakarta EE baseline for Framework 7?
+
+Framework 7 adopts Jakarta EE 11 APIs, including Servlet 6.1, JPA 3.2, and Bean Validation 3.1. Review servlet containers, persistence providers, validation implementations, and third-party libraries for compatibility before upgrading.
+
+### Q11. Why should API versioning support be treated as a contract design choice?
+
+Framework-level versioning mechanisms can help route or negotiate API versions, but they do not decide compatibility policy, deprecation windows, or client migration. Define the contract and test how versions are selected before adopting the mechanism.
+
+### Q12. What should be checked when moving tests to newer Spring test APIs?
+
+Framework and Boot lines may introduce or deprecate test utilities, mock-bean annotations, and client test support. Verify the exact API and dependency baseline, then test context wiring and the actual request/response path rather than only updating imports.
