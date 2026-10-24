@@ -228,3 +228,9 @@ Refined several repeated introductory headings so the learning objective is expl
 
 Together with the earlier changes, this pass has adjusted repeated questions about Coffman conditions, BlockingQueue, deoptimization, and direct-buffer management. These are selective editorial changes; repeated concepts remain where their purpose is deliberately foundational, version-focused, or diagnostic. Recheck the affected headings and links after further edits, and do not infer that all semantic duplication has been eliminated.
 
+### Java-version chapter overlap pass — 2026-10-24
+
+Compared overlapping questions in the Java 12–16 and Java 17 release summaries. The repeated pattern-matching-for-instanceof question had effectively the same answer in both chapters, so the Java 17 version now explains its finalized-in-Java-16 status and contrasts it with pattern matching for switch, which was preview in Java 17. The generic final-versus-preview question in the Java 17 chapter was also made operational: it now explains the Java 17 compile/run flags and the release-specific nature of preview class files. The broader Java 12–16 chapter retains the general concept of preview versus final status.
+
+The release-summary chapters necessarily repeat feature names also covered by dedicated conceptual chapters; retain those summaries when they add release history, final/preview status, migration impact, or adoption guidance. Do not count a repeated feature name alone as a duplicate if the question answers a different version-specific objective.
+
