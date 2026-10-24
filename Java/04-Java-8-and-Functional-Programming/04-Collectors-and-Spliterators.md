@@ -33,7 +33,7 @@ Make duplicate policy explicit. Choosing first or last silently may hide data-qu
 
 ### Q5. What is a downstream collector? *(Intermediate)*
 
-A downstream collector performs a second reduction inside each group created by groupingBy or partitioningBy. Examples include counting, summing, mapping, filtering in newer Java releases, and collecting each group into a set.
+A downstream collector performs a second reduction inside each group created by groupingBy or partitioningBy. Examples include counting, summing, mapping, filtering with Collectors.filtering (Java 9+), and collecting each group into a set.
 
 Use downstream collectors to avoid building full lists when only an aggregate is needed. Ensure the chosen collector matches the required null, ordering, and mutability semantics.
 
