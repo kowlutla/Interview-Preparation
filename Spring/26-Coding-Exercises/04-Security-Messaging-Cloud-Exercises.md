@@ -20,6 +20,8 @@
 
 **Related detailed solution:** [JWT resource-server configuration and authorization](Reference-Solutions/03-Security-Reference-Solution.md)
 
+**Common mistake:** Disabling CSRF simply because the API is called REST, without considering cookie-authenticated browser flows.
+
 **Validation:** Test unsafe cross-site requests for cookie-authenticated flows.
 
 ## Exercise 73 — CORS allow-list
@@ -29,6 +31,8 @@
 **Reference approach:** Configure an explicit origin/method/header policy at the appropriate MVC/security boundary. Treat credentials as a separate decision and avoid wildcard origins with credentials.
 
 **Related detailed solution:** [JWT resource-server configuration and authorization](Reference-Solutions/03-Security-Reference-Solution.md)
+
+**Common mistake:** Combining wildcard origins with credentials or assuming CORS is a server-side authorization rule.
 
 **Validation:** Test preflight and denied-origin responses; remember CORS is not server-side authorization.
 
@@ -40,6 +44,8 @@
 
 **Related detailed solution:** [Transactional outbox and idempotent consumer](Reference-Solutions/07-Outbox-and-Idempotency.md)
 
+**Common mistake:** Retrying poison messages indefinitely without a bound, backoff, or dead-letter path.
+
 **Validation:** Test transient recovery, non-retryable failure, dead-letter routing, and replay.
 
 ## Exercise 75 — Kafka consumer idempotency
@@ -49,6 +55,8 @@
 **Reference approach:** Use a durable event ID with a database uniqueness constraint or an idempotent domain operation. Couple deduplication and state changes transactionally where possible.
 
 **Related detailed solution:** [Transactional outbox and idempotent consumer](Reference-Solutions/07-Outbox-and-Idempotency.md)
+
+**Common mistake:** Keeping deduplication only in memory or committing the dedupe marker separately from the business effect.
 
 **Validation:** Process duplicates sequentially and concurrently, including a simulated crash after the side effect.
 
@@ -60,6 +68,8 @@
 
 **Related detailed solution:** [Transactional outbox and idempotent consumer](Reference-Solutions/07-Outbox-and-Idempotency.md)
 
+**Common mistake:** Marking an outbox row sent before the broker confirms publication, which can lose an event.
+
 **Validation:** Crash between publish and mark-sent, restart, and verify consumer idempotency.
 
 ## Exercise 77 — Gateway route
@@ -68,6 +78,8 @@
 
 **Reference approach:** Define explicit route predicates and filters in the selected Spring Cloud Gateway version. Ensure authorization, header sanitization, timeout policy, and route ordering are intentional.
 
+**Common mistake:** Placing a broad route before a specific route and accidentally shadowing the intended match.
+
 **Validation:** Test matching/nonmatching paths, authentication failure, downstream timeout, and sensitive-header removal.
 
 ## Exercise 78 — Client-side load balancing
@@ -75,6 +87,8 @@
 **Problem:** Call a logical service name and distribute requests among instances.
 
 **Reference approach:** Use the supported Spring Cloud load-balancer integration and a compatible discovery or instance source. Keep per-instance health and timeout behavior visible.
+
+**Common mistake:** Assuming discovery is always fresh and ignoring per-instance timeouts or removal propagation.
 
 **Validation:** Test instance removal, stale discovery, and downstream failure.
 
@@ -86,6 +100,8 @@
 
 **Related detailed solution:** [Scheduled work and resilience](Reference-Solutions/09-Scheduled-Work-and-Resilience.md)
 
+**Common mistake:** Choosing arbitrary breaker thresholds or tagging metrics with dependency URLs/request IDs.
+
 **Validation:** Force state transitions and verify alerts do not fire from a single harmless transient failure.
 
 ## Exercise 80 — Scheduled-job idempotency
@@ -96,6 +112,8 @@
 
 **Related detailed solution:** [Scheduled work and resilience](Reference-Solutions/09-Scheduled-Work-and-Resilience.md)
 
+**Common mistake:** Using a local synchronized block as if it coordinates scheduled work across replicas.
+
 **Validation:** Stop the process mid-batch and verify restart resumes safely.
 
 ## Exercise 81 — API rate limit
@@ -103,6 +121,8 @@
 **Problem:** Apply a quota per authenticated client.
 
 **Reference approach:** Use a gateway or shared limiter keyed by a trusted client identity, with explicit burst and failure semantics.
+
+**Common mistake:** Trusting a client-supplied identity header as the authenticated client's real identity.
 
 **Validation:** Test distributed concurrency and ensure spoofed headers cannot change identity.
 
@@ -114,6 +134,8 @@
 
 **Related detailed solution:** [Scheduled work and resilience](Reference-Solutions/09-Scheduled-Work-and-Resilience.md)
 
+**Common mistake:** Giving each downstream call a generous timeout that makes the combined path exceed the caller's deadline.
+
 **Validation:** Inject slow calls and assert total response time remains within the documented bound.
 
 ## Exercise 83 — Secure Actuator
@@ -123,6 +145,8 @@
 **Reference approach:** Configure endpoint exposure and security rules explicitly for the chosen Boot version and deployment model.
 
 **Related detailed solution:** [Actuator health and metrics](Reference-Solutions/08-Actuator-and-Metrics.md)
+
+**Common mistake:** Exposing environment/configuration endpoints or relying on network location alone for protection.
 
 **Validation:** Test unauthenticated access to each exposed endpoint and ensure sensitive details are not returned.
 
@@ -134,6 +158,8 @@
 
 **Related detailed solution:** [Actuator health and metrics](Reference-Solutions/08-Actuator-and-Metrics.md)
 
+**Common mistake:** Making liveness depend on a transient downstream outage and triggering unnecessary restarts.
+
 **Validation:** Simulate slow startup and a transient dependency outage.
 
 ## Exercise 85 — Upgrade dependency BOM
@@ -141,5 +167,7 @@
 **Problem:** Resolve an incompatible transitive dependency after Boot upgrade.
 
 **Reference approach:** Inspect the resolved dependency tree, align the Boot BOM and compatible Cloud train, and override only with a documented reason.
+
+**Common mistake:** Pinning a transitive dependency ad hoc instead of aligning the Boot BOM and compatible Cloud release train.
 
 **Validation:** Run startup, security, persistence, and client smoke tests against the resolved graph.
