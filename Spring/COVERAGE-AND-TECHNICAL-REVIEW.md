@@ -88,3 +88,12 @@ This was a focused manual review, not a guarantee that every snippet in the hand
 ### Repository-wide local Markdown target check
 
 Checked relative Markdown links across all 68 Markdown files under Spring/, plus the repository root README and the Spring main README, against the current GitHub tree. No missing local Markdown targets were found in this pass. Counts from the index checks were 2/2 root README links and 52/52 Spring README links. This check validates local targets only; it does not verify external URL reachability, anchor correctness on every target page, or technical correctness of linked documentation.
+
+### Further version and exercise review — 2026-10-24
+
+- Clarified that Boot 4 removes the older Boot `@MockBean`/`@SpyBean` support in favor of Spring Framework `@MockitoBean`/`@MockitoSpyBean`; the 3.4 deprecation and older-baseline caveat are now explicit in the Testing Q&A and tricky-question collection. Source: the official [Spring Boot 4.0 migration guide](https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide).
+- Labeled the `RestClient` timeout exercise as requiring Framework 6.1+ (normally Boot 3.2+) and directed older Boot 3.x projects to a compatible client API.
+- Split the REST reference solution's request and response record declarations into separate filename-labeled source examples so a reader does not paste two public top-level records into one Java file.
+- Updated the compatibility snapshot to Spring Cloud 2025.1.4, released October 23, 2026, based on Boot 4.0.9 and also compatible with Boot 4.1.2. Source: the official [Spring Cloud 2025.1.4 announcement](https://spring.io/blog/2026/10/23/spring-cloud-2025-1-4-has-been-released/).
+
+These are manual documentation/API-version corrections only. No compilation or runtime validation was performed.
