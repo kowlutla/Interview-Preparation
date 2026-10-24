@@ -2,7 +2,7 @@
 
 A version-aware handbook for Java backend engineers preparing for practical and senior-level interviews. It focuses on how Spring behaves, why its abstractions exist, how to diagnose failures, and how to make production trade-offs—not memorizing annotations.
 
-> **Status:** Initial handbook foundation is being authored. Checked items indicate files exist, not that every topic has completed independent technical review. Question and exercise totals will be updated only after content is present and counted.
+> **Status:** Work in progress. Existing chapters contain an initial set of Q&As; the requested 500-Q&A, 75-exercise, 75-scenario, and five-mock-interview targets have not yet been met. A file's existence does not certify complete technical review.
 
 ## Audience and prerequisites
 
@@ -10,16 +10,15 @@ Designed for engineers with roughly 2–6 years of Java backend experience. You 
 
 ## Recommended study path
 
-1. [Roadmap and version compatibility](00-Roadmap/learning-roadmap.md)
+1. [Learning roadmap](00-Roadmap/learning-roadmap.md), [version compatibility](00-Roadmap/version-compatibility.md), and [interview strategy](00-Roadmap/interview-preparation-strategy.md)
 2. [Spring fundamentals](01-Spring-Fundamentals/README.md)
 3. [IoC and dependency injection](02-IoC-and-Dependency-Injection/README.md)
-4. Spring Boot startup and configuration
-5. MVC/REST, validation, and error design
-6. Transactions and Spring Data integration
-7. Security and testing
-8. HTTP clients, reactive programming, caching, async, events, and messaging
-9. Observability, Spring Cloud, deployment, troubleshooting, and internals
-10. Coding exercises, production scenarios, and mock interviews
+4. [Beans and scopes](03-Beans-and-Scopes/README.md), [configuration](04-Configuration/README.md), and [AOP](05-Spring-AOP/README.md)
+5. [Spring Boot fundamentals](06-Spring-Boot-Fundamentals/README.md)
+6. [Spring MVC and REST APIs](09-Spring-MVC-and-REST-APIs/README.md)
+7. [Data access and transactions](11-Data-Access-and-Transactions/README.md)
+8. [Spring Security](13-Spring-Security/README.md) and [testing](14-Testing/README.md)
+9. Continue with auto-configuration, external configuration, exception handling, Spring Data JPA, REST clients, WebFlux, observability, caching, async processing, messaging, Spring Cloud, deployment, performance, internals, and migration as those chapters are authored.
 
 ## Difficulty guidance
 
@@ -28,31 +27,15 @@ Designed for engineers with roughly 2–6 years of Java backend experience. You 
 - **Advanced:** Diagnose proxy, lifecycle, transaction, concurrency, or version edge cases.
 - **Senior:** Compare alternatives, state assumptions, explain failure modes, and defend operational trade-offs.
 
-## Category navigation
-
-| Area | Content |
-|---|---|
-| Roadmap | [Learning roadmap](00-Roadmap/learning-roadmap.md), [version compatibility](00-Roadmap/version-compatibility.md), [interview strategy](00-Roadmap/interview-preparation-strategy.md) |
-| Fundamentals | [Spring fundamentals](01-Spring-Fundamentals/README.md) |
-| IoC and DI | [Container and dependency injection](02-IoC-and-Dependency-Injection/README.md) |
-| Exercises | [Coding exercises](26-Coding-Exercises/README.md) |
-| Scenarios | [Production scenarios](27-Real-World-Scenarios/README.md) |
-| Mock interviews | [Mock interviews](28-Mock-Interviews/README.md) |
-| References | [Official references](30-References/README.md) |
-
-Other category directories will be added as chapters are authored; navigation must be expanded alongside them.
-
-## Version policy
-
-Examples target modern Spring programming models and identify version-specific behavior explicitly. Do not assume that a Spring Framework major version and Spring Boot major version have identical support windows. Check official compatibility and migration documents before selecting dependencies. Avoid copying legacy WebSecurityConfigurerAdapter examples into new projects; modern servlet security uses SecurityFilterChain. The javax.* versus jakarta.* distinction is a major migration boundary, not a cosmetic rename.
-
 ## Progress tracker
 
-- [x] Handbook structure and study path
-- [ ] All requested topic categories authored
-- [ ] At least 500 distinct Q&As counted
-- [ ] At least 75 coding exercises completed
-- [ ] At least 75 scenario questions completed
+- [x] Initial roadmap and compatibility notes
+- [x] Initial fundamentals, IoC/DI, beans/scopes, configuration, and AOP chapters
+- [x] Initial Boot, MVC/REST, transaction, security, and testing chapters
+- [ ] Remaining required categories authored
+- [ ] At least 500 distinct Q&As counted and audited
+- [ ] At least 75 coding exercises completed with reference solutions and tests
+- [ ] At least 75 scenario questions completed with diagnostics and trade-offs
 - [ ] Five complete mock interviews completed
 - [ ] Full link, version, and technical review completed
 
