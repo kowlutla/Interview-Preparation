@@ -38,11 +38,6 @@ An operation is idempotent if repeating the same request has the same intended e
 
 Set request-size limits at the application and edge layers, validate content and authorization, avoid trusting client-supplied filenames or MIME types, and stream large files when appropriate. Store files outside executable application paths and apply malware scanning or content inspection when required by the threat model.
 
-## Official references
-
-- [Spring MVC reference](https://docs.spring.io/spring-framework/reference/web/webmvc.html)
-- [Validation](https://docs.spring.io/spring-framework/reference/core/validation/beanvalidation.html)
-
 ### Q10. What is the difference between a servlet filter and HandlerInterceptor?
 
 A filter participates in the servlet request/response chain and can run before DispatcherServlet. A HandlerInterceptor participates in Spring MVC's handler lifecycle after handler mapping. Use filters for servlet-wide concerns such as request wrapping and security integration, and interceptors for handler-oriented concerns that need MVC metadata.
@@ -78,3 +73,8 @@ Use streaming for large exports, generated reports, or incremental feeds when av
 ### Q18. How should large file uploads be streamed and stored efficiently?
 
 Avoid buffering the entire upload in heap memory. Stream to controlled temporary or object storage, enforce byte limits while streaming, apply backpressure/timeouts, and clean up incomplete uploads after cancellation or failure. Promote a file to its final state only after validation succeeds, and make retries or duplicate submissions safe. Keep the security checks from the earlier upload-design question: streaming is a resource strategy, not a substitute for authorization or content validation.
+
+## Official references
+
+- [Spring MVC reference](https://docs.spring.io/spring-framework/reference/web/webmvc.html)
+- [Validation](https://docs.spring.io/spring-framework/reference/core/validation/beanvalidation.html)
