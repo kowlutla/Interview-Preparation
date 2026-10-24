@@ -118,3 +118,7 @@ This pass was a targeted content review. It did not compile or execute examples 
 ### JDBC pass finding — 2026-10-24
 
 The sampled JDBC, networking, and security passages covered transaction boundaries and uncertain commit outcomes, HTTP framing/timeouts/retries, TLS validation, SSRF, password hashing, and deserialization. One omission was corrected in the JDBC isolation answer: it now includes `Connection.TRANSACTION_NONE`, which indicates transactions are not supported, while distinguishing it from the four usable isolation levels. This is confirmed by the [Java SE 21 JDBC Connection API](https://docs.oracle.com/en/java/javase/21/docs/api/java.sql/java/sql/Connection.html). No other confirmed substantive error was identified in the sampled passages. This remains a targeted review, not an exhaustive audit.
+
+### I/O API-version clarity — 2026-10-24
+
+The I/O chapter has a Java 8–21 scope, while two examples used later APIs without stating their minimum version. Added inline notes: `InputStream.readAllBytes()` is Java 9+, and `Files.readString` / `Files.writeString` are Java 11+. The examples remain useful for a multi-version handbook, but readers should not mistake them for Java 8 APIs. This was a documentation/version-label correction, not a compilation test.
