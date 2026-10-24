@@ -10,6 +10,8 @@
 
 **Trade-offs:** Deferring work improves startup but can move failures into live traffic. Make readiness reflect actual ability to serve.
 
+**Prevention:** Keep constructors side-effect-light and add startup tests that reveal accidental network calls.
+
 **Follow-up:** What work belongs in a constructor?
 
 ## Scenario 32 — Auto-configuration unexpectedly disappears
@@ -106,6 +108,8 @@
 
 **Trade-offs:** Cursor APIs complicate arbitrary page jumps and require clear consistency semantics.
 
+**Prevention:** Establish query-plan and latency thresholds for deep-page requests, and document the cursor's stable sort key.
+
 **Follow-up:** Why must cursor sorting be deterministic?
 
 ## Scenario 40 — Entity graph creates huge joins
@@ -142,6 +146,8 @@
 
 **Trade-offs:** Moving the call changes consistency semantics; define recovery and compensation.
 
+**Prevention:** Instrument transaction duration and review code paths that perform remote I/O while a database transaction is active.
+
 **Follow-up:** Why are distributed transactions not implied by @Transactional?
 
 ## Scenario 43 — Test passes only when run alone
@@ -165,6 +171,8 @@
 **Resolution:** Use unit tests and slices where sufficient; reuse context configuration intentionally.
 
 **Trade-offs:** A faster test pyramid still needs some full-context integration coverage.
+
+**Prevention:** Track CI duration by test class and require justification for adding unique context configurations or full-context tests.
 
 **Follow-up:** What can invalidate context cache reuse?
 
