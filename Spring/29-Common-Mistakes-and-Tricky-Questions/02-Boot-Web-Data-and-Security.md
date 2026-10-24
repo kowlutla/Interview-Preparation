@@ -116,8 +116,8 @@ Technically a library may accept them, but high-cardinality labels can overwhelm
 ### Q38. Does tracing replace logging?
 No. Traces show cross-service paths, logs provide event details, and metrics show aggregate trends.
 
-### Q39. Does Spring Cloud compatibility follow Boot automatically?
-No. Use the official release-train compatibility information and matching dependency management.
+### Q39. What is the first compatibility check when a Spring Cloud starter fails after a Boot upgrade?
+Check the official Spring Cloud release-train compatibility table against the exact Spring Boot line, then inspect the resolved BOM and transitive dependency versions. Do not assume the newest Cloud train is compatible with every Boot release, or override individual dependencies to suppress convergence errors without understanding the tested set.
 
 ### Q40. Does an API gateway eliminate service security?
 No. It is an edge control point; services still need appropriate resource authorization and trust validation.
