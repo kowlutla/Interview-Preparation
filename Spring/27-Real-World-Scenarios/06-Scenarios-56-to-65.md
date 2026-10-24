@@ -8,7 +8,7 @@
 
 **Resolution:** Remove duplicate registration or use a deliberate conditional customization. Do not disable all auto-configuration to suppress one conflict.
 
-**Prevent:** Test the starter with and without application overrides.
+**Prevention:** Test the starter with and without application overrides.
 
 **Follow-up:** Why can adding a dependency change the context even if application code is unchanged?
 
@@ -20,7 +20,7 @@
 
 **Resolution:** Map expected request errors to stable client responses and keep unexpected exceptions as 500.
 
-**Prevent:** Contract-test malformed JSON, invalid fields, and business-rule failures separately.
+**Prevention:** Contract-test malformed JSON, invalid fields, and business-rule failures separately.
 
 **Follow-up:** Why is mapping every exception to 400 misleading?
 
@@ -32,7 +32,7 @@
 
 **Resolution:** Return purpose-built DTOs, reduce payload size, and optimize only measured hotspots.
 
-**Prevent:** Track response size and test serialization of representative data.
+**Prevention:** Track response size and test serialization of representative data.
 
 **Follow-up:** How can returning entities trigger additional database queries?
 
@@ -44,7 +44,7 @@
 
 **Resolution:** Use staged expand-and-contract changes, pre-deployment migration jobs where appropriate, and tested rollback/recovery plans.
 
-**Prevent:** Exercise migrations against production-like data volumes.
+**Prevention:** Exercise migrations against production-like data volumes.
 
 **Follow-up:** Why can a schema change break rolling deployments?
 
@@ -56,7 +56,7 @@
 
 **Resolution:** Budget aggregate connections, stagger rollout, and tune pool sizes against database limits.
 
-**Prevent:** Load-test rollout surge capacity.
+**Prevention:** Load-test rollout surge capacity.
 
 **Follow-up:** Why must pool size be considered across all replicas?
 
@@ -68,7 +68,7 @@
 
 **Resolution:** Place the filter at the correct pipeline boundary and use supported ordering APIs.
 
-**Prevent:** Integration-test the actual filter sequence and failure behavior.
+**Prevention:** Integration-test the actual filter sequence and failure behavior.
 
 **Follow-up:** How does a servlet filter differ from an MVC interceptor?
 
@@ -80,7 +80,7 @@
 
 **Resolution:** Use framework-supported context propagation or explicit immutable task context; always clear manually managed thread-local state in finally blocks.
 
-**Prevent:** Add concurrent tests with different tenants and tracing identities.
+**Prevention:** Add concurrent tests with different tenants and tracing identities.
 
 **Follow-up:** Why are thread pools a risk for ThreadLocal leaks?
 
@@ -92,7 +92,7 @@
 
 **Resolution:** Establish one coherent policy at the intended boundary and ensure preflight requests are handled correctly.
 
-**Prevent:** Test deployed-like hostnames and HTTPS configuration.
+**Prevention:** Test deployed-like hostnames and HTTPS configuration.
 
 **Follow-up:** Does CORS prevent non-browser clients from calling the API?
 
@@ -104,7 +104,7 @@
 
 **Resolution:** Tune quota semantics to product requirements and return appropriate retry guidance where supported.
 
-**Prevent:** Test burst, sustained rate, and multi-replica cases.
+**Prevention:** Test burst, sustained rate, and multi-replica cases.
 
 **Follow-up:** Why can an in-memory limiter behave inconsistently behind a load balancer?
 
@@ -116,6 +116,6 @@
 
 **Resolution:** Apply backpressure or admission control, tune only after measuring capacity, and make task durability explicit.
 
-**Prevent:** Alert on queue age, not just task failures.
+**Prevention:** Alert on queue age, not just task failures.
 
 **Follow-up:** Why can increasing queue size make user-visible latency worse?
