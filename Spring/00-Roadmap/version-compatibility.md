@@ -14,7 +14,7 @@ The official documentation snapshot checked on 2026-10-24 lists Spring Framework
 
 ## Selected compatibility details
 
-- Spring Framework 7.0 retains a JDK 17 baseline and adopts Jakarta EE 11 APIs such as Servlet 6.1, JPA 3.2, and Bean Validation 3.1. The Framework 7.1 release-notes page is a preview; do not treat its upcoming API removals or baselines as already released stable behavior.
+- Spring Framework 7.0 retains a JDK 17 baseline and adopts Jakarta EE 11 APIs such as Servlet 6.1, JPA 3.2, and Bean Validation 3.1. The Framework 7.1 release-notes page is a preview scheduled for November 2026; do not treat its upcoming API removals or baselines as already released stable behavior.
 - Spring Boot 4.x requires Java 17 or later and Spring Framework 7.x. Verify the exact Boot patch's system-requirements page and build-tool versions.
 - Spring Cloud compatibility is release-train-specific. The official matrix maps 2025.1.x to Boot 4.0.x and, starting with 2025.1.2, Boot 4.1.x; 2025.0.x maps to Boot 3.5.x. Re-check before upgrading.
 - RestClient was introduced in Spring Framework 6.1. Spring Framework 7.0 deprecates RestTemplate in favor of RestClient; existing systems may still use RestTemplate, but new code should follow the target framework's migration guidance.
