@@ -162,7 +162,7 @@ Added `08-Advanced-Java/07-Testing-and-Build-Tooling.md` with 20 questions on te
 
 - Replaced an unlabelled Java 10 `var` declaration in the data-type promotion example with an explicit `long` declaration so that the example remains compatible with the chapter's Java 8–21 scope.
 - The new testing/build chapter now documents that Mockito 5 requires Java 11+, while Mockito 4 supports Java 8; this distinction is grounded in the [Mockito project's documentation](https://github.com/mockito/mockito).
-- Rechecked the README's local Markdown links after adding the chapter: **77 links checked, zero missing**. The repository currently contains **75 Markdown files under `Java/`**. The recorded handbook total is **57 Q&A chapters and 1,078 numbered questions**; the count is derived from the previous baseline plus the 20-question testing chapter, not a fresh full-file recount in this checkpoint.
+- Rechecked the README's local Markdown links after adding the chapter: **77 links checked, zero missing**. The repository currently contains **75 Markdown files under `Java/`**. At that checkpoint, the handbook had 57 Q&A chapters and 1,078 numbered questions before the subsequent NIO and Unicode additions; the later full-file recount is recorded below.
 
 
 ### Closing previously identified partial-coverage items — 2026-10-24
