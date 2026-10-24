@@ -24,7 +24,7 @@ Service discovery resolves logical service identities to available instances thr
 
 ### Q6. How should distributed tracing be propagated?
 
-Use supported instrumentation and trace-context propagation across HTTP and messaging boundaries. Avoid manually inventing incompatible headers, and keep identifiers out of high-cardinality metric labels. Validate traces end to end, including asynchronous processing.
+Use supported Micrometer Tracing/OpenTelemetry instrumentation and propagate standard trace context across HTTP and messaging boundaries. Avoid manually inventing incompatible headers or logging full sensitive baggage. Keep trace/request identifiers out of high-cardinality metric labels; put them in traces or structured logs instead. Validate an end-to-end trace through asynchronous processing and verify context propagation across executor, broker, and consumer boundaries.
 
 ### Q7. What does a load balancer not solve?
 
@@ -36,7 +36,7 @@ A retry repeats a selected operation after a failure; a circuit breaker suppress
 
 ### Q9. Why can timeout values not be selected independently per service?
 
-A request may traverse multiple nested services. The sum of waits, retries, and processing must fit the caller's deadline. Independently generous timeouts can make end-to-end latency unpredictable and exhaust upstream resources.
+A request may traverse a gateway and several nested services, so each hop's processing, connection wait, and retry budget must fit within the caller's remaining deadline. Independently generous timeouts can make end-to-end latency unpredictable and keep upstream threads occupied after the caller has given up. Propagate deadlines where supported, reserve time for response handling, and avoid retries that can outlive the original request's useful lifetime.
 
 ### Q10. What is a service mesh's relationship to Spring Cloud?
 
@@ -48,7 +48,7 @@ Discovery should ideally expose instances that are eligible to receive traffic, 
 
 ### Q12. How do you avoid duplicate resilience policies across gateway and service clients?
 
-Assign clear ownership for timeouts, retries, and rate limits at each hop. Document the total request budget, avoid nested retries that multiply attempts, and test the combined system under a dependency outage.
+Assign clear ownership for connection/response timeouts, retries, and rate limits at each hop. A gateway may protect ingress while a service client handles a narrowly defined transient failure, but their combined budgets must be documented. Nested retries multiply attempts and can amplify an outage; use bounded retries with backoff/jitter and test the full call path under latency, throttling, and dependency failure.
 
 ## Official references
 
