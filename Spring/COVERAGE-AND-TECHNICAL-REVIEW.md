@@ -13,7 +13,7 @@
 | Production scenarios | 75 numbered scenarios | Count target met; review each for investigation evidence and trade-offs |
 | Mock interviews | 5 interview files | Count target met; answers are model discussion prompts, not transcripts |
 | Topic categories | Parts A–Y plus a dedicated advanced ecosystem chapter; exercises/scenarios/mock interviews/tricky questions/references added | Initial breadth present; depth review remains |
-| Official documentation | Dedicated references plus per-topic links | Link and version audit remains |
+| Official documentation | Dedicated references plus per-topic links | Sampled core official URLs were opened successfully on 2026-10-24; a repository-wide external-URL audit remains incomplete |
 | Code validation | Nine detailed reference-solution files added for REST API, transactions, security, cache/async, Testcontainers/client, configuration/validation, outbox/idempotency, Actuator/metrics, and scheduled work/resilience | Not yet compiled as a single runnable sample application |
 
 ## High-priority technical review notes
@@ -49,6 +49,17 @@
 - Opened the main official reference links for Framework, Boot, Batch, Modulith, GraphQL, Session, Integration, Authorization Server, Cloud Contract, Cloud compatibility, Boot system requirements/migration, Framework release list/7.1 prerelease, and REST clients. The sampled official pages loaded; a full availability check of every external URL is still pending.
 - Checked for the specific formatting defect where a question is repeated verbatim as the first non-empty line immediately below its heading. No instances were found in those 33 Q&A files.
 - These are structural checks only. They do not prove semantic uniqueness, answer correctness, link validity, or runnable-code correctness; those remain separate review tasks.
+
+
+## Official-reference URL spot-check — 2026-10-24
+
+Opened the following official documentation targets from the core chapter indexes during this pass; each resolved to a relevant documentation page at the time checked:
+
+- Framework overview, container basics, dependency injection, annotation configuration, bean scopes, bean lifecycle/nature, AOP overview and proxying, MVC overview, Bean Validation, exception handling/REST error responses, transaction management, and JDBC.
+- Boot reference, auto-configuration, externalized configuration, profiles, SpringApplication startup, and Maven executable packaging.
+- Spring Data JPA reference and query methods.
+
+This confirms only the sampled targets above. It is **not** a full crawler or exhaustive reachability/content audit of every external URL in all 68 Markdown files. URLs that could not be checked should be marked unconfirmed rather than automatically called broken. The official pages may show newer documentation versions than a project's chosen dependency baseline, so links should be paired with the version-specific docs for upgrade-sensitive claims.
 
 ## Focused answer-depth improvements completed on 2026-10-24
 
