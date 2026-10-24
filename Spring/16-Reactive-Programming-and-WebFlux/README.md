@@ -45,7 +45,7 @@ It can convert a real failure into a fallback signal and make monitoring report 
 
 ### Q10. Why can flatMap increase concurrency unexpectedly?
 
-flatMap can subscribe to inner publishers concurrently according to its concurrency settings. Unbounded or excessive concurrency can overwhelm downstream systems; use explicit limits and consider ordering requirements.
+`flatMap` can subscribe to multiple inner publishers concurrently, and its concurrency/prefetch choices affect how much work is in flight. A high concurrency level can saturate a database pool or downstream API even when the event loop itself remains responsive. Set explicit limits, align them with downstream capacity and request deadlines, and use an ordering-preserving operator when output order is part of the contract.
 
 ### Q11. How should retries interact with cancellation?
 
