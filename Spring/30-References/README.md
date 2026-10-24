@@ -31,7 +31,7 @@ Use documentation corresponding to the exact major/minor version used by the pro
 ## Supporting technologies
 - [Jakarta Bean Validation](https://jakarta.ee/specifications/bean-validation/)
 - [Project Reactor reference](https://projectreactor.io/docs/core/release/reference/aboutDoc.html)
-- [Micrometer documentation](https://docs.micrometer.io/)
+- [Micrometer documentation](https://micrometer.io/docs)
 - [Testcontainers for Java](https://java.testcontainers.org/)
 - [Java SE documentation](https://docs.oracle.com/en/java/javase/)
 
