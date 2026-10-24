@@ -8,7 +8,7 @@ A starter is a convenient dependency descriptor that brings in a curated set of 
 
 ### Q2. What does @SpringBootApplication combine?
 
-It combines the common roles of @SpringBootConfiguration, @EnableAutoConfiguration, and @ComponentScan. Its package location defines the default component-scan root, so placing the main class in an overly narrow package can leave application components undiscovered.
+It combines the common roles of @SpringBootConfiguration, @EnableAutoConfiguration, and @ComponentScan. The package containing the application class becomes the default component-scan root, so placing it too deep can leave controllers, services, repositories, or configuration classes undiscovered. Keep the main class in a sensible root package, and use explicit scan/import configuration only when the application structure requires it. Auto-configuration is separate from component scanning and depends on classpath and configuration conditions.
 
 ### Q3. How does auto-configuration work?
 
@@ -48,11 +48,11 @@ They expose lifecycle milestones such as environment preparation, context initia
 
 ### Q12. Why should application startup avoid remote calls in bean constructors?
 
-Constructors run during object creation and can block context initialization or fail the whole startup due to transient dependency issues. Keep construction lightweight and place required startup checks in a bounded, observable lifecycle phase.
+Constructors run during object creation, so remote calls there can block context initialization, create hidden network dependencies, or fail startup because of a transient outage. Keep constructors focused on establishing valid object state. If startup genuinely depends on a remote service, use an explicit lifecycle component with a bounded timeout, observable failure policy, and documented readiness strategy; do not let an unbounded call stall deployment indefinitely.
 
 ### Q13. What is graceful shutdown in Boot?
 
-It allows supported servers to stop accepting new requests and gives in-flight work a configured opportunity to finish. Background executors, message consumers, and scheduled tasks need their own lifecycle and recovery policies.
+Graceful shutdown lets supported web servers stop accepting new requests and gives in-flight requests a configured grace period to finish. Configure the shutdown mode and timeout for the selected Boot version, and ensure the deployment platform sends an appropriate termination signal and allows enough termination grace time. This does not guarantee every background task or message handler completes: those components need their own stop, acknowledgement, checkpoint, and retry/recovery policies.
 
 ### Q14. How do you package configuration for an executable JAR?
 
