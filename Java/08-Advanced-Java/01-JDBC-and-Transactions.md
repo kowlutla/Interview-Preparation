@@ -53,7 +53,7 @@ Always restore connection state if your code changes it before returning the con
 
 ### Q8. What are transaction isolation levels? *(Advanced)*
 
-JDBC defines READ_UNCOMMITTED, READ_COMMITTED, REPEATABLE_READ, and SERIALIZABLE, with database-specific behavior and support differences. Isolation determines which concurrent effects a transaction may observe, including dirty reads, non-repeatable reads, and phantoms under the database's implementation.
+JDBC defines READ_UNCOMMITTED, READ_COMMITTED, REPEATABLE_READ, and SERIALIZABLE as transaction isolation levels, and also defines TRANSACTION_NONE to indicate that transactions are not supported. Database support and the exact behavior of the isolation levels vary. Isolation determines which concurrent effects a transaction may observe, including dirty reads, non-repeatable reads, and phantoms under the database's implementation.
 
 Do not assume identical behavior across database engines. Select isolation based on the invariant, performance, and concurrency requirements, then test under realistic contention.
 
