@@ -63,7 +63,7 @@ An interface cannot be instantiated and has no ordinary per-instance fields or c
 
 Interface constants are often discouraged as a general-purpose configuration mechanism because they expose implementation details to all implementers and callers. Prefer methods for behavior and appropriately scoped constants in a class or dedicated type.
 
-### Q10. What is a functional interface? *(Intermediate)*
+### Q10. How does @FunctionalInterface help preserve an interface's lambda contract? *(Intermediate)*
 
 A functional interface has exactly one abstract method that counts as its functional method, ignoring methods that are public methods of Object and considering inherited declarations under the language rules. It can be implemented by a lambda expression or method reference. The @FunctionalInterface annotation asks the compiler to verify the intended contract.
 
