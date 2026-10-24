@@ -20,17 +20,17 @@ No. Executable JAR packaging includes a launcher and dependencies; a native imag
 ### Q6. What does ApplicationReadyEvent mean?
 It signals a lifecycle point after application startup has completed sufficiently for the ready event. It does not prove every business dependency is healthy unless readiness checks model them.
 
-### Q7. What is the difference between CommandLineRunner and ApplicationRunner?
-Both run after context startup; ApplicationRunner receives parsed ApplicationArguments, while CommandLineRunner receives raw strings.
+### Q7. Why should startup runners not be used as durable batch-processing infrastructure?
+A runner is a startup hook, not a job repository, checkpointing system, or durable scheduler. If work must resume after a crash, expose progress, or run independently of application readiness, use a controlled job mechanism and persist progress. Keep startup hooks bounded and make repeated invocation safe.
 
 ### Q8. Can a runner safely perform an unbounded import?
 Usually not. It can block readiness and make deployment unpredictable. Use a controlled job for large or resumable work.
 
-### Q9. What does DispatcherServlet do?
-It coordinates Spring MVC handler selection, argument binding, invocation, return-value processing, message conversion, and exception resolution.
+### Q9. What should you inspect when a mapped Spring MVC endpoint unexpectedly returns 404?
+Check the effective request path and context path, active profiles and conditional controllers, request mapping conditions (method, path, headers, consumes/produces), servlet registration, and any gateway or filter rewriting. Confirm the handler mapping from logs or diagnostics before changing controller code. A 404 can mean no handler matched, or that the application deliberately hides a resource.
 
-### Q10. Is a filter the same as an interceptor?
-No. Servlet filters run in the servlet chain; MVC interceptors surround handler execution; AOP advice intercepts eligible bean method calls.
+### Q10. How can filter and interceptor ordering cause a request-processing bug?
+Filters run in the servlet filter chain before MVC handler execution, while `HandlerInterceptor` callbacks surround handler processing after mapping. A security rule placed at the wrong layer or an interceptor that assumes a handler already exists can produce inconsistent behavior. Trace the actual chain and test both matched and unmatched paths; do not treat MVC interceptors as a replacement for security filters.
 
 ### Q11. Does @RestController always return JSON?
 It returns response bodies through message converters; the selected representation depends on supported converters and content negotiation, not the annotation alone.
