@@ -1,43 +1,45 @@
 # Spring Version Compatibility
 
-Version compatibility changes over time. Treat official release and migration documentation as the source of truth when selecting a runtime or upgrading an application.
+Compatibility and support status change over time. This guide was checked on 2026-10-24; re-check exact patch release requirements before an upgrade.
 
 ## Major compatibility landmarks
 
-| Line | Important compatibility concern | Practical guidance |
+| Line | Runtime and platform baseline | Practical guidance |
 |---|---|---|
-| Spring Framework 5.x / Spring Boot 2.x | Predominantly javax.* APIs for Java EE-era integrations; older security and HTTP-client patterns are common in tutorials | Treat examples as legacy unless verified against the exact minor release. |
-| Spring Framework 6.x / Spring Boot 3.x | Java 17 baseline; Jakarta EE 9+ namespace transition from javax.* to jakarta.*; observability and AOT support evolved in this line | Audit third-party libraries and servlet/container compatibility before migrating. |
-| Spring Framework 7.x / Spring Boot 4.x | New major generation with updated runtime and dependency requirements; exact minimum Java and ecosystem compatibility must be checked in the selected release's official docs | Do not infer requirements from a previous major version or an unversioned blog. |
+| Spring Framework 5.3 / Spring Boot 2.x | Legacy generation; Framework 5.3 uses Java EE 8 / javax namespace for relevant specifications | Framework 5.3 open-source support ended in August 2024; commercial support may differ. |
+| Spring Framework 6.x / Spring Boot 3.x | Java 17 baseline; Jakarta namespace migration for specifications that moved from javax to jakarta | Framework 6.2 open-source support ended in June 2026; check current commercial support options. |
+| Spring Framework 7.x / Spring Boot 4.x | Java 17 minimum; Framework 7 adopts Jakarta EE 11, including Servlet 6.1 | Framework 7 recommends Java 25 for production while retaining a Java 17 baseline. Boot 4 requires Framework 7.x. |
 
-This table is a migration map, not a guarantee that every minor release remains supported. Consult [Spring Framework versions and support](https://spring.io/projects/spring-framework#support) and [Spring Boot support](https://spring.io/projects/spring-boot#support).
+The official Framework support page lists Framework 7.0.x as the current production line. Current Boot 4.0/4.1 system requirements state Java 17 or later and require Spring Framework 7.0.10 or later for the cited patch lines. These are time-sensitive details; use the linked release documentation for current patch-level requirements.
 
-## Rules for version-aware examples
+## Selected compatibility details
 
-- State the Spring Boot version and Java runtime when a feature or API depends on them.
-- Let the Boot dependency-management BOM control compatible Spring Framework and managed-library versions unless there is a documented reason to override them.
-- Check the Spring Cloud release-train compatibility table before combining Boot and Cloud.
-- For Boot 3 migration, search application code and dependencies for Java EE javax.* imports that moved to Jakarta namespaces. Not every javax.* package moved; javax.sql remains part of Java SE.
+- Spring Framework 7.0 retains a JDK 17 baseline and adopts Jakarta EE 11 APIs such as Servlet 6.1, JPA 3.2, and Bean Validation 3.1.
+- Spring Boot 4.x requires Java 17 or later and Spring Framework 7.x. Verify the exact Boot patch's system-requirements page and build-tool versions.
+- Spring Cloud compatibility is release-train-specific. The official matrix maps 2025.1.x to Boot 4.0.x and, starting with 2025.1.2, Boot 4.1.x; 2025.0.x maps to Boot 3.5.x. Re-check before upgrading.
+- RestClient was introduced in Spring Framework 6.1. Spring Framework 7.0 deprecates RestTemplate in favor of RestClient; existing systems may still use RestTemplate, but new code should follow the target framework's migration guidance.
+- Not every javax.* package moved. For example, javax.sql remains part of Java SE. Migrate only APIs whose specifications moved to Jakarta namespaces.
 - Modern servlet security uses SecurityFilterChain beans. WebSecurityConfigurerAdapter is a legacy pattern removed from modern Spring Security.
-- RestClient is a modern synchronous client in newer Spring Framework versions; verify the framework baseline before using it. RestTemplate remains present in many applications, but new-client selection should follow current documentation.
-- Test annotations and mock-bean APIs evolve. Verify whether @MockitoBean is available in the selected framework line before replacing older @MockBean usage.
-- Distinguish a framework feature from Boot auto-configuration for that feature. A class may exist in Spring Framework while Boot's automatic setup differs by release.
+- Let the Boot dependency-management BOM control managed dependency versions unless there is a documented reason to override them.
+- Distinguish a Spring Framework feature from Boot auto-configuration for that feature. Framework API availability does not imply identical Boot setup across release lines.
 
 ## Upgrade checklist
 
-1. Identify target Java, Boot, Framework, Security, Data, and Cloud versions.
+1. Record target Java, Boot, Framework, Security, Data, Cloud, servlet container, and build-tool versions.
 2. Read official release notes and migration guides for every major version crossed.
-3. Remove deprecated APIs and resolve Jakarta namespace incompatibilities.
+3. Audit deprecated/removed APIs, Jakarta namespace changes, and third-party compatibility.
 4. Inspect dependency convergence and remove unnecessary version overrides.
 5. Run unit, slice, integration, security, and end-to-end tests.
 6. Validate configuration-property changes and auto-configuration condition reports.
-7. Exercise readiness, graceful shutdown, database access, and downstream timeout paths in a production-like environment.
-8. Roll out incrementally with metrics and a tested rollback plan.
+7. Exercise readiness, graceful shutdown, database access, messaging, and downstream timeout paths in a production-like environment.
+8. Roll out incrementally with version-correlated metrics and a tested rollback/recovery plan.
 
 ## Official sources
 
-- [Spring Framework reference](https://docs.spring.io/spring-framework/reference/)
-- [Spring Framework releases and support](https://spring.io/projects/spring-framework#support)
-- [Spring Boot reference](https://docs.spring.io/spring-boot/reference/)
-- [Spring Boot migration guides](https://github.com/spring-projects/spring-boot/wiki)
-- [Spring Cloud compatibility guidance](https://spring.io/projects/spring-cloud#overview)
+- [Spring Framework versions and support](https://github.com/spring-projects/spring-framework/wiki/Spring-Framework-Versions)
+- [Spring Framework 7.0 release notes](https://github.com/spring-projects/spring-framework/wiki/Spring-Framework-7.0-Release-Notes)
+- [Spring Boot 4.0 system requirements](https://docs.spring.io/spring-boot/4.0/system-requirements.html)
+- [Spring Boot current system requirements](https://docs.spring.io/spring-boot/system-requirements.html)
+- [Spring Boot 4.0 migration guide](https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide)
+- [Spring Cloud compatibility guidance](https://spring.io/projects/spring-cloud)
+- [Spring REST clients](https://docs.spring.io/spring-framework/reference/integration/rest-clients.html)
