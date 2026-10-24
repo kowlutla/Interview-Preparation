@@ -18,3 +18,7 @@ These worked examples provide more complete implementation patterns for key inte
 - [JWT resource-server configuration and authorization tests](Reference-Solutions/03-Security-Reference-Solution.md)
 - [Cache invalidation and bounded async execution](Reference-Solutions/04-Cache-and-Async-Reference-Solution.md)
 - [Testcontainers and RestClient patterns](Reference-Solutions/05-Testcontainers-and-Client-Reference.md)
+- [Configuration binding and custom validation](Reference-Solutions/06-Configuration-and-Validation.md)
+- [Transactional outbox and idempotent consumer](Reference-Solutions/07-Outbox-and-Idempotency.md)
+- [Actuator health and metrics](Reference-Solutions/08-Actuator-and-Metrics.md)
+- [Scheduled work and resilience](Reference-Solutions/09-Scheduled-Work-and-Resilience.md)
