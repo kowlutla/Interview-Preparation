@@ -28,7 +28,7 @@ Inventory runtime and dependencies, identify deprecated APIs, update one major b
 
 ### Q7. How should deprecated APIs be handled?
 
-Determine the replacement and reason for deprecation from official documentation. Avoid mixing legacy examples into new code without a clear migration context. Track deprecations before removal in a later major release.
+Determine the replacement, migration constraints, and reason for deprecation from the official documentation for the project's exact version. Check whether the API is deprecated for removal, whether behavior changes accompany the replacement, and whether third-party integrations depend on it. Avoid copying legacy examples into new code without labeling the version context. Track deprecations during routine upgrades so a future major-version migration is planned rather than rushed.
 
 ### Q8. What is the role of a BOM?
 
