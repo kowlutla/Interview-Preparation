@@ -186,3 +186,7 @@ Clarified that `Optional.orElseThrow(Supplier)` is available in Java 8, while th
 ### Fundamentals and core-language pass — 2026-10-24
 
 Sampled the Data Types/Control Flow, OOP, Generics, Exceptions, Enums/Annotations, Reflection, JPMS, and annotation-processing chapters. The reviewed claims around numeric promotion, exception suppression, generic erasure, class initialization, module access, annotation retention, and proxy limitations were broadly sound. The confirmed API-version correction in Optional (`orElseThrow()` no-arg form is Java 10+) is recorded above. Continue the manual review of remaining answers; no line-by-line certification is claimed.
+
+### Production scenario and senior interview pass — 2026-10-24
+
+Sampled the 50-scenario collection/concurrency/JVM/I/O/security bank, focused JVM incidents, performance troubleshooting scenarios, RCA playbook, advanced cross-questioning, architecture trade-offs, rapid-fire revision, and mock interviews. The reviewed material consistently emphasizes evidence, explicit assumptions, resource limits, idempotency, and version-aware claims. No new factual correction was confirmed in these sampled sections. Semantic duplication and the correctness of every scenario's implied answer remain separate review tasks.
