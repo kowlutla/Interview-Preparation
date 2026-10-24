@@ -31,5 +31,5 @@ Use documentation corresponding to the exact major/minor version used by the pro
 - [ ] Confirm every version-specific API against the versioned reference.
 - [ ] Read migration notes for every major version crossed.
 - [ ] Verify Spring Cloud release-train compatibility.
-- [ ] Verify examples compile against their stated dependency baseline.
+- [ ] Manually review code examples against their stated dependency baseline; compilation/runtime execution is out of scope for this handbook review.
 - [ ] Prefer official documentation over blogs for framework behavior.
