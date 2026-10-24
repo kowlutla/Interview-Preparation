@@ -176,6 +176,7 @@ Asynchronous APIs still require bounded concurrency, buffer-lifetime discipline,
 3. [Java SE 21 API — ByteBuffer](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/nio/ByteBuffer.html)
 4. [Java SE 21 API — ObjectInputFilter](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/io/ObjectInputFilter.html)
 5. [JEP 290 — Filter Incoming Serialization Data](https://openjdk.org/jeps/290)
+6. [JEP 400 — UTF-8 by Default](https://openjdk.org/jeps/400)
 
 ## Chapter checklist
 
