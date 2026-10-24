@@ -36,7 +36,7 @@ A Bill of Materials centralizes compatible dependency versions so related librar
 
 ### Q13. How should you treat Spring Framework 7.1 preview documentation?
 
-As of 2026-10-24, the official Framework 7.1 release-notes page is a preview for a release scheduled for November 2026, while 7.0.10 is listed as the current stable release. Use preview notes to plan compatibility work, but do not present preview-only changes as released behavior or choose a preview for production without an explicit risk decision. Re-check the official release list and target version's migration guide when the stable release is published.
+As of 2026-10-24, the official documentation lists Framework 7.0.9 as stable and 7.1.0-M2 as preview. Preview notes can help plan compatibility work, but preview-only changes should not be presented as released behavior or selected for production without an explicit risk decision. Re-check the official release list and target version's migration guide when the stable release is published.
 
 ## Official references
 
