@@ -24,7 +24,7 @@ public class SecurityConfiguration {
 }
 ```
 
-Configure the trusted issuer using the supported Boot properties, for example the issuer URI setting for the resource server. Do not accept a token merely because it can be Base64-decoded. The configured decoder validates the token signature and standard claims according to the configured trust model.
+Configure the trusted issuer using the supported Boot properties, for example the issuer URI setting for the resource server. Do not accept a token merely because it can be Base64-decoded. The configured decoder validates the token signature and standard claims according to the configured trust model. **Audience validation is not implied by configuring an issuer alone**: if the API requires a specific `aud` claim, add and test an explicit audience validator for the selected Spring Security version.
 
 ## Service-level authorization
 
