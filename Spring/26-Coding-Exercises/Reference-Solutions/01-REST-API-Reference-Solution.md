@@ -101,6 +101,7 @@ package example.orders.api;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.*;
 
 @RestControllerAdvice
@@ -110,6 +111,14 @@ public class ApiExceptionHandler {
             MethodArgumentNotValidException exception) {
         return ResponseEntity.badRequest().body(
             new ApiError("INVALID_REQUEST", "Request validation failed")
+        );
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiError> malformedBody(
+            HttpMessageNotReadableException exception) {
+        return ResponseEntity.badRequest().body(
+            new ApiError("INVALID_REQUEST", "Request body is malformed")
         );
     }
 
