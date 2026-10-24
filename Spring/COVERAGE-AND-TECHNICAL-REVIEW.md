@@ -8,7 +8,7 @@
 
 | Requirement | Current inventory | Status |
 |---|---:|---|
-| Numbered Q&A headings | 555 counted across category and tricky-question files | Count target met; deduplication/depth audit remains |
+| Numbered Q&A headings | 585 counted across category and tricky-question files | Count target met; deduplication/depth audit remains |
 | Coding exercises | 85 numbered exercises | Count target met; runnable implementation depth varies |
 | Production scenarios | 75 numbered scenarios | Count target met; review each for investigation evidence and trade-offs |
 | Mock interviews | 5 interview files | Count target met; answers are model discussion prompts, not transcripts |
@@ -29,7 +29,7 @@
 
 ## Final review checklist
 
-- [ ] Review 555 questions for near-duplicates and shallow variations; retain the strongest formulation where concepts overlap.
+- [ ] Review 585 questions for near-duplicates and shallow variations; retain the strongest formulation where concepts overlap.
 - [ ] Expand answers that need deeper internal mechanics, examples, edge cases, and trade-offs.
 - [ ] Verify version-specific statements against versioned official docs and record the baseline.
 - [ ] Check every internal Markdown link and official external link.
