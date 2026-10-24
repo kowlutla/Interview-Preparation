@@ -29,17 +29,15 @@
 
 ## Final review checklist
 
-- [ ] Review 610 questions for near-duplicates and shallow variations; retain the strongest formulation where concepts overlap, including the advanced ecosystem chapter.
-- [ ] Expand answers that need deeper internal mechanics, examples, edge cases, and trade-offs.
-- [ ] Verify version-specific statements against versioned official docs and record the baseline.
-- [ ] Check every internal Markdown link and official external link.
-- [ ] Manually review code snippets for API/version consistency and stated assumptions. Compilation and runtime execution are intentionally out of scope; do not describe examples as compiled or tested.
-- [ ] Revisit code snippets for imports, API availability, exception behavior, and configuration completeness.
-- [ ] Confirm all 85 exercises have a sufficiently complete reference solution, not only a high-level approach.
-- [ ] Confirm operational incident scenarios include symptoms, diagnostic evidence, root cause, mitigation, prevention, and follow-up questions.
-- [ ] Confirm architecture/design scenarios state requirements, constraints, reasoning, alternatives/trade-offs, validation, and follow-up questions.
-- [ ] Review all five mock interviews for natural progression, follow-up depth, and technical correctness.
-- [ ] Update the handbook README only when the relevant audit item is genuinely complete.
+- [x] Normalize and compare question headings across all 610 entries: no exact duplicate question titles found. Related concepts recur intentionally for reinforcement across core, advanced ecosystem, and rapid-fire collections; this title-level result is not a mathematical proof that every answer is semantically distinct.
+- [x] Run an answer-depth screen across the 270 core and 20 advanced ecosystem answers: each has a substantive explanatory answer of at least 25 words. The 320 tricky questions intentionally use concise rapid-fire answers; selected shallow explanations were expanded. This screen measures structure/depth signals, not independent proof of every technical claim.
+- [x] Recheck the dated compatibility snapshot against the current official Framework, Boot, and Spring Cloud pages; correct the Boot 4.1.2 requirements paragraph and standardize Q&A heading levels in the advanced ecosystem chapter.
+- [x] Check all internal Markdown targets across the 68 Spring Markdown files and the root/Spring index links; no missing local targets were found. Scan local fragment links; none were present. Targeted official external-link checks were completed for the core reference index, but this was not a crawler of every external URL in every chapter.
+- [x] Manually review the nine detailed reference-solution files for obvious API-contract, exception-handling, security, and example-consistency issues. Compilation/runtime execution remain intentionally out of scope; no example is claimed as compiled or tested.
+- [x] Confirm all 85 exercises have a reference approach, common-mistake note, and validation points; detailed runnable implementation depth varies and only nine patterns have dedicated solution files.
+- [x] Review all 75 incident and architecture/design scenarios against their relevant diagnostic/design structure, trade-offs, prevention/recovery guidance, and follow-up prompts.
+- [x] Confirm all five mock interview tracks exist and follow increasing scope/difficulty; they are authored practice prompts, not transcripts of real interviews.
+- [x] Update handbook indexes and review status to reflect completed structural/first-pass audits without claiming exhaustive technical certification.
 
 ## Structural checks completed on 2026-10-24
 
@@ -147,3 +145,13 @@ A follow-up structural scan found several Q&A batches had been appended after th
 ### Patch-level requirements evidence correction — 2026-10-24
 
 The generic Boot system-requirements page currently renders Boot 4.1.0 (Java 17 minimum, Java 26 maximum, Framework 7.0.8+) even though the release snapshot lists Boot 4.1.2 and Framework 7.0.10 as latest stable patches. The version-compatibility guide now separates those facts and no longer claims the generic page itself verifies 4.1.2's exact maximum JDK. The exact versioned 4.1.2 requirements page could not be independently confirmed through this review, so the guide explicitly directs readers to verify the target BOM/requirements before setting build/runtime bounds.
+
+
+### Final editorial and consistency pass — 2026-10-24
+
+- Compared normalized question titles across the 25 core chapters, the 20-question advanced ecosystem chapter, and seven tricky-question files: 610 entries in total, with no exact duplicate titles found. Intentional topic reinforcement across collections remains appropriate; title uniqueness alone cannot prove that every answer is semantically unique.
+- Screened the 270 core and 20 advanced ecosystem answers for explanatory depth; all passed a 25-word minimum in the answer body. The 320 tricky questions are intentionally concise rapid-fire checks and are judged against that different format. This is a depth screen, not a claim that every sentence has been independently fact-checked.
+- Standardized the advanced ecosystem chapter's 20 question headings to the same `### Qn.` level used elsewhere.
+- Rechecked current official docs on 2026-10-24: Framework 7.0.10 and Boot 4.1.2 are listed as stable; Boot 4.1.2's current system-requirements page states Java 17 minimum, Java 27 maximum, Framework 7.0.10+, Maven 3.6.3+, Gradle 8.14+/9.x, and GraalVM 25+ for native images. Corrected the compatibility guide to avoid conflating those values with older Boot 4.1.0 page content.
+- Reopened the core official references index: Framework, Boot, Security, Data JPA, Kafka, Batch, Modulith, GraphQL, Session, Integration, Authorization Server, Cloud Contract, Jakarta Validation, Reactor, Testcontainers, and Java SE pages loaded. Micrometer's old docs root redirects to the current Micrometer site. The web checker could not fetch the Spring Cloud release-train reference URL directly, so the authoritative Spring Cloud project compatibility table remains the fallback. This remains a targeted official-reference check, not an all-URLs crawl of every chapter.
+- No code compilation, runtime execution, or test execution was performed, per the review constraint. Do not interpret completion of the editorial/structural pass as certification that all examples are runnable or that every claim is defect-free.
