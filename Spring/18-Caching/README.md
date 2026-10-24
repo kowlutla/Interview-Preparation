@@ -44,7 +44,7 @@ It serves a previously cached value while refreshing it asynchronously, trading 
 
 ### Q11. How do you observe cache usefulness?
 
-Measure hit/miss rate, load duration, evictions, failures, entry size/estimated memory, and source load. A high hit ratio is not sufficient if the cache returns incorrect or stale data.
+Measure hit/miss rate, load duration, evictions, failures, entry count or estimated memory, and the load placed on the underlying data source. A high hit ratio alone does not prove the cache is useful: stale values, expensive serialization, large entries, or invalidation bugs can outweigh the benefit. Segment metrics by a bounded cache name or operation, not by arbitrary keys or user IDs.
 
 ## Official references
 
