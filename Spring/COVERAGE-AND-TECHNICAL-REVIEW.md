@@ -14,7 +14,7 @@
 | Mock interviews | 5 interview files | Count target met; answers are model discussion prompts, not transcripts |
 | Topic categories | Parts A–Y represented by category files; exercises/scenarios/mock interviews/tricky questions/references added | Initial breadth present; depth review remains |
 | Official documentation | Dedicated references plus per-topic links | Link and version audit remains |
-| Code validation | Worked patterns added for REST API, transactions, security, cache/async, Testcontainers/client | Not yet compiled as a single runnable sample application |
+| Code validation | Nine detailed reference-solution files added for REST API, transactions, security, cache/async, Testcontainers/client, configuration/validation, outbox/idempotency, Actuator/metrics, and scheduled work/resilience | Not yet compiled as a single runnable sample application |
 
 ## High-priority technical review notes
 
