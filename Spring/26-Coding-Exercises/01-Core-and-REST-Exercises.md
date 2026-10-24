@@ -27,6 +27,8 @@ public class PriceService {
 
 **Common mistake:** Constructing a concrete policy inside the service.
 
+**Related detailed solution:** [Validated REST API and constructor-injected service](Reference-Solutions/01-REST-API-Reference-Solution.md)
+
 **Validation:** Unit-test with a lambda or fake implementation; start the context to verify wiring.
 
 ## Exercise 2 — Resolve multiple implementations
@@ -36,6 +38,8 @@ public class PriceService {
 **Expected behavior:** Checkout selects by a semantic qualifier, not incidental registration order.
 
 **Reference approach:** Add a qualifier annotation or use `@Qualifier("cardPayment")` on the injection point and matching bean.
+
+**Related detailed solution:** [Validated REST API and constructor-injected service](Reference-Solutions/01-REST-API-Reference-Solution.md)
 
 **Common mistake:** Expecting Spring to choose the first discovered bean.
 
@@ -55,6 +59,8 @@ public record PaymentProperties(
 ```
 Enable configuration-properties scanning or register the type explicitly, and include validation support. Configure canonical keys such as `payments.base-url` and `payments.timeout`.
 
+**Related detailed solution:** [Configuration binding and custom validation](Reference-Solutions/06-Configuration-and-Validation.md)
+
 **Common mistake:** Keeping related settings scattered across many `@Value` fields.
 
 **Validation:** Test valid binding and startup failure for malformed or missing required values.
@@ -64,6 +70,8 @@ Enable configuration-properties scanning or register the type explicitly, and in
 **Problem:** Implement `POST /api/orders` without exposing a persistence entity.
 
 **Reference approach:** Define a request DTO with constraints, a response DTO, a service boundary, and return `ResponseEntity` with an appropriate creation status and location when applicable.
+
+**Related detailed solution:** [Validated REST API and global errors](Reference-Solutions/01-REST-API-Reference-Solution.md)
 
 **Common mistake:** Binding the persistence entity directly from untrusted JSON.
 
@@ -75,6 +83,8 @@ Enable configuration-properties scanning or register the type explicitly, and in
 
 **Reference approach:** Create a narrowly scoped `@RestControllerAdvice` handler and return a documented error schema or supported `ProblemDetail`.
 
+**Related detailed solution:** [Validated REST API and global errors](Reference-Solutions/01-REST-API-Reference-Solution.md)
+
 **Common mistake:** Catching every exception and returning 400.
 
 **Validation:** Test status, safe message, correlation identifier, and absence of stack traces.
@@ -84,6 +94,8 @@ Enable configuration-properties scanning or register the type explicitly, and in
 **Problem:** Validate that a requested delivery date is not before today in the business time zone.
 
 **Reference approach:** Implement a Jakarta Bean Validation constraint and validator, inject a Clock if supported by the chosen validator setup, and keep the rule testable.
+
+**Related detailed solution:** [Configuration binding and custom validation](Reference-Solutions/06-Configuration-and-Validation.md)
 
 **Common mistake:** Duplicating the rule in multiple controllers.
 
@@ -145,6 +157,8 @@ Enable configuration-properties scanning or register the type explicitly, and in
 
 **Reference solution:** Move the transactional operation to a separate injected service with a clear boundary, or restructure the call so it passes through the proxy.
 
+**Related detailed solution:** [Transactional transfer and rollback testing](Reference-Solutions/02-Transaction-Reference-Solution.md)
+
 **Common mistake:** Assuming annotations intercept every Java method call.
 
 **Validation:** Verify transaction activity and rollback in an integration test.
@@ -154,6 +168,8 @@ Enable configuration-properties scanning or register the type explicitly, and in
 **Problem:** Test that invalid order input returns a 400 response.
 
 **Reference approach:** Use `@WebMvcTest`, MockMvc, a mocked application service, and an assertion on the stable error contract.
+
+**Related detailed solution:** [Validated REST API and MockMvc](Reference-Solutions/01-REST-API-Reference-Solution.md)
 
 **Common mistake:** Mocking the controller itself, which bypasses request processing.
 
@@ -165,6 +181,8 @@ Enable configuration-properties scanning or register the type explicitly, and in
 
 **Reference approach:** Define a SecurityFilterChain request rule or method-level authorization, use least-privilege authorities, and test anonymous, authenticated-but-forbidden, and authorized requests.
 
+**Related detailed solution:** [JWT resource-server configuration and authorization](Reference-Solutions/03-Security-Reference-Solution.md)
+
 **Common mistake:** Testing only the success path.
 
 **Validation:** Verify 401/403 behavior according to the configured entry point and access-denied handler.
@@ -174,6 +192,8 @@ Enable configuration-properties scanning or register the type explicitly, and in
 **Problem:** Protect an API with signed JWT access tokens from a trusted issuer.
 
 **Reference approach:** Configure Spring Security OAuth2 Resource Server with issuer/JWK settings; define audience validation if the deployment's trust contract requires it.
+
+**Related detailed solution:** [JWT resource-server configuration and authorization](Reference-Solutions/03-Security-Reference-Solution.md)
 
 **Common mistake:** Decoding a token and trusting claims without signature validation.
 
@@ -187,6 +207,8 @@ Enable configuration-properties scanning or register the type explicitly, and in
 
 **Reference approach:** Configure connection and response timeouts on the chosen request factory, define a total deadline, map downstream failures, and instrument duration.
 
+**Related detailed solution:** [Testcontainers and RestClient patterns](Reference-Solutions/05-Testcontainers-and-Client-Reference.md)
+
 **Common mistake:** Retrying every exception without a budget.
 
 **Validation:** Use a test server that delays or refuses connections and assert bounded failure behavior.
@@ -196,6 +218,8 @@ Enable configuration-properties scanning or register the type explicitly, and in
 **Problem:** Cache product reads and invalidate after a product update.
 
 **Reference approach:** Define stable cache keys and evict/update the correct key only after the write succeeds. Ensure the method invocation crosses the cache proxy.
+
+**Related detailed solution:** [Cache invalidation and bounded async execution](Reference-Solutions/04-Cache-and-Async-Reference-Solution.md)
 
 **Common mistake:** Invalidating a different key format than the read path uses.
 
@@ -207,6 +231,8 @@ Enable configuration-properties scanning or register the type explicitly, and in
 
 **Reference approach:** Configure an explicit ThreadPoolTaskExecutor with worker and queue limits, a rejection policy, thread naming, metrics, and graceful shutdown.
 
+**Related detailed solution:** [Cache invalidation and bounded async execution](Reference-Solutions/04-Cache-and-Async-Reference-Solution.md)
+
 **Common mistake:** Using an unbounded queue and assuming @Async increases capacity infinitely.
 
 **Validation:** Saturate the executor and verify rejection/backpressure behavior is observable.
@@ -216,6 +242,8 @@ Enable configuration-properties scanning or register the type explicitly, and in
 **Problem:** Ensure a cleanup job does not run concurrently across replicas.
 
 **Reference approach:** Make work idempotent and use a distributed lock or scheduler designed for clustered execution. A local scheduler alone does not coordinate replicas.
+
+**Related detailed solution:** [Scheduled work and resilience](Reference-Solutions/09-Scheduled-Work-and-Resilience.md)
 
 **Common mistake:** Using synchronized as a cluster-wide lock.
 
@@ -227,6 +255,8 @@ Enable configuration-properties scanning or register the type explicitly, and in
 
 **Reference approach:** Write order state and an outbox row in one local transaction; publish pending rows asynchronously with retries and idempotent downstream handling.
 
+**Related detailed solution:** [Transactional outbox and idempotent consumer](Reference-Solutions/07-Outbox-and-Idempotency.md)
+
 **Common mistake:** Saving to the database and publishing directly to Kafka as two uncoordinated writes.
 
 **Validation:** Simulate process failure before and after publish, then verify eventual delivery and duplicate safety.
@@ -237,6 +267,8 @@ Enable configuration-properties scanning or register the type explicitly, and in
 
 **Reference approach:** Implement a HealthIndicator or reactive equivalent appropriate to the application, use a short timeout, and decide whether the dependency affects readiness or liveness.
 
+**Related detailed solution:** [Actuator health and metrics](Reference-Solutions/08-Actuator-and-Metrics.md)
+
 **Common mistake:** Performing an expensive unbounded query on every probe.
 
 **Validation:** Test healthy, unavailable, and timed-out dependency responses.
@@ -246,6 +278,8 @@ Enable configuration-properties scanning or register the type explicitly, and in
 **Problem:** Verify repository behavior against the production database engine.
 
 **Reference approach:** Start a disposable container with a pinned compatible image, configure dynamic connection properties, apply migrations, and clean test state between cases.
+
+**Related detailed solution:** [Testcontainers and RestClient patterns](Reference-Solutions/05-Testcontainers-and-Client-Reference.md)
 
 **Common mistake:** Assuming H2 reproduces production SQL, locking, and collation behavior.
 
@@ -266,6 +300,8 @@ Enable configuration-properties scanning or register the type explicitly, and in
 **Problem:** Measure order-processing duration and failures.
 
 **Reference approach:** Use Micrometer Timer and Counter instruments with low-cardinality dimensions such as operation and outcome.
+
+**Related detailed solution:** [Actuator health and metrics](Reference-Solutions/08-Actuator-and-Metrics.md)
 
 **Common mistake:** Adding order IDs or user IDs as metric tags.
 
