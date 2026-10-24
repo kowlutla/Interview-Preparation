@@ -1,8 +1,8 @@
 # Spring Framework + Spring Boot Interview Q&A Handbook
 
-A version-aware handbook for Java backend engineers preparing for practical and senior-level interviews. It emphasizes framework mechanics, implementation, debugging, production trade-offs, and version-aware learning.
+An interview-first, version-aware handbook for Java backend engineers preparing for mid-level and senior-level interviews. It prioritizes clear explanations of framework mechanics, proxy/lifecycle behavior, debugging, trade-offs, failure modes, and version-aware decisions. Code is supporting material: use small illustrative snippets only when they clarify an interview concept; full runnable applications and exhaustive coding examples are not a goal.
 
-> **Status:** Broad first-pass content is now present across the requested topic areas. A heading-based inventory of the authored Q&A files currently shows 610 numbered Q&A headings across the 25 core category chapters, the advanced ecosystem chapter, and the tricky-question chapters. This is a preliminary count, not a claim that every item has passed duplicate/depth review. The exercise and scenario targets are met by numbered entries, and five mock-interview files exist.
+> **Status:** The content inventory includes 610 numbered Q&A headings across 25 core chapters, the advanced ecosystem chapter, and tricky-question chapters; 85 practice exercises, 75 real-world scenarios, and five mock-interview tracks are also present. These counts describe coverage, not proof that every answer has passed exhaustive semantic and technical review.
 
 ## Audience and prerequisites
 
@@ -69,7 +69,7 @@ Designed for engineers with roughly 2–6 years of Java backend experience. Prer
 
 ## Coverage and review status
 
-See the [coverage inventory and technical review checklist](COVERAGE-AND-TECHNICAL-REVIEW.md) for the current counted totals and remaining audit work. Count targets are not a substitute for technical accuracy, meaningful non-duplication, version/API consistency, and manually reviewed examples.
+See the [coverage inventory and technical review checklist](COVERAGE-AND-TECHNICAL-REVIEW.md) for the current counted totals and remaining audit work. Count targets are not a substitute for technical accuracy, meaningful non-duplication, version/API consistency, and interview-useful explanations. Small snippets are illustrative; full runnable coding examples are explicitly not a completion requirement.
 
 ## Difficulty guidance
 
@@ -90,7 +90,7 @@ See the [coverage inventory and technical review checklist](COVERAGE-AND-TECHNIC
 - [x] Five mock interview files
 - [x] Structural heading audit: continuous Q&A numbering, no immediate verbatim question repetition beneath headings, and Q&A blocks placed before official-reference sections
 - [x] Exercise numbering audit: 1–85 continuous
-- [x] Exercise entry consistency: all 85 include a reference approach, common-mistake note, and validation points; depth of the solution itself remains under review
+- [x] Exercise entry consistency: all 85 include a reference approach, common-mistake note, and validation points. These are secondary practice material; the primary handbook goal remains interview-ready explanations, not full runnable implementations.
 - [x] Production-scenario numbering audit: 1–75 continuous
 - [x] Scenario-format consistency pass for incident and architecture/design scenarios; prevention guidance and label consistency improved
 - [x] Answer-depth screen and targeted expansions across all 290 core/advanced answers; full claim-by-claim technical correctness review and global semantic deduplication remain pending
