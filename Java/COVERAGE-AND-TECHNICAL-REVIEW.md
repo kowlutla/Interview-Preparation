@@ -8,7 +8,7 @@
 
 The repository has broad coverage across Java fundamentals, core language, collections, streams, concurrency, JVM/GC, release features, JDBC/networking, security, performance, coding practice, production scenarios, and senior interview practice. However, a broad chapter inventory is not equivalent to a verified, exhaustive syllabus.
 
-The repository now has **56 Q&A chapters and 1,058 numbered Q&As**, plus dedicated coding, scenario, and mock-interview material. The right status is **broad first-pass coverage; technical and topic-completeness review still required**. This is not a claim that every answer has undergone a line-by-line specification audit.
+The repository now has **57 Q&A chapters and 1,078 numbered Q&As**, plus dedicated coding, scenario, and mock-interview material. The right status is **broad first-pass coverage; technical and topic-completeness review still required**. This is not a claim that every answer has undergone a line-by-line specification audit.
 
 ## Coverage matrix
 
@@ -28,7 +28,7 @@ The repository now has **56 Q&A chapters and 1,058 numbered Q&As**, plus dedicat
 | Networking and HTTP | Advanced Java chapter | Partial-to-broad | DNS, TLS/hostname verification, timeouts, connection pooling, redirects, backpressure |
 | Security | Dedicated chapter | Broad baseline | Cryptographic API details, path traversal race cases, SSRF DNS/redirect controls, deserialization filters, secrets |
 | Performance and diagnostics | Performance, JVM tools, incident scenarios | Broad | JMH methodology, JFR workflow, tail latency, allocation vs retention, evidence-based tuning |
-| Testing and build tooling | Build/compiler tools covered; no dedicated test-framework chapter | Optional extension rather than core JDK gap | JUnit 5, Mockito, property-based/concurrency testing, Maven/Gradle workflows, CI compatibility matrices |
+| Testing and build tooling | Dedicated chapter added | Broad first-pass coverage | JUnit 5, Mockito, deterministic async/concurrency tests, property-based testing concepts, Testcontainers, Maven/Gradle test lifecycles, toolchains, CI compatibility |
 | Annotation processing and compiler tooling | Dedicated chapter added | Coverage added; depth review remains | Annotation processor lifecycle, service registration, javac diagnostics, javap, jdeps, multi-release JARs |
 | Localization and text correctness | Strings/text and date/time chapters | Gap to assess | Unicode code points vs UTF-16 code units, normalization, locale-sensitive formatting, charset boundaries |
 | Coding/output practice | 50-problem bank | Authored; breadth review needed | Ensure array/string, maps, streams, recursion, complexity, edge cases and output classification are balanced |
@@ -125,7 +125,7 @@ The I/O chapter has a Java 8–21 scope, while two examples used later APIs with
 
 ### Repository audit metadata — 2026-10-24
 
-The separate `QUALITY-AUDIT-AND-REMEDIATION.md` baseline was stale at 66 Markdown files, 53 Q&A chapters, 999 questions, and 68 README links. Updated those figures to the latest recorded inventory: 74 Markdown files, 56 Q&A chapters, 1,058 numbered questions, and 76 README links resolving in the latest structural check. These counts should be regenerated/rechecked before release rather than treated as permanent values.
+The separate `QUALITY-AUDIT-AND-REMEDIATION.md` baseline was stale at 66 Markdown files, 53 Q&A chapters, 999 questions, and 68 README links. Updated those figures to the latest recorded inventory: 75 Markdown files, 57 Q&A chapters, 1,078 numbered questions, and 77 README links resolving in the latest structural check. These counts should be regenerated/rechecked before release rather than treated as permanent values.
 
 ### Cross-version example sweep — 2026-10-24
 
@@ -152,3 +152,8 @@ This pass manually reviewed the full 50-problem bank's stated approaches and out
 - Manually reviewed the full 50-problem practice bank and corrected a subtle fail-fast iterator example, while clarifying missing-number assumptions and array-rotation direction.
 
 The remaining chapters still need a comprehensive pass for API-version labels, specification-versus-implementation distinctions, and precise output semantics. This review is intentionally not being marked complete yet.
+
+
+### Testing/build tooling coverage — 2026-10-24
+
+Added `08-Advanced-Java/07-Testing-and-Build-Tooling.md` with 20 questions on test scope, JUnit Jupiter, parameterized tests, Mockito test doubles, deterministic async/concurrency testing, injected clocks, property-based testing, Testcontainers, Maven Surefire/Failsafe, Gradle, CI toolchains, and coverage interpretation. The new chapter closes the previously identified absence of a dedicated test-framework chapter at a broad first-pass level; it is still subject to the same technical-depth review as the rest of the handbook.
