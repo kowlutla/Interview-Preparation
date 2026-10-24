@@ -18,11 +18,11 @@ Retries can help with transient failures when the operation is safe to repeat an
 
 ### Q4. Why is connection pooling important?
 
-Pooling reuses established connections and bounds resource usage. Pool capacity must be considered with thread concurrency, downstream limits, and request duration. A large pool does not fix a slow dependency and may overwhelm it.
+Pooling reuses connections and reduces repeated connection setup, while pool limits provide a resource boundary. Size the pool together with request concurrency, connection-acquisition timeout, downstream capacity, and expected request duration; remember that the total across all application replicas matters. A pool that is too small creates waiting, while an oversized pool can overload the dependency. Monitor active, idle, pending, and acquisition-latency metrics and load-test realistic traffic.
 
 ### Q5. How should authentication be propagated between services?
 
-Use an explicit trust model: service credentials, token exchange, or carefully scoped delegated tokens. Do not blindly forward inbound user tokens to arbitrary destinations. Prevent credential leakage through redirects, logs, and untrusted URLs.
+Choose an explicit trust model: separate service credentials, token exchange, or narrowly scoped delegated user tokens depending on the downstream authorization requirement. Do not forward an inbound bearer token to every destination simply because the request originated in your service. Allow-list trusted destinations, review redirect behavior, avoid putting credentials in URLs, redact authorization headers from logs, and define token audience/scope so a leaked token cannot be reused against unrelated services.
 
 ### Q6. How should client errors be observed?
 
