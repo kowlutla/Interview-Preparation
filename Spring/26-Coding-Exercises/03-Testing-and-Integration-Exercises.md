@@ -16,6 +16,8 @@
 
 **Reference approach:** Use `@WebMvcTest`, MockMvc, and mocked application-layer collaborators.
 
+**Related detailed solution:** [Validated REST API and MockMvc](Reference-Solutions/01-REST-API-Reference-Solution.md)
+
 **Validation:** Assert status, JSON fields, validation response, and unsupported media behavior.
 
 ## Exercise 53 — JPA slice test
@@ -23,6 +25,8 @@
 **Problem:** Verify a repository query and pagination behavior.
 
 **Reference approach:** Use `@DataJpaTest` for focused persistence configuration, but run database-specific tests against the production engine where semantics matter.
+
+**Related detailed solution:** [Testcontainers and HTTP client patterns](Reference-Solutions/05-Testcontainers-and-Client-Reference.md)
 
 **Validation:** Cover empty data, sorting ties, query predicates, and transaction cleanup.
 
@@ -40,6 +44,8 @@
 
 **Reference approach:** Use the supported client test slice or a controlled mock HTTP server. Avoid real external network dependencies in unit tests.
 
+**Related detailed solution:** [Testcontainers and RestClient patterns](Reference-Solutions/05-Testcontainers-and-Client-Reference.md)
+
 **Validation:** Assert timeout and non-2xx handling as well as success.
 
 ## Exercise 56 — Test context cache
@@ -56,6 +62,8 @@
 
 **Reference approach:** Separate the task method from the scheduling trigger and call the business operation directly in unit tests. Use controlled scheduler integration tests only for cadence semantics.
 
+**Related detailed solution:** [Scheduled work and resilience](Reference-Solutions/09-Scheduled-Work-and-Resilience.md)
+
 **Validation:** Verify duplicate invocation is safe and failures are observable.
 
 ## Exercise 58 — Test Kafka listener failure
@@ -63,6 +71,8 @@
 **Problem:** Verify retry and dead-letter behavior.
 
 **Reference approach:** Use the Spring Kafka test support or a broker container when broker semantics matter. Make the failure deterministic and inspect the resulting retry/dead-letter path.
+
+**Related detailed solution:** [Transactional outbox and idempotent consumer](Reference-Solutions/07-Outbox-and-Idempotency.md)
 
 **Validation:** Assert successful retry, permanent failure routing, and duplicate-safe business effect.
 
@@ -72,6 +82,8 @@
 
 **Reference approach:** Invoke through the Spring-managed proxy in an integration test and assert database state after the exception. Ensure the test itself does not mask the behavior through its own surrounding transaction.
 
+**Related detailed solution:** [Transactional transfer and rollback testing](Reference-Solutions/02-Transaction-Reference-Solution.md)
+
 **Validation:** Include checked-exception behavior if the application uses explicit rollback rules.
 
 ## Exercise 60 — Test after-commit events
@@ -79,6 +91,8 @@
 **Problem:** Verify a transactional listener only reacts after commit.
 
 **Reference approach:** Publish the event within a transaction and test both commit and rollback cases. Use transaction-test utilities appropriate to the test context.
+
+**Related detailed solution:** [Transactional outbox and idempotent consumer](Reference-Solutions/07-Outbox-and-Idempotency.md)
 
 **Validation:** Confirm external side effects are not attempted after rollback.
 
@@ -88,6 +102,8 @@
 
 **Reference approach:** Test the configured decoder/validators or use Spring Security test support for endpoint authorization. Include invalid issuer, expired token, and missing authority cases.
 
+**Related detailed solution:** [JWT resource-server configuration and authorization](Reference-Solutions/03-Security-Reference-Solution.md)
+
 **Validation:** Ensure a token with valid signature but wrong trust claims is rejected.
 
 ## Exercise 62 — Test CORS policy
@@ -95,6 +111,8 @@
 **Problem:** Allow only approved browser origins and methods.
 
 **Reference approach:** Configure CORS in the appropriate security/MVC layer and test preflight requests, allowed origin, denied origin, and credentials behavior.
+
+**Related detailed solution:** [JWT resource-server configuration and authorization](Reference-Solutions/03-Security-Reference-Solution.md)
 
 **Validation:** Confirm CORS is not treated as authorization for non-browser clients.
 
@@ -112,6 +130,8 @@
 
 **Reference approach:** Create the context, submit controlled tasks, close the context, and assert the documented shutdown policy.
 
+**Related detailed solution:** [Scheduled work and resilience](Reference-Solutions/09-Scheduled-Work-and-Resilience.md)
+
 **Validation:** Include a task that exceeds the grace period and ensure shutdown does not hang indefinitely.
 
 ## Exercise 65 — Test observability
@@ -119,6 +139,8 @@
 **Problem:** Verify a timer and failure counter are recorded for a service operation.
 
 **Reference approach:** Use a simple MeterRegistry in a focused test and assert instrument updates without depending on a production monitoring server.
+
+**Related detailed solution:** [Actuator health and metrics](Reference-Solutions/08-Actuator-and-Metrics.md)
 
 **Validation:** Ensure metric tags are bounded and do not contain request-specific identifiers.
 
@@ -128,6 +150,8 @@
 
 **Reference approach:** Bind the configuration-properties type in a context test with validation enabled.
 
+**Related detailed solution:** [Configuration binding and custom validation](Reference-Solutions/06-Configuration-and-Validation.md)
+
 **Validation:** Test missing, malformed, and boundary values with clear startup diagnostics.
 
 ## Exercise 67 — Test API idempotency
@@ -135,6 +159,8 @@
 **Problem:** Repeated POST requests with the same idempotency key must not create duplicate orders.
 
 **Reference approach:** Persist the key and result under a uniqueness constraint and define concurrent-request behavior.
+
+**Related detailed solution:** [Transactional outbox and idempotent consumer](Reference-Solutions/07-Outbox-and-Idempotency.md)
 
 **Validation:** Send identical requests sequentially and concurrently; assert one order and deterministic responses.
 
@@ -152,6 +178,8 @@
 
 **Reference approach:** Define the fallback contract in the application layer and use bounded client timeouts. Do not fabricate fallback values for critical authorization or financial operations.
 
+**Related detailed solution:** [Scheduled work and resilience](Reference-Solutions/09-Scheduled-Work-and-Resilience.md)
+
 **Validation:** Test downstream timeout, fallback response, metric/log emission, and recovery.
 
 ## Exercise 70 — Test trace propagation
@@ -159,5 +187,7 @@
 **Problem:** Verify trace context reaches an outbound client call.
 
 **Reference approach:** Use supported tracing instrumentation and a mock server that captures headers.
+
+**Related detailed solution:** [Actuator health and metrics](Reference-Solutions/08-Actuator-and-Metrics.md)
 
 **Validation:** Assert context propagation without coupling tests to unrelated generated IDs or exact sampling decisions.
