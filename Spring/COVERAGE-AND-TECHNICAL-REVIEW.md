@@ -143,3 +143,7 @@ The official Framework 7.1 prerelease notes add constructor-parameter support fo
 ### Chapter section-order audit — 2026-10-24
 
 A follow-up structural scan found several Q&A batches had been appended after the Official references section even though their question numbering was continuous. Reordered the affected blocks so all Q&A appears before references in these chapters: Spring Boot Fundamentals, Spring MVC/REST, Data Access/Transactions, Spring Data JPA, Spring Security, Testing, Reactive/WebFlux, Actuator/Observability, Caching, Spring Cloud, and Version Evolution/Migration. The section-order scan found no additional affected core chapter or the advanced ecosystem chapter after these corrections. This preserves all questions and their numbering; it is a layout/navigation correction, not a content-count increase.
+
+### Patch-level requirements evidence correction — 2026-10-24
+
+The generic Boot system-requirements page currently renders Boot 4.1.0 (Java 17 minimum, Java 26 maximum, Framework 7.0.8+) even though the release snapshot lists Boot 4.1.2 and Framework 7.0.10 as latest stable patches. The version-compatibility guide now separates those facts and no longer claims the generic page itself verifies 4.1.2's exact maximum JDK. The exact versioned 4.1.2 requirements page could not be independently confirmed through this review, so the guide explicitly directs readers to verify the target BOM/requirements before setting build/runtime bounds.
