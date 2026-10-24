@@ -29,10 +29,10 @@ Create a fresh stream from the source for each independent computation. If the s
 
 map transforms each input element into one output element. flatMap transforms each input into a stream or other supported stream-like result and flattens the nested results into one stream.
 
-    List<String> words = List.of("ab", "cd");
+    List<String> words = Arrays.asList("ab", "cd");
     List<String> letters = words.stream()
         .flatMap(word -> word.chars().mapToObj(c -> String.valueOf((char) c)))
-        .toList();
+        .collect(Collectors.toList());
 
 Use flatMap for one-to-many transformations. Avoid using it just to make code look functional if a direct loop communicates the algorithm more clearly.
 
@@ -55,9 +55,9 @@ For an infinite stream, short-circuiting may make a result possible where a full
 filter keeps or discards elements based on a predicate. map transforms each element into another value. Filtering changes which elements remain; mapping changes their representation.
 
     List<String> result = names.stream()
-        .filter(name -> !name.isBlank())
+        .filter(name -> !name.trim().isEmpty())
         .map(String::trim)
-        .toList();
+        .collect(Collectors.toList());
 
 Order matters: trimming before filtering can produce a different result from filtering before trimming. Choose the order based on the intended data contract.
 
