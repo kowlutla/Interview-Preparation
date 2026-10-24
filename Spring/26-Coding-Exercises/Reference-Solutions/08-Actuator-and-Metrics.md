@@ -37,11 +37,19 @@ public class CheckoutMetrics {
         this.registry = registry;
     }
 
-    public <T> T record(String outcome, Supplier<T> operation) {
-        return Timer.builder("checkout.operation")
-            .tag("outcome", outcome)
-            .register(registry)
-            .record(operation);
+    public <T> T record(Supplier<T> operation) {
+        Timer.Sample sample = Timer.start(registry);
+        String outcome = "success";
+        try {
+            return operation.get();
+        } catch (RuntimeException ex) {
+            outcome = "failure";
+            throw ex;
+        } finally {
+            sample.stop(Timer.builder("checkout.operation")
+                .tag("outcome", outcome)
+                .register(registry));
+        }
     }
 
     public void recordFailure(String category) {
@@ -53,7 +61,7 @@ public class CheckoutMetrics {
 }
 ```
 
-In production, keep tag values bounded. Do not use order IDs, user IDs, full URLs, or exception messages as metric tags. Ensure the timer records the actual outcome rather than passing a hard-coded value that can become inaccurate.
+The example classifies successful returns and runtime exceptions; adapt the outcome taxonomy to the service contract, and decide deliberately how fatal errors or cancellation should be represented. In production, keep tag values bounded. Do not use order IDs, user IDs, full URLs, or exception messages as metric tags. The snippet assumes `Timer`, `Timer.Sample`, `MeterRegistry`, `Counter`, and `Supplier` imports from Micrometer/Java are supplied by the project.
 
 ## Validation plan
 
