@@ -65,11 +65,11 @@ Cleaner was introduced in Java 9. It provides a mechanism to run cleanup actions
 
 Use AutoCloseable and try-with-resources for deterministic cleanup. Cleaner is a safety net, not a replacement for explicit close.
 
-### Q10. What are direct buffers and why do they matter? *(Advanced)*
+### Q10. How should direct ByteBuffer lifecycle and memory pressure be managed? *(Advanced)*
 
-Direct buffers can use memory outside the Java heap and may help some I/O paths. They have different allocation and reclamation behavior and contribute to process memory usage.
+Direct buffers can use memory outside the Java heap, and their allocation/reclamation costs can differ from heap buffers. Avoid allocating them per tiny operation without measurement; reuse them only with a clear ownership and lifecycle policy, because pooling can retain native memory longer than intended.
 
-Monitor direct memory and total RSS. Do not assume a healthy heap means the process has enough native memory.
+Monitor direct-buffer usage and process/container memory, and account for native memory alongside heap, Metaspace, thread stacks, and code cache. A healthy heap does not prove the process has enough native memory.
 
 ### Q11. What is JFR and how does it differ from application logs? *(Intermediate)*
 
