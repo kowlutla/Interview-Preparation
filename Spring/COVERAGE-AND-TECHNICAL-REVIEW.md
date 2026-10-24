@@ -33,7 +33,7 @@
 - [ ] Expand answers that need deeper internal mechanics, examples, edge cases, and trade-offs.
 - [ ] Verify version-specific statements against versioned official docs and record the baseline.
 - [ ] Check every internal Markdown link and official external link.
-- [ ] Build runnable sample projects for the most important exercises and execute tests against declared dependency versions.
+- [ ] Manually review code snippets for API/version consistency and stated assumptions. Compilation and runtime execution are intentionally out of scope; do not describe examples as compiled or tested.
 - [ ] Revisit code snippets for imports, API availability, exception behavior, and configuration completeness.
 - [ ] Confirm all 85 exercises have a sufficiently complete reference solution, not only a high-level approach.
 - [ ] Confirm all 75 scenarios include symptoms, diagnostic evidence, root cause, solution, trade-offs, prevention, and follow-up questions.
