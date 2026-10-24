@@ -178,3 +178,7 @@ Reviewed queue/deque and priority-queue behavior, iterator and Spliterator chara
 ### Question numbering structure — 2026-10-24
 
 Checked numbered `### Qn.` headings in all 57 Q&A chapter files. Every chapter's question numbering is sequential from Q1 with no gaps or repeated numbers. This structural check does not determine whether similarly worded questions are conceptually duplicative; semantic duplication review remains separate.
+
+### Optional API version pass — 2026-10-24
+
+Clarified that `Optional.orElseThrow(Supplier)` is available in Java 8, while the no-argument `Optional.orElseThrow()` form was added in Java 10. The chapter already labeled `Optional.or`, `Optional.stream`, and `ifPresentOrElse` as Java 9 additions. This avoids suggesting that all APIs discussed in the Java 8–21 chapter are available on the Java 8 baseline.
