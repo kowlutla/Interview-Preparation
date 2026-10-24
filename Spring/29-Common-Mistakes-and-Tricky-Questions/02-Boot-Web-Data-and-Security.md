@@ -35,8 +35,8 @@ No. Servlet filters run in the servlet chain; MVC interceptors surround handler 
 ### Q11. Does @RestController always return JSON?
 It returns response bodies through message converters; the selected representation depends on supported converters and content negotiation, not the annotation alone.
 
-### Q12. What is the difference between 401 and 403?
-401 is about acceptable authentication credentials; 403 is an access denial for the current identity. Custom handlers can change responses, so test the configured contract.
+### Q12. Why might an API return an unexpected 401 or 403 despite a valid login?
+A valid login does not guarantee the request satisfies the API's authorization rules. Inspect the selected `SecurityFilterChain`, request matcher/order, granted authorities, CSRF requirements, authentication entry point, and access-denied handler. A valid identity with insufficient permission typically gets an access-denied response, but custom handlers and filter failures can change the observable status. Test the exact endpoint and principal rather than diagnosing from the status code alone.
 
 ### Q13. Does CORS protect an API from unauthorized non-browser clients?
 No. CORS is a browser-enforced cross-origin policy, not authentication or authorization.
