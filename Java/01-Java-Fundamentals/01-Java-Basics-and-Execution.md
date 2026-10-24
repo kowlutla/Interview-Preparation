@@ -111,7 +111,7 @@ A practical simplified flow is:
 
 This is deliberately simplified: resolution can be lazy, class initialization occurs at specified active-use points, and the exact order of implementation activities should not be confused with an observable language guarantee.
 
-### Q12. What is class loading? *(Intermediate)*
+### Q12. What role does class loading play in Java application startup? *(Intermediate)*
 
 Class loading is the process of obtaining a binary representation of a class or interface and creating its runtime representation. A defining class loader establishes the class's runtime identity together with its binary name.
 
