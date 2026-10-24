@@ -43,3 +43,43 @@ Enable method security using the supported configuration for the selected versio
 - [Spring Security reference](https://docs.spring.io/spring-security/reference/)
 - [Servlet architecture](https://docs.spring.io/spring-security/reference/servlet/architecture.html)
 - [OAuth 2.0 Resource Server JWT](https://docs.spring.io/spring-security/reference/servlet/oauth2/resource-server/jwt.html)
+
+### Q10. How should multiple SecurityFilterChain beans be ordered?
+
+Each chain has a request matcher and an order. The first matching chain is used, so a broad high-priority matcher can shadow a more specific chain. Keep matchers explicit and test both intended and unintended paths.
+
+### Q11. What is the difference between UserDetailsService and AuthenticationProvider?
+
+UserDetailsService loads user-related data for authentication flows that use it; AuthenticationProvider performs an authentication strategy and returns an authenticated result or rejects the attempt. They are extension points with different responsibilities, not interchangeable service interfaces.
+
+### Q12. How should passwords be stored?
+
+Store password hashes using a supported adaptive password encoder, such as the framework's delegating encoder configuration, and never store plaintext or reversible encrypted passwords as a substitute. Choose parameters appropriate to the deployment and plan migration when algorithms or parameters change.
+
+### Q13. What is the purpose of a PasswordEncoder?
+
+It abstracts password hashing and matching. Password hashing is intentionally one-way; authentication compares a submitted password with the stored hash through the encoder rather than decrypting the stored value.
+
+### Q14. What is method security's proxy limitation?
+
+Method security commonly uses Spring AOP interception. A direct self-call may bypass the proxy, and non-proxy-compatible methods may not be intercepted as expected. Put authorization at a clear service boundary and test the invocation path.
+
+### Q15. Should authorization exist only at the controller layer?
+
+No. Controller rules protect HTTP entry points, but business operations may also be invoked from jobs, messaging listeners, or other services. Enforce domain/resource permissions at a boundary that covers every relevant caller.
+
+### Q16. How should multi-tenant authorization be enforced?
+
+Derive tenant identity from trusted authentication data, verify resource ownership at the service/data boundary, and include tenant scope in cache keys and background-job context. Never rely only on a client-supplied tenant identifier.
+
+### Q17. What is session fixation protection?
+
+It prevents an attacker from retaining a known session identifier across authentication. Use the framework's session-protection mechanisms and test session ID changes and logout/session invalidation behavior for the selected authentication mode.
+
+### Q18. How do authentication entry points differ from access-denied handlers?
+
+An AuthenticationEntryPoint handles a request that requires authentication but lacks acceptable authentication. An AccessDeniedHandler handles an authenticated principal that is not authorized. Their response contract should be tested for API clients.
+
+### Q19. What should security tests cover beyond a happy path?
+
+Cover anonymous access, authenticated-but-forbidden access, authorized access, malformed/expired tokens, wrong issuer or audience, authority mapping, CSRF where relevant, and tenant isolation. A successful test alone does not establish that forbidden requests are rejected.
