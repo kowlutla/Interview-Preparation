@@ -32,7 +32,7 @@ Designed for engineers with roughly 2–6 years of Java backend experience. Prer
 - [Exercises 51–70: Testing and integration](26-Coding-Exercises/03-Testing-and-Integration-Exercises.md)
 - [Exercises 71–85: Security, messaging, and cloud](26-Coding-Exercises/04-Security-Messaging-Cloud-Exercises.md)
 
-**Count:** 85 numbered exercises. Each includes a problem, reference approach/solution, common mistakes, and validation guidance; selected exercises now link to 11 detailed reference-solution files; examples remain illustrative and are not a single fully runnable project.
+**Count:** 85 numbered exercises. Each includes a problem, reference approach/solution, common mistakes, and validation guidance; all 85 exercises now link to one of 11 detailed reference-solution files; examples remain illustrative and are not a single fully runnable project.
 
 **Detailed reference solutions:**
 
