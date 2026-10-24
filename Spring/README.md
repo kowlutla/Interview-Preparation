@@ -74,9 +74,10 @@ See the [coverage inventory and technical review checklist](COVERAGE-AND-TECHNIC
 - [x] 85 numbered coding exercises
 - [x] 75 numbered production scenarios
 - [x] Five mock interview files
-- [ ] Full question deduplication and answer-depth review (including the new advanced ecosystem chapter)
+- [x] Structural heading audit: continuous numbering and no immediate verbatim question repetition beneath headings
+- [ ] Full semantic deduplication and answer-depth review (including the new advanced ecosystem chapter)
 - [ ] Verify every version-specific claim against exact official release docs
-- [ ] Compile/run all code examples and complete runnable test projects where exercises currently provide solution outlines
+- [ ] Manually review illustrative snippets for API/version consistency and clear assumptions (compilation/runtime testing is outside this review's scope)
 - [ ] Check every Markdown link and all technical references
 - [ ] Final editorial review of completeness, accuracy, and consistency
 
