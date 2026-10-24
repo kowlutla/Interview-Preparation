@@ -103,3 +103,20 @@ Use focused unit tests for transformation logic, framework-level tests for job/s
 ## Q20. How do you decide whether to adopt an additional Spring project?
 
 Start from a concrete requirement and compare the project's capabilities against simpler alternatives. Evaluate compatibility with the selected Boot/Framework release train, maintenance and support status, operational footprint, learning cost, testing support, security posture, and migration path. Avoid adding a project because it is part of the Spring ecosystem; every dependency adds upgrade and runtime considerations. Record the decision and revisit it when requirements or support status change.
+
+
+## Official documentation
+
+Use the documentation matching the versions selected by the project; these ecosystem modules do not all share the same release cadence.
+
+- [Spring Batch Reference](https://docs.spring.io/spring-batch/reference/)
+- [Spring Modulith Reference](https://docs.spring.io/spring-modulith/reference/)
+- [Spring for GraphQL Reference](https://docs.spring.io/spring-graphql/reference/)
+- [Spring Framework WebSocket Reference](https://docs.spring.io/spring-framework/reference/web/websocket.html)
+- [Spring Boot AOT and native image documentation](https://docs.spring.io/spring-boot/reference/packaging/aot.html)
+- [Spring Boot task execution and virtual threads](https://docs.spring.io/spring-boot/reference/features/task-execution-and-scheduling.html)
+- [Spring Authorization Server Reference](https://docs.spring.io/spring-authorization-server/reference/)
+- [Spring Session Reference](https://docs.spring.io/spring-session/reference/)
+- [Spring Integration Reference](https://docs.spring.io/spring-integration/reference/)
+- [Spring Cloud Contract Reference](https://docs.spring.io/spring-cloud-contract/reference/)
+- [Spring Boot system requirements](https://docs.spring.io/spring-boot/system-requirements.html)
