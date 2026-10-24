@@ -86,8 +86,8 @@ Inspect span duration and parent-child relationships, service/operation names, e
 ### Q28. Why not log full HTTP payloads by default?
 Payloads may contain credentials, personal data, large content, and secrets. Prefer safe metadata and carefully controlled redaction.
 
-### Q29. What is the difference between readiness and health?
-Health is a broad status concept; readiness specifically determines whether an instance should receive traffic. Endpoint semantics must be configured to match operational needs.
+### Q29. When should dependency health affect readiness but not liveness?
+A critical dependency may determine whether the instance can safely serve traffic, so its failure can make readiness false. Liveness should generally indicate that the process is stuck or unable to recover locally; tying it to every downstream outage can restart healthy instances and amplify the incident. Separate critical from optional dependencies and verify probe behavior during a shared outage.
 
 ### Q30. Why should liveness not fail on every downstream outage?
 All instances could restart repeatedly while a shared dependency remains down, worsening recovery. Liveness should indicate process progress, while readiness can represent traffic eligibility.
