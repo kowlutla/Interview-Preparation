@@ -217,7 +217,7 @@ Use this bank after studying the handbook chapters. For each coding problem, sta
 **Answer:** The text null. Calling s.toString() would throw NullPointerException.
 
 ### Problem 42. What prints?
-    List<String> a = new ArrayList<>(List.of("a"));
+    List<String> a = new ArrayList<>(Arrays.asList("a"));
     List<String> v = Collections.unmodifiableList(a);
     a.add("b");
     System.out.println(v);
@@ -235,7 +235,7 @@ Use this bank after studying the handbook chapters. For each coding problem, sta
 **Answer:** No. Use LinkedHashMap for insertion-order iteration or TreeMap for sorted keys.
 
 ### Problem 45. What does this print?
-    List<Integer> xs = new ArrayList<>(List.of(1, 2, 3));
+    List<Integer> xs = new ArrayList<>(Arrays.asList(1, 2, 3));
     for (Integer x : xs) {
         if (x == 2) xs.remove(x);
     }
