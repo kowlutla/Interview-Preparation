@@ -62,7 +62,7 @@ It allows supported servers to stop accepting new requests and gives in-flight w
 
 ### Q14. How do you package configuration for an executable JAR?
 
-Package the application artifact separately from environment-specific settings and inject configuration through supported external sources. Avoid rebuilding the artifact for each environment and do not bundle production secrets.
+Build one immutable artifact and provide environment-specific settings through supported external configuration sources such as environment variables, mounted configuration, or command-line/property sources. Keep precedence explicit and validate required values at startup. Never package production secrets in the JAR or log the resolved secret-bearing configuration. External configuration should be versioned and deployed with an auditable change process.
 
 ### Q15. What is AOT processing in Spring Boot?
 
