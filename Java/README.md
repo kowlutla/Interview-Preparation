@@ -92,6 +92,7 @@ Legend: `[x] chapter exists and is included; [ ] planned, not yet completed. A c
 - [x] [04 — Security and Secure Coding](08-Advanced-Java/04-Security-and-Secure-Coding.md)
 - [x] [05 — Performance and Benchmarking](08-Advanced-Java/05-Performance-and-Benchmarking.md)
 - [x] [06 — Advanced Internals and APIs](08-Advanced-Java/06-Advanced-Internals-and-APIs.md)
+- [x] [07 — Testing and Build Tooling](08-Advanced-Java/07-Testing-and-Build-Tooling.md)
 
 ### 09 — Coding and Problem Solving
 - [x] [01 — 50 Coding and Output Problems](09-Coding-and-Output/01-50-Coding-and-Output-Problems.md)
@@ -134,7 +135,7 @@ Legend: `[x] chapter exists and is included; [ ] planned, not yet completed. A c
 | Deliverable | Target | Current status |
 |---|---:|---|
 | Foundation files | README, roadmap, seven fundamentals chapters plus core language, collections, and functional programming chapters | In progress |
-| Unique Q&A | 400+ | 1058 questions across 56 Q&A chapters |
+| Unique Q&A | 400+ | 1078 questions across 57 Q&A chapters |
 | Senior scenarios | 50+ | 85+ scenario prompts plus RCA examples authored |
 | Coding/output problems | 50+ | 50 problems authored |
 | Mock interviews | 5 | 5 mock interviews authored |
