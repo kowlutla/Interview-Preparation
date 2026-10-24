@@ -14,9 +14,9 @@ The official documentation snapshot checked on 2026-10-24 lists Spring Framework
 
 ## Selected compatibility details
 
-The generic Spring Boot system-requirements page observed during this audit still renders Boot 4.1.0 rather than the latest 4.1.2 patch. It lists Java 17 as the minimum, Java 26 as the maximum supported version for that displayed release, Spring Framework 7.0.8 or later, Maven 3.6.3 or later, Gradle 8.14+ or 9.x, Tomcat 11 / Jetty 12.1 (Servlet 6.1), and GraalVM 25+ for native images. Treat those as the page's displayed 4.1.0 requirements, not automatically as the complete requirements for 4.1.2.
+The official current Spring Boot system-requirements page now identifies Boot 4.1.2 and states: Java 17 minimum, compatibility through Java 27, Spring Framework 7.0.10 or above, Maven 3.6.3 or later, Gradle 8.x (8.14 or later) and 9.x, Tomcat 11 / Jetty 12.1 (Servlet 6.1), and GraalVM 25+ for native images. These requirements were rechecked on 2026-10-24 against the [official system-requirements page](https://docs.spring.io/spring-boot/system-requirements.html). Recheck the same page and the exact Boot BOM before a future upgrade because patch lines and supported JDK ranges change.
 
-The 4.1.2 release line is aligned with Spring Framework 7.0.10 or above according to the current release/BOM snapshot. The exact versioned 4.1.2 system-requirements page could not be independently confirmed through this review's documentation fetch, so verify the target patch's managed dependency versions and published requirements before setting Java/build-tool bounds. Do not infer maximum JDK compatibility from a generic or lagging landing page.
+Older cached or version-specific pages may still show Boot 4.1.0 requirements such as Framework 7.0.8+ and a Java 26 ceiling. Do not mix those historical values with the 4.1.2 baseline; use the requirements published for the exact version being targeted.
 
 Framework 7.0 retains a JDK 17 baseline and adopts Jakarta EE 11 APIs such as Servlet 6.1, JPA 3.2, and Bean Validation 3.1. The Framework 7.1 release-notes page is a prerelease scheduled ahead of the November 2026 line; do not treat its upcoming API removals or baselines as already released stable behavior.
 
