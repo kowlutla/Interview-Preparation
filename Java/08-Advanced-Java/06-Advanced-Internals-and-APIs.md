@@ -21,7 +21,7 @@ They differ from reflection's metadata-and-invoke model. Performance depends on 
 
 ### Q3. What is a VarHandle? *(Advanced)*
 
-VarHandle provides typed access to variables and supports different memory-ordering modes and atomic operations. It can expose access to fields, array elements, and other variable kinds while allowing explicit memory semantics.
+VarHandle was introduced in Java 9. It provides typed access to variables and supports different memory-ordering modes and atomic operations. It can expose access to fields, array elements, and other variable kinds while allowing explicit memory semantics.
 
 Choose the weakest memory mode that satisfies correctness only when the JMM implications are fully understood. For ordinary counters or references, AtomicInteger/AtomicReference may be clearer.
 
