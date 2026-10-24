@@ -9,7 +9,7 @@ Memory-area questions require separating JVM specification terminology from HotS
 
 ### Q1. Which memory areas are defined by the JVM specification? *(Intermediate)*
 
-The JVM specification describes the heap, method area, runtime constant pool, Java stacks, PC registers, and native method stacks. The heap is shared among threads; Java stacks and PC registers are per-thread. These are abstract areas, not a requirement that every implementation use a specific physical layout.
+The JVM specification describes the heap, method area, runtime constant pool, Java stacks, PC registers, and native method stacks. The heap is shared among threads; Java stacks and PC registers are per-thread. One important distinction: each class or interface has a runtime constant pool, and the JVM specification says that it is allocated from the method area, so it should not be pictured as an entirely separate physical memory region. These are abstract runtime areas, not a requirement that every implementation use a specific physical layout.
 
 When discussing a real process, also account for native memory, direct buffers, thread stacks, JIT code cache, and libraries. The Java heap is only one part of total memory usage.
 
