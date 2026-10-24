@@ -42,3 +42,39 @@ Set request-size limits at the application and edge layers, validate content and
 
 - [Spring MVC reference](https://docs.spring.io/spring-framework/reference/web/webmvc.html)
 - [Validation](https://docs.spring.io/spring-framework/reference/core/validation/beanvalidation.html)
+
+### Q10. What is the difference between a servlet filter and HandlerInterceptor?
+
+A filter participates in the servlet request/response chain and can run before DispatcherServlet. A HandlerInterceptor participates in Spring MVC's handler lifecycle after handler mapping. Use filters for servlet-wide concerns such as request wrapping and security integration, and interceptors for handler-oriented concerns that need MVC metadata.
+
+### Q11. How does Spring select an HTTP message converter?
+
+Spring MVC considers the target method parameter/return type, request Content-Type, response Accept negotiation, and converters registered in the application. Unsupported media types can produce 415 for request content or 406 for an unacceptable response representation. Customize converters only when the API needs behavior beyond standard support.
+
+### Q12. What is the difference between 400 and 422?
+
+Both can represent client input problems depending on the API contract. 400 is broadly used for malformed or invalid requests; 422 can express syntactically valid content whose instructions cannot be processed semantically. Choose a consistent contract rather than assuming the framework will choose your domain's preferred status automatically.
+
+### Q13. How should API sorting parameters be secured?
+
+Allow-list sortable fields and direction values, and bind them through supported paging/sorting APIs. Do not concatenate client-supplied sort expressions into SQL. A deterministic tie-breaker prevents unstable page boundaries.
+
+### Q14. What is cursor pagination's main trade-off?
+
+It can avoid expensive deep offsets and behave better under some concurrent insert patterns, but it complicates arbitrary page jumps and requires stable cursor fields/order. Define whether cursors are opaque, signed, and bound to the original filter/sort criteria.
+
+### Q15. How should request validation differ from domain validation?
+
+Request validation checks shape and basic constraints at the boundary. Domain validation protects invariants regardless of whether the operation came from HTTP, messaging, or a job. Do not rely exclusively on controller annotations for business correctness.
+
+### Q16. What is content negotiation's security/operational concern?
+
+Unexpected content types and large or deeply nested payloads can stress parsing and serialization. Restrict supported media types, enforce body limits, and test malformed payloads and unsupported formats.
+
+### Q17. When should an API use streaming responses?
+
+Use streaming when payloads are large or incremental delivery materially helps latency/memory. Define cancellation, partial-failure semantics, timeouts, and client compatibility. Streaming is not automatically faster for small responses.
+
+### Q18. How do you design safe file uploads?
+
+Apply size limits, authorization, server-generated names, content validation, storage isolation, and scanning as required by the threat model. Do not trust the client filename or MIME type, and avoid loading huge files fully into memory.
