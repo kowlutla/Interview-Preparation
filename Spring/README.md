@@ -77,6 +77,8 @@ See the [coverage inventory and technical review checklist](COVERAGE-AND-TECHNIC
 - [x] Structural heading audit: continuous Q&A numbering and no immediate verbatim question repetition beneath headings
 - [x] Exercise numbering audit: 1–85 continuous
 - [x] Production-scenario numbering audit: 1–75 continuous
+- [x] Scenario-format consistency pass for incident and architecture/design scenarios; prevention guidance and label consistency improved
+- [x] Targeted answer-depth improvements in Boot, MVC, transactions, security, and reactive programming (full 610-question depth review remains pending)
 - [x] Local Markdown target audit across all 68 Spring Markdown files (all local targets resolve); targeted official-reference URL checks corrected stale Boot Javadoc and Spring Cloud links, while fragment anchors and the remaining external URLs still need review
 - [ ] Finish semantic duplicate review across all Q&A answers; several clear title overlaps have been corrected, while core/tricky-question reinforcement is intentional
 - [ ] Complete answer-depth review across all 610 Q&As
