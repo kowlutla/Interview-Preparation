@@ -107,6 +107,8 @@ Enable configuration-properties scanning or register the type explicitly, and in
 
 **Reference approach:** Validate page size bounds, whitelist sort fields, use Spring Data Pageable, and include a deterministic unique tie-breaker.
 
+**Additional reference solution:** [Implementation notes and examples](Reference-Solutions/10-Core-and-Operations-Patterns.md)
+
 **Common mistake:** Accepting arbitrary sort expressions or unbounded page sizes.
 
 **Validation:** Test empty results, maximum size, invalid sort field, and stable ordering for equal timestamps.
@@ -119,6 +121,8 @@ Enable configuration-properties scanning or register the type explicitly, and in
 
 **Related chapter:** [Auto-configuration and startup](../07-Auto-Configuration-and-Startup/README.md)
 
+**Additional reference solution:** [Implementation notes and examples](Reference-Solutions/10-Core-and-Operations-Patterns.md)
+
 **Common mistake:** Treating the condition as a replacement for a proper library registration test.
 
 **Validation:** Test both default creation and application override.
@@ -129,6 +133,8 @@ Enable configuration-properties scanning or register the type explicitly, and in
 
 **Reference approach:** Isolate the stub bean with `@Profile("dev")`, keep production configuration explicit, and fail startup if the production implementation is missing.
 
+**Additional reference solution:** [Implementation notes and examples](Reference-Solutions/10-Core-and-Operations-Patterns.md)
+
 **Common mistake:** Making a permissive stub the unconditional fallback.
 
 **Validation:** Start contexts with dev and prod profiles and assert exactly the intended bean exists.
@@ -138,6 +144,8 @@ Enable configuration-properties scanning or register the type explicitly, and in
 **Problem:** Create a managed component that owns a resource requiring cleanup.
 
 **Reference approach:** Use a supported lifecycle callback or an explicit resource abstraction with deterministic close semantics. Keep initialization bounded and make cleanup idempotent.
+
+**Additional reference solution:** [Implementation notes and examples](Reference-Solutions/10-Core-and-Operations-Patterns.md)
 
 **Common mistake:** Assuming cleanup callbacks run after SIGKILL or machine failure.
 
@@ -295,6 +303,8 @@ Enable configuration-properties scanning or register the type explicitly, and in
 
 **Reference approach:** Use WebClient and Reactor composition operators, propagate errors intentionally, and avoid calling blocking APIs on event-loop threads.
 
+**Additional reference solution:** [Implementation notes and examples](Reference-Solutions/10-Core-and-Operations-Patterns.md)
+
 **Common mistake:** Calling `block()` inside a reactive controller.
 
 **Validation:** Test success, timeout, cancellation, and error mapping with StepVerifier or WebTestClient.
@@ -316,6 +326,8 @@ Enable configuration-properties scanning or register the type explicitly, and in
 **Problem:** An application fails with NoSuchBeanDefinitionException after moving a class to another package.
 
 **Reference approach:** Check the component-scan root, bean conditions, active profiles, runtime classpath, and the failing test context. Move the application class to a suitable root package or configure scanning deliberately.
+
+**Additional reference solution:** [Implementation notes and examples](Reference-Solutions/10-Core-and-Operations-Patterns.md)
 
 **Common mistake:** Adding a second component scan without understanding package boundaries.
 
