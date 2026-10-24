@@ -17,6 +17,7 @@ Use byte streams for binary data and character readers/writers for text. Always 
 
 The default charset can vary by environment and runtime configuration. If one system writes text with a different charset than another system uses to read it, data can be corrupted or interpreted incorrectly.
 
+    // Java 11+
     Files.readString(path, StandardCharsets.UTF_8);
     Files.writeString(path, text, StandardCharsets.UTF_8);
 
@@ -26,6 +27,7 @@ Explicit encoding makes the protocol reproducible. For machine-readable formats,
 
 Streams, readers, writers, channels, and many other I/O objects hold operating-system or runtime resources. Try-with-resources closes AutoCloseable resources even when the block throws, and closes multiple resources in reverse initialization order.
 
+    // InputStream.readAllBytes() is Java 9+.
     try (InputStream in = Files.newInputStream(path)) {
         return in.readAllBytes();
     }
