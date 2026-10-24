@@ -135,7 +135,7 @@ Legend: `[x] chapter exists and is included; [ ] planned, not yet completed. A c
 | Deliverable | Target | Current status |
 |---|---:|---|
 | Foundation files | README, roadmap, seven fundamentals chapters plus core language, collections, and functional programming chapters | In progress |
-| Unique Q&A | 400+ | 1078 questions across 57 Q&A chapters |
+| Unique Q&A | 400+ | 1083 questions across 57 Q&A chapters |
 | Senior scenarios | 50+ | 85+ scenario prompts plus RCA examples authored |
 | Coding/output problems | 50+ | 50 problems authored |
 | Mock interviews | 5 | 5 mock interviews authored |
