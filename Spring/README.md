@@ -34,6 +34,20 @@ Designed for engineers with roughly 2–6 years of Java backend experience. Prer
 
 **Count:** 85 numbered exercises. Each includes a problem, reference approach/solution, common mistakes, and validation guidance; selected exercises now link to 11 detailed reference-solution files; examples remain illustrative and are not a single fully runnable project.
 
+**Detailed reference solutions:**
+
+- [REST API and validation](26-Coding-Exercises/Reference-Solutions/01-REST-API-Reference-Solution.md)
+- [Transactions](26-Coding-Exercises/Reference-Solutions/02-Transaction-Reference-Solution.md)
+- [Security and JWT](26-Coding-Exercises/Reference-Solutions/03-Security-Reference-Solution.md)
+- [Caching and async](26-Coding-Exercises/Reference-Solutions/04-Cache-and-Async-Reference-Solution.md)
+- [Testcontainers and REST clients](26-Coding-Exercises/Reference-Solutions/05-Testcontainers-and-Client-Reference.md)
+- [Configuration and validation](26-Coding-Exercises/Reference-Solutions/06-Configuration-and-Validation.md)
+- [Outbox and idempotency](26-Coding-Exercises/Reference-Solutions/07-Outbox-and-Idempotency.md)
+- [Actuator and metrics](26-Coding-Exercises/Reference-Solutions/08-Actuator-and-Metrics.md)
+- [Scheduled work and resilience](26-Coding-Exercises/Reference-Solutions/09-Scheduled-Work-and-Resilience.md)
+- [Core and operations patterns](26-Coding-Exercises/Reference-Solutions/10-Core-and-Operations-Patterns.md)
+- [Testing and cloud patterns](26-Coding-Exercises/Reference-Solutions/11-Testing-and-Cloud-Patterns.md)
+
 ### Production scenarios
 
 - [Scenarios 1–10: Container, web, and transactions](27-Real-World-Scenarios/01-Container-Web-Transactions.md)
