@@ -28,7 +28,7 @@ Usually not. Environment variables are read by the process environment, and prop
 
 ### Q7. What is the danger of logging the Environment or all configuration properties?
 
-Effective configuration may contain credentials, tokens, connection strings, internal endpoints, or personally identifiable information. Restrict diagnostic endpoints, redact secrets, and log only the specific non-sensitive keys needed to investigate an issue.
+The effective Environment can contain passwords, tokens, connection strings, internal hostnames, or personal data contributed by several property sources. Dumping it wholesale can leak secrets into logs and log aggregation systems with broad retention/access. Restrict configuration-inspection endpoints, use secret-aware redaction, and log only explicitly allow-listed non-sensitive keys needed for diagnosis. When debugging precedence, report the winning source/key where safe rather than printing the full value.
 
 ## Official references
 
