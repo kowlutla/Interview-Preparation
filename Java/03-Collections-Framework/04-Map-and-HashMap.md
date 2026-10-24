@@ -185,8 +185,10 @@ final class UserKey {
     UserKey(String email) { this.email = email; }
 
     @Override public boolean equals(Object other) {
-        return other instanceof UserKey that
-                && java.util.Objects.equals(email, that.email);
+        if (this == other) return true;
+        if (!(other instanceof UserKey)) return false;
+        UserKey that = (UserKey) other;
+        return java.util.Objects.equals(email, that.email);
     }
 
     @Override public int hashCode() {
