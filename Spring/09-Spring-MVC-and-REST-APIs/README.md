@@ -67,14 +67,14 @@ It can avoid expensive deep offsets and behave better under some concurrent inse
 
 Request validation checks shape and basic constraints at the boundary. Domain validation protects invariants regardless of whether the operation came from HTTP, messaging, or a job. Do not rely exclusively on controller annotations for business correctness.
 
-### Q16. What is content negotiation's security/operational concern?
+### Q16. How should an API handle unsupported media types and oversized payloads?
 
-Unexpected content types and large or deeply nested payloads can stress parsing and serialization. Restrict supported media types, enforce body limits, and test malformed payloads and unsupported formats.
+Return a clear 415 response when the request media type is unsupported and a documented 413 response when a configured payload limit is exceeded, while recognizing that proxies or servlet containers may reject the request before controller code runs. Set limits at ingress and application layers, keep error bodies stable, and test which layer owns each response. Do not rely on JSON validation alone to constrain payload size.
 
 ### Q17. When should an API use streaming responses?
 
 Use streaming when payloads are large or incremental delivery materially helps latency/memory. Define cancellation, partial-failure semantics, timeouts, and client compatibility. Streaming is not automatically faster for small responses.
 
-### Q18. How do you design safe file uploads?
+### Q18. How should large file uploads be streamed and stored efficiently?
 
-Apply size limits, authorization, server-generated names, content validation, storage isolation, and scanning as required by the threat model. Do not trust the client filename or MIME type, and avoid loading huge files fully into memory.
+Avoid buffering the entire upload in heap memory. Stream to controlled temporary or object storage, enforce byte limits while streaming, apply backpressure/timeouts, and clean up incomplete uploads after cancellation or failure. Promote a file to its final state only after validation succeeds, and make retries or duplicate submissions safe. Keep the security checks from the earlier upload-design question: streaming is a resource strategy, not a substitute for authorization or content validation.
