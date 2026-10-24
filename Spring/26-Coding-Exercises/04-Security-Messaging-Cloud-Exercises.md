@@ -78,6 +78,8 @@
 
 **Reference approach:** Define explicit route predicates and filters in the selected Spring Cloud Gateway version. Ensure authorization, header sanitization, timeout policy, and route ordering are intentional.
 
+**Additional reference solution:** [Implementation notes and examples](Reference-Solutions/11-Testing-and-Cloud-Patterns.md)
+
 **Common mistake:** Placing a broad route before a specific route and accidentally shadowing the intended match.
 
 **Validation:** Test matching/nonmatching paths, authentication failure, downstream timeout, and sensitive-header removal.
@@ -87,6 +89,8 @@
 **Problem:** Call a logical service name and distribute requests among instances.
 
 **Reference approach:** Use the supported Spring Cloud load-balancer integration and a compatible discovery or instance source. Keep per-instance health and timeout behavior visible.
+
+**Additional reference solution:** [Implementation notes and examples](Reference-Solutions/11-Testing-and-Cloud-Patterns.md)
 
 **Common mistake:** Assuming discovery is always fresh and ignoring per-instance timeouts or removal propagation.
 
@@ -121,6 +125,8 @@
 **Problem:** Apply a quota per authenticated client.
 
 **Reference approach:** Use a gateway or shared limiter keyed by a trusted client identity, with explicit burst and failure semantics.
+
+**Additional reference solution:** [Implementation notes and examples](Reference-Solutions/11-Testing-and-Cloud-Patterns.md)
 
 **Common mistake:** Trusting a client-supplied identity header as the authenticated client's real identity.
 
@@ -167,6 +173,8 @@
 **Problem:** Resolve an incompatible transitive dependency after Boot upgrade.
 
 **Reference approach:** Inspect the resolved dependency tree, align the Boot BOM and compatible Cloud train, and override only with a documented reason.
+
+**Additional reference solution:** [Implementation notes and examples](Reference-Solutions/11-Testing-and-Cloud-Patterns.md)
 
 **Common mistake:** Pinning a transitive dependency ad hoc instead of aligning the Boot BOM and compatible Cloud release train.
 
