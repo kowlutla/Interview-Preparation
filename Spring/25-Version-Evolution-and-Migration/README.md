@@ -34,22 +34,6 @@ Determine the replacement and reason for deprecation from official documentation
 
 A Bill of Materials centralizes compatible dependency versions so related libraries are aligned. Boot's dependency management reduces manual version selection. Overriding managed dependencies can be necessary, but should be evidence-based and tested for binary compatibility.
 
-### Q13. How should you treat Spring Framework 7.1 prerelease documentation?
-
-As of 2026-10-24, the official release list identifies Framework 7.0.10 as the latest stable 7.0 release and Framework 7.1.0-RC1 as a prerelease. Preview/release-candidate notes can help plan compatibility work, but changes in prerelease documentation must not be presented as released stable behavior. Re-check the official release list and the exact target version's migration guide before upgrading.
-
-## Official references
-
-- [Spring Framework versions and support](https://github.com/spring-projects/spring-framework/wiki/Spring-Framework-Versions)
-- [Spring Framework 7.0 release notes](https://github.com/spring-projects/spring-framework/wiki/Spring-Framework-7.0-Release-Notes)
-- [Spring Framework 7.1 preview release notes](https://github.com/spring-projects/spring-framework/wiki/Spring-Framework-7.1-Release-Notes)
-- [Spring Framework releases](https://github.com/spring-projects/spring-framework/releases)
-- [Spring Boot 4.0 system requirements](https://docs.spring.io/spring-boot/4.0/system-requirements.html)
-- [Spring Boot current system requirements](https://docs.spring.io/spring-boot/system-requirements.html)
-- [Spring Boot 4.0 migration guide](https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide)
-- [Spring Cloud compatibility](https://spring.io/projects/spring-cloud)
-- [Spring REST clients](https://docs.spring.io/spring-framework/reference/integration/rest-clients.html)
-
 ### Q9. What are notable Spring Framework 7 additions worth checking during migration?
 
 Framework 7 introduces new capabilities including programmatic bean registration, core resilience features, API versioning support, HTTP Service Client configuration improvements, and RestTestClient. Availability and exact APIs should be verified against the 7.0 reference and the Boot line managing it; do not backport assumptions to Framework 6.x.
@@ -65,3 +49,19 @@ Framework-level versioning mechanisms can help route or negotiate API versions, 
 ### Q12. What should be checked when moving tests to newer Spring test APIs?
 
 Framework and Boot lines may introduce or deprecate test utilities, mock-bean annotations, and client test support. Verify the exact API and dependency baseline, then test context wiring and the actual request/response path rather than only updating imports.
+
+### Q13. How should you treat Spring Framework 7.1 prerelease documentation?
+
+As of 2026-10-24, the official release list identifies Framework 7.0.10 as the latest stable 7.0 release and Framework 7.1.0-RC1 as a prerelease. Preview/release-candidate notes can help plan compatibility work, but changes in prerelease documentation must not be presented as released stable behavior. Re-check the official release list and the exact target version's migration guide before upgrading.
+
+## Official references
+
+- [Spring Framework versions and support](https://github.com/spring-projects/spring-framework/wiki/Spring-Framework-Versions)
+- [Spring Framework 7.0 release notes](https://github.com/spring-projects/spring-framework/wiki/Spring-Framework-7.0-Release-Notes)
+- [Spring Framework 7.1 preview release notes](https://github.com/spring-projects/spring-framework/wiki/Spring-Framework-7.1-Release-Notes)
+- [Spring Framework releases](https://github.com/spring-projects/spring-framework/releases)
+- [Spring Boot 4.0 system requirements](https://docs.spring.io/spring-boot/4.0/system-requirements.html)
+- [Spring Boot current system requirements](https://docs.spring.io/spring-boot/system-requirements.html)
+- [Spring Boot 4.0 migration guide](https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide)
+- [Spring Cloud compatibility](https://spring.io/projects/spring-cloud)
+- [Spring REST clients](https://docs.spring.io/spring-framework/reference/integration/rest-clients.html)
