@@ -14,6 +14,17 @@ The official documentation snapshot checked on 2026-10-24 lists Spring Framework
 
 ## Selected compatibility details
 
+For the official Spring Boot 4.1.2 system-requirements page checked on 2026-10-24:
+
+- Java 17 minimum; compatibility through Java 27.
+- Spring Framework 7.0.10 or later.
+- Maven 3.6.3 or later.
+- Gradle 8.x (8.14 or later) or 9.x.
+- Embedded Tomcat 11.0.x or Jetty 12.1.x using Servlet 6.1.
+- GraalVM 25 or later for native-image builds.
+
+These are exact patch-line requirements, not generic guarantees for every Spring project or third-party integration. Consult the target release's page before selecting a build/runtime baseline.
+
 - Spring Framework 7.0 retains a JDK 17 baseline and adopts Jakarta EE 11 APIs such as Servlet 6.1, JPA 3.2, and Bean Validation 3.1. The Framework 7.1 release-notes page is a preview scheduled for November 2026; do not treat its upcoming API removals or baselines as already released stable behavior.
 - Spring Boot 4.x requires Java 17 or later and Spring Framework 7.x. Verify the exact Boot patch's system-requirements page and build-tool versions.
 - Spring Cloud compatibility is release-train-specific. As of 2026-10-24, Spring Cloud 2025.1.4 is the latest listed 2025.1 release; its official announcement says it is based on Boot 4.0.9 and also supports Boot 4.1.2. The compatibility matrix maps 2025.1.x to Boot 4.0.x and, starting with 2025.1.2, Boot 4.1.x; 2025.0.x maps to Boot 3.5.x. Re-check the matrix and exact service release before upgrading.
