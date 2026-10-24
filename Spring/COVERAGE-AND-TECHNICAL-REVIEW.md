@@ -175,3 +175,12 @@ The generic Boot system-requirements page currently renders Boot 4.1.0 (Java 17 
 - Re-screened the 290 core and advanced ecosystem answers (270 + 20) after these edits: every answer body contains at least 35 words. The 320 tricky questions remain intentionally concise; their brevity is part of the rapid-fire format and should not be confused with the depth standard for core chapters.
 - Reconfirmed exact title uniqueness within two review batches: core chapters 1–15 (179 Q&As) and core chapters 16–25 plus the advanced ecosystem chapter (111 Q&As). A global cross-batch comparison and full semantic answer-by-answer deduplication are still not claimed; concept reinforcement across chapters needs judgment.
 - No compilation, runtime execution, or test execution was performed.
+
+
+### Cross-topic overlap review — 2026-10-24
+
+- Compared question headings from core chapters 1–10, 11–15, and 16–25/advanced ecosystem against the 320 rapid-fire questions using token-overlap screening and manual review of the strongest candidates. This screening is a triage aid, not a semantic proof: generic words such as “difference,” “useful,” and “role” produce false positives, while differently phrased duplicates may not share many words.
+- Refined overlapping tricky questions into diagnostic or scenario-oriented prompts, including JDK proxy injection failures, distinguishing component scanning from auto-configuration conditions, transaction propagation/rollback boundaries, REQUIRES_NEW commit behavior, savepoint support for NESTED, optimistic/pessimistic locking outcomes, test-slice blind spots, Testcontainers' engine-specific value, WebClient pool exhaustion, trace bottleneck diagnosis, and Boot/Cloud upgrade failures.
+- Rechecked the seven tricky-question files after edits: all 320 questions remain numbered continuously and no exact repeated titles exist within the tricky-question collection.
+- Intentional reinforcement remains useful for interview practice, but a global human semantic review of every answer pair is still not certified complete. Do not interpret a title similarity scan as exhaustive deduplication.
+- Reviewed all five mock-interview files for progression and follow-up prompts. They progress from fundamentals through mid-level implementation, senior troubleshooting, microservices, and product-company scenarios; no compilation or execution was involved.
