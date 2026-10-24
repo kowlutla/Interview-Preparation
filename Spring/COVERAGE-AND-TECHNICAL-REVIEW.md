@@ -97,3 +97,10 @@ Checked relative Markdown links across all 68 Markdown files under Spring/, plus
 - Updated the compatibility snapshot to Spring Cloud 2025.1.4, released October 23, 2026, based on Boot 4.0.9 and also compatible with Boot 4.1.2. Source: the official [Spring Cloud 2025.1.4 announcement](https://spring.io/blog/2026/10/23/spring-cloud-2025-1-4-has-been-released/).
 
 These are manual documentation/API-version corrections only. No compilation or runtime validation was performed.
+
+### Exercise navigation and scenario review — 2026-10-24
+
+- Added 60 links from exercise prompts to the nine detailed reference-solution files where a direct implementation pattern exists (REST/DTOs, transactions, security, cache/async, clients/Testcontainers, configuration/validation, outbox/idempotency, Actuator/metrics, and scheduled work/resilience). This improves navigation but does not claim that every exercise now has a fully runnable implementation.
+- Read through the complete 1–75 production-scenario set. Each scenario or design prompt has a diagnostic/reasoning path, a resolution or design direction, trade-offs/prevention or failure modes, and a follow-up question. No new factual correction was confirmed in this pass. The scenarios are still narrative guidance, not substitutes for environment-specific runbooks or executable incident drills.
+- Refined the Spring Boot testing guidance to state that `@MockBean`/`@SpyBean` were deprecated for removal in Boot 3.4 and removed in Boot 4, with `@MockitoBean`/`@MockitoSpyBean` as the modern path. The exact annotation API remains tied to the selected Framework/Boot line.
+- The local Markdown target audit remains clean after the added exercise links; external URL reachability and anchor correctness are still a separate audit item.
