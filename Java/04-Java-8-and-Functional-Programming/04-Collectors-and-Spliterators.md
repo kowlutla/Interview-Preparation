@@ -57,11 +57,11 @@ Use collect with a supplier, accumulator, and combiner for mutable containers. B
 
 ## 2. Spliterator
 
-### Q9. What is a Spliterator? *(Intermediate)*
+### Q9. What can go wrong if a custom Spliterator reports incorrect characteristics? *(Advanced)*
 
-Spliterator combines element traversal with the ability to split a source into partitions. It is used by streams to support sequential and parallel processing and can report characteristics such as ORDERED, SIZED, SORTED, DISTINCT, and CONCURRENT.
+Spliterator characteristics are contractual claims, not performance hints that can be set optimistically. For example, falsely reporting SIZED or SUBSIZED can let a stream assume an inaccurate element count; falsely reporting DISTINCT, SORTED, or CONCURRENT can cause consumers to rely on properties the source does not actually provide.
 
-The split strategy affects parallel performance. Array-backed sources often split efficiently; linked or I/O-backed sources may be less balanced.
+Report only characteristics that remain true for the traversal model. Test boundary conditions and splitting behavior, and prefer the simplest accurate set of characteristics over a broad set that appears to promise better optimization.
 
 ### Q10. What does trySplit do? *(Advanced)*
 
