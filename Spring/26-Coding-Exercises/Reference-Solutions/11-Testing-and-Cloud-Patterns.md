@@ -48,7 +48,7 @@ void calculatesTotalFromPolicy() {
     TaxPolicy policy = amount -> new BigDecimal("2.00");
     PriceService service = new PriceService(policy);
 
-    assertThat(service.total(new BigDecimal("10.00")))
+    assertThat(service.gross(new BigDecimal("10.00")))
         .isEqualByComparingTo("12.00");
 }
 ~~~
