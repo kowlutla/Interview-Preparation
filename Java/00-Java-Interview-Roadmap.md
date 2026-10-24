@@ -90,7 +90,7 @@ For each chapter:
 - [ ] Explain the JDK/JRE/JVM relationship and source-to-runtime pipeline.
 - [ ] Explain primitive/reference values, conversions, initialization and control flow.
 - [ ] Apply OOP, class/interface rules, records, sealed types and object contracts.
-- [ ] Explain exceptions, generics, annotations, reflection, JPMS, I/O and serialization.
+- [ ] Explain exceptions, generics, annotations, reflection, JPMS, I/O, serialization, JUnit 5, Mockito and build/test lifecycles.
 - [ ] Know collection contracts, complexity, resizing, hashing and concurrent alternatives.
 - [ ] Use lambdas, method references, streams, collectors, Optional and java.time thoughtfully.
 - [ ] Explain the JMM, happens-before, synchronization, atomics, executors and async error handling.
@@ -106,7 +106,7 @@ For each chapter:
 The handbook content has been authored directly on the repository's `main` branch. See the [README and live completion tracker](README.md) for the current file inventory and status.
 
 Current verified content scope:
-- 56 Q&A chapters with **1,058 numbered Q&As** across fundamentals, core language, collections, functional programming, concurrency, JVM internals, Java 8–21 release features, and advanced Java.
+- 57 Q&A chapters with **1,078 numbered Q&As** across fundamentals, core language, collections, functional programming, concurrency, JVM internals, Java 8–21 release features, and advanced Java testing/build tooling.
 - 50 coding/output practice problems.
 - 85+ production troubleshooting scenarios across collections/concurrency, JVM/memory, performance, and root-cause analysis.
 - Five mock interviews, advanced cross-questioning, architecture trade-offs, rapid-fire revision, and a final revision checklist.
