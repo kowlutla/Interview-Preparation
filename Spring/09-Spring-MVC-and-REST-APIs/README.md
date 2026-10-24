@@ -73,7 +73,7 @@ Return a clear 415 response when the request media type is unsupported and a doc
 
 ### Q17. When should an API use streaming responses?
 
-Use streaming when payloads are large or incremental delivery materially helps latency/memory. Define cancellation, partial-failure semantics, timeouts, and client compatibility. Streaming is not automatically faster for small responses.
+Use streaming for large exports, generated reports, or incremental feeds when avoiding whole-response buffering materially reduces memory or improves time-to-first-byte. Define framing/content type, cancellation, timeout, backpressure, and what happens if an error occurs after headers or partial content have been sent. Clients and intermediaries must support the chosen protocol; for small bounded responses, ordinary serialization is usually simpler.
 
 ### Q18. How should large file uploads be streamed and stored efficiently?
 
