@@ -77,7 +77,7 @@ See the [coverage inventory and technical review checklist](COVERAGE-AND-TECHNIC
 - [x] Structural heading audit: continuous Q&A numbering and no immediate verbatim question repetition beneath headings
 - [x] Exercise numbering audit: 1–85 continuous
 - [x] Production-scenario numbering audit: 1–75 continuous
-- [x] Local Markdown target audit across all 68 Spring Markdown files (fragment anchors and external URLs remain to be checked)
+- [x] Local Markdown target audit across all 68 Spring Markdown files (all local targets resolve); targeted official-reference URL checks corrected stale Boot Javadoc and Spring Cloud links, while fragment anchors and the remaining external URLs still need review
 - [ ] Finish semantic duplicate review across all Q&A answers; several clear title overlaps have been corrected, while core/tricky-question reinforcement is intentional
 - [ ] Complete answer-depth review across all 610 Q&As
 - [ ] Verify every version-specific claim against exact official release docs
@@ -98,7 +98,7 @@ Do not assume every Spring Framework, Spring Boot, Spring Security, Spring Data,
 - [Spring Security Reference](https://docs.spring.io/spring-security/reference/)
 - [Spring Data JPA Reference](https://docs.spring.io/spring-data/jpa/reference/)
 - [Spring Cloud project and compatibility](https://spring.io/projects/spring-cloud)
-- [Spring Cloud reference](https://docs.spring.io/spring-cloud/docs/current/reference/html/)
+- [Spring Cloud release-train reference](https://docs.spring.io/spring-cloud-release/reference/)
 - [Spring for Apache Kafka](https://docs.spring.io/spring-kafka/reference/)
 - [Spring Batch](https://docs.spring.io/spring-batch/reference/)
 - [Spring guides](https://spring.io/guides)
