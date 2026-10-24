@@ -38,11 +38,6 @@ A local database transaction and a broker publish usually involve separate resou
 
 Requests may hold connections too long, transactions may be long-running, queries may be slow, pool size may be inappropriate, or downstream work may occur while a transaction remains open. Diagnose with pool active/idle/pending metrics, connection acquisition latency, transaction duration, query traces, and thread dumps. Increasing pool size without checking database capacity can worsen the incident.
 
-## Official references
-
-- [Spring transaction management](https://docs.spring.io/spring-framework/reference/data-access/transaction.html)
-- [JDBC abstraction](https://docs.spring.io/spring-framework/reference/data-access/jdbc.html)
-
 ### Q10. What resource-pool risk does REQUIRES_NEW introduce?
 
 When an outer transaction holds a connection and a proxied inner call starts a REQUIRES_NEW transaction, the outer resources may remain bound while the inner transaction needs another connection. Under high concurrency, a small pool can become exhausted or cause threads to wait for connections held by their own suspended outer transactions.
@@ -80,3 +75,8 @@ An in-memory database may differ from production in SQL dialect, implicit casts,
 ### Q18. How do you investigate a deadlock?
 
 Collect database deadlock diagnostics and transaction/query logs, map lock acquisition order, and identify cycles. Reduce transaction scope, access rows in consistent order where possible, and implement safe retry for database-detected transient deadlocks only when the business operation is repeatable.
+
+## Official references
+
+- [Spring transaction management](https://docs.spring.io/spring-framework/reference/data-access/transaction.html)
+- [JDBC abstraction](https://docs.spring.io/spring-framework/reference/data-access/jdbc.html)
