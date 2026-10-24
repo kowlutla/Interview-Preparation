@@ -169,4 +169,4 @@ Added `08-Advanced-Java/07-Testing-and-Build-Tooling.md` with 20 questions on te
 
 - Added I/O/NIO questions on `Files.walk` resource ownership, `WatchService` limitations and `AsynchronousFileChannel` completion semantics.
 - Added String/Text Processing questions on grapheme clusters versus code points and explicit locale behavior for case conversion and formatting.
-- The recorded total is now **57 Q&A chapters and 1,083 numbered questions**. Markdown file count remains 75 because these additions extend existing chapters; README navigation remains at 77 local Markdown links.
+- A fresh heading recount across all 57 Q&A chapter files confirms **1,083 numbered questions**. Markdown file count remains 75 because these additions extend existing chapters; the README has 77 local Markdown links, all of which resolve.
