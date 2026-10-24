@@ -29,7 +29,7 @@
 
 ## Final review checklist
 
-- [x] Run normalized-title duplicate screens within the core-chapter group and within the tricky-question group: no exact repeated titles were found inside either checked group. Cross-group semantic overlap and intentional reinforcement require judgment; this is not a proof that every answer is semantically distinct.
+- [x] Run normalized-title duplicate screens in two batches (core chapters 1–15; core chapters 16–25 plus the tricky-question collection): no exact repeated titles were found within either batch. A global cross-batch title comparison and full answer-level semantic deduplication were not completed; overlap still requires judgment.
 - [x] Run an answer-depth screen across the 270 core and 20 advanced ecosystem answers: each has a substantive explanatory answer of at least 25 words. The 320 tricky questions intentionally use concise rapid-fire answers; selected shallow explanations were expanded. This screen measures structure/depth signals, not independent proof of every technical claim.
 - [x] Recheck the dated compatibility snapshot against the current official Framework, Boot, and Spring Cloud pages; correct the Boot 4.1.2 requirements paragraph and standardize Q&A heading levels in the advanced ecosystem chapter.
 - [x] Check all internal Markdown targets across the 68 Spring Markdown files and the root/Spring index links; no missing local targets were found. Scan local fragment links; none were present. Targeted official external-link checks were completed for the core reference index, but this was not a crawler of every external URL in every chapter.
@@ -149,7 +149,7 @@ The generic Boot system-requirements page currently renders Boot 4.1.0 (Java 17 
 
 ### Final editorial and consistency pass — 2026-10-24
 
-- Ran normalized-title duplicate screens within the core-chapter group and within the tricky-question group; no exact repeated titles were found within either checked group. Cross-group semantic overlap and intentional reinforcement remain judgment calls, and title uniqueness alone cannot prove that every answer is semantically unique.
+- Ran normalized-title duplicate screens in two batches (core chapters 1–15; core chapters 16–25 plus the tricky-question collection); no exact repeated titles were found within either batch. A global cross-batch title comparison and full answer-level semantic deduplication were not completed. Cross-topic reinforcement remains intentional where it serves learning.
 - Screened the 270 core and 20 advanced ecosystem answers for explanatory depth; all passed a 25-word minimum in the answer body. The 320 tricky questions are intentionally concise rapid-fire checks and are judged against that different format. This is a depth screen, not a claim that every sentence has been independently fact-checked.
 - Standardized the advanced ecosystem chapter's 20 question headings to the same `### Qn.` level used elsewhere.
 - Rechecked current official docs on 2026-10-24: Framework 7.0.10 and Boot 4.1.2 are listed as stable; Boot 4.1.2's current system-requirements page states Java 17 minimum, Java 27 maximum, Framework 7.0.10+, Maven 3.6.3+, Gradle 8.14+/9.x, and GraalVM 25+ for native images. Corrected the compatibility guide to avoid conflating those values with older Boot 4.1.0 page content.
