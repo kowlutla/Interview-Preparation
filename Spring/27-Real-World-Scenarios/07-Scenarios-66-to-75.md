@@ -4,9 +4,9 @@
 
 **Symptoms:** First requests fail or are very slow after deployment.
 
-**Investigate:** Check startup runners, lazy beans, cache warmup, and readiness probe timing.
+**Investigation:** Check startup runners, lazy beans, cache warmup, and readiness probe timing.
 
-**Resolve:** Make readiness reflect the minimum state needed to serve safely; keep warmup bounded and optional work asynchronous where appropriate.
+**Resolution:** Make readiness reflect the minimum state needed to serve safely; keep warmup bounded and optional work asynchronous where appropriate.
 
 **Prevent:** Test first-request behavior on cold instances.
 
@@ -16,9 +16,9 @@
 
 **Symptoms:** Users intermittently lose login state across replicas.
 
-**Investigate:** Check session persistence, load-balancer affinity, session fixation handling, and whether the architecture assumes local in-memory state.
+**Investigation:** Check session persistence, load-balancer affinity, session fixation handling, and whether the architecture assumes local in-memory state.
 
-**Resolve:** Use a deliberate shared session strategy or stateless token design where appropriate, and secure session cookies.
+**Resolution:** Use a deliberate shared session strategy or stateless token design where appropriate, and secure session cookies.
 
 **Prevent:** Test across multiple replicas and failover.
 
@@ -28,9 +28,9 @@
 
 **Symptoms:** One route is protected but another path reaches the same operation without the expected rule.
 
-**Investigate:** Compare request matcher coverage, method security, proxy boundaries, and direct internal callers.
+**Investigation:** Compare request matcher coverage, method security, proxy boundaries, and direct internal callers.
 
-**Resolve:** Enforce authorization at the appropriate service/resource boundary and keep request-layer rules coherent.
+**Resolution:** Enforce authorization at the appropriate service/resource boundary and keep request-layer rules coherent.
 
 **Prevent:** Test every route and direct service invocation paths.
 
@@ -40,9 +40,9 @@
 
 **Symptoms:** Valid tokens are rejected near expiry or before not-before time.
 
-**Investigate:** Compare host clocks, token claims, validator clock-skew policy, and identity-provider time.
+**Investigation:** Compare host clocks, token claims, validator clock-skew policy, and identity-provider time.
 
-**Resolve:** Synchronize clocks and apply narrowly justified skew tolerance; do not disable expiry validation.
+**Resolution:** Synchronize clocks and apply narrowly justified skew tolerance; do not disable expiry validation.
 
 **Prevent:** Monitor time synchronization and test boundary claims.
 
@@ -52,9 +52,9 @@
 
 **Symptoms:** Storage costs rise and useful events are difficult to find.
 
-**Investigate:** Identify duplicate exception logging, verbose SQL/request logging, high-volume success logs, and unbounded payloads.
+**Investigation:** Identify duplicate exception logging, verbose SQL/request logging, high-volume success logs, and unbounded payloads.
 
-**Resolve:** Use appropriate levels, structured fields, redaction, sampling where safe, and metrics for high-volume counts.
+**Resolution:** Use appropriate levels, structured fields, redaction, sampling where safe, and metrics for high-volume counts.
 
 **Prevent:** Load-test logging volume and define retention policy.
 
@@ -64,9 +64,9 @@
 
 **Symptoms:** Diagnostic artifacts expose credentials or personal data.
 
-**Investigate:** Review who can access dumps, artifact retention, crash collection, and support bundle permissions.
+**Investigation:** Review who can access dumps, artifact retention, crash collection, and support bundle permissions.
 
-**Resolve:** Restrict access and encryption, minimize retention, and follow incident procedures if exposed.
+**Resolution:** Restrict access and encryption, minimize retention, and follow incident procedures if exposed.
 
 **Prevent:** Treat heap dumps as sensitive production data.
 
@@ -76,9 +76,9 @@
 
 **Symptoms:** Messages arrive faster than the service processes them.
 
-**Investigate:** Inspect lag, processing duration, partition count, concurrency, retry delays, database bottlenecks, and poison-message behavior.
+**Investigation:** Inspect lag, processing duration, partition count, concurrency, retry delays, database bottlenecks, and poison-message behavior.
 
-**Resolve:** Fix slow work, bound retries, scale within partition and downstream capacity, or batch where semantics permit.
+**Resolution:** Fix slow work, bound retries, scale within partition and downstream capacity, or batch where semantics permit.
 
 **Prevent:** Alert on lag age and processing throughput.
 
@@ -88,9 +88,9 @@
 
 **Symptoms:** Updates arrive in an unexpected order.
 
-**Investigate:** Check partition key, concurrent processing, retry/replay behavior, and whether the domain requires global or per-entity order.
+**Investigation:** Check partition key, concurrent processing, retry/replay behavior, and whether the domain requires global or per-entity order.
 
-**Resolve:** Partition by the relevant key and serialize processing where required; avoid assuming order across partitions.
+**Resolution:** Partition by the relevant key and serialize processing where required; avoid assuming order across partitions.
 
 **Prevent:** Test retries and rebalances with ordered updates.
 
@@ -100,9 +100,9 @@
 
 **Symptoms:** Business writes succeed but event delivery is delayed.
 
-**Investigate:** Inspect oldest pending age, relay errors, broker health, database query plan, row locking, and cleanup strategy.
+**Investigation:** Inspect oldest pending age, relay errors, broker health, database query plan, row locking, and cleanup strategy.
 
-**Resolve:** Restore relay capacity, retry safely, and scale only within broker/database limits.
+**Resolution:** Restore relay capacity, retry safely, and scale only within broker/database limits.
 
 **Prevent:** Alert on backlog age and verify replay procedures.
 
@@ -112,9 +112,9 @@
 
 **Symptoms:** Error or latency SLO worsens only on new replicas.
 
-**Investigate:** Compare dependency versions, configuration, startup/warmup state, pool settings, traces, and resource limits between canary and stable versions.
+**Investigation:** Compare dependency versions, configuration, startup/warmup state, pool settings, traces, and resource limits between canary and stable versions.
 
-**Resolve:** Roll back or halt rollout while preserving diagnostics; fix the measured regression and rerun a representative test.
+**Resolution:** Roll back or halt rollout while preserving diagnostics; fix the measured regression and rerun a representative test.
 
 **Prevent:** Use automated SLO-based rollout gates and version-correlated dashboards.
 
