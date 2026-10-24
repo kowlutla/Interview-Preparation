@@ -26,7 +26,7 @@ Use documentation corresponding to the exact major/minor version used by the pro
 - [Spring Authorization Server Reference](https://docs.spring.io/spring-authorization-server/reference/)
 - [Spring Cloud Contract Reference](https://docs.spring.io/spring-cloud-contract/reference/)
 - [Spring Cloud project and compatibility](https://spring.io/projects/spring-cloud)
-- [Spring Cloud release-train reference](https://docs.spring.io/spring-cloud-release/reference/)
+- [Spring Cloud release-train compatibility table](https://spring.io/projects/spring-cloud#overview)
 
 ## Supporting technologies
 - [Jakarta Bean Validation](https://jakarta.ee/specifications/bean-validation/)
