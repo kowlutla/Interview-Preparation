@@ -9,10 +9,10 @@
 
 | Check | Result | Interpretation |
 |---|---|---|
-| Markdown files under `Java/` | 66 | Includes roadmap, README, reference index, Q&A, and practice material |
-| Q&A chapters | 53 | Across fundamentals, core language, collections, functional programming, concurrency, JVM, Java release features, and advanced Java |
-| Numbered Q&A headings | 999 | Counted from the `### Qn.` headings in all 53 Q&A chapter files |
-| Local Markdown links in README | 68 at initial baseline | All links resolved at initial check; the quality-audit link was subsequently added and also resolves |
+| Markdown files under `Java/` | 74 | Latest recorded repository inventory; includes roadmap, README, review documents, references, Q&A, and practice material |
+| Q&A chapters | 56 | Latest recorded inventory across fundamentals, core language, collections, functional programming, concurrency, JVM, Java release features, and advanced Java |
+| Numbered Q&A headings | 1,058 | Latest recorded count from `### Qn.` headings across 56 Q&A chapter files; recount before release because the inventory can change |
+| Local Markdown links in README | 76 in the latest recorded check | All 76 resolved in the latest recorded navigation check; rerun after further README changes |
 | Unchecked README tracker entries | 0 | Current navigation is marked authored; this does not mean every technical claim or code example has been independently validated |
 | Coding/output practice bank | 50 problems | Authored; examples still need systematic compilation and test validation |
 | Production scenarios | 85+ prompts and RCA examples | Authored across collections/concurrency, JVM/memory, performance, and root-cause analysis |
