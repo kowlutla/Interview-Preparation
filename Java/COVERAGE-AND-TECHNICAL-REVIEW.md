@@ -190,3 +190,17 @@ Sampled the Data Types/Control Flow, OOP, Generics, Exceptions, Enums/Annotation
 ### Production scenario and senior interview pass — 2026-10-24
 
 Sampled the 50-scenario collection/concurrency/JVM/I/O/security bank, focused JVM incidents, performance troubleshooting scenarios, RCA playbook, advanced cross-questioning, architecture trade-offs, rapid-fire revision, and mock interviews. The reviewed material consistently emphasizes evidence, explicit assumptions, resource limits, idempotency, and version-aware claims. No new factual correction was confirmed in these sampled sections. Semantic duplication and the correctness of every scenario's implied answer remain separate review tasks.
+
+### Concurrency, virtual-thread, and JDBC contract pass — 2026-10-24
+
+Sampled the Java Memory Model/volatile chapter, CompletableFuture chapter, Java 21 virtual-thread chapter, JDBC transactions chapter, class-loading/bytecode chapter, and secure-coding chapter. The reviewed passages were broadly consistent with the relevant API/specification contracts, including:
+
+- volatile visibility versus compound atomicity; safe publication and happens-before reasoning;
+- CompletableFuture continuation execution, exception propagation, timeout behavior, and the limits of cancellation;
+- Java 21 virtual threads being finalized while Scoped Values remained preview in Java 21; virtual threads do not remove downstream resource limits;
+- JDBC isolation constants, transaction scope, pooled connection lifecycle, and uncertain outcomes after a connection failure during commit;
+- class-loader-qualified type identity, linking errors, initialization failures, and the warning that class loaders are not security sandboxes;
+- security boundaries for SQL parameters, SSRF/path traversal, password hashing, TLS validation, and untrusted native deserialization.
+
+No additional confirmed substantive correction was identified in these sampled passages. This was a targeted manual review, not a line-by-line certification and not a compile/run validation. The semantic duplicate-question audit and continued review of unexamined chapter bodies remain open.
+
