@@ -40,6 +40,12 @@
 - [ ] Review all five mock interviews for natural progression, follow-up depth, and technical correctness.
 - [ ] Update the handbook README only when the relevant audit item is genuinely complete.
 
+## Structural checks completed on 2026-10-24
+
+- Checked the Q&A heading sequence in all 25 core chapters, the advanced ecosystem chapter, and all seven tricky-question files. Numbering is continuous within each file, with no gaps or duplicate question numbers found.
+- Checked for the specific formatting defect where a question is repeated verbatim as the first non-empty line immediately below its heading. No instances were found in those 33 Q&A files.
+- These are structural checks only. They do not prove semantic uniqueness, answer correctness, link validity, or runnable-code correctness; those remain separate review tasks.
+
 ## Recent audit corrections
 
 - The original inventory was 589 (269 core-category Q&As plus 320 tricky questions). Added 20 advanced ecosystem Q&As and one migration question about preview-versus-stable releases. The current breakdown is 270 core-category Q&As, 20 advanced ecosystem Q&As, and 320 tricky questions: 610 total.
