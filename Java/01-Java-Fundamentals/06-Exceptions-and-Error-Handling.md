@@ -74,11 +74,11 @@ Do not return from finally. Let cleanup happen without changing the original res
 
 Try-with-resources automatically closes resources implementing AutoCloseable when the block exits, including when an exception occurs. Resources close in reverse order of initialization.
 
-    try (var input = Files.newBufferedReader(path)) {
+    try (BufferedReader input = Files.newBufferedReader(path)) {
         return input.readLine();
     }
 
-It reduces boilerplate and handles close failures consistently. Java 9 also permits an effectively final variable declared earlier to be used as a resource, when the selected source level supports it.
+Try-with-resources was introduced in Java 7. This declaration form is compatible with Java 8. Java 9 also permits an effectively final variable declared earlier to be used directly as a resource; local-variable type inference with `var` arrived in Java 10 and is not used in this Java 8-compatible example.
 
 ### Q10. What are suppressed exceptions? *(Advanced)*
 
