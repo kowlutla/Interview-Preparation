@@ -66,7 +66,7 @@ This was a focused manual review, not a guarantee that every snippet in the hand
 - During the title-level semantic review, refined overlapping REST chapter questions (content negotiation versus media-type/payload failures; safe upload design versus large-upload streaming), sharpened the Jakarta namespace migration question, and replaced repeated tricky-question definitions for HTTP 401/403 and reactive backpressure with diagnostic/advanced variants. Some concept overlap between core chapters and the deliberately tricky-question collection is intentional reinforcement, not automatically a duplicate.
 - Added 20 advanced ecosystem Q&As covering Spring Batch, Modulith, GraphQL, WebSocket, AOT/native images, virtual threads, OAuth2 roles, Spring Session, Integration, Contract, and retry design. Current inventory: 610 numbered Q&A headings.
 - Removed a duplicated status sentence from the main README.
-- Refreshed the compatibility snapshot against official documentation checked on 2026-10-24; the reference landing pages list Framework 7.0.9 and Boot 4.1.2 as stable, with Framework 7.1.0-M2 and Boot 4.2.0-RC1 shown as previews. This remains a dated snapshot and must be rechecked before a real upgrade.
+- Refreshed the compatibility snapshot against official documentation checked on 2026-10-24; the latest stable listings are Framework 7.0.10 and Boot 4.1.2, with Framework 7.1.0-RC1 and Boot 4.2.0-RC1 as prereleases. This remains a dated snapshot and must be rechecked before a real upgrade.
 
 ## Official sources checked for version-sensitive guidance
 
