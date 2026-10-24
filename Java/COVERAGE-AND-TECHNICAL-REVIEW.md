@@ -144,3 +144,11 @@ These changes came from a targeted source-level/API-version scan, not from compi
 - Replaced unlabelled Java 9 `List.of` calls in Problems 42 and 45 with Java 8-compatible `Arrays.asList` inputs.
 
 This pass manually reviewed the full 50-problem bank's stated approaches and output explanations. It was not a full algorithm implementation or code execution validation; several algorithm tasks still need concrete reference implementations and edge-case tests before a release candidate.
+
+### Further Java-version and API-contract findings — 2026-10-24
+
+- Clarified that `ObjectInputFilter` is a Java 9+ standard API; the I/O chapter now explicitly warns that Java 8 has no equivalent standard filtering API and recommends avoiding untrusted native deserialization.
+- Added Java 9+ labels for `VarHandle`, `Cleaner`, and multi-release JAR support in the advanced internals chapter.
+- Manually reviewed the full 50-problem practice bank and corrected a subtle fail-fast iterator example, while clarifying missing-number assumptions and array-rotation direction.
+
+The remaining chapters still need a comprehensive pass for API-version labels, specification-versus-implementation distinctions, and precise output semantics. This review is intentionally not being marked complete yet.
