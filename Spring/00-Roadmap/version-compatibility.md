@@ -14,26 +14,11 @@ The official documentation snapshot checked on 2026-10-24 lists Spring Framework
 
 ## Selected compatibility details
 
-For the official Spring Boot 4.1.2 system-requirements page checked on 2026-10-24:
+The generic Spring Boot system-requirements page observed during this audit still renders Boot 4.1.0 rather than the latest 4.1.2 patch. It lists Java 17 as the minimum, Java 26 as the maximum supported version for that displayed release, Spring Framework 7.0.8 or later, Maven 3.6.3 or later, Gradle 8.14+ or 9.x, Tomcat 11 / Jetty 12.1 (Servlet 6.1), and GraalVM 25+ for native images. Treat those as the page's displayed 4.1.0 requirements, not automatically as the complete requirements for 4.1.2.
 
-- Java 17 minimum; compatibility through Java 27.
-- Spring Framework 7.0.10 or later.
-- Maven 3.6.3 or later.
-- Gradle 8.x (8.14 or later) or 9.x.
-- Embedded Tomcat 11.0.x or Jetty 12.1.x using Servlet 6.1.
-- GraalVM 25 or later for native-image builds.
+The 4.1.2 release line is aligned with Spring Framework 7.0.10 or above according to the current release/BOM snapshot. The exact versioned 4.1.2 system-requirements page could not be independently confirmed through this review's documentation fetch, so verify the target patch's managed dependency versions and published requirements before setting Java/build-tool bounds. Do not infer maximum JDK compatibility from a generic or lagging landing page.
 
-These are exact patch-line requirements, not generic guarantees for every Spring project or third-party integration. Consult the target release's page before selecting a build/runtime baseline.
-
-- Spring Framework 7.0 retains a JDK 17 baseline and adopts Jakarta EE 11 APIs such as Servlet 6.1, JPA 3.2, and Bean Validation 3.1. The Framework 7.1 release-notes page is a preview scheduled for November 2026; do not treat its upcoming API removals or baselines as already released stable behavior.
-- Spring Boot 4.x requires Java 17 or later and Spring Framework 7.x. Verify the exact Boot patch's system-requirements page and build-tool versions.
-- Spring Cloud compatibility is release-train-specific. As of 2026-10-24, Spring Cloud 2025.1.4 is the latest listed 2025.1 release; its official announcement says it is based on Boot 4.0.9 and also supports Boot 4.1.2. The compatibility matrix maps 2025.1.x to Boot 4.0.x and, starting with 2025.1.2, Boot 4.1.x; 2025.0.x maps to Boot 3.5.x. Re-check the matrix and exact service release before upgrading.
-- RestClient was introduced in Spring Framework 6.1. Spring Framework 7.0 deprecates RestTemplate in favor of RestClient; existing systems may still use RestTemplate, but new code should follow the target framework's migration guidance.
-- Not every javax.* package moved. For example, javax.sql remains part of Java SE. Migrate only APIs whose specifications moved to Jakarta namespaces.
-- Modern servlet security uses SecurityFilterChain beans. WebSecurityConfigurerAdapter is a legacy pattern removed from modern Spring Security.
-- Boot 4 has a more modular dependency/starter layout, including dedicated test modules for supported technologies. Review the Boot 4 migration guide if you depend on non-starter artifacts or test auto-configuration; `@MockBean`/`@SpyBean` support was removed in favor of `@MockitoBean`/`@MockitoSpyBean`, and MVC/client test support may require explicit test auto-configuration annotations.
-- Let the Boot dependency-management BOM control managed dependency versions unless there is a documented reason to override them.
-- Distinguish a Spring Framework feature from Boot auto-configuration for that feature. Framework API availability does not imply identical Boot setup across release lines.
+Framework 7.0 retains a JDK 17 baseline and adopts Jakarta EE 11 APIs such as Servlet 6.1, JPA 3.2, and Bean Validation 3.1. The Framework 7.1 release-notes page is a prerelease scheduled ahead of the November 2026 line; do not treat its upcoming API removals or baselines as already released stable behavior.
 
 ## Upgrade checklist
 
