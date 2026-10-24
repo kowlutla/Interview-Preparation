@@ -55,9 +55,10 @@
 
 Opened the following official documentation targets from the core chapter indexes during this pass; each resolved to a relevant documentation page at the time checked:
 
-- Framework overview, container basics, dependency injection, annotation configuration, bean scopes, bean lifecycle/nature, AOP overview and proxying, MVC overview, Bean Validation, exception handling/REST error responses, transaction management, and JDBC.
-- Boot reference, auto-configuration, externalized configuration, profiles, SpringApplication startup, and Maven executable packaging.
-- Spring Data JPA reference and query methods.
+- Framework overview, container basics, dependency injection, annotation configuration, bean scopes, bean lifecycle/nature, AOP overview and proxying, MVC overview, Bean Validation, exception handling/REST error responses, transaction management, JDBC, testing, REST clients, WebFlux, caching, and task scheduling.
+- Boot reference, auto-configuration, externalized configuration, profiles, SpringApplication startup, Maven executable packaging, testing, and Actuator metrics.
+- Spring Security servlet architecture and JWT resource-server guidance; Spring Data JPA reference and query methods; Spring for Apache Kafka; and the Spring Cloud project compatibility matrix.
+- Corrected the Java Flight Recorder link in the performance chapter to Oracle's JDK 21 `jfr` command documentation after the previous `jfapi/flight-recorder.html` target could not be confirmed.
 
 This confirms only the sampled targets above. It is **not** a full crawler or exhaustive reachability/content audit of every external URL in all 68 Markdown files. URLs that could not be checked should be marked unconfirmed rather than automatically called broken. The official pages may show newer documentation versions than a project's chosen dependency baseline, so links should be paired with the version-specific docs for upgrade-sensitive claims.
 
