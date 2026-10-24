@@ -146,8 +146,8 @@ No. Keep stack traces in protected diagnostics, not client responses.
 ### Q48. Is a 500 response always a server bug?
 Not necessarily; it indicates an unexpected server-side failure under the API contract, which may arise from configuration or dependency outages. Diagnose the root cause.
 
-### Q49. Is a successful unit test enough for a framework integration?
-No. Add context, slice, or integration tests where behavior depends on proxies, filters, serialization, transactions, or external infrastructure.
+### Q49. Which framework integration failures can pure unit tests miss?
+Pure unit tests can validate business logic while missing bean registration, proxy interception, transaction-manager selection, security filter ordering, serialization, and real database behavior. Add focused slice and integration tests for the framework boundary that carries the risk, and use the production database/broker/container where engine-specific semantics matter.
 
 ### Q50. What is the safest response to version-specific uncertainty?
 Check the exact versioned official documentation and migration notes, create a minimal reproduction, and state the uncertainty instead of presenting an assumption as fact.
