@@ -28,7 +28,7 @@ A transaction bound to the calling thread generally does not automatically propa
 
 ### Q7. How should cron time zones be handled?
 
-Specify the intended zone explicitly when supported by the scheduling annotation/configuration. Test daylight-saving transitions and cluster consistency, and avoid assuming the container's default time zone matches the business zone.
+Specify the intended time zone explicitly through the scheduling annotation/configuration where supported, rather than relying on the container default. Test daylight-saving transitions, missed execution after downtime, and behavior when multiple replicas run the same schedule. A cron expression only defines trigger timing; it does not provide distributed locking, durable job state, or exactly-once execution. Use a cluster coordination or durable job mechanism when duplicate runs would be harmful.
 
 ## Official references
 
