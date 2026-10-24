@@ -26,10 +26,6 @@ A local cache is fast and simple but is per-process and can diverge across repli
 
 Behavior depends on the cache provider and application configuration. Decide whether to fail open by invoking the underlying method or fail closed, and ensure the fallback cannot overwhelm the source of truth. Monitor cache errors and hit ratio rather than assuming the cache is always available.
 
-## Official references
-
-- [Spring cache abstraction](https://docs.spring.io/spring-framework/reference/integration/cache.html)
-
 ### Q7. How do cache keys affect correctness and security?
 
 Keys must include every input that changes the result, including tenant or authorization scope where relevant. A missing dimension can return one user's data to another. Test key separation across tenants, locale, filters, and permission-sensitive responses.
@@ -49,3 +45,7 @@ It serves a previously cached value while refreshing it asynchronously, trading 
 ### Q11. How do you observe cache usefulness?
 
 Measure hit/miss rate, load duration, evictions, failures, entry size/estimated memory, and source load. A high hit ratio is not sufficient if the cache returns incorrect or stale data.
+
+## Official references
+
+- [Spring cache abstraction](https://docs.spring.io/spring-framework/reference/integration/cache.html)
