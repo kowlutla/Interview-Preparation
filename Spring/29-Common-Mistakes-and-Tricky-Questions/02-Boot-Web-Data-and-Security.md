@@ -95,8 +95,8 @@ Ordering and transaction-aware cache configuration matter. Design invalidation a
 ### Q31. Does @Async make a method durable?
 No. Tasks may be lost on process termination unless they are persisted in a durable queue or job system.
 
-### Q32. Does @Scheduled run only once in a cluster?
-No. Each application instance can schedule the task unless cluster coordination is implemented.
+### Q32. What failure can occur when a scheduler lock expires during a long-running task?
+If the lock lease expires while the original task is still running, another replica may start the same task concurrently. Use lock durations/renewal that reflect task behavior, but do not rely on a lock as the only correctness mechanism. Make work idempotent and consider fencing tokens or durable job state when overlapping execution could corrupt data.
 
 ### Q33. Are Spring application events durable?
 No, ordinary application events are in-process events. Use a broker or durable outbox for cross-process reliability.
