@@ -43,7 +43,7 @@ Designed for engineers with roughly 2–6 years of Java backend experience. Prer
 - [Scenarios 56–65](27-Real-World-Scenarios/06-Scenarios-56-to-65.md)
 - [Scenarios 66–75](27-Real-World-Scenarios/07-Scenarios-66-to-75.md)
 
-**Count:** 75 numbered scenarios, covering symptoms, investigation, resolution, trade-offs, prevention, and follow-up questions.
+**Count:** 75 numbered scenarios spanning incident investigation, architecture/design decisions, production operations, validation, trade-offs, and follow-up questions.
 
 ### Mock interviews
 
