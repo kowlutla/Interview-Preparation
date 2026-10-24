@@ -136,3 +136,11 @@ The separate `QUALITY-AUDIT-AND-REMEDIATION.md` baseline was stale at 66 Markdow
 - Clarified the charset timeline in the I/O chapter: default charset could vary in Java 17 and earlier, while Java 18+ defaults to UTF-8 under JEP 400 (with compatibility configuration available). Explicit charset selection remains recommended for protocol/file contracts. See [JDK 18 release notes](https://www.oracle.com/java/technologies/javase/18-relnote-issues.html).
 
 These changes came from a targeted source-level/API-version scan, not from compilation or execution. The scan is not proof that no other unlabelled version-sensitive API remains; continue the same check across the remaining chapters.
+
+### Coding/output bank review — 2026-10-24
+
+- Corrected Problem 45's fail-fast iteration example. Removing `2` from an `ArrayList` containing `[1, 2, 3]` can finish without `ConcurrentModificationException` because the iterator may never call `next()` again; fail-fast detection is best-effort. The example now removes `1` so the standard iterator path reaches a subsequent `next()` and typically detects the modification, while the answer explicitly states that this is not a correctness guarantee.
+- Clarified that Problem 11's missing-number input contains distinct values from `0` through `n` with exactly one missing, and specified that Problem 13 rotates right and must handle an empty array before using `Math.floorMod(k, n)`.
+- Replaced unlabelled Java 9 `List.of` calls in Problems 42 and 45 with Java 8-compatible `Arrays.asList` inputs.
+
+This pass manually reviewed the full 50-problem bank's stated approaches and output explanations. It was not a full algorithm implementation or code execution validation; several algorithm tasks still need concrete reference implementations and edge-case tests before a release candidate.
