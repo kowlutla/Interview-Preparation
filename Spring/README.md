@@ -52,6 +52,10 @@ Designed for engineers with roughly 2–6 years of Java backend experience. Prer
 4. [Microservices Engineer](28-Mock-Interviews/04-Microservices-Engineer.md)
 5. [Senior Product-Based Company](28-Mock-Interviews/05-Senior-Product-Company.md)
 
+## Coverage and review status
+
+See the [coverage inventory and technical review checklist](COVERAGE-AND-TECHNICAL-REVIEW.md) for the current counted totals and the remaining audit work. Count targets are not a substitute for accuracy, non-duplication, and runnable-example validation.
+
 ## Difficulty guidance
 
 - **Beginner:** Explain purpose and basic behavior.
