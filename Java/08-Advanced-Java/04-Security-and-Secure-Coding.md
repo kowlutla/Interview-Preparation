@@ -95,7 +95,7 @@ Constant-time comparison does not make an insecure protocol secure. Consider the
 
 ObjectInputStream can reconstruct object graphs and trigger behavior through available classes during deserialization. Gadget chains can turn attacker-controlled data into code execution or other severe effects.
 
-Avoid native serialization for untrusted data. If unavoidable, use strict ObjectInputFilter allowlists and resource limits, keep dependencies patched, and test the reachable object graph.
+Avoid native serialization for untrusted data. On Java 9 and later, if it is unavoidable, use strict ObjectInputFilter allowlists and resource limits, keep dependencies patched, and test the reachable object graph. Java 8 has no equivalent standard ObjectInputFilter API; prefer not to deserialize untrusted native object streams rather than assuming the Java 9+ filter is available.
 
 ### Q15. What is least privilege? *(Beginner)*
 
