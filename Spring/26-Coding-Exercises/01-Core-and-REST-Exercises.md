@@ -183,6 +183,8 @@ Enable configuration-properties scanning or register the type explicitly, and in
 
 **Problem:** Call an inventory service with bounded latency.
 
+**Version requirement:** `RestClient` was introduced in Spring Framework 6.1, so use Spring Boot 3.2+ (or another compatible Framework 6.1+ setup) for this exercise. For older Boot 3.x lines, adapt the task to `RestTemplate` or `WebClient` instead of assuming `RestClient` exists.
+
 **Reference approach:** Configure connection and response timeouts on the chosen request factory, define a total deadline, map downstream failures, and instrument duration.
 
 **Common mistake:** Retrying every exception without a budget.
