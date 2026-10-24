@@ -27,7 +27,7 @@ By the end of this track, you should be able to:
 | 5. Concurrency | `05-Concurrency-and-Multithreading` | JMM, locks, executors, futures, virtual threads | Identify safety, liveness, cancellation, and backpressure concerns |
 | 6. Runtime | `06-JVM-and-Memory-Management` | Class loading, JIT, GC, diagnostics | Build a hypothesis-led production investigation |
 | 7. Version evolution | `07-Java-Version-Features` | JDK 8–21, finalized/preview/incubator distinctions | Correctly explain when a feature became available and its status |
-| 8. Applied design | `08-Advanced-Java` | JDBC, network I/O, design, security, performance | Justify implementation and operational trade-offs |
+| 8. Applied design | `08-Advanced-Java` | JDBC, network I/O, design, security, performance, testing and build tooling | Justify implementation and operational trade-offs |
 | 9. Practice | `09-Coding-and-Problem-Solving` | Coding/output prediction | Solve, test, explain complexity and corner cases |
 | 10. Incidents | `10-Real-World-Scenarios` | Root-cause analysis under constraints | Present evidence-based investigation steps and mitigations |
 | 11. Interview performance | `11-Senior-Interview-Preparation` | Cross-questioning, architecture, mocks, revision | Give structured answers with assumptions, trade-offs, and follow-ups |
