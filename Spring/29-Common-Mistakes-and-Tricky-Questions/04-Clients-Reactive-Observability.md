@@ -32,8 +32,8 @@ RestClient is synchronous and fluent; WebClient supports non-blocking reactive I
 ### Q10. Is RestTemplate removed?
 It remains in existing applications and supported framework lines, but current client selection should follow the chosen version's official guidance rather than assuming new APIs are available everywhere.
 
-### Q11. What is backpressure?
-A flow-control mechanism allowing subscribers to signal demand. It does not bound unrelated queues or external resources automatically.
+### Q11. Why is backpressure not a universal memory limit?
+Backpressure coordinates demand between compatible publishers and subscribers, but buffering operators, hot sources, adapters to blocking APIs, and external queues may still accumulate work under their own policies. Inspect each buffering boundary, configure explicit limits where available, and define behavior for overflow or cancellation. Backpressure is a flow-control mechanism, not a guarantee that every queue is bounded.
 
 ### Q12. Does Flux execute work in parallel?
 Not inherently. Reactive composition describes signals; concurrency requires explicit operators/schedulers or concurrent upstream sources.
