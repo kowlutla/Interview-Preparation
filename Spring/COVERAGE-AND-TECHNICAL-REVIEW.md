@@ -135,3 +135,7 @@ Scanned all 68 Spring Markdown files for links containing fragments. No local Ma
 ### Q&A numbering order recheck — 2026-10-24
 
 Rechecked the question-number sequence in all 25 core chapter files and all seven tricky-question files. Each uses continuous ascending numbering with no gaps or out-of-order headings. The migration chapter had an out-of-order Q13 inserted before Q9–Q12; the questions have now been reordered to Q1–Q13 before the official-reference section. The advanced ecosystem chapter uses a different heading level (`## Qn`) but its sequence is Q1–Q20. The total remains 610 Q&A headings (270 core + 20 ecosystem + 320 tricky).
+
+### Prerelease API nuance — test bean overrides — 2026-10-24
+
+The official Framework 7.1 prerelease notes add constructor-parameter support for `@MockitoBean`/`@MockitoSpyBean`. The testing chapter and tricky-question answer now distinguish that prerelease capability from stable Framework 7.0 usage, avoiding accidental advice to use a newer API form on a stable baseline.
