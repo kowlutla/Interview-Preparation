@@ -20,13 +20,15 @@ Sealed classes and interfaces restrict which types may directly extend or implem
 
 They are useful for modeling controlled variants and can support exhaustiveness reasoning. Sealed does not imply immutability or automatically make every switch exhaustive.
 
-### Q3. What is pattern matching for instanceof? *(Intermediate)*
+### Q3. What should Java 17 developers know about pattern matching for instanceof? *(Intermediate)*
 
-Pattern matching for instanceof became permanent in Java 16. It combines a type check and binding, reducing repeated casts.
+Pattern matching for instanceof is already a permanent feature in Java 17 because it was finalized in Java 16. It can be used without preview flags on a Java 17 toolchain.
 
     if (value instanceof String text) {
         System.out.println(text.length());
     }
+
+When explaining version history, distinguish this finalized feature from pattern matching for switch, which was still a preview feature in Java 17.
 
 The pattern variable's scope follows flow analysis. This feature is final in Java 17, unlike switch pattern matching in that release.
 
@@ -62,11 +64,11 @@ Potential issues include removed or encapsulated internal APIs, reflection acces
 
 Run compatibility analysis, compile and test with the target JDK, inspect illegal reflective access, and exercise production-like integration paths. Do not assume that a successful compilation proves runtime compatibility.
 
-### Q9. What is the difference between a final feature and a preview feature? *(Intermediate)*
+### Q9. How do you compile and run a Java 17 preview feature deliberately? *(Intermediate)*
 
-A final feature is part of the permanent language/API contract for that release. A preview feature is released for evaluation and may change or be removed; it generally requires explicit preview flags for compilation and execution.
+For Java 17 preview language features, compile with the Java 17 release target and preview enabled (for example, `javac --release 17 --enable-preview ...`) and run with `java --enable-preview ...` on a compatible Java 17 runtime. Preview syntax is tied to the specific feature release; a later JDK does not automatically accept Java 17 preview syntax unchanged.
 
-Preview status is release-specific. Record the JDK version and flags in build instructions and avoid using preview syntax in a baseline that cannot support it.
+Do not enable preview globally without a deliberate decision. Keep preview use isolated, document the exact toolchain and flags, and migrate or remove the feature before relying on a permanent API contract.
 
 ### Q10. How should teams evaluate Java 17 upgrades? *(Senior)*
 
