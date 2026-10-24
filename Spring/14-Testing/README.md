@@ -26,7 +26,7 @@ Testcontainers starts disposable infrastructure such as a database or broker for
 
 `@MockBean` was the established Spring Boot test annotation for replacing beans in an application context. It was deprecated for removal in Spring Boot 3.4 in favor of Spring Framework's `@MockitoBean`, and Boot 4 removes `@MockBean`/`@SpyBean` support. Use `@MockitoBean` (and `@MockitoSpyBean` for spies) on modern Framework/Boot lines, but retain the older annotation only when maintaining a compatible legacy Boot line.
 
-The migration is not always a mechanical import swap: the new annotations are intended for test-class fields/type-level declarations, not as mock declarations inside configuration classes. Follow the exact Boot migration guide and verify the test-context replacement semantics.
+The migration is not always a mechanical import swap: on Framework 6.2/7.0, use the supported test-class field or type-level declarations rather than declaring mocks inside configuration classes. Framework 7.1 prerelease documentation adds constructor-parameter support for these annotations; do not assume that API is available on the stable 7.0 line. Follow the exact Boot/Framework migration guide and verify test-context replacement semantics.
 
 ### Q7. Why can Spring tests become flaky or slow?
 
