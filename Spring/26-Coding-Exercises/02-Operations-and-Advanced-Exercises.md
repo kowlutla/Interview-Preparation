@@ -88,6 +88,8 @@ These exercises complement [Core and REST exercises](01-Core-and-REST-Exercises.
 
 **Reference approach:** Configure structured logging for the selected Boot version, propagate supported trace context, and redact sensitive fields at source. Avoid duplicate logging of the same exception at every layer.
 
+**Related chapter:** [Actuator and observability](../17-Actuator-and-Observability/README.md)
+
 **Common mistake:** Logging secrets or using user/request identifiers as metric labels.
 
 **Validation:** Verify JSON parseability, correlation across calls, and secret redaction.
@@ -200,7 +202,7 @@ These exercises complement [Core and REST exercises](01-Core-and-REST-Exercises.
 
 **Reference approach:** Enable method security in the test context, invoke through the Spring proxy, and test allowed and denied principals.
 
-**Related detailed solution:** [Testcontainers and HTTP client patterns](Reference-Solutions/05-Testcontainers-and-Client-Reference.md)
+**Related detailed solution:** [JWT resource-server configuration and authorization](Reference-Solutions/03-Security-Reference-Solution.md)
 
 **Common mistake:** Directly constructing the service, thereby bypassing method-security interception.
 
@@ -234,7 +236,7 @@ These exercises complement [Core and REST exercises](01-Core-and-REST-Exercises.
 
 **Reference approach:** Use a client interceptor/filter or supported OAuth client integration with scoped credentials and token lifecycle management. Do not hardcode secrets or forward inbound tokens without audience/trust validation.
 
-**Related detailed solution:** [JWT resource-server configuration and authorization](Reference-Solutions/03-Security-Reference-Solution.md)
+**Related detailed solution:** [Testcontainers and HTTP client patterns](Reference-Solutions/05-Testcontainers-and-Client-Reference.md)
 
 **Common mistake:** Forwarding an inbound bearer token to an arbitrary downstream destination without audience/trust checks.
 
