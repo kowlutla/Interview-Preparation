@@ -117,7 +117,7 @@ Enable configuration-properties scanning or register the type explicitly, and in
 
 **Reference approach:** Put a `@ConditionalOnMissingBean(NotificationSender.class)` factory method in Boot auto-configuration, and register it using the metadata format for the selected Boot version.
 
-**Related detailed solution:** [Configuration binding and validation patterns](Reference-Solutions/06-Configuration-and-Validation.md)
+**Related chapter:** [Auto-configuration and startup](../07-Auto-Configuration-and-Startup/README.md)
 
 **Common mistake:** Treating the condition as a replacement for a proper library registration test.
 
