@@ -1,6 +1,6 @@
 # Spring Real-World Scenarios
 
-This collection contains 75 production-oriented scenarios. Each scenario frames symptoms, investigation, resolution, trade-offs/prevention, and an interviewer follow-up. Use them to practice evidence-based incident reasoning rather than memorizing fixes.
+This collection contains 75 production-oriented scenarios across incident diagnosis, architecture/design trade-offs, and operational readiness. Incident scenarios emphasize symptoms, evidence, resolution, prevention, and interviewer follow-ups; architecture scenarios state requirements, reasoning, alternatives, validation, and follow-up questions. Use them to practice evidence-based reasoning rather than memorizing fixes.
 
 - [1–10: Container, web, and transactions](01-Container-Web-Transactions.md)
 - [11–20: Resilience, security, and operations](02-Resilience-Security-Operations.md)
