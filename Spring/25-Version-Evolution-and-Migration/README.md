@@ -52,7 +52,7 @@ Framework and Boot lines may introduce or deprecate test utilities, mock-bean an
 
 ### Q13. How should you treat Spring Framework 7.1 prerelease documentation?
 
-As of 2026-10-24, the official release list identifies Framework 7.0.10 as the latest stable 7.0 release and Framework 7.1.0-RC1 as a prerelease. Preview/release-candidate notes can help plan compatibility work, but changes in prerelease documentation must not be presented as released stable behavior. Re-check the official release list and the exact target version's migration guide before upgrading.
+As of 2026-10-24, the official release list identifies Framework 7.0.10 as the latest stable 7.0 release and Framework 7.1.0-RC1 as a prerelease. Prerelease notes can help plan compatibility work, but changes in prerelease documentation must not be presented as released stable behavior. For example, the 7.1 prerelease notes flag changes to forwarded-header filter/transformer constructors; proxy deployments should explicitly review which forwarded-header family they trust. Re-check the official release list and the exact target version's migration guide before upgrading.
 
 ## Official references
 
