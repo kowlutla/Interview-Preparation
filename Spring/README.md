@@ -2,7 +2,7 @@
 
 A version-aware handbook for Java backend engineers preparing for practical and senior-level interviews. It emphasizes framework mechanics, implementation, debugging, production trade-offs, and version-aware learning.
 
-> **Status:** Broad first-pass content is now present across the requested topic areas. A heading-based inventory of the authored Q&A files currently shows 609 numbered Q&A headings across the category and tricky-question chapters. This is a preliminary count, not a claim that every item has passed duplicate/depth review. The exercise and scenario targets are met by numbered entries, and five mock-interview files exist.
+> **Status:** Broad first-pass content is now present across the requested topic areas. A heading-based inventory of the authored Q&A files currently shows 609 numbered Q&A headings across the 25 core category chapters, the advanced ecosystem chapter, and the tricky-question chapters. This is a preliminary count, not a claim that every item has passed duplicate/depth review. The exercise and scenario targets are met by numbered entries, and five mock-interview files exist.
 
 ## Audience and prerequisites
 
@@ -70,7 +70,7 @@ See the [coverage inventory and technical review checklist](COVERAGE-AND-TECHNIC
 - [x] Roadmap, compatibility notes, and interview strategy
 - [x] Initial Q&A chapters for all requested core topic categories
 - [x] Advanced ecosystem chapter covering specialized Spring projects and architecture choices
-- [x] 609 numbered Q&A headings counted across authored Q&A chapters (duplicate and depth audit still required)
+- [x] 609 numbered Q&A headings counted: 269 across 25 core chapters, 20 in advanced ecosystem, and 320 tricky questions (duplicate and depth audit still required)
 - [x] 85 numbered coding exercises
 - [x] 75 numbered production scenarios
 - [x] Five mock interview files
