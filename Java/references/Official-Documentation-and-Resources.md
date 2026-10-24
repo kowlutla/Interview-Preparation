@@ -39,6 +39,7 @@ This index prioritizes specifications, official API documentation, JEPs, and off
 - [JEP 406 — Pattern Matching for switch (Java 17 preview)](https://openjdk.org/jeps/406)
 - [JEP 409 — Sealed Classes](https://openjdk.org/jeps/409)
 - [JEP 421 — Deprecate Finalization for Removal](https://openjdk.org/jeps/421)
+- [JEP 400 — UTF-8 by Default](https://openjdk.org/jeps/400)
 - [JEP 431 — Sequenced Collections](https://openjdk.org/jeps/431)
 - [JEP 439 — Generational ZGC](https://openjdk.org/jeps/439)
 - [JEP 440 — Record Patterns](https://openjdk.org/jeps/440)
