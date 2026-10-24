@@ -66,7 +66,7 @@ It coordinates cache operations with transaction completion so changes are not m
 
 ### Q16. How should a service handle an optimistic-lock conflict?
 
-Treat it as a concurrency outcome, reload current state, and decide whether the business command can be retried or should return a conflict. Blind retries can repeat side effects or overwrite a newer decision.
+Treat an optimistic-lock failure as evidence that another transaction changed the row after it was read, not as a generic transient database outage. Reload the current state and either re-evaluate the business command, return a conflict response, or ask the caller to reconcile. Retry only if the operation is safe and its rules can be recomputed against fresh data; do not blindly replay external side effects or overwrite the competing update.
 
 ### Q17. Why can an in-memory database hide transaction defects?
 
