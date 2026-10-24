@@ -62,8 +62,8 @@ The time the oldest queued task/message has waited. It often reveals user-impact
 ### Q20. Why monitor saturation?
 Saturation shows resources approaching capacity—such as executor queues, connection pools, CPU, or consumer lag—before outright errors dominate.
 
-### Q21. How do you diagnose a deadlock?
-Inspect thread dumps and database lock diagnostics, identify cycles in lock acquisition, and correlate with transaction/query logs. Avoid assuming every blocked thread is a deadlock.
+### Q21. What evidence distinguishes a database deadlock from ordinary lock contention?
+A deadlock report or database diagnostic identifies a cycle of transactions waiting on locks and often names the statements/resources involved; ordinary contention may show waiting without a cycle. Correlate database lock views and deadlock logs with transaction/query timing and application traces. Capture the victim statement, then review lock acquisition order and transaction duration instead of treating every slow query as a deadlock.
 
 ### Q22. Why capture multiple thread dumps?
 A single dump is a snapshot. Multiple samples show whether threads remain stuck or progress, and help distinguish persistent waits from transient work.
