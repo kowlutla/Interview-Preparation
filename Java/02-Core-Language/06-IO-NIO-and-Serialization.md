@@ -15,7 +15,7 @@ Use byte streams for binary data and character readers/writers for text. Always 
 
 ### Q2. Why should StandardCharsets.UTF_8 be explicit? *(Intermediate)*
 
-The default charset can vary by environment and runtime configuration. If one system writes text with a different charset than another system uses to read it, data can be corrupted or interpreted incorrectly.
+In Java 17 and earlier, the default charset could vary with the operating system and environment. Starting with Java 18, UTF-8 is the default charset for Java SE APIs by default (with a compatibility mode available through runtime configuration). If a producer and consumer use different encodings, text can be corrupted or interpreted incorrectly. Explicitly choosing the format's required charset remains the clearest way to make a file or protocol contract unambiguous.
 
     // Java 11+
     Files.readString(path, StandardCharsets.UTF_8);
