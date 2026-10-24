@@ -16,7 +16,7 @@ Boot's configuration binder can map equivalent property naming styles to Java pr
 
 ### Q4. What does @Profile do?
 
-@Profile conditions bean registration on active profiles. Profiles are useful for selecting environment-specific implementations, but they should not become a substitute for explicit configuration management or for keeping secrets out of source control.
+@Profile conditions bean registration on active profiles, allowing environment-specific beans or configuration classes to be selected. For example, a local implementation can be enabled for development while a production implementation is selected in production. Profiles can be combined, so inspect the effective active profiles when a bean is unexpectedly missing. Profiles select configuration; they are not a secret-management mechanism or a replacement for validating required properties.
 
 ### Q5. How should configuration properties be validated?
 
