@@ -16,7 +16,7 @@ Isolation controls which effects of concurrent transactions are visible, subject
 
 ### Q4. Does Spring roll back for every exception?
 
-Traditional declarative defaults generally roll back for unchecked exceptions and Errors, not all checked exceptions. Explicit rollback rules can change this. A caught exception that never escapes the transactional boundary may not trigger rollback automatically, and rollback-only status can lead to an unexpected rollback at commit time.
+Traditional declarative defaults generally roll back for unchecked exceptions and Errors, not all checked exceptions. Explicit rollback rules can change this. Since Spring Framework 6.2, transaction management can also be configured with a global `rollbackOn = ALL_EXCEPTIONS` policy; version and transaction-specific rollback rules still matter. A caught exception that never escapes the transactional boundary may not trigger rollback automatically, and rollback-only status can lead to an unexpected rollback at commit time.
 
 ### Q5. Why might @Transactional appear not to work?
 
