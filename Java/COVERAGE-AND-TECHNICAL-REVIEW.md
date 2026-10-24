@@ -174,3 +174,7 @@ Added `08-Advanced-Java/07-Testing-and-Build-Tooling.md` with 20 questions on te
 ### Further collection/concurrency contract review — 2026-10-24
 
 Reviewed queue/deque and priority-queue behavior, iterator and Spliterator characteristics, concurrent-map/atomic semantics, and deadlock/race-condition explanations. The sampled material was consistent with the relevant contracts: `PriorityQueue` iteration is not sorted traversal, `BlockingQueue` handoff has a memory-consistency guarantee, fail-fast behavior is best-effort, and `LongAdder.sum()` is not an atomic snapshot under concurrent updates. No additional confirmed correction was required in these sampled passages.
+
+### Question numbering structure — 2026-10-24
+
+Checked numbered `### Qn.` headings in all 57 Q&A chapter files. Every chapter's question numbering is sequential from Q1 with no gaps or repeated numbers. This structural check does not determine whether similarly worded questions are conceptually duplicative; semantic duplication review remains separate.
