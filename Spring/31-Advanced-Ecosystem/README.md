@@ -46,9 +46,9 @@ Design connection limits, heartbeat/idle policies, reconnect behavior, authoriza
 
 Authenticate the connection using a supported mechanism and validate the principal before accepting sensitive subscriptions or messages. Apply authorization to destinations and message operations, not only to the HTTP handshake. Treat client-provided user identifiers and destination names as untrusted input. Consider token expiry, reconnect, cross-origin policy, message size limits, rate limiting, and revocation behavior. Verify the exact integration and defaults for the Spring Security version in use.
 
-### Q10. What do Spring AOT processing and native-image support change?
+### Q10. Which runtime assumptions commonly break when building a Spring application as a native image?
 
-Ahead-of-time processing analyzes application structure at build time and generates artifacts that can reduce runtime reflection and support native compilation. Native executables can improve startup time and memory use for suitable workloads, but build time, compatibility constraints, image size, debugging, and runtime characteristics differ from a conventional JVM deployment. AOT/native support is not a guarantee that arbitrary reflection, dynamic class loading, proxies, or third-party libraries will work without configuration.
+Native-image closed-world analysis may not discover reflective access, dynamically loaded classes, resources, serialization types, or generated proxies. Prefer framework/library-provided runtime hints and supported registration mechanisms, and test the produced executable rather than relying only on JVM tests. Diagnose missing metadata from the native build/runtime error, register only the required access, and measure startup, memory, throughput, build time, and compatibility before choosing native deployment.
 
 Measure startup, memory, throughput, and operational behavior under realistic load before choosing native deployment.
 
