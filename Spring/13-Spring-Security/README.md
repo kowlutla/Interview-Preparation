@@ -60,19 +60,19 @@ Method security commonly uses Spring AOP interception. A direct self-call may by
 
 ### Q15. Should authorization exist only at the controller layer?
 
-No. Controller rules protect HTTP entry points, but business operations may also be invoked from jobs, messaging listeners, or other services. Enforce domain/resource permissions at a boundary that covers every relevant caller.
+No. Controller rules protect the HTTP entry point, but the same business operation may be invoked by a scheduled job, message listener, batch process, or another service. Enforce authorization at a boundary that covers every relevant caller, using method security or domain/application checks where appropriate. Keep request-shape validation separate from permission checks, and test allowed and denied paths through each meaningful entry point.
 
 ### Q16. How should multi-tenant authorization be enforced?
 
-Derive tenant identity from trusted authentication data, verify resource ownership at the service/data boundary, and include tenant scope in cache keys and background-job context. Never rely only on a client-supplied tenant identifier.
+Derive the caller's tenant from trusted authentication claims or a verified server-side mapping, then verify that the requested resource belongs to that tenant at the service or data-access boundary. Apply the same tenant context to asynchronous work, scheduled jobs, exports, caches, and message consumers. Never trust a client-supplied tenant ID by itself; test cross-tenant object IDs and ensure query filters, cache keys, and administrative paths cannot bypass isolation.
 
 ### Q17. What is session fixation protection?
 
-It prevents an attacker from retaining a known session identifier across authentication. Use the framework's session-protection mechanisms and test session ID changes and logout/session invalidation behavior for the selected authentication mode.
+Session fixation protection changes or otherwise protects the session identifier when the security context changes, preventing an attacker from reusing a session ID known before authentication. Spring Security provides session-management protections, but the exact behavior depends on the authentication mechanism and configuration. Verify that authentication rotates the session as expected, logout invalidates it, and concurrent-session or remember-me behavior matches the application's threat model.
 
 ### Q18. How do authentication entry points differ from access-denied handlers?
 
-An AuthenticationEntryPoint handles a request that requires authentication but lacks acceptable authentication. An AccessDeniedHandler handles an authenticated principal that is not authorized. Their response contract should be tested for API clients.
+An AuthenticationEntryPoint handles a request that requires authentication when no acceptable authentication is present, commonly producing a 401 response or initiating a login flow. An AccessDeniedHandler handles an authenticated principal that lacks permission, commonly producing 403. API applications should configure these paths deliberately so clients receive consistent machine-readable errors without leaking internal details; test anonymous, invalid/expired credentials, and authenticated-but-forbidden requests.
 
 ### Q19. What should security tests cover beyond a happy path?
 
