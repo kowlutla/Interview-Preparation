@@ -50,8 +50,8 @@ It selects among available service instances from a client-side view. It does no
 ### Q16. What is a gateway's main security risk?
 Misconfigured routes, trusted forwarded headers, or direct service exposure can bypass intended edge controls. Enforce resource authorization in the service as well.
 
-### Q17. Why must Spring Cloud versions align with Boot?
-Cloud integrations depend on specific framework and Boot APIs. Incompatible trains can fail at compile time or runtime.
+### Q17. What should you inspect when a Spring Cloud dependency fails after a Boot upgrade?
+Check the compatibility matrix for the exact Boot line, the selected Cloud release train, and the resolved dependency tree. A manually overridden transitive library can cause linkage or auto-configuration failures even when the declared starter looks correct. Align the BOMs first, remove unnecessary overrides, and inspect the first causal exception before changing application code.
 
 ### Q18. What is graceful termination in Kubernetes?
 The platform signals termination and later forcefully kills the process after a grace period. Application shutdown hooks and probe/endpoint behavior must fit inside that period.
@@ -68,8 +68,8 @@ First deploy a schema compatible with old and new code, migrate application usag
 ### Q22. Why can startup probes be useful?
 They allow slow-starting applications time to initialize before liveness checks begin causing restarts. Probe settings must reflect actual startup distributions.
 
-### Q23. What is the difference between startup, readiness, and liveness probes?
-Startup determines whether initialization has completed; readiness controls traffic eligibility; liveness detects a process that should be restarted. Their exact orchestration behavior depends on platform configuration.
+### Q23. What can go wrong when a startup probe is omitted for a slow-starting application?
+If liveness begins checking before a slow application has initialized, the platform may repeatedly restart it before it can become ready. A startup probe can provide a bounded initialization window; readiness then controls traffic and liveness detects a stuck process. Choose thresholds from measured startup behavior and avoid making liveness depend on every downstream service.
 
 ### Q24. Why budget memory beyond the heap?
 Native memory, thread stacks, metaspace, direct buffers, and libraries also consume container memory.
