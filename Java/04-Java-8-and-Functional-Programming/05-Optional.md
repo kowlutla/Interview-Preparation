@@ -36,7 +36,7 @@ If fallback creation is expensive or has side effects, orElseGet may be more app
 
 ### Q5. What does orElseThrow do? *(Intermediate)*
 
-orElseThrow returns the present value or throws when the Optional is empty. The no-argument form throws NoSuchElementException; the supplier form allows a domain-specific exception.
+orElseThrow returns the present value or throws when the Optional is empty. The supplier form allows a domain-specific exception and was available in Java 8; the no-argument form that throws NoSuchElementException was added in Java 10.
 
     User user = repository.findById(id)
         .orElseThrow(() -> new UserNotFoundException(id));
