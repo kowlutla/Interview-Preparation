@@ -247,3 +247,9 @@ The release-summary chapters necessarily repeat feature names also covered by de
 The current repository tree contains 75 Markdown files under Java/. The README has 77 local Markdown links, and all 77 resolve against the current main tree. The current recorded handbook inventory remains 57 Q&A chapters and 1,083 numbered Q&A headings across the 56 chapters that use the ### Qn. format; the coding/output bank uses ### Problem n. headings instead. These are structural counts, not proof that every question is unique or every answer fully certified.
 
 The user has explicitly requested no code compilation or execution for this review. This pass is therefore limited to manual reasoning, version/API-contract review, content consistency, and repository structure. Historical targeted smoke-test notes elsewhere in the audit describe earlier work and should not be interpreted as a new validation run for this pass.
+
+### Java 8 baseline compatibility sweep — additional pass — 2026-10-24
+
+Scanned older Fundamentals, Core Language, Collections, and Java 8/functional-programming chapters for common post-Java-8 API/syntax markers (`var`, records, sealed types, pattern matching, collection factories, `Stream.toList`, `String.isBlank`/`strip`, and newer I/O methods). Confirmed newer APIs were either version-labeled or confined to version-specific material in the sampled files. Two unlabelled Java 10 `var` examples were found and corrected: the conditional-expression example now declares `long` explicitly, and the try-with-resources example uses an explicit `BufferedReader` type with a note on Java 7/8/9/10 language boundaries. This was a targeted source scan plus manual context review, not a complete parser-based API compatibility proof.
+
+Also rechecked CompletableFuture examples: `exceptionallyCompose` is identified as Java 12+, and `orTimeout`/`completeOnTimeout` as Java 9+. No code was compiled or executed during this pass.
