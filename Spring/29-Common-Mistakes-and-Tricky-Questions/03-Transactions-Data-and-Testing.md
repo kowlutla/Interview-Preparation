@@ -74,8 +74,8 @@ Invoke the Spring-managed service boundary, force a failure after a write, and i
 ### Q24. Why can test-level @Transactional confuse rollback tests?
 The test framework may wrap the test in a transaction that rolls back at the end, masking the service's own transaction behavior. Explicitly control commit/rollback boundaries in the test.
 
-### Q25. What is the value of Testcontainers?
-It lets tests use real infrastructure in disposable containers, increasing fidelity for database dialect, broker, and integration behavior. It costs startup time and CI resources.
+### Q25. Which database behaviors should Testcontainers validate that mocks cannot?
+Use Testcontainers when correctness depends on the actual engine's SQL dialect, constraints, locking, isolation, migrations, or extensions. A repository mock cannot validate SQL execution, and an in-memory substitute may behave differently from production. Keep these integration tests focused, deterministic, and isolated; use mocks for service-level decision logic rather than pretending they prove persistence behavior.
 
 ### Q26. Why is H2 not a complete substitute for PostgreSQL or Oracle?
 Dialect, locking, collation, types, query planning, and constraints differ. Use the production engine for behavior where those differences matter.
