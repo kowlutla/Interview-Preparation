@@ -26,11 +26,6 @@ Tracing connects spans across service boundaries to show where time is spent and
 
 Expose only the endpoints needed by the platform, restrict sensitive environment/configuration details, and apply authentication/network controls. Review actual exposure configuration after upgrades because endpoint defaults and integration details can change across versions.
 
-## Official references
-
-- [Spring Boot Actuator](https://docs.spring.io/spring-boot/reference/actuator/)
-- [Micrometer documentation](https://docs.micrometer.io/)
-
 ### Q7. How should custom health indicators avoid cascading failures?
 
 Use short timeouts, avoid expensive full business operations, and distinguish critical readiness dependencies from optional dependencies. During a shared outage, health checks should not create more load than the business traffic they are diagnosing.
@@ -46,3 +41,8 @@ Use indicators tied to user-visible reliability and choose windows/thresholds th
 ### Q10. Why must observability endpoints be reviewed after an upgrade?
 
 Endpoint availability, defaults, configuration properties, and integrations can change across release lines. Re-test exposure and authorization, especially for environment/configuration details, rather than assuming the previous deployment policy still applies.
+
+## Official references
+
+- [Spring Boot Actuator](https://docs.spring.io/spring-boot/reference/actuator/)
+- [Micrometer documentation](https://docs.micrometer.io/)
