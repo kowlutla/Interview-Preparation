@@ -35,7 +35,7 @@ Framework 7.0 retains a JDK 17 baseline and adopts Jakarta EE 11 APIs such as Se
 
 - [Spring Framework versions and support](https://github.com/spring-projects/spring-framework/wiki/Spring-Framework-Versions)
 - [Spring Framework 7.0 release notes](https://github.com/spring-projects/spring-framework/wiki/Spring-Framework-7.0-Release-Notes)
-- [Spring Framework 7.1 preview release notes](https://github.com/spring-projects/spring-framework/wiki/Spring-Framework-7.1-Release-Notes)
+- [Spring Framework 7.1 prerelease notes](https://github.com/spring-projects/spring-framework/wiki/Spring-Framework-7.1-Release-Notes)
 - [Spring Framework release list](https://github.com/spring-projects/spring-framework/releases)
 - [Spring Boot 4.0 system requirements](https://docs.spring.io/spring-boot/4.0/system-requirements.html)
 - [Spring Boot current system requirements](https://docs.spring.io/spring-boot/system-requirements.html)
