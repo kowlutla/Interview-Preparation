@@ -205,6 +205,18 @@ Use JMH or another suitable microbenchmark harness rather than a single wall-clo
 
 Prefer the clearest implementation first, then measure a representative bottleneck. Modern Java concatenation can be optimized aggressively, so folklore is not a substitute for measurement.
 
+### Q29. Why are Unicode code points still not the same as user-perceived characters? *(Advanced)*
+
+A Unicode code point can still be only one part of a user-perceived grapheme cluster. A displayed symbol may combine a base character with combining marks, use a variation selector, join multiple emoji with a zero-width joiner, or represent a flag with regional-indicator code points. Iterating Java char values is even narrower because supplementary code points use surrogate pairs.
+
+If the UI must count, truncate, or move through user-perceived characters, use a Unicode-aware grapheme-segmentation implementation and test combining marks, emoji sequences, and flags. Do not assume String.length(), codePointCount(), or a simple code-point loop gives the number of visible symbols.
+
+### Q30. Why should locale be explicit for case conversion and formatting? *(Advanced)*
+
+Some string operations and formatting APIs depend on the default locale. For machine identifiers and protocol tokens, locale-sensitive conversion can produce surprising results; use Locale.ROOT for locale-independent case normalization where that is the intended contract. For user-facing numbers, dates, and currency, use an explicit user or business locale rather than relying on the server's default.
+
+Locale and Unicode normalization are separate concerns. Define canonicalization rules for identifiers, and define locale-specific presentation rules for human-readable text. Do not use localized display strings as stable database keys or wire-format values.
+
 ## Official references
 
 1. [Java SE 21 API — String](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/String.html)
