@@ -105,3 +105,9 @@ These are manual documentation/API-version corrections only. No compilation or r
 - Read through the complete 1–75 production-scenario set. Each scenario or design prompt has a diagnostic/reasoning path, a resolution or design direction, trade-offs/prevention or failure modes, and a follow-up question. No new factual correction was confirmed in this pass. The scenarios are still narrative guidance, not substitutes for environment-specific runbooks or executable incident drills.
 - Refined the Spring Boot testing guidance to state that `@MockBean`/`@SpyBean` were deprecated for removal in Boot 3.4 and removed in Boot 4, with `@MockitoBean`/`@MockitoSpyBean` as the modern path. The exact annotation API remains tied to the selected Framework/Boot line.
 - The local Markdown target audit remains clean after the added exercise links; external URL reachability and anchor correctness are still a separate audit item.
+
+### Transaction and Boot 4 compatibility edge cases — 2026-10-24
+
+- Added the Spring Framework 6.2+ global rollback-policy nuance: traditional defaults roll back on unchecked exceptions and Errors, while transaction management can opt into `ALL_EXCEPTIONS`; explicit rules and caught exceptions still matter. This is reflected in the core transaction Q&A and tricky-question collection.
+- Added Boot 4 modular-starter/test-module and test-annotation migration guidance to the compatibility page. The reference guide should remain version-specific: Boot 4 removed `@MockBean`/`@SpyBean` support, and tests may need explicit MVC/client test auto-configuration rather than relying on older `@SpringBootTest` behavior.
+- Rechecked the updated exercise files after adding navigation links to detailed solutions: 61 local Markdown links were found in the four exercise files, and every target resolves. The 60 newly added cross-links are included in this count alongside one pre-existing local link.
