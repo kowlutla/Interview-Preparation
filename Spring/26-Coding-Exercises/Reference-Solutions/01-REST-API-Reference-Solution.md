@@ -13,6 +13,8 @@ This is a compact reference implementation for exercises covering DTOs, construc
 
 Place each public top-level record in its own Java source file (for example, `CreateOrderRequest.java` and `OrderResponse.java`) under the package shown below.
 
+`CreateOrderRequest.java`
+
 ```java
 package example.orders.api;
 
@@ -23,6 +25,12 @@ public record CreateOrderRequest(
     @NotBlank String productCode,
     @Positive int quantity
 ) {}
+```
+
+`OrderResponse.java`
+
+```java
+package example.orders.api;
 
 public record OrderResponse(
     String id,
