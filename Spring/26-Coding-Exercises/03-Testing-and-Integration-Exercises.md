@@ -18,6 +18,8 @@
 
 **Related detailed solution:** [Validated REST API and MockMvc](Reference-Solutions/01-REST-API-Reference-Solution.md)
 
+**Common mistake:** Mocking the controller itself, which bypasses MVC binding, validation, and serialization.
+
 **Validation:** Assert status, JSON fields, validation response, and unsupported media behavior.
 
 ## Exercise 53 — JPA slice test
@@ -28,6 +30,8 @@
 
 **Related detailed solution:** [Testcontainers and HTTP client patterns](Reference-Solutions/05-Testcontainers-and-Client-Reference.md)
 
+**Common mistake:** Relying only on H2 when production SQL dialect, locking, or isolation matters.
+
 **Validation:** Cover empty data, sorting ties, query predicates, and transaction cleanup.
 
 ## Exercise 54 — JSON serialization test
@@ -35,6 +39,8 @@
 **Problem:** Ensure a public DTO serializes to the expected API contract.
 
 **Reference approach:** Use the supported JSON test slice and assert stable fields, date formats, null handling, and unknown-field policy as appropriate.
+
+**Common mistake:** Asserting a brittle whole-JSON string while ignoring meaningful contract fields and compatibility.
 
 **Validation:** Include backward-compatibility expectations for fields consumed by clients.
 
@@ -46,6 +52,8 @@
 
 **Related detailed solution:** [Testcontainers and RestClient patterns](Reference-Solutions/05-Testcontainers-and-Client-Reference.md)
 
+**Common mistake:** Calling a real external service from a unit test, making the suite flaky and environment-dependent.
+
 **Validation:** Assert timeout and non-2xx handling as well as success.
 
 ## Exercise 56 — Test context cache
@@ -53,6 +61,8 @@
 **Problem:** Reduce a slow test suite without losing confidence.
 
 **Reference approach:** Reuse consistent context configurations, avoid unnecessary unique test properties, and use slices for narrow behavior. Do not share mutable global state between tests.
+
+**Common mistake:** Adding @DirtiesContext broadly instead of identifying the shared state or unique context configuration.
 
 **Validation:** Compare test runtime and confirm tests remain isolated under parallel execution if enabled.
 
@@ -64,6 +74,8 @@
 
 **Related detailed solution:** [Scheduled work and resilience](Reference-Solutions/09-Scheduled-Work-and-Resilience.md)
 
+**Common mistake:** Using Thread.sleep to guess when the scheduled trigger ran.
+
 **Validation:** Verify duplicate invocation is safe and failures are observable.
 
 ## Exercise 58 — Test Kafka listener failure
@@ -73,6 +85,8 @@
 **Reference approach:** Use the Spring Kafka test support or a broker container when broker semantics matter. Make the failure deterministic and inspect the resulting retry/dead-letter path.
 
 **Related detailed solution:** [Transactional outbox and idempotent consumer](Reference-Solutions/07-Outbox-and-Idempotency.md)
+
+**Common mistake:** Checking only that the listener was invoked and never asserting retry/dead-letter behavior.
 
 **Validation:** Assert successful retry, permanent failure routing, and duplicate-safe business effect.
 
@@ -84,6 +98,8 @@
 
 **Related detailed solution:** [Transactional transfer and rollback testing](Reference-Solutions/02-Transaction-Reference-Solution.md)
 
+**Common mistake:** Inspecting the same persistence-context entity or leaving the test's own transaction to mask rollback.
+
 **Validation:** Include checked-exception behavior if the application uses explicit rollback rules.
 
 ## Exercise 60 — Test after-commit events
@@ -93,6 +109,8 @@
 **Reference approach:** Publish the event within a transaction and test both commit and rollback cases. Use transaction-test utilities appropriate to the test context.
 
 **Related detailed solution:** [Transactional outbox and idempotent consumer](Reference-Solutions/07-Outbox-and-Idempotency.md)
+
+**Common mistake:** Testing the listener without an actual transaction, so the AFTER_COMMIT phase is never meaningfully exercised.
 
 **Validation:** Confirm external side effects are not attempted after rollback.
 
@@ -104,6 +122,8 @@
 
 **Related detailed solution:** [JWT resource-server configuration and authorization](Reference-Solutions/03-Security-Reference-Solution.md)
 
+**Common mistake:** Testing only a valid token and skipping wrong issuer, expiry, audience, and authority mapping.
+
 **Validation:** Ensure a token with valid signature but wrong trust claims is rejected.
 
 ## Exercise 62 — Test CORS policy
@@ -114,6 +134,8 @@
 
 **Related detailed solution:** [JWT resource-server configuration and authorization](Reference-Solutions/03-Security-Reference-Solution.md)
 
+**Common mistake:** Treating a CORS response as proof that the server authorizes the caller.
+
 **Validation:** Confirm CORS is not treated as authorization for non-browser clients.
 
 ## Exercise 63 — Test application startup conditions
@@ -121,6 +143,8 @@
 **Problem:** Verify a required bean exists only when a feature property is enabled.
 
 **Reference approach:** Use isolated application-context tests or Boot condition testing support to cover both property states.
+
+**Common mistake:** Testing only the enabled-property case and never verifying the disabled/default condition.
 
 **Validation:** Assert bean presence/absence and startup failure when a required dependency is missing.
 
@@ -132,6 +156,8 @@
 
 **Related detailed solution:** [Scheduled work and resilience](Reference-Solutions/09-Scheduled-Work-and-Resilience.md)
 
+**Common mistake:** Waiting indefinitely for shutdown or asserting completion without a bounded timeout.
+
 **Validation:** Include a task that exceeds the grace period and ensure shutdown does not hang indefinitely.
 
 ## Exercise 65 — Test observability
@@ -141,6 +167,8 @@
 **Reference approach:** Use a simple MeterRegistry in a focused test and assert instrument updates without depending on a production monitoring server.
 
 **Related detailed solution:** [Actuator health and metrics](Reference-Solutions/08-Actuator-and-Metrics.md)
+
+**Common mistake:** Tagging metrics with trace IDs, user IDs, or other unbounded values.
 
 **Validation:** Ensure metric tags are bounded and do not contain request-specific identifiers.
 
@@ -152,6 +180,8 @@
 
 **Related detailed solution:** [Configuration binding and custom validation](Reference-Solutions/06-Configuration-and-Validation.md)
 
+**Common mistake:** Testing only valid configuration and missing the malformed/zero/negative boundary cases.
+
 **Validation:** Test missing, malformed, and boundary values with clear startup diagnostics.
 
 ## Exercise 67 — Test API idempotency
@@ -162,6 +192,8 @@
 
 **Related detailed solution:** [Transactional outbox and idempotent consumer](Reference-Solutions/07-Outbox-and-Idempotency.md)
 
+**Common mistake:** Using an in-memory idempotency map or failing to test simultaneous duplicate requests.
+
 **Validation:** Send identical requests sequentially and concurrently; assert one order and deterministic responses.
 
 ## Exercise 68 — Test connection-pool saturation
@@ -169,6 +201,8 @@
 **Problem:** Demonstrate how slow database work affects request latency.
 
 **Reference approach:** Use a controlled integration test environment with a deliberately small pool and slow query, then inspect pool metrics and timeout behavior.
+
+**Common mistake:** Using an unbounded wait or leaving a slow database test able to hang CI.
 
 **Validation:** Ensure the test is isolated and bounded so it cannot hang CI.
 
@@ -180,6 +214,8 @@
 
 **Related detailed solution:** [Scheduled work and resilience](Reference-Solutions/09-Scheduled-Work-and-Resilience.md)
 
+**Common mistake:** Returning a fake success for a critical write instead of exposing an unknown/failed outcome.
+
 **Validation:** Test downstream timeout, fallback response, metric/log emission, and recovery.
 
 ## Exercise 70 — Test trace propagation
@@ -189,5 +225,7 @@
 **Reference approach:** Use supported tracing instrumentation and a mock server that captures headers.
 
 **Related detailed solution:** [Actuator health and metrics](Reference-Solutions/08-Actuator-and-Metrics.md)
+
+**Common mistake:** Asserting a random generated trace ID exactly rather than checking valid propagation and parent-child continuity.
 
 **Validation:** Assert context propagation without coupling tests to unrelated generated IDs or exact sampling decisions.
