@@ -36,12 +36,6 @@ Common causes include excessive full-context startup, shared mutable test state,
 
 Test anonymous access, authenticated-but-forbidden access, authorized access, malformed credentials, and relevant claim/authority combinations. Verify the actual filter chain and endpoint rules, not only service-level authorization annotations. Include negative tests to prevent accidental exposure.
 
-## Official references
-
-- [Spring Boot testing](https://docs.spring.io/spring-boot/reference/testing/index.html)
-- [Spring Framework testing](https://docs.spring.io/spring-framework/reference/testing.html)
-- [Testcontainers](https://java.testcontainers.org/)
-
 ### Q9. When should a test use a real HTTP server instead of MockMvc?
 
 Use a real-server test when transport behavior, actual server configuration, socket handling, compression, or deployed HTTP integration is part of the risk. MockMvc is faster for MVC handler behavior but does not exercise the full network stack.
@@ -61,3 +55,9 @@ Start from a known baseline schema and run the real migration sequence against t
 ### Q13. How should test secrets and environment configuration be handled?
 
 Use test-only credentials and ephemeral infrastructure, avoid committing real secrets, and make configuration deterministic. Ensure logs and test reports do not include credentials or personal data when failures print configuration/request payloads.
+
+## Official references
+
+- [Spring Boot testing](https://docs.spring.io/spring-boot/reference/testing/index.html)
+- [Spring Framework testing](https://docs.spring.io/spring-framework/reference/testing.html)
+- [Testcontainers](https://java.testcontainers.org/)
