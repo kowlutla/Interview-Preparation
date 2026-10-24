@@ -62,7 +62,7 @@ java Hello
 
 `javap -c` displays bytecode instructions; `-v` includes more class-file metadata. Exact bytecode is a compiler output detail and may differ between compiler versions even when the program has the same observable behavior.
 
-### Q6. What is Java bytecode? *(Beginner)*
+### Q6. Why does Java use bytecode between source code and runtime execution? *(Beginner)*
 
 Bytecode is the instruction set encoded in a Java class file. Instructions operate on the JVM's abstract execution model and include operations for constants, local variables, operand-stack manipulation, arithmetic, branches, method invocation, object creation, and exception handling.
 
