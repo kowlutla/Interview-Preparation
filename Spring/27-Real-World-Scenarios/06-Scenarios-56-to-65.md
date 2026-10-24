@@ -4,9 +4,9 @@
 
 **Symptoms:** Context fails with duplicate or ambiguous bean errors.
 
-**Investigate:** Check auto-configuration conditions, component scanning, explicit @Bean definitions, and library versions.
+**Investigation:** Check auto-configuration conditions, component scanning, explicit @Bean definitions, and library versions.
 
-**Resolve:** Remove duplicate registration or use a deliberate conditional customization. Do not disable all auto-configuration to suppress one conflict.
+**Resolution:** Remove duplicate registration or use a deliberate conditional customization. Do not disable all auto-configuration to suppress one conflict.
 
 **Prevent:** Test the starter with and without application overrides.
 
@@ -16,9 +16,9 @@
 
 **Symptoms:** Invalid input becomes a generic server failure.
 
-**Investigate:** Inspect binding/validation exception types, handler selection, and advice ordering.
+**Investigation:** Inspect binding/validation exception types, handler selection, and advice ordering.
 
-**Resolve:** Map expected request errors to stable client responses and keep unexpected exceptions as 500.
+**Resolution:** Map expected request errors to stable client responses and keep unexpected exceptions as 500.
 
 **Prevent:** Contract-test malformed JSON, invalid fields, and business-rule failures separately.
 
@@ -28,9 +28,9 @@
 
 **Symptoms:** Database spans are fast but response latency remains high.
 
-**Investigate:** Profile serialization, payload size, entity graph traversal, custom serializers, and repeated computed properties.
+**Investigation:** Profile serialization, payload size, entity graph traversal, custom serializers, and repeated computed properties.
 
-**Resolve:** Return purpose-built DTOs, reduce payload size, and optimize only measured hotspots.
+**Resolution:** Return purpose-built DTOs, reduce payload size, and optimize only measured hotspots.
 
 **Prevent:** Track response size and test serialization of representative data.
 
@@ -40,9 +40,9 @@
 
 **Symptoms:** Startup migration takes too long or locks production tables.
 
-**Investigate:** Review migration statements, lock behavior, table size, transaction strategy, and whether every replica attempts startup migration.
+**Investigation:** Review migration statements, lock behavior, table size, transaction strategy, and whether every replica attempts startup migration.
 
-**Resolve:** Use staged expand-and-contract changes, pre-deployment migration jobs where appropriate, and tested rollback/recovery plans.
+**Resolution:** Use staged expand-and-contract changes, pre-deployment migration jobs where appropriate, and tested rollback/recovery plans.
 
 **Prevent:** Exercise migrations against production-like data volumes.
 
@@ -52,9 +52,9 @@
 
 **Symptoms:** Database connections spike as replicas start simultaneously.
 
-**Investigate:** Check pool max size per replica, startup probes, retry behavior, connection initialization, and total replica count during rolling deployment.
+**Investigation:** Check pool max size per replica, startup probes, retry behavior, connection initialization, and total replica count during rolling deployment.
 
-**Resolve:** Budget aggregate connections, stagger rollout, and tune pool sizes against database limits.
+**Resolution:** Budget aggregate connections, stagger rollout, and tune pool sizes against database limits.
 
 **Prevent:** Load-test rollout surge capacity.
 
@@ -64,9 +64,9 @@
 
 **Symptoms:** Security or request context is missing when a filter executes.
 
-**Investigate:** Inspect servlet filter registration, security filter chain ordering, and whether the request matches a different chain.
+**Investigation:** Inspect servlet filter registration, security filter chain ordering, and whether the request matches a different chain.
 
-**Resolve:** Place the filter at the correct pipeline boundary and use supported ordering APIs.
+**Resolution:** Place the filter at the correct pipeline boundary and use supported ordering APIs.
 
 **Prevent:** Integration-test the actual filter sequence and failure behavior.
 
@@ -76,9 +76,9 @@
 
 **Symptoms:** Wrong tenant or trace context appears in logs from pooled threads.
 
-**Investigate:** Check ThreadLocal cleanup, executor reuse, and unsupported context propagation assumptions.
+**Investigation:** Check ThreadLocal cleanup, executor reuse, and unsupported context propagation assumptions.
 
-**Resolve:** Use framework-supported context propagation or explicit immutable task context; always clear manually managed thread-local state in finally blocks.
+**Resolution:** Use framework-supported context propagation or explicit immutable task context; always clear manually managed thread-local state in finally blocks.
 
 **Prevent:** Add concurrent tests with different tenants and tracing identities.
 
@@ -88,9 +88,9 @@
 
 **Symptoms:** Browser preflight fails only through gateway or ingress.
 
-**Investigate:** Check origin, scheme, headers, credentials, proxy behavior, and whether gateway and service apply conflicting policies.
+**Investigation:** Check origin, scheme, headers, credentials, proxy behavior, and whether gateway and service apply conflicting policies.
 
-**Resolve:** Establish one coherent policy at the intended boundary and ensure preflight requests are handled correctly.
+**Resolution:** Establish one coherent policy at the intended boundary and ensure preflight requests are handled correctly.
 
 **Prevent:** Test deployed-like hostnames and HTTPS configuration.
 
@@ -100,9 +100,9 @@
 
 **Symptoms:** Users receive 429 during bursts or multi-instance traffic.
 
-**Investigate:** Review key selection, burst/window algorithm, shared state, clock assumptions, and client identity.
+**Investigation:** Review key selection, burst/window algorithm, shared state, clock assumptions, and client identity.
 
-**Resolve:** Tune quota semantics to product requirements and return appropriate retry guidance where supported.
+**Resolution:** Tune quota semantics to product requirements and return appropriate retry guidance where supported.
 
 **Prevent:** Test burst, sustained rate, and multi-replica cases.
 
@@ -112,9 +112,9 @@
 
 **Symptoms:** Background tasks are increasingly stale while the API still returns success.
 
-**Investigate:** Monitor queue depth, oldest task age, worker utilization, rejection counts, and downstream latency.
+**Investigation:** Monitor queue depth, oldest task age, worker utilization, rejection counts, and downstream latency.
 
-**Resolve:** Apply backpressure or admission control, tune only after measuring capacity, and make task durability explicit.
+**Resolution:** Apply backpressure or admission control, tune only after measuring capacity, and make task durability explicit.
 
 **Prevent:** Alert on queue age, not just task failures.
 
