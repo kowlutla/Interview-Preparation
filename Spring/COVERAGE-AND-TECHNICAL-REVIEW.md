@@ -8,7 +8,7 @@
 
 | Requirement | Current inventory | Status |
 |---|---:|---|
-| Numbered Q&A headings | 610 counted across 25 core chapters (269), advanced ecosystem (20), and tricky-question files (320) | Count target met; deduplication/depth audit remains |
+| Numbered Q&A headings | 610 counted across 25 core chapters (270), advanced ecosystem (20), and tricky-question files (320) | Count target met; deduplication/depth audit remains |
 | Coding exercises | 85 numbered exercises | Count target met; runnable implementation depth varies |
 | Production scenarios | 75 numbered scenarios | Count target met; review each for investigation evidence and trade-offs |
 | Mock interviews | 5 interview files | Count target met; answers are model discussion prompts, not transcripts |
