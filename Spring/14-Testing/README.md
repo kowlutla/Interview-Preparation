@@ -46,7 +46,7 @@ Use bounded futures, latches, Awaitility-style conditions, or controlled executo
 
 ### Q11. What is the risk of @DirtiesContext?
 
-It evicts a context from the test cache and can substantially increase suite runtime. Use it when a test truly corrupts shared context state; prefer isolating mutable state and resetting the specific resource.
+@DirtiesContext marks a cached test ApplicationContext for removal, causing Spring TestContext to close and rebuild it rather than reuse it. This can substantially increase suite time and may hide state-isolation problems if used routinely. Use it when a test genuinely changes context-level state that cannot be safely reset; otherwise reset the specific database, mock, cache, or singleton state and keep tests independent.
 
 ### Q12. How do you test a migration against an existing schema?
 
@@ -54,7 +54,7 @@ Start from a known baseline schema and run the real migration sequence against t
 
 ### Q13. How should test secrets and environment configuration be handled?
 
-Use test-only credentials and ephemeral infrastructure, avoid committing real secrets, and make configuration deterministic. Ensure logs and test reports do not include credentials or personal data when failures print configuration/request payloads.
+Use dedicated test credentials and ephemeral or isolated infrastructure, and load secrets through the test environment rather than committing real credentials. Keep configuration deterministic so tests do not accidentally connect to production systems. Be careful with failed assertions, HTTP wire logs, container output, and test reports that may print request payloads or effective properties; redact tokens and personal data before storing CI artifacts, and rotate any credential that is exposed.
 
 ## Official references
 
