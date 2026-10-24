@@ -218,3 +218,13 @@ Compared question headings and sampled answer bodies across the handbook's Q&A c
 
 **Remaining limitation:** this was a heading comparison plus targeted answer-level inspection, not a fully automated semantic similarity evaluation of every answer. Continue reviewing overlapping clusters, especially Java-version summaries versus dedicated feature chapters, and keep questions only when their angle is meaningfully distinct. No compile/run validation was performed.
 
+### Duplicate-cluster follow-up — 2026-10-24
+
+Refined several repeated introductory headings so the learning objective is explicit rather than duplicating the title of a deeper chapter:
+- The Java execution chapter now asks why bytecode sits between source and runtime execution, while the class-loading/bytecode chapter retains the direct bytecode definition and runtime compatibility angle.
+- The execution chapter's class-loading question now focuses on its role in application startup; the JVM chapter retains the lifecycle detail.
+- The classes/interfaces chapter now focuses on how @FunctionalInterface protects the lambda contract, while the lambda chapter retains the definition.
+- The executor chapter now focuses on how ExecutorService returns a task handle, while the Future/CompletableFuture chapter retains the general Future definition and asynchronous composition.
+
+Together with the earlier changes, this pass has adjusted repeated questions about Coffman conditions, BlockingQueue, deoptimization, and direct-buffer management. These are selective editorial changes; repeated concepts remain where their purpose is deliberately foundational, version-focused, or diagnostic. Recheck the affected headings and links after further edits, and do not infer that all semantic duplication has been eliminated.
+
