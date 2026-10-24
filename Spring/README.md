@@ -93,7 +93,7 @@ See the [coverage inventory and technical review checklist](COVERAGE-AND-TECHNIC
 - [x] Exercise entry consistency: all 85 include a reference approach, common-mistake note, and validation points; depth of the solution itself remains under review
 - [x] Production-scenario numbering audit: 1–75 continuous
 - [x] Scenario-format consistency pass for incident and architecture/design scenarios; prevention guidance and label consistency improved
-- [x] Targeted answer-depth improvements in Boot, MVC, transactions, security, and reactive programming (full 610-question depth review remains pending)
+- [x] Answer-depth screen and targeted expansions across all 290 core/advanced answers; full claim-by-claim technical correctness review and global semantic deduplication remain pending
 - [x] Local Markdown target audit across all 68 Spring Markdown files (all local targets resolve); no local fragment links were found. Targeted official-reference URL checks corrected stale Boot Javadoc and Spring Cloud links; remaining external URLs and the two project-page `#support` anchors still need review.
 - [x] Compared core and tricky-question titles with overlap screening and refined several near-duplicate prompts into diagnostic/scenario variants; no exact repeats within either batch or within the tricky-question collection
 - [x] Answer-depth screen: all 270 core and 20 advanced ecosystem answers contain at least 35 words after targeted expansions; the 320 tricky Q&As intentionally use concise rapid-fire answers
