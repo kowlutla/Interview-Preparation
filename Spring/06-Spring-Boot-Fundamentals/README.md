@@ -39,3 +39,35 @@ No. Boot supports non-web applications as well as servlet and reactive web appli
 - [Spring Boot reference](https://docs.spring.io/spring-boot/reference/)
 - [Auto-configuration](https://docs.spring.io/spring-boot/reference/using/auto-configuration.html)
 - [Creating an executable JAR](https://docs.spring.io/spring-boot/maven-plugin/packaging.html)
+
+### Q9. What is the difference between a starter and auto-configuration?
+
+A starter declares a curated dependency set. Auto-configuration is conditional configuration that registers infrastructure when prerequisites match. Adding a starter often brings libraries that allow auto-configuration to activate, but the two concepts are distinct.
+
+### Q10. What is the condition evaluation report used for?
+
+It explains which auto-configuration conditions matched or failed. Use it alongside startup logs, effective properties, and the root exception to understand missing or unexpected beans.
+
+### Q11. What is the purpose of SpringApplication events?
+
+They expose lifecycle milestones such as environment preparation, context initialization, and readiness. Use the appropriate phase for a listener; an event's existence does not imply every dependency is healthy or every startup task has completed.
+
+### Q12. Why should application startup avoid remote calls in bean constructors?
+
+Constructors run during object creation and can block context initialization or fail the whole startup due to transient dependency issues. Keep construction lightweight and place required startup checks in a bounded, observable lifecycle phase.
+
+### Q13. What is graceful shutdown in Boot?
+
+It allows supported servers to stop accepting new requests and gives in-flight work a configured opportunity to finish. Background executors, message consumers, and scheduled tasks need their own lifecycle and recovery policies.
+
+### Q14. How do you package configuration for an executable JAR?
+
+Package the application artifact separately from environment-specific settings and inject configuration through supported external sources. Avoid rebuilding the artifact for each environment and do not bundle production secrets.
+
+### Q15. What is AOT processing in Spring Boot?
+
+Ahead-of-time processing prepares application metadata/code paths for scenarios such as native images and can improve startup/runtime characteristics in supported cases. It introduces constraints around reflection/dynamic behavior and must be tested with the chosen dependencies and build configuration.
+
+### Q16. Does a successful Boot startup guarantee production correctness?
+
+No. It verifies only the initialization path exercised. Runtime authorization, dependency timeouts, pool saturation, message redelivery, shutdown, and load behavior require tests and operational validation.
