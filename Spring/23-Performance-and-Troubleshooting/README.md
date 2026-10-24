@@ -33,4 +33,4 @@ Establish a representative baseline, define a measurable target, change one majo
 ## Official references
 
 - [Spring Boot Actuator metrics](https://docs.spring.io/spring-boot/reference/actuator/metrics.html)
-- [Java Flight Recorder](https://docs.oracle.com/en/java/javase/21/jfapi/flight-recorder.html)
+- [Java Flight Recorder command-line tool (JDK 21)](https://docs.oracle.com/en/java/javase/21/docs/specs/man/jfr.html)
