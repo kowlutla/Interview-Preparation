@@ -42,7 +42,7 @@
 
 ## Recent audit corrections
 
-- Recounted numbered Q&A headings from the 25 core category files (270) and seven tricky-question files (320): 589 before the new ecosystem chapter. The new advanced ecosystem chapter adds 20, and a version-preview question was added to the migration chapter, for 610 total.
+- The original inventory was 589 (269 core-category Q&As plus 320 tricky questions). Added 20 advanced ecosystem Q&As and one migration question about preview-versus-stable releases. The current breakdown is 270 core-category Q&As, 20 advanced ecosystem Q&As, and 320 tricky questions: 610 total.
 - Added 20 advanced ecosystem Q&As covering Spring Batch, Modulith, GraphQL, WebSocket, AOT/native images, virtual threads, OAuth2 roles, Spring Session, Integration, Contract, and retry design. Current inventory: 610 numbered Q&A headings.
 - Removed a duplicated status sentence from the main README.
 - Refreshed the compatibility snapshot against current official documentation checked on 2026-10-24; the stable pages list Framework 7.0.10 and Boot 4.1.2. This remains a dated snapshot and must be rechecked before a real upgrade.
