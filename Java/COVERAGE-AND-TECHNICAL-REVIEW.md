@@ -109,3 +109,8 @@ The README's Core Language navigation repeated the Generics and Exceptions chapt
 ### Review boundary
 
 This pass was a targeted content review. It did not compile or execute examples and does not certify every question in these chapters. Continue with the remaining Collections contracts, JVM/GC claims, I/O/serialization, JDBC, networking, and security.
+
+### Additional findings in the same pass
+
+- **Collections contracts:** Sampled Collections overview, List/ArrayList, Set/HashSet, TreeMap/sorted collections, and HashMap material. The sampled claims about fail-fast iteration, backed views, equality/ordering, null policies, and complexity were broadly sound. The HashMap example's Java 8 syntax issue is recorded above and fixed in the chapter.
+- **JVM memory areas and GC:** Clarified that the run-time constant pool is a per-class/interface structure allocated from the method area, rather than suggesting it is a wholly separate physical region. This follows the [Java SE 21 JVM Specification, sections 2.5.4–2.5.5](https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-2.html). Sampled GC, memory-leak, and diagnostics claims were broadly sound; this remains a targeted review, not an exhaustive audit of every answer.
