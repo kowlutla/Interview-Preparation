@@ -115,7 +115,7 @@ Do not assume every Spring Framework, Spring Boot, Spring Security, Spring Data,
 - [Spring Security Reference](https://docs.spring.io/spring-security/reference/)
 - [Spring Data JPA Reference](https://docs.spring.io/spring-data/jpa/reference/)
 - [Spring Cloud project and compatibility](https://spring.io/projects/spring-cloud)
-- [Spring Cloud release-train reference](https://docs.spring.io/spring-cloud-release/reference/)
+- [Spring Cloud release-train reference](https://spring.io/projects/spring-cloud#overview)
 - [Spring for Apache Kafka](https://docs.spring.io/spring-kafka/reference/)
 - [Spring Batch](https://docs.spring.io/spring-batch/reference/)
 - [Spring guides](https://spring.io/guides)
