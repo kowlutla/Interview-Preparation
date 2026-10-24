@@ -48,15 +48,15 @@ Bulk JPQL/native updates can bypass ordinary entity-by-entity state tracking. Th
 
 ### Q12. What is the risk of using native queries everywhere?
 
-Native SQL can be necessary for database-specific features and performance, but it couples code to dialect/schema details and may reduce portability. Keep critical native queries documented and tested against the production database engine.
+Native SQL is useful for database-specific features, vendor functions, complex reporting, or a measured performance need, but it couples the query to the schema and often to a database dialect. It can bypass assumptions made by entity mappings or complicate pagination/count queries. Keep native queries focused, document why JPQL or derived queries are insufficient, bind parameters safely, and test against the production database engine and representative data.
 
 ### Q13. How should auditing timestamps be handled?
 
-Choose a consistent time basis, usually UTC instants for persisted event timestamps, and configure auditing infrastructure explicitly. Do not rely on an undocumented host default time zone; test serialization and display separately.
+Choose a consistent time model: UTC instants are usually appropriate for event timestamps, while business concepts such as a store's opening time may require a local date/time and explicit zone. Configure Spring Data auditing and its date-time provider deliberately, and avoid relying on the host's default time zone. Test persistence, JSON serialization, daylight-saving transitions where relevant, and user-facing display separately; formatting a timestamp is not the same as defining its meaning.
 
 ### Q14. How do you diagnose a query that is fast locally but slow in production?
 
-Compare data volume/distribution, indexes, database statistics, execution plan, lock contention, parameter selectivity, and network/connection wait. A unit test cannot substitute for an execution plan on representative production-like data.
+Compare data volume and distribution, index definitions, current database statistics, execution plans, parameter selectivity, lock waits, connection acquisition time, and network latency. Local fixtures often omit skew and scale, so an index that helps a tiny table may not help the production workload. Capture slow SQL and timings first, inspect the plan using representative parameters and safe production-like data, and validate the change with measured latency and resource use.
 
 ## Official references
 
