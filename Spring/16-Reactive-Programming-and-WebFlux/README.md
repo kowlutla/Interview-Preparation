@@ -30,11 +30,6 @@ A subscriber can cancel its subscription when it no longer needs data. Well-desi
 
 Reactive execution can hop threads, so ordinary ThreadLocal assumptions do not necessarily hold across the pipeline. Reactor Context is the common mechanism for contextual data, and supported integrations can bridge tracing or security context. Verify context propagation behavior for the exact versions and integrations in use.
 
-## Official references
-
-- [Spring WebFlux reference](https://docs.spring.io/spring-framework/reference/web/webflux.html)
-- [Project Reactor reference](https://projectreactor.io/docs/core/release/reference/)
-
 ### Q8. How does Reactor Context differ from a method parameter?
 
 A method parameter explicitly carries data through a call graph; Reactor Context carries subscriber-associated metadata across a reactive chain. Use Context for cross-cutting metadata such as tracing where supported, but use explicit parameters for business inputs that should remain visible in method contracts.
@@ -54,3 +49,8 @@ A retry operator can resubscribe after a failure, but cancellation and deadlines
 ### Q12. When should a reactive application use a boundedElastic scheduler?
 
 It can isolate unavoidable blocking work from event-loop threads, but it is not a substitute for a non-blocking dependency and still has finite resource capacity. Bound the work, observe queueing, and prefer reactive I/O when feasible.
+
+## Official references
+
+- [Spring WebFlux reference](https://docs.spring.io/spring-framework/reference/web/webflux.html)
+- [Project Reactor reference](https://projectreactor.io/docs/core/release/reference/)
