@@ -34,3 +34,23 @@ It does not make a slow or failing service healthy, guarantee session consistenc
 
 - [Spring Cloud project and compatibility](https://spring.io/projects/spring-cloud)
 - [Spring Cloud reference documentation](https://docs.spring.io/spring-cloud/docs/current/reference/html/)
+
+### Q8. What is the difference between a retry and a circuit breaker?
+
+A retry repeats a selected operation after a failure; a circuit breaker suppresses calls when recent outcomes indicate a dependency is unhealthy. Retries can amplify load, while a breaker can reject calls that might have succeeded. Configure both around an explicit deadline and operation semantics.
+
+### Q9. Why can timeout values not be selected independently per service?
+
+A request may traverse multiple nested services. The sum of waits, retries, and processing must fit the caller's deadline. Independently generous timeouts can make end-to-end latency unpredictable and exhaust upstream resources.
+
+### Q10. What is a service mesh's relationship to Spring Cloud?
+
+A service mesh can provide infrastructure-level traffic, identity, and telemetry policies, while Spring Cloud provides application-library integrations. They may overlap; avoid implementing the same retry/security policy at multiple layers without understanding precedence and compounded behavior.
+
+### Q11. How should service discovery and readiness interact?
+
+Discovery should ideally expose instances that are eligible to receive traffic, but propagation and caching mean stale instances can still be observed. Clients need bounded timeouts and failure handling even when health registration is configured correctly.
+
+### Q12. How do you avoid duplicate resilience policies across gateway and service clients?
+
+Assign clear ownership for timeouts, retries, and rate limits at each hop. Document the total request budget, avoid nested retries that multiply attempts, and test the combined system under a dependency outage.
