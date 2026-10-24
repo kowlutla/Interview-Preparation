@@ -41,7 +41,7 @@ This is a **small, targeted smoke test**, not a full handbook-wide validation. T
 
 ### P0 — Correctness and trustworthiness
 
-- [ ] Compile runnable snippets against their declared Java release; fix imports, missing type definitions, invalid APIs, and incorrect output.
+- [ ] Manually review runnable examples for Java syntax, API availability, stated release, and output reasoning. Compilation/execution is out of scope unless explicitly requested; do not imply it has occurred.
 - [ ] Independently verify concurrency claims against the Java Memory Model and the contracts of the relevant APIs.
 - [ ] Verify Java feature introduction/finalization/preview status against JEPs and release documentation.
 - [ ] Verify claims about HashMap, garbage collectors, JIT, object layout, and class loading are labeled as specification guarantees or implementation details.
@@ -73,7 +73,7 @@ These are scoped follow-up items, not claims that every listed subtopic is entir
 
 1. **Inventory and coverage matrix:** map every syllabus topic to the exact chapter and question that covers it; classify as strong, partial, missing, or needs verification.
 2. **Correctness pass:** review language and API contracts, version status, and tricky output claims.
-3. **Executable examples:** compile/run snippets in a small Java 8/11/17/21 matrix where relevant; note when a feature cannot compile on an older baseline.
+3. **Example review:** inspect snippets for syntax, API/version compatibility, assumptions, and stated output. Do not compile or execute examples unless explicitly requested; keep that boundary visible in the audit.
 4. **Depth and duplication pass:** identify answers that are shallow, repetitive, or inconsistent and revise them in place.
 5. **Practice-bank validation:** verify all 50 problems, test edge cases, and add tested reference implementations where appropriate.
 6. **Scenario review:** ensure each production scenario includes evidence, likely hypotheses, mitigation, root cause, correction, and prevention.
@@ -86,15 +86,17 @@ The handbook is ready for a release candidate only when:
 - All navigation links resolve.
 - Aggregate question counts are generated from actual headings rather than manually typed estimates.
 - The coverage matrix has no unreviewed high-priority gaps.
-- Runnable examples have compile/run evidence or are clearly labeled as pseudocode.
+- Runnable examples are manually reviewed for syntax/API/version alignment or clearly labeled as illustrative/pseudocode; no compile/run certification is claimed unless separately requested.
 - Version-sensitive claims cite an authoritative source.
 - Duplicate and inconsistent questions have been reviewed.
-- Coding/output problems have expected results and edge cases checked.
+- Coding/output problems have expected results and edge cases reasoned through manually; automated execution is not a release prerequisite for this review.
 - README progress reflects the real state of validation, not merely file existence.
 
-## 5. First implementation target
+## 5. Current implementation target
 
-Start with a **coverage matrix and a correctness pass over Java Fundamentals, Collections, Streams, and Concurrency**. These topics are foundational, frequently cross-questioned, and especially sensitive to subtle specification errors. Record each finding, fix the underlying chapter, and then continue through JVM, release features, I/O/security, and advanced APIs.
+The initial coverage matrix and first focused passes over Fundamentals, Collections, Streams, Concurrency, JVM, release features, I/O, JDBC, networking, security, and testing/build tooling have been completed at a broad first-pass level. Several confirmed issues and version-label gaps were corrected in the source chapters, and the README/navigation counts were refreshed.
+
+Continue with a manual technical audit of remaining answers, especially exact Java API contracts, subtle language/output behavior, dependency-version requirements, and specification-versus-implementation claims. Keep the agreed boundary: no code compilation or execution unless explicitly requested, and do not label the handbook fully certified while unreviewed chapters remain.
 
 ## 1B. Concurrency worked-example pass
 
