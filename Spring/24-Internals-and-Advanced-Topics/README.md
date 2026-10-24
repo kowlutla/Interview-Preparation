@@ -10,9 +10,9 @@ A BeanDefinition is container metadata describing how a bean should be created a
 
 Bean post-processors provide lifecycle extension points for inspecting or wrapping bean instances. Auto-proxy creators use this infrastructure to apply aspects such as transactions or caching. Infrastructure ordering matters; a bean created too early may miss processing that would normally apply.
 
-### Q3. What is the difference between a filter, MVC interceptor, and AOP advice?
+### Q3. Why might an MVC interceptor not run even though a servlet filter logs the request?
 
-A servlet filter runs in the servlet request/response chain, before or around servlet dispatch. An MVC interceptor participates around handler execution after Spring MVC selects a handler. Spring AOP advice intercepts eligible method invocations on proxied objects. Choose the layer that owns the concern; service authorization and HTTP CORS handling do not belong at identical boundaries.
+A filter can run before MVC selects a handler, while an interceptor runs only after a handler has been mapped. The request may be short-circuited by a security filter, fail handler mapping, target a static/resource path, or use a different dispatcher path. Inspect filter-chain order, the selected HandlerMapping, and response status before assuming the interceptor registration is broken.
 
 ### Q4. Why can final methods complicate proxying?
 
