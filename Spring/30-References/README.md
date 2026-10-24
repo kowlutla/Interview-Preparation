@@ -9,7 +9,7 @@ Use documentation corresponding to the exact major/minor version used by the pro
 - [Spring Framework 7.1 preview release notes](https://github.com/spring-projects/spring-framework/wiki/Spring-Framework-7.1-Release-Notes)
 - [Spring Framework releases and support](https://spring.io/projects/spring-framework#support)
 - [Spring Boot Reference](https://docs.spring.io/spring-boot/reference/)
-- [Spring Boot API Javadoc](https://docs.spring.io/spring-boot/docs/current/api/)
+- [Spring Boot API Javadoc](https://docs.spring.io/spring-boot/api/java/)
 - [Spring Boot releases and support](https://spring.io/projects/spring-boot#support)
 - [Spring guides](https://spring.io/guides)
 
