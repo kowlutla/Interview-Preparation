@@ -78,7 +78,8 @@ See the [coverage inventory and technical review checklist](COVERAGE-AND-TECHNIC
 - [x] Exercise numbering audit: 1–85 continuous
 - [x] Production-scenario numbering audit: 1–75 continuous
 - [x] Targeted local-link checks for root and main collection indexes (full repository-wide link audit remains pending)
-- [ ] Full semantic deduplication and answer-depth review (including the new advanced ecosystem chapter)
+- [ ] Finish semantic duplicate review across all Q&A answers; several clear title overlaps have been corrected, while core/tricky-question reinforcement is intentional
+- [ ] Complete answer-depth review across all 610 Q&As
 - [ ] Verify every version-specific claim against exact official release docs
 - [ ] Manually review illustrative snippets for API/version consistency and clear assumptions (compilation/runtime testing is outside this review's scope)
 - [ ] Check every Markdown link and all technical references
