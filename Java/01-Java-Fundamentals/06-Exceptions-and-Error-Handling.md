@@ -195,13 +195,11 @@ A timeout does not prove a remote side effect did not occur. For non-idempotent 
 
 ## 5. Traps and diagnostics
 
-### Q26. What happens if finally throws after try throws? *(Advanced)*
+### Q26. What is the difference between an exception cause and a suppressed exception? *(Advanced)*
 
-    try {
-        throw new IllegalStateException("primary");
-    } finally {
-        throw new IllegalArgumentException("cleanup");
-    }
+A cause explains the underlying failure that led to an exception, commonly exposed through `getCause()`. A suppressed exception records an additional failure that occurred while another exception was already being propagated, commonly when try-with-resources closes a resource after the body has failed; inspect these with `getSuppressed()`.
+
+Preserve both relationships when diagnosing failures. Do not replace the primary exception with a cleanup exception unless that is an intentional API decision; try-with-resources preserves the body failure as primary and attaches close failures as suppressed exceptions.
 
 The IllegalArgumentException from finally becomes the exception that propagates; the original exception is hidden rather than automatically suppressed. This is one reason not to throw from finally. Try-with-resources has specific suppressed-exception behavior for cleanup.
 
