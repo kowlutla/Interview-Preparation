@@ -234,3 +234,16 @@ Compared overlapping questions in the Java 12–16 and Java 17 release summaries
 
 The release-summary chapters necessarily repeat feature names also covered by dedicated conceptual chapters; retain those summaries when they add release history, final/preview status, migration impact, or adoption guidance. Do not count a repeated feature name alone as a duplicate if the question answers a different version-specific objective.
 
+### Further overlap and version-boundary review — 2026-10-24
+
+- Refined the duplicate finalization question in Object/Class Contracts into a legacy migration workflow, leaving the earlier question focused on the preferred cleanup mechanisms.
+- Reframed the repeated finally/exception question into a comparison of exception causes and suppressed exceptions, emphasizing how to preserve primary failures in diagnostics.
+- Clarified in Security and Secure Coding that ObjectInputFilter is available in Java 9+, while Java 8 has no equivalent standard filtering API.
+- Reframed the generic Spliterator question in Collectors and Spliterators to focus on the correctness risks of falsely reporting characteristics; the Collections chapter retains the core definition and splitting model.
+- Rechecked the current Java 8–21 status matrix and representative I/O, JPMS, annotation-processing, networking, JDBC, security, virtual-thread, structured-concurrency, and JVM chapters. No additional confirmed factual correction was made from that sample beyond the Java 8 deserialization-filter clarification.
+
+### Current structural snapshot — 2026-10-24
+
+The current repository tree contains 75 Markdown files under Java/. The README has 77 local Markdown links, and all 77 resolve against the current main tree. The current recorded handbook inventory remains 57 Q&A chapters and 1,083 numbered Q&A headings across the 56 chapters that use the ### Qn. format; the coding/output bank uses ### Problem n. headings instead. These are structural counts, not proof that every question is unique or every answer fully certified.
+
+The user has explicitly requested no code compilation or execution for this review. This pass is therefore limited to manual reasoning, version/API-contract review, content consistency, and repository structure. Historical targeted smoke-test notes elsewhere in the audit describe earlier work and should not be interpreted as a new validation run for this pass.
