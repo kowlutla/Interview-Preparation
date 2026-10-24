@@ -48,23 +48,16 @@ This is a **small, targeted smoke test**, not a full handbook-wide validation. T
 - [ ] Check exception, numeric-promotion, generics, stream-reduction, and collection-contract examples for exact language semantics.
 - [ ] Verify external reference URLs and replace stale or imprecise sources with authoritative JLS, JVMS, API, JEP, or Oracle/OpenJDK documentation.
 
-### P1 — Coverage gaps to assess and fill
+### P1 — Remaining coverage gaps
 
-The following areas are not yet clearly represented as dedicated, sufficiently deep chapters. Confirm against existing chapter bodies before adding content, to avoid duplicating material:
+The original gap list has been reassessed against the chapters added since the first audit. Several previously listed areas now have dedicated coverage:
 
-1. **Concurrency utilities:** CountDownLatch, CyclicBarrier, Phaser, Semaphore, BlockingQueue, Exchanger, ForkJoinPool/work-stealing, ReentrantReadWriteLock, StampedLock, Conditions, and synchronizers.
-2. **Threading and cancellation details:** interruption policy, cooperative cancellation, task deadlines, executor rejection, graceful shutdown, task ownership, and common-pool behavior.
-3. **Java I/O and NIO depth:** channels, buffers, selectors, file traversal, watch services, charset handling, asynchronous I/O, and resource ownership.
-4. **Networking and HTTP:** socket lifecycle, TLS, HTTP Client, connection pooling, timeout types, retry boundaries, and backpressure.
-5. **Testing and tooling:** JUnit 5, Mockito, test isolation, concurrency testing, property-based testing concepts, JMH, JFR, jcmd, jstack, jmap, javap, jdeps, and Java Flight Recorder workflows.
-6. **Build and packaging:** classpath/module-path distinctions, JARs, multi-release JARs, service loading, annotation processing, and runtime compatibility checks.
-7. **Language and API details:** annotations and retention/inheritance rules, nested/local/anonymous classes, bridge methods, covariant returns, initialization order, Unicode, regex, and date/time edge cases.
-8. **Security depth:** secure deserialization, path traversal, SSRF, secret-safe logging, cryptographic API hygiene, provider configuration, and dependency/JDK update practices.
-9. **Modern Java 8–21 feature matrix:** a release-by-release table that distinguishes finalized, preview, incubator, and removed/deprecated-for-removal items.
-10. **Production exercises:** add runnable, self-contained examples for races, deadlocks, thread-pool starvation, cache stampedes, cancellation, memory retention, and performance regressions where they materially improve learning.
+- **Covered in dedicated chapters:** concurrency synchronizers and coordination; executor sizing, cancellation, rejection and shutdown; Java I/O/NIO and serialization; networking and HTTP Client; annotation processing/compiler tooling; modules/classpath/module-path and multi-release JARs; Java 8–21 feature/status matrix; security and secure coding; production troubleshooting scenarios.
+- **Partially covered / keep under review:** WatchService and AsynchronousFileChannel depth; Unicode grapheme-cluster handling, locale-sensitive formatting and normalization policy; deeper API-specific behavior across database drivers and HTTP client implementations.
+- **Still a useful extension:** a dedicated testing and build-tooling chapter for JUnit 5, Mockito, test isolation, parameterized tests, deterministic concurrency tests, property-based testing concepts, Testcontainers, Maven/Gradle test lifecycle and toolchains, coverage reporting, and CI compatibility matrices. Existing JMH/JFR/diagnostic-tool material should be linked rather than duplicated.
 
-These are audit hypotheses, not assertions that every listed topic is entirely absent. Each must be compared with existing content before a new chapter is created.
-
+These are scoped follow-up items, not claims that every listed subtopic is entirely absent. Compare against current chapter bodies before adding content, avoid duplicate questions, and prioritize gaps that improve Java backend interview readiness.
+  
 ### P2 — Pedagogy and interview quality
 
 - [ ] Ensure each answer explains the mechanism, guarantees, limitations, and a practical example—not just a definition.
