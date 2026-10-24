@@ -191,3 +191,11 @@ The generic Boot system-requirements page currently renders Boot 4.1.0 (Java 17 
 - Added 10-Core-and-Operations-Patterns.md and 11-Testing-and-Cloud-Patterns.md with detailed implementation patterns for 25 exercises that previously relied on concise reference approaches. The examples call out assumptions, version-dependent APIs, negative/failure-path tests, and operational trade-offs.
 - Added links from those exercises to the new solution files. The exercise bank now contains 11 detailed solution files and 85 exercise-to-solution links. Two exercises retain chapter-level references rather than a dedicated detailed solution because their existing approach is already small and directly scoped; review the exact index count before describing coverage.
 - These solutions remain illustrative and were not compiled or executed. Several code fragments rely on domain classes and dependencies defined by their exercises; they are not a single ready-to-run application.
+
+
+### Post-solution-link and overlap verification — 2026-10-24
+
+- Rechecked all four exercise files after the two new solution documents and final link updates: all 85 exercises have a reference approach, common-mistake note, validation points, and at least one detailed-solution link (85 solution links total). All local links in those files and the updated Spring README resolve against the current repository tree.
+- Rechecked all seven tricky-question files: 320 questions, continuous numbering, and no exact duplicate titles within the collection.
+- Ran a title-token overlap screen between tricky questions and core chapters 1–10, 11–15, and 16–25 plus the advanced ecosystem chapter. Several high-similarity prompts were changed to more diagnostic or failure-scenario questions. Remaining high-similarity pairs largely test adjacent but distinct concerns (for example, diagnosing versus preventing connection-pool exhaustion, event synchronicity versus durability, or a general concept versus its failure mode). Token similarity cannot prove semantic uniqueness.
+- All 290 core/advanced answers pass the 35-word screen; the tricky-question set remains intentionally concise. The external-link audit remains targeted rather than exhaustive, and no code compilation or execution was performed.
