@@ -54,7 +54,7 @@ No. Authentication is separate from authorization, and tenant/resource access mu
 No. It typically coordinates resources supported by a selected transaction manager. Separate database and broker writes need an explicit reliability design.
 
 ### Q18. Do all exceptions trigger rollback?
-No. Default rollback rules commonly differ for unchecked versus checked exceptions; explicit rules and caught exceptions affect outcomes.
+Not by default in traditional declarative transaction settings: unchecked exceptions and `Error`s trigger rollback, while checked exceptions normally do not unless configured. Spring Framework 6.2+ also supports a global `ALL_EXCEPTIONS` rollback policy through transaction-management configuration. Explicit per-transaction rules and exceptions caught before they escape the boundary still affect the result.
 
 ### Q19. Does readOnly=true forbid writes at the database?
 Not universally. It is metadata/hint whose enforcement depends on the transaction manager, provider, driver, and database.
