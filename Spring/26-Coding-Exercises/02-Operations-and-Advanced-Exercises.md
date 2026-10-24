@@ -10,6 +10,8 @@ These exercises complement [Core and REST exercises](01-Core-and-REST-Exercises.
 
 **Reference approach:** Centralize known exception mapping in `@RestControllerAdvice`; add a response filter or request context integration for correlation IDs. Do not expose arbitrary exception messages.
 
+**Additional reference solution:** [Implementation notes and examples](Reference-Solutions/10-Core-and-Operations-Patterns.md)
+
 **Common mistake:** Catching every exception as a client error or returning internal exception details.
 
 **Validation:** Test business, validation, unknown, and downstream exceptions.
@@ -19,6 +21,8 @@ These exercises complement [Core and REST exercises](01-Core-and-REST-Exercises.
 **Problem:** Connect a service to a primary and reporting database.
 
 **Reference approach:** Define separately named DataSource and transaction manager beans, qualify repository/entity-manager configuration, and decide which transaction manager owns each operation.
+
+**Additional reference solution:** [Implementation notes and examples](Reference-Solutions/10-Core-and-Operations-Patterns.md)
 
 **Common mistake:** Assuming one `@Transactional` spans two independent databases.
 
@@ -78,6 +82,8 @@ These exercises complement [Core and REST exercises](01-Core-and-REST-Exercises.
 
 **Reference approach:** Use a shared limiter or gateway policy with explicit identity, burst, and failure behavior. Avoid a process-local counter when the limit must be global.
 
+**Additional reference solution:** [Implementation notes and examples](Reference-Solutions/10-Core-and-Operations-Patterns.md)
+
 **Common mistake:** Using a process-local counter when the quota must be enforced across replicas.
 
 **Validation:** Test concurrency across instances and limiter-storage outage behavior.
@@ -111,6 +117,8 @@ These exercises complement [Core and REST exercises](01-Core-and-REST-Exercises.
 **Problem:** Safely accept file uploads.
 
 **Reference approach:** Enforce size limits at ingress and application layers, validate authorization/content, generate server-side filenames, and stream large content to controlled storage.
+
+**Additional reference solution:** [Implementation notes and examples](Reference-Solutions/10-Core-and-Operations-Patterns.md)
 
 **Common mistake:** Trusting the client filename/MIME type or enforcing upload size only at one layer.
 
@@ -158,6 +166,8 @@ These exercises complement [Core and REST exercises](01-Core-and-REST-Exercises.
 
 **Reference approach:** Use an application runner only when the startup work is bounded and readiness should wait for it. For large imports, use a separately controlled job with progress and recovery.
 
+**Additional reference solution:** [Implementation notes and examples](Reference-Solutions/10-Core-and-Operations-Patterns.md)
+
 **Common mistake:** Loading a large dataset synchronously in every replica's startup runner.
 
 **Validation:** Test failure behavior, duplicate execution, and startup readiness.
@@ -167,6 +177,8 @@ These exercises complement [Core and REST exercises](01-Core-and-REST-Exercises.
 **Problem:** Detect an N+1 regression in a service.
 
 **Reference approach:** Add an integration test with representative entities, measure SQL/query count using test instrumentation, and fix with projection, entity graph, or query redesign.
+
+**Additional reference solution:** [Implementation notes and examples](Reference-Solutions/10-Core-and-Operations-Patterns.md)
 
 **Common mistake:** Testing only a tiny in-memory dataset that cannot expose the production query pattern.
 
@@ -226,6 +238,8 @@ These exercises complement [Core and REST exercises](01-Core-and-REST-Exercises.
 
 **Reference approach:** Use Boot's auto-configuration test support with isolated contexts, include the configuration under test, and test both the conditional default and a user-defined replacement.
 
+**Additional reference solution:** [Implementation notes and examples](Reference-Solutions/10-Core-and-Operations-Patterns.md)
+
 **Common mistake:** Testing only the default auto-configured bean and never checking user override or back-off behavior.
 
 **Validation:** Assert bean types/counts and test missing-class/property conditions.
@@ -247,6 +261,8 @@ These exercises complement [Core and REST exercises](01-Core-and-REST-Exercises.
 **Problem:** Preserve trace metadata across a reactive pipeline.
 
 **Reference approach:** Use supported tracing instrumentation and Reactor Context integration. Avoid assuming ThreadLocal state survives scheduler hops.
+
+**Additional reference solution:** [Implementation notes and examples](Reference-Solutions/11-Testing-and-Cloud-Patterns.md)
 
 **Common mistake:** Assuming ThreadLocal values automatically survive reactive scheduler hops.
 
@@ -270,6 +286,8 @@ These exercises complement [Core and REST exercises](01-Core-and-REST-Exercises.
 
 **Reference approach:** Compare post-GC heap, allocation profile, heap dump dominators, queue/cache sizes, thread count, and native memory. Identify retained objects before changing heap size.
 
+**Additional reference solution:** [Implementation notes and examples](Reference-Solutions/11-Testing-and-Cloud-Patterns.md)
+
 **Common mistake:** Increasing heap size before checking post-GC retention and native-memory pressure.
 
 **Validation:** Reproduce under load and verify retained memory stabilizes after the fix.
@@ -279,6 +297,8 @@ These exercises complement [Core and REST exercises](01-Core-and-REST-Exercises.
 **Problem:** Upgrade Boot across a major version.
 
 **Reference approach:** Read the migration guide, align Java and managed dependencies, resolve namespace/API changes, and create smoke tests for startup, security, persistence, clients, metrics, and graceful shutdown.
+
+**Additional reference solution:** [Implementation notes and examples](Reference-Solutions/11-Testing-and-Cloud-Patterns.md)
 
 **Common mistake:** Changing dependency versions and relying only on unit tests without exercising integration boundaries.
 
