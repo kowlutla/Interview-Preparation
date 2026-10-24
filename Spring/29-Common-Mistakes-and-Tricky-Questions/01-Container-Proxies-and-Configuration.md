@@ -53,14 +53,14 @@ Yes, supported conversion and expression mechanisms apply, but complex grouped c
 ### Q17. Why should secrets not be printed from configuration objects?
 Diagnostic output can expose credentials in logs, traces, error reports, or support bundles. Redact secret values and restrict sensitive diagnostic endpoints.
 
-### Q18. What is relaxed binding?
-Boot's binder maps supported naming variants to configuration properties. Use documented canonical names and verify binding rather than assuming arbitrary aliases are accepted.
+### Q18. How can relaxed binding mask a configuration typo?
+Relaxed binding accepts documented naming variants, but it does not make every misspelling valid. A misspelled or unknown property may remain unused unless binding validation or unknown-field policy catches it. Prefer canonical kebab-case keys, validate required values, and test effective binding for critical configuration.
 
 ### Q19. Can a configuration property update a singleton automatically?
 Not generally. Bound configuration is usually established during startup unless an explicit refresh mechanism is configured and supported.
 
-### Q20. What is a composed annotation?
-An annotation that combines meta-annotations and possibly aliases/configures their attributes, allowing a reusable domain convention. Keep composed annotations narrow and test their semantics.
+### Q20. What testing risks do composed annotations introduce?
+A composed annotation can combine meta-annotations, attribute aliases, and defaults, so a change may alter component scanning, transaction/security metadata, or request mapping behavior in ways that are not obvious at the use site. Add focused tests for the composed annotation's effective attributes and avoid hiding many unrelated behaviors behind one annotation.
 
 ### Q21. Why does self-invocation bypass proxy advice?
 A call through this references the target object directly and does not cross the external proxy boundary where advice is applied.
@@ -95,8 +95,8 @@ Yes, explicit transaction-manager selection is possible, but the transaction sco
 ### Q31. Why can bean overriding hide bugs?
 An unintended same-name definition can replace another definition depending on configuration. Explicit conditions and qualifiers are easier to reason about than accidental replacement.
 
-### Q32. What is an ApplicationContext hierarchy useful for?
-It can separate parent-level shared beans from child-level beans, but introduces visibility and duplicate-resolution complexity. Use only when the boundary is deliberate.
+### Q32. What lookup surprises can a parent-child ApplicationContext hierarchy introduce?
+A child context can generally resolve beans from its parent, but the parent cannot see child beans; child definitions may shadow parent candidates and make behavior differ across contexts. Diagnose which context owns each bean and where the injection occurs before changing component scanning or bean names.
 
 ### Q33. Why does startup ordering matter for custom infrastructure?
 Post-processors and configuration registrars operate at specific lifecycle phases. Early bean creation can prevent later infrastructure from processing objects normally.
