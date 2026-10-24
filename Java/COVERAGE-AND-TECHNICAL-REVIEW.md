@@ -8,7 +8,7 @@
 
 The repository has broad coverage across Java fundamentals, core language, collections, streams, concurrency, JVM/GC, release features, JDBC/networking, security, performance, coding practice, production scenarios, and senior interview practice. However, a broad chapter inventory is not equivalent to a verified, exhaustive syllabus.
 
-The repository now has **57 Q&A chapters and 1,078 numbered Q&As**, plus dedicated coding, scenario, and mock-interview material. The right status is **broad first-pass coverage; technical and topic-completeness review still required**. This is not a claim that every answer has undergone a line-by-line specification audit.
+The repository now has **57 Q&A chapters and 1,083 numbered Q&As**, plus dedicated coding, scenario, and mock-interview material. The right status is **broad first-pass coverage; technical and topic-completeness review still required**. This is not a claim that every answer has undergone a line-by-line specification audit.
 
 ## Coverage matrix
 
@@ -125,7 +125,7 @@ The I/O chapter has a Java 8–21 scope, while two examples used later APIs with
 
 ### Repository audit metadata — 2026-10-24
 
-The separate `QUALITY-AUDIT-AND-REMEDIATION.md` baseline was stale at 66 Markdown files, 53 Q&A chapters, 999 questions, and 68 README links. Updated those figures to the latest recorded inventory: 75 Markdown files, 57 Q&A chapters, 1,078 numbered questions, and 77 README links resolving in the latest structural check. These counts should be regenerated/rechecked before release rather than treated as permanent values.
+The separate `QUALITY-AUDIT-AND-REMEDIATION.md` baseline was stale at 66 Markdown files, 53 Q&A chapters, 999 questions, and 68 README links. Updated those figures to the latest recorded inventory: 75 Markdown files, 57 Q&A chapters, 1,083 numbered questions, and 77 README links resolving in the latest structural check. These counts should be regenerated/rechecked before release rather than treated as permanent values.
 
 ### Cross-version example sweep — 2026-10-24
 
@@ -163,3 +163,10 @@ Added `08-Advanced-Java/07-Testing-and-Build-Tooling.md` with 20 questions on te
 - Replaced an unlabelled Java 10 `var` declaration in the data-type promotion example with an explicit `long` declaration so that the example remains compatible with the chapter's Java 8–21 scope.
 - The new testing/build chapter now documents that Mockito 5 requires Java 11+, while Mockito 4 supports Java 8; this distinction is grounded in the [Mockito project's documentation](https://github.com/mockito/mockito).
 - Rechecked the README's local Markdown links after adding the chapter: **77 links checked, zero missing**. The repository currently contains **75 Markdown files under `Java/`**. The recorded handbook total is **57 Q&A chapters and 1,078 numbered questions**; the count is derived from the previous baseline plus the 20-question testing chapter, not a fresh full-file recount in this checkpoint.
+
+
+### Closing previously identified partial-coverage items — 2026-10-24
+
+- Added I/O/NIO questions on `Files.walk` resource ownership, `WatchService` limitations and `AsynchronousFileChannel` completion semantics.
+- Added String/Text Processing questions on grapheme clusters versus code points and explicit locale behavior for case conversion and formatting.
+- The recorded total is now **57 Q&A chapters and 1,083 numbered questions**. Markdown file count remains 75 because these additions extend existing chapters; README navigation remains at 77 local Markdown links.
