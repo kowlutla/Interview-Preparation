@@ -55,7 +55,7 @@ Designed for engineers with roughly 2–6 years of Java backend experience. Prer
 
 ## Coverage and review status
 
-See the [coverage inventory and technical review checklist](COVERAGE-AND-TECHNICAL-REVIEW.md) for the current counted totals and the remaining audit work. Count targets are not a substitute for accuracy, non-duplication, and runnable-example validation.
+See the [coverage inventory and technical review checklist](COVERAGE-AND-TECHNICAL-REVIEW.md) for the current counted totals and remaining audit work. Count targets are not a substitute for technical accuracy, meaningful non-duplication, version/API consistency, and manually reviewed examples.
 
 ## Difficulty guidance
 
