@@ -34,7 +34,7 @@ Determine the replacement and reason for deprecation from official documentation
 
 A Bill of Materials centralizes compatible dependency versions so related libraries are aligned. Boot's dependency management reduces manual version selection. Overriding managed dependencies can be necessary, but should be evidence-based and tested for binary compatibility.
 
-### Q13. How should you treat Spring Framework 7.1 preview documentation?
+### Q13. How should you treat Spring Framework 7.1 prerelease documentation?
 
 As of 2026-10-24, the official release list identifies Framework 7.0.10 as the latest stable 7.0 release and Framework 7.1.0-RC1 as a prerelease. Preview/release-candidate notes can help plan compatibility work, but changes in prerelease documentation must not be presented as released stable behavior. Re-check the official release list and the exact target version's migration guide before upgrading.
 
