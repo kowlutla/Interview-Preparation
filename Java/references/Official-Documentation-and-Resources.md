@@ -54,6 +54,16 @@ This index prioritizes specifications, official API documentation, JEPs, and off
 - [java.nio.file package](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/nio/file/package-summary.html)
 - [JEP 290 — Filter Incoming Serialization Data](https://openjdk.org/jeps/290)
 
+## Testing and build tooling
+
+- [JUnit 5 User Guide](https://junit.org/junit5/docs/current/user-guide/)
+- [Mockito documentation](https://javadoc.io/doc/org.mockito/mockito-core/latest/org/mockito/Mockito.html)
+- [Maven Surefire Plugin](https://maven.apache.org/surefire/maven-surefire-plugin/)
+- [Maven Failsafe Plugin](https://maven.apache.org/surefire/maven-failsafe-plugin/)
+- [Gradle Java testing](https://docs.gradle.org/current/userguide/java_testing.html)
+- [Testcontainers for Java](https://java.testcontainers.org/)
+- [OpenJDK jcstress](https://openjdk.org/projects/code-tools/jcstress/)
+
 ## Version policy for this handbook
 
 1. Prefer JLS/JVMS/API docs for normative behavior.
