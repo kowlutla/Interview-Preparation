@@ -88,11 +88,11 @@ Lock ordering imposes a global order in which multiple locks must be acquired. I
 
 For example, assign stable ranks to account locks and always acquire the lower-ranked lock first. Avoid relying on incidental object identity or call order; encapsulate the protocol and test concurrent transfers.
 
-### Q12. What are the four Coffman conditions for deadlock? *(Advanced)*
+### Q12. How can lock acquisition order prevent deadlocks? *(Advanced)*
 
-Deadlock requires mutual exclusion, hold-and-wait, no preemption, and circular wait. Breaking at least one condition can prevent deadlock in a given design. Lock ordering is a common way to prevent circular wait.
+Define a global order for locks and require every code path to acquire multiple locks in that order. This prevents circular wait because a thread cannot hold a later lock while waiting for an earlier one. For example, order account locks by a stable account ID before transferring between two accounts.
 
-Timeouts may detect a stuck acquisition but do not automatically make the algorithm correct. A timed-out operation must release held locks and restore or abandon partial work safely.
+Apply the rule consistently across methods, callbacks, and error paths; one path that reverses the order can reintroduce the cycle. Timeouts can bound waiting but do not replace a correct locking protocol, and partial work must be rolled back or safely abandoned.
 
 ### Q13. Why should external calls be avoided inside critical sections? *(Senior)*
 
