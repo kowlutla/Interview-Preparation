@@ -122,3 +122,7 @@ The sampled JDBC, networking, and security passages covered transaction boundari
 ### I/O API-version clarity — 2026-10-24
 
 The I/O chapter has a Java 8–21 scope, while two examples used later APIs without stating their minimum version. Added inline notes: `InputStream.readAllBytes()` is Java 9+, and `Files.readString` / `Files.writeString` are Java 11+. The examples remain useful for a multi-version handbook, but readers should not mistake them for Java 8 APIs. This was a documentation/version-label correction, not a compilation test.
+
+### Repository audit metadata — 2026-10-24
+
+The separate `QUALITY-AUDIT-AND-REMEDIATION.md` baseline was stale at 66 Markdown files, 53 Q&A chapters, 999 questions, and 68 README links. Updated those figures to the latest recorded inventory: 74 Markdown files, 56 Q&A chapters, 1,058 numbered questions, and 76 README links resolving in the latest structural check. These counts should be regenerated/rechecked before release rather than treated as permanent values.
