@@ -10,7 +10,7 @@ Compatibility and support status change over time. This guide was checked on 202
 | Spring Framework 6.x / Spring Boot 3.x | Java 17 baseline; Jakarta namespace migration for specifications that moved from javax to jakarta | Framework 6.2 open-source support ended in June 2026; check current commercial support options. |
 | Spring Framework 7.x / Spring Boot 4.x | Java 17 minimum; Framework 7 adopts Jakarta EE 11, including Servlet 6.1 | Framework 7 recommends Java 25 for production while retaining a Java 17 baseline. Boot 4 requires Framework 7.x. |
 
-The official Framework support page lists Framework 7.0.x as the current production line. Current Boot 4.0/4.1 system requirements state Java 17 or later and require Spring Framework 7.0.10 or later for the cited patch lines. These are time-sensitive details; use the linked release documentation for current patch-level requirements.
+The official documentation currently lists Spring Framework 7.0.10 and Spring Boot 4.1.2 as stable releases (checked 2026-10-24); Boot 4.0.9 and Boot 3.5.16 are also listed as stable lines. The cited Boot 4.0/4.1 patch requirements specify Java 17 or later and Spring Framework 7.0.10 or later. Treat these as a dated snapshot, not a permanent compatibility guarantee; verify the exact patch's system-requirements page before upgrading.
 
 ## Selected compatibility details
 
