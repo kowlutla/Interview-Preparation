@@ -74,8 +74,9 @@ See the [coverage inventory and technical review checklist](COVERAGE-AND-TECHNIC
 - [x] 85 numbered coding exercises
 - [x] 75 numbered production scenarios
 - [x] Five mock interview files
-- [x] Structural heading audit: continuous Q&A numbering and no immediate verbatim question repetition beneath headings
+- [x] Structural heading audit: continuous Q&A numbering, no immediate verbatim question repetition beneath headings, and Q&A blocks placed before official-reference sections
 - [x] Exercise numbering audit: 1–85 continuous
+- [x] Exercise entry consistency: all 85 include a reference approach, common-mistake note, and validation points; depth of the solution itself remains under review
 - [x] Production-scenario numbering audit: 1–75 continuous
 - [x] Scenario-format consistency pass for incident and architecture/design scenarios; prevention guidance and label consistency improved
 - [x] Targeted answer-depth improvements in Boot, MVC, transactions, security, and reactive programming (full 610-question depth review remains pending)
