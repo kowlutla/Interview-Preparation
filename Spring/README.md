@@ -84,7 +84,7 @@ See the [coverage inventory and technical review checklist](COVERAGE-AND-TECHNIC
 - [x] Roadmap, compatibility notes, and interview strategy
 - [x] Initial Q&A chapters for all requested core topic categories
 - [x] Advanced ecosystem chapter covering specialized Spring projects and architecture choices
-- [x] 610 numbered Q&A headings counted: 270 across 25 core chapters, 20 in advanced ecosystem, and 320 tricky questions (duplicate and depth audit still required)
+- [x] 610 numbered Q&A headings counted: 270 across 25 core chapters, 20 in advanced ecosystem, and 320 tricky questions (depth screen complete; global semantic deduplication remains a review task)
 - [x] 85 numbered coding exercises
 - [x] 75 numbered production scenarios
 - [x] Five mock interview files
@@ -100,7 +100,7 @@ See the [coverage inventory and technical review checklist](COVERAGE-AND-TECHNIC
 - [x] Rechecked version-sensitive guidance against current official release and compatibility pages; the Boot 4.1.2 system requirements and advanced ecosystem heading levels were corrected in this pass
 - [x] Manual review of all 11 detailed reference-solution files for obvious API/version and example-consistency issues (no compilation or runtime execution)
 - [x] Local Markdown target and local-fragment checks; targeted official external-reference checks completed
-- [x] Final editorial/structural pass, 29-answer depth improvements, and cross-topic overlap corrections recorded in the coverage tracker; exhaustive semantic deduplication, external URL checks, and full exercise-solution completeness remain open
+- [x] Final editorial/structural pass, answer-depth screening, and targeted cross-topic overlap corrections recorded in the coverage tracker; global semantic deduplication and a repository-wide external URL audit remain open. Full runnable exercise solutions are not a completion requirement for this interview-first handbook.
 
 ## Version policy
 
