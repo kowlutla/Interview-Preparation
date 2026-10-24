@@ -80,8 +80,8 @@ Utilization, saturation, and errors help reason about resource bottlenecks.
 ### Q26. Why do logs need correlation IDs?
 They help connect related events across layers/services. Use supported trace context when available and avoid trusting arbitrary IDs without validation.
 
-### Q27. What does distributed tracing show?
-A request's spans across services and time spent in each operation. It helps localize latency but may be sampled and does not guarantee every request is recorded.
+### Q27. Which trace attributes help isolate latency in a cross-service request?
+Inspect span duration and parent-child relationships, service/operation names, error status, and the boundaries where time accumulates. Compare client and server spans to distinguish network wait from downstream processing, then correlate with logs using trace context. Keep user IDs and raw request values out of metric labels; use trace/log correlation for per-request diagnosis.
 
 ### Q28. Why not log full HTTP payloads by default?
 Payloads may contain credentials, personal data, large content, and secrets. Prefer safe metadata and carefully controlled redaction.
