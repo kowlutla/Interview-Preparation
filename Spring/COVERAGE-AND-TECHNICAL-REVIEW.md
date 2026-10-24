@@ -52,6 +52,10 @@
 - Checked for the specific formatting defect where a question is repeated verbatim as the first non-empty line immediately below its heading. No instances were found in those 33 Q&A files.
 - These are structural checks only. They do not prove semantic uniqueness, answer correctness, link validity, or runnable-code correctness; those remain separate review tasks.
 
+## Focused answer-depth improvements completed on 2026-10-24
+
+Expanded selected explanations covering auto-configuration diagnostics, external configuration, startup readiness, API sorting, streaming responses, database-specific tests, password hashing, and reactive concurrency. This is a targeted sample, not a full depth audit of all 610 Q&As. The tricky-question collection intentionally uses short rapid-fire prompts, and its index directs readers to explain assumptions and consult the core chapters.
+
 ## Focused manual code review completed on 2026-10-24
 
 Reviewed all nine detailed reference-solution files for obvious API-contract and example-consistency issues without compiling or executing code. Corrections made:
