@@ -2,14 +2,14 @@
 
 ## Q&A
 
-### Q1. Why does transaction propagation matter?
-It defines whether a method joins, creates, or avoids an existing transaction. The choice affects atomicity, locks, rollback, and connection use.
+### Q1. How can propagation choice change rollback behavior in a nested service call?
+It determines whether a nested operation joins the caller's transaction or uses a different boundary. With `REQUIRED`, an unchecked failure can mark the shared transaction rollback-only; with `REQUIRES_NEW`, an inner commit may survive an outer rollback. Explain the selected manager, proxy boundary, and rollback rules before deciding whether a caught exception leaves the outer operation committable.
 
-### Q2. What is the risk of REQUIRES_NEW?
-It suspends an outer transaction and starts another where supported. The inner transaction may commit even if the outer transaction later rolls back, and it may require additional connection capacity.
+### Q2. What happens if an inner REQUIRES_NEW transaction commits but the outer transaction rolls back?
+The inner commit normally remains committed because it uses an independent transaction, while the outer transaction can still roll back. This can be correct for an audit record, but dangerous if the inner write represents business state that assumes the outer write succeeded. Keep the consistency requirement explicit and consider whether an outbox, shared transaction, or compensating action is more appropriate.
 
-### Q3. What does NESTED propagation mean?
-Where supported, it can use a savepoint within an existing transaction. Support depends on the transaction manager/resource; do not assume it behaves identically across databases.
+### Q3. Why does NESTED propagation depend on savepoint support?
+`NESTED` commonly relies on a savepoint inside an existing transaction, so behavior depends on the selected transaction manager and underlying resource. It is not a portable promise of independent commit semantics, and it differs from `REQUIRES_NEW`. Confirm savepoint support for the actual manager/database and test rollback to the nested boundary as well as rollback of the outer transaction.
 
 ### Q4. What is transaction synchronization?
 It lets participating code react to transaction lifecycle phases. It is useful for coordination but is not a substitute for durable messaging.
@@ -101,8 +101,8 @@ A success test proves access is possible; it does not prove forbidden principals
 ### Q33. How do you avoid flaky integration tests?
 Control external dependencies, data setup, time, asynchronous completion, and shared state. Use bounded waits and useful diagnostics.
 
-### Q34. What is a test slice's limitation?
-It loads selected infrastructure and may omit configuration that exists in the full application. It is fast and focused but cannot prove full-context startup.
+### Q34. Which integration bugs can a test slice miss compared with a full application context?
+A slice loads only selected infrastructure, so it can miss missing application beans, component-scan mistakes, full security-chain interactions, or auto-configuration conditions that appear only in the complete application. Use a slice for focused behavior, then add a small number of full-context or end-to-end tests for critical wiring and startup assumptions.
 
 ### Q35. What is the role of @SpringBootTest(webEnvironment=RANDOM_PORT)?
 It starts a real embedded server on a random port for tests that need actual HTTP transport behavior, at a higher cost than MockMvc.
