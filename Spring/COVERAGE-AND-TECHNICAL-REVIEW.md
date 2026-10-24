@@ -227,3 +227,11 @@ The generic Boot system-requirements page currently renders Boot 4.1.0 (Java 17 
 - Confirmed the official Framework 7.0.10 transaction documentation explicitly states that proxy-mode transactions intercept only external calls through the proxy, and that reactive transaction methods use reactive return types. Confirmed current WebFlux guidance cautions that blocking persistence APIs such as JDBC/JPA often make MVC the more natural fit. Confirmed Boot 4.1.2's auto-configuration guidance recommends the condition evaluation report for diagnosis.
 - Replaced the known Spring Cloud release-train reference URL in both the Spring Cloud chapter and the main Spring handbook index with the official Spring Cloud project compatibility page.
 - Review priority remains interview explanation quality, semantic distinction, version correctness, and troubleshooting/trade-off reasoning. Do not expand coding examples into complete applications; snippets are enough when they explain a concept. No compilation or runtime validation was performed or is planned for this interview-focused review.
+
+
+### Time-boxed closeout — 2026-10-24
+
+- The handbook's intended deliverable is interview-first explanations, not a fully compiled application or exhaustive runnable solutions. Keep the current scope: short illustrative snippets only where they clarify a concept; no compilation/runtime test pass is required.
+- Revisited representative high-risk explanations in dependency resolution, transaction rollback/proxy boundaries, JWT validation, and reactive blocking/backpressure. The sampled text is internally consistent with the review notes above; this limited spot-check does not certify all answers.
+- Ran repository code-search checks for obvious unfinished markers (TODO, TBD, FIXME, PLACEHOLDER); no indexed matches were returned. This is a quick search, not a guarantee that no unfinished wording exists anywhere.
+- **Closeout decision:** treat the handbook as ready for interview preparation and stop expanding content. Remaining limitations are explicitly bounded: full semantic answer-by-answer deduplication and a crawl of every external URL embedded in every chapter are not certified complete. No compilation or runtime execution was performed, in line with the agreed scope.
