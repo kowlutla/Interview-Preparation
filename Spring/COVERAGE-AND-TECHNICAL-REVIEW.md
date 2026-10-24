@@ -117,3 +117,7 @@ These are manual documentation/API-version corrections only. No compilation or r
 ### Exercise-format consistency pass — 2026-10-24
 
 Reviewed the 85 exercise entries structurally. All 85 now include a reference approach/solution section, a common-mistake note, and validation points. Added 54 missing common-mistake notes across exercises 26–85 and aligned the exercise index wording with the agreed review scope (manual technical/API-version review; no compilation or execution). The four exercise files now have complete structural coverage for those fields. This does not yet mean every reference approach is a complete implementation: depth and solution sufficiency remain an explicit review item, and the nine detailed solution documents cover selected patterns rather than all 85 exercises.
+
+### Official-reference URL audit — targeted pass — 2026-10-24
+
+Opened the core links in the official references index. Found and corrected two stale/misleading destinations: the Boot API Javadoc link now uses the current `/spring-boot/api/java/` path, and the Spring Cloud reference now points to the current Spring Cloud Release documentation instead of the legacy `current` URL that still advertised release train 2022.0.5 / Boot 3.0.13. The Reactor reference now points directly to its current guide page rather than a redirecting index URL. The reference index's remaining core links opened successfully in this targeted pass. This is not yet a crawl of every external URL in every chapter, and versioned docs should still be selected for the exact project baseline.
