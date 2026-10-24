@@ -81,12 +81,12 @@ See the [coverage inventory and technical review checklist](COVERAGE-AND-TECHNIC
 - [x] Scenario-format consistency pass for incident and architecture/design scenarios; prevention guidance and label consistency improved
 - [x] Targeted answer-depth improvements in Boot, MVC, transactions, security, and reactive programming (full 610-question depth review remains pending)
 - [x] Local Markdown target audit across all 68 Spring Markdown files (all local targets resolve); no local fragment links were found. Targeted official-reference URL checks corrected stale Boot Javadoc and Spring Cloud links; remaining external URLs and the two project-page `#support` anchors still need review.
-- [x] Normalized-title duplicate screens in two batches (core chapters 1–15; core chapters 16–25 plus tricky questions) found no exact repeats within either batch; global cross-batch comparison and full semantic deduplication remain unclaimed
+- [x] Compared core and tricky-question titles with overlap screening and refined several near-duplicate prompts into diagnostic/scenario variants; no exact repeats within either batch or within the tricky-question collection
 - [x] Answer-depth screen: all 270 core and 20 advanced ecosystem answers contain at least 35 words after targeted expansions; the 320 tricky Q&As intentionally use concise rapid-fire answers
 - [x] Rechecked version-sensitive guidance against current official release and compatibility pages; the Boot 4.1.2 system requirements and advanced ecosystem heading levels were corrected in this pass
 - [x] Manual review of the nine detailed reference-solution files for obvious API/version and example-consistency issues (no compilation or runtime execution)
 - [x] Local Markdown target and local-fragment checks; targeted official external-reference checks completed
-- [x] Final editorial/structural pass and additional 29-answer depth improvements recorded in the coverage tracker; global cross-batch semantic deduplication, exhaustive external URL checks, and full exercise-solution completeness remain open
+- [x] Final editorial/structural pass, 29-answer depth improvements, and cross-topic overlap corrections recorded in the coverage tracker; exhaustive semantic deduplication, external URL checks, and full exercise-solution completeness remain open
 
 ## Version policy
 
