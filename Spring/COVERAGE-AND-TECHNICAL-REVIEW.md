@@ -45,6 +45,7 @@
 - Checked the Q&A heading sequence in all 25 core chapters, the advanced ecosystem chapter, and all seven tricky-question files. Numbering is continuous within each file, with no gaps or duplicate question numbers found.
 - Checked exercise numbering across all four exercise files: 1–85 is continuous with no gaps or overlaps.
 - Checked scenario numbering across all seven scenario files: 1–75 is continuous with no gaps or overlaps.
+- Checked local Markdown targets in the repository root README, Spring main README, coding-exercise index, scenario index, mock-interview index, tricky-question index, and the advanced references added in this pass. No missing local targets were found in the checked indexes. This is not yet a repository-wide link audit.
 - Checked for the specific formatting defect where a question is repeated verbatim as the first non-empty line immediately below its heading. No instances were found in those 33 Q&A files.
 - These are structural checks only. They do not prove semantic uniqueness, answer correctness, link validity, or runnable-code correctness; those remain separate review tasks.
 
