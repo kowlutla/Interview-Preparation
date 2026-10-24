@@ -65,8 +65,8 @@ A composed annotation can combine meta-annotations, attribute aliases, and defau
 ### Q21. Why does self-invocation bypass proxy advice?
 A call through this references the target object directly and does not cross the external proxy boundary where advice is applied.
 
-### Q22. Do JDK proxies and CGLIB proxies have identical constraints?
-No. JDK proxies implement interfaces; subclass proxies depend on overridable class methods and cannot proxy final classes/methods through subclassing.
+### Q22. What failure can occur when code expects a concrete class but Spring injects a JDK proxy?
+The bean may be exposed through its interface proxy, so injection or casting to the concrete implementation can fail with a type mismatch or `ClassCastException`. Prefer injecting the service interface when possible, and choose proxy strategy deliberately only when concrete-type access is genuinely required. Proxy type can also affect framework features and test assumptions.
 
 ### Q23. Does @Around advice have to call proceed()?
 If the target invocation should happen, advice must proceed appropriately. Omitting it intentionally short-circuits the call; accidental omission suppresses business logic.
@@ -122,8 +122,8 @@ Test conditions with and without optional classes/properties, default beans, use
 ### Q40. Why should library auto-configuration be version-specific?
 Registration metadata and supported APIs can change across Boot generations. A starter should target and test a declared compatibility baseline.
 
-### Q41. How can the condition evaluation report explain a missing auto-configuration?
-Find the relevant auto-configuration and inspect which condition did not match: missing class, property value, bean already present, or web-application type. Then validate the underlying assumption against the resolved classpath and effective configuration. A negative condition is often expected back-off behavior, not a framework defect.
+### Q41. How do you distinguish an auto-configuration condition mismatch from a component-scan problem?
+Use the condition evaluation report to inspect conditional auto-configuration, then verify whether the expected application component is in the configured scan root or explicitly imported. A condition report explains auto-configuration decisions; it does not prove that an ordinary `@Component` was discovered. Check bean definitions, active profiles, package boundaries, and effective properties before adding dependencies or broadening scans.
 
 ### Q42. Why can adding a dependency change application behavior?
 It may add classes that activate conditional auto-configuration, change managed versions, or introduce duplicate components. Review resolved dependencies and condition outcomes.
