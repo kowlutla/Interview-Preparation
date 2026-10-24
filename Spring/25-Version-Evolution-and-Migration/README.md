@@ -54,9 +54,9 @@ As of 2026-10-24, the official release list identifies Framework 7.0.10 as the l
 
 Framework 7 introduces new capabilities including programmatic bean registration, core resilience features, API versioning support, HTTP Service Client configuration improvements, and RestTestClient. Availability and exact APIs should be verified against the 7.0 reference and the Boot line managing it; do not backport assumptions to Framework 6.x.
 
-### Q10. What changed in the Jakarta EE baseline for Framework 7?
+### Q10. Which dependency compatibility checks are most important during the Jakarta namespace migration?
 
-Framework 7 adopts Jakarta EE 11 APIs, including Servlet 6.1, JPA 3.2, and Bean Validation 3.1. Review servlet containers, persistence providers, validation implementations, and third-party libraries for compatibility before upgrading.
+Do not perform a blind global replacement of `javax.` with `jakarta.`. Identify which imports belong to specifications that actually changed namespace, then align the servlet container, persistence provider, Bean Validation implementation, and third-party libraries to the target Jakarta EE generation. Keep Java SE packages such as `javax.sql` unchanged, inspect transitive dependencies for old APIs, and use compile errors plus targeted integration tests to find remaining incompatibilities.
 
 ### Q11. Why should API versioning support be treated as a contract design choice?
 
