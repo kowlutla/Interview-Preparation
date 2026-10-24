@@ -114,7 +114,7 @@ It can test reactive applications and can also be used in supported testing setu
 A spy wraps real behavior and can accidentally invoke methods or side effects when stubbing/verification is careless. Prefer explicit mocks or real collaborators where appropriate.
 
 ### Q38. Why might @MockitoBean not compile in an older project?
-Availability depends on the Spring Framework/Boot generation. Use the test bean replacement API supported by the project's dependency baseline.
+`@MockitoBean` is available from Spring Framework 6.2, so projects on earlier Framework/Boot baselines may need the older Boot `@MockBean` API. Spring Boot 3.4 deprecated `@MockBean`/`@SpyBean` for removal, and Boot 4 removed that support in favor of `@MockitoBean`/`@MockitoSpyBean`. Use the annotation supported by the project's managed dependency line and follow the migration guide when upgrading.
 
 ### Q39. What is the danger of mocking repositories in every test?
 It can hide query, mapping, transaction, and database behavior. Keep unit tests, but include targeted repository integration tests.
