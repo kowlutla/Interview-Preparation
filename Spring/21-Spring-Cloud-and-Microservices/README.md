@@ -53,4 +53,4 @@ Assign clear ownership for connection/response timeouts, retries, and rate limit
 ## Official references
 
 - [Spring Cloud project and compatibility](https://spring.io/projects/spring-cloud)
-- [Spring Cloud release-train reference documentation](https://docs.spring.io/spring-cloud-release/reference/)
+- [Spring Cloud release-train reference documentation](https://spring.io/projects/spring-cloud#overview)
