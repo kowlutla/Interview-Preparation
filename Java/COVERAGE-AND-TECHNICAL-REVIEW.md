@@ -182,3 +182,7 @@ Checked numbered `### Qn.` headings in all 57 Q&A chapter files. Every chapter's
 ### Optional API version pass — 2026-10-24
 
 Clarified that `Optional.orElseThrow(Supplier)` is available in Java 8, while the no-argument `Optional.orElseThrow()` form was added in Java 10. The chapter already labeled `Optional.or`, `Optional.stream`, and `ifPresentOrElse` as Java 9 additions. This avoids suggesting that all APIs discussed in the Java 8–21 chapter are available on the Java 8 baseline.
+
+### Fundamentals and core-language pass — 2026-10-24
+
+Sampled the Data Types/Control Flow, OOP, Generics, Exceptions, Enums/Annotations, Reflection, JPMS, and annotation-processing chapters. The reviewed claims around numeric promotion, exception suppression, generic erasure, class initialization, module access, annotation retention, and proxy limitations were broadly sound. The confirmed API-version correction in Optional (`orElseThrow()` no-arg form is Java 10+) is recorded above. Continue the manual review of remaining answers; no line-by-line certification is claimed.
