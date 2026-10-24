@@ -41,7 +41,7 @@ The runtime's supported class-file version is separate from API availability. Co
 
 ### Q6. What is a multi-release JAR? *(Advanced)*
 
-A multi-release JAR can contain version-specific class files under META-INF/versions/<release>, allowing a runtime to select an appropriate implementation for its Java version when the JAR is correctly marked and used on a supporting runtime.
+Multi-release JAR support was introduced in Java 9. A multi-release JAR can contain version-specific class files under META-INF/versions/<release>, allowing a supporting runtime to select an appropriate implementation for its Java version when the JAR is correctly marked and packaged.
 
 This can support optimized implementations while maintaining a baseline, but testing must cover each supported runtime and packaging tool. Do not assume every JAR tool or old runtime interprets versioned entries identically.
 
