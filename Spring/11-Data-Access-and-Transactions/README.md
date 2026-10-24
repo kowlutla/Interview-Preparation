@@ -34,9 +34,9 @@ It communicates that a transaction is intended to be read-only and may allow tra
 
 A local database transaction and a broker publish usually involve separate resource managers. One can succeed while the other fails, creating inconsistent state. Depending on the use case, use an outbox pattern, idempotent consumer, retry strategy, or a deliberately designed transaction integration; do not assume @Transactional alone creates distributed atomicity.
 
-### Q9. What causes connection pool exhaustion?
+### Q9. Which coding patterns hold JDBC connections longer than intended?
 
-Requests may hold connections too long, transactions may be long-running, queries may be slow, pool size may be inappropriate, or downstream work may occur while a transaction remains open. Diagnose with pool active/idle/pending metrics, connection acquisition latency, transaction duration, query traces, and thread dumps. Increasing pool size without checking database capacity can worsen the incident.
+Long transactions that include remote HTTP calls, slow processing, user interaction, or large result iteration can retain a connection while doing work that does not require the database. Keep transaction boundaries around the required database operation, avoid remote I/O inside them, and use bounded streaming/chunking where appropriate. Confirm the actual connection-acquisition/release lifecycle for the chosen transaction manager and data-access API.
 
 ### Q10. What resource-pool risk does REQUIRES_NEW introduce?
 
