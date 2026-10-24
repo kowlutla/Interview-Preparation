@@ -57,7 +57,7 @@ Both can represent client input problems depending on the API contract. 400 is b
 
 ### Q13. How should API sorting parameters be secured?
 
-Allow-list sortable fields and direction values, and bind them through supported paging/sorting APIs. Do not concatenate client-supplied sort expressions into SQL. A deterministic tie-breaker prevents unstable page boundaries.
+Map public sort keys to a fixed set of entity properties or query expressions, validate direction, cap page size, and pass the resulting `Sort`/`Pageable` through supported repository APIs. Never concatenate client input into SQL or JPQL identifiers. Add a unique tie-breaker (for example, ID) after the requested sort so equal values do not cause unstable page boundaries.
 
 ### Q14. What is cursor pagination's main trade-off?
 
