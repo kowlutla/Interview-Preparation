@@ -75,7 +75,7 @@ Treat it as a concurrency outcome, reload current state, and decide whether the 
 
 ### Q17. Why can an in-memory database hide transaction defects?
 
-Its locking, isolation, dialect, and constraint behavior may differ from production. Test critical isolation and concurrency assumptions against the actual database engine and version.
+An in-memory database may differ from production in SQL dialect, implicit casts, constraint timing, lock acquisition, isolation semantics, sequence behavior, and query planning. A test can pass while a production query fails or concurrent updates violate assumptions. Use fast in-memory tests for focused logic, but run migrations and critical transaction/concurrency tests against the production database engine and a compatible version.
 
 ### Q18. How do you investigate a deadlock?
 
