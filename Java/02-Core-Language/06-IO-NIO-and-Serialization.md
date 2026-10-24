@@ -142,6 +142,33 @@ Distinguish missing resources, permission failures, invalid input, capacity exha
 
 Use try-with-resources, explicit encoding, bounded input sizes, and structured logs. Test failures such as disk full, permission denied, truncated input, slow reads, and close failure rather than only the happy path.
 
+## 5. File traversal and asynchronous I/O
+
+### Q21. How should files be traversed with Files.walk? *(Advanced)*
+
+Files.walk returns a lazy Stream of paths and can keep directory resources open while the stream is in use. Close it with try-with-resources, filter paths deliberately, and handle I/O failures rather than assuming every entry is accessible.
+
+~~~java
+try (Stream<Path> paths = Files.walk(root)) {
+    paths.filter(Files::isRegularFile)
+         .forEach(this::processPath);
+}
+~~~
+
+For untrusted trees, define symlink policy, maximum depth, file-size limits, and behavior when files change during traversal. Avoid collecting an unbounded tree into a list when streaming is sufficient.
+
+### Q22. What is WatchService, and is it a durable file-change log? *(Advanced)*
+
+WatchService lets a program register directories for events such as entry creation, deletion, and modification. It is useful for reacting to changes, but event delivery and details can vary by file-system provider; events may be coalesced or overflow, and some network or virtual file systems have limitations.
+
+After processing a WatchKey, call reset so it can receive further events, and handle invalid keys and OVERFLOW. Treat notifications as hints to reconcile current directory state, not as a durable, exactly-once journal of every file operation.
+
+### Q23. What is AsynchronousFileChannel? *(Advanced)*
+
+AsynchronousFileChannel supports file reads and writes whose completion can be observed through a Future or CompletionHandler. It can let a caller continue while an operation is pending, but the underlying implementation and executor behavior depend on the platform and provider.
+
+Asynchronous APIs still require bounded concurrency, buffer-lifetime discipline, cancellation handling, and resource closure. Do not assume “async” means zero threads or that every storage device provides native asynchronous operations.
+
 ## Official references
 
 1. [Java SE 21 API — java.io](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/io/package-summary.html)
