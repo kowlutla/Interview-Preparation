@@ -29,11 +29,11 @@ Long transactions hold connections and locks, increase contention, and make fail
 ### Q9. What is transaction isolation's practical limitation?
 Database implementations differ, and isolation labels do not fully predict every engine's behavior. Test concurrency assumptions against the production database.
 
-### Q10. What is optimistic locking useful for?
-It detects conflicting updates without holding long-lived pessimistic locks throughout application processing. Handle conflicts as a domain decision rather than blindly retrying.
+### Q10. What should an API do when optimistic locking rejects a stale update?
+Treat the failed version check as a concurrency conflict: reload the latest state if the business operation can be re-evaluated, or return a documented conflict/precondition response such as 409 or 412 where appropriate. Do not silently overwrite the newer update or blindly retry a command whose side effects cannot be repeated safely.
 
-### Q11. When is pessimistic locking appropriate?
-When contention and correctness requirements justify database locks. Keep transactions short and understand lock ordering, timeout, and deadlock behavior.
+### Q11. How can pessimistic locking reduce throughput under contention?
+Transactions waiting on exclusive locks hold connections and other resources, increase tail latency, and can create deadlocks when they acquire locks in inconsistent order. Keep the locked section short, acquire rows in a consistent order, set transaction/query timeouts where supported, and measure wait time before choosing pessimistic locking over optimistic conflict detection.
 
 ### Q12. Why should business validation and database constraints coexist?
 Application validation improves feedback, but concurrent operations can race. The database constraint is the final integrity boundary.
