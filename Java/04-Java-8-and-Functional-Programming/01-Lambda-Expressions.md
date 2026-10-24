@@ -58,7 +58,7 @@ Do not choose syntax based on folklore. Prefer the form that communicates intent
 
 Predicate<T> represents a function that accepts T and returns boolean. It is commonly used for filtering and validation.
 
-    Predicate<String> hasText = s -> s != null && !s.isBlank();
+    Predicate<String> hasText = s -> s != null && !s.trim().isEmpty();
 
 Predicate supports composition such as and, or, and negate. Be careful about null handling: a predicate can throw if its body dereferences a null value unless the contract excludes null.
 
