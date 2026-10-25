@@ -1,23 +1,42 @@
 # Interview Preparation
 
-A structured collection of interview-preparation handbooks for Java backend and software engineering roles. The focus is high interview readiness without unnecessary revision burden.
+A collection of focused interview-preparation handbooks for Java backend engineers targeting mid-level and senior roles. The guides emphasize clear explanations, practical trade-offs, production scenarios, and useful references.
 
 ## Start here
+
+Choose a handbook by topic:
 
 - [Java Interview Handbook](Java/Java-Interview-QA.md)
 - [Spring Framework + Spring Boot Interview Handbook](Spring/Spring-Interview-QA.md)
 - [Hibernate + JPA + Spring Data JPA Interview Handbook](Hibernate-JPA/Hibernate-JPA-Interview-QA.md)
 - [SQL & Database Engineering Interview Handbook](SQL-Database/SQL-Database-Interview-QA.md)
-- [Apache Kafka Interview Handbook](KAFKA_INTERVIEW_GUIDE.md)
+- [Apache Kafka Interview Handbook](Kafka/KAFKA_INTERVIEW_GUIDE.md)
 
-Each guide prioritizes a manageable set of recurring interview themes with complete, readable answers, practical caveats, and official references. Question count is not the goal: important topics must remain covered, while duplicate and low-value questions should not make revision harder.
+## Repository structure
 
-## Repository navigation
+Each topic has one primary Markdown handbook. Open the linked file above to read that topic; there are no separate chapter folders or topic landing pages to navigate.
 
-The technology landing pages explain the recommended study path and identify the older chapter material that remains available while unique content is reviewed:
+```text
+Interview-Preparation/
+├── README.md
+├── Java/
+│   └── Java-Interview-QA.md
+├── Spring/
+│   └── Spring-Interview-QA.md
+├── Hibernate-JPA/
+│   └── Hibernate-JPA-Interview-QA.md
+├── SQL-Database/
+│   └── SQL-Database-Interview-QA.md
+└── Kafka/
+    └── KAFKA_INTERVIEW_GUIDE.md
+```
 
-- [Java guide and legacy material](Java/README.md)
-- [Spring guide and legacy material](Spring/README.md)
-- [Hibernate/JPA guide and legacy material](Hibernate-JPA/README.md)
+## Suggested study order
 
-The SQL handbook is already maintained as a single Markdown guide. Version-sensitive behavior should always be checked against the official documentation for the target JDK, framework, ORM provider, and database.
+1. **Java** — language fundamentals, collections, concurrency, JVM, and modern Java.
+2. **Spring** — dependency injection, Spring Boot, web APIs, transactions, security, testing, and production behavior.
+3. **Hibernate + JPA** — persistence context, mappings, fetching, transactions, query performance, and concurrency.
+4. **SQL & databases** — query logic, joins, indexes, transactions, isolation, and database-specific behavior.
+5. **Kafka** — messaging fundamentals, delivery guarantees, consumer groups, operations, and production scenarios.
+
+Use the handbooks as revision material, and verify version-sensitive details against the official documentation for the JDK, framework, ORM provider, database, or Kafka version relevant to the role.
