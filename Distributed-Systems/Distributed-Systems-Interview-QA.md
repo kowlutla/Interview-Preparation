@@ -357,12 +357,18 @@ For a Java/Spring consumer, keep the inbox insert and domain update inside the s
 ```java
 @Transactional
 public void handle(OrderEvent event) {
-    inboxRepository.save(new InboxRecord(event.id())); // unique message ID
+    // Backed by an atomic insert-if-absent operation and a unique constraint.
+    boolean firstDelivery = inboxRepository.insertIfAbsent(event.id());
+
+    if (!firstDelivery) {
+        return; // this event was committed by an earlier attempt
+    }
+
     orderRepository.apply(event.orderId(), event.version(), event.status());
 }
 ```
 
-If the insert violates the unique constraint, handle that duplicate as already processed and acknowledge it only after confirming the original transaction committed. This example assumes the inbox and business tables share the same transactional database; it does not make an external HTTP side effect atomic.
+`insertIfAbsent` is illustrative, not a standard Spring Data method; implement it with a database-specific atomic insert/upsert strategy (or an equivalent mechanism). Avoid catching a uniqueness exception and continuing in the same transaction without understanding your database and transaction manager: the transaction may already be marked rollback-only. The inbox insert and business update must commit or roll back together. Acknowledge/commit the broker position only after the transaction succeeds; if the process crashes before acknowledgment, redelivery is safe because the inbox record was committed with the business effect. This boundary does not make an external HTTP side effect atomic.
 
 ### Q48. How should a payment/order/inventory workflow be designed?
 
@@ -809,6 +815,10 @@ These sources provide foundational definitions and implementation guidance. Prot
 9. Martin Fowler, *CQRS*: https://martinfowler.com/bliki/CQRS.html
 10. Kleppmann, *Designing Data-Intensive Applications*, O'Reilly — replication, partitioning, consistency, transactions, and stream processing: https://dataintensive.net/
 11. NIST, *Contingency Planning Guide for Federal Information Systems* (recovery planning concepts): https://csrc.nist.gov/pubs/sp/800/34/r1/upd1/final
+12. Apache Kafka, *Design*: message delivery semantics and the boundaries of exactly-once processing: https://kafka.apache.org/documentation/#semantics
+13. Spring for Apache Kafka, *Transactions*: transaction support and integration boundaries: https://docs.spring.io/spring-kafka/reference/kafka/transactions.html
+14. Google SRE, *Addressing Cascading Failures*: overload, retry amplification, and backoff: https://sre.google/sre-book/addressing-cascading-failures/
+15. AWS Prescriptive Guidance, *Saga patterns*: orchestration, choreography, idempotency, and compensation considerations: https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/saga-patterns.html
 
 ---
 
