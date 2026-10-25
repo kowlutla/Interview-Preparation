@@ -24,9 +24,8 @@ This is the primary reading path. It contains 54 curated questions with detailed
 
 ## Extended legacy material
 
-The former chapter-by-chapter handbook contains additional specialist topics, scenarios, coding/output problems, and mock interviews. It is being reviewed for unique useful content before any consolidation or removal. Until that review is complete, those files remain available but are not the recommended first-pass revision path.
+The former chapter-by-chapter handbook contains additional specialist topics, scenarios, coding/output problems, and mock interviews. It is being reviewed for unique useful content before any consolidation or removal. Until that review is complete, those files remain available in their existing subfolders but are not the recommended first-pass revision path.
 
-- [Previous chapter index and inventory](README-LEGACY.md)
 - [Coverage and Technical Review](COVERAGE-AND-TECHNICAL-REVIEW.md)
 - [Quality Audit and Remediation Plan](QUALITY-AUDIT-AND-REMEDIATION.md)
 - [Official Documentation and Resources](references/Official-Documentation-and-Resources.md)
