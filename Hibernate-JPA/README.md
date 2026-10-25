@@ -870,7 +870,7 @@ Use these prompts to practise speaking naturally. Answer first, then compare you
 
 ### Mock Interview 1 — Core JPA and Hibernate
 
-Use these prompts to practise speaking naturally. Aim for a two-minute initial answer, then handle the follow-up without turning the response into a memorized definition.
+Aim for a two-minute initial answer, then handle the follow-up without turning the response into a memorized definition.
 
 #### Mock Q1. Explain JPA versus Hibernate.
 I'd say JPA is the standard contract for persistence in Java, while Hibernate is an ORM provider that implements that contract and offers extra features. Using JPA APIs improves portability, although generated SQL and performance can still vary.
@@ -1060,16 +1060,16 @@ I'd use the actual JPA provider and, where practical, the production database en
 ## Part 11. Roadmap and Study Plan
 
 ## Recommended order
-1. [JPA and Hibernate fundamentals](../01-JPA-and-Hibernate-Fundamentals/01-Fundamentals.md)
-2. [Entity mapping and relationships](../02-Entity-Mapping-and-Relationships/01-Mapping.md)
-3. [Entity lifecycle and persistence context](../03-Entity-Lifecycle-and-Persistence-Context/01-Lifecycle.md)
-4. [Fetching and performance](../04-Fetching-and-Performance/01-Fetching.md)
-5. [Transactions and concurrency](../05-Transactions-and-Concurrency/01-Transactions.md)
-6. [JPQL, Criteria, and queries](../06-JPQL-Criteria-and-Queries/01-Queries.md)
-7. [Spring Data JPA](../07-Spring-Data-JPA/01-Repositories.md)
-8. [Caching and optimization](../08-Caching-and-Optimization/01-Caching.md)
-9. [Production troubleshooting](../09-Production-Scenarios/01-Troubleshooting.md)
-10. [Mock interviews](../10-Mock-Interviews/01-Core-Mock.md)
+1. [JPA and Hibernate fundamentals](#part-1-jpa-and-hibernate-fundamentals)
+2. [Entity mapping and relationships](#part-2-entity-mapping-and-relationships)
+3. [Entity lifecycle and persistence context](#part-3-entity-lifecycle-and-persistence-context)
+4. [Fetching and performance](#part-4-fetching-and-performance)
+5. [Transactions and concurrency](#part-5-transactions-and-concurrency)
+6. [JPQL, Criteria, and queries](#part-6-jpql-criteria-and-querying)
+7. [Spring Data JPA](#part-7-spring-data-jpa)
+8. [Caching and optimization](#part-8-caching-and-optimization)
+9. [Production troubleshooting](#part-9-production-troubleshooting-scenarios)
+10. [Mock interviews](#part-10-mock-interviews)
 
 ## Study method
 - First explain each concept without notes.
