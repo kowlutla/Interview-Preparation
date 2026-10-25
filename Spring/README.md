@@ -1,122 +1,34 @@
-# Spring Framework + Spring Boot Interview Q&A Handbook
+# Spring Framework + Spring Boot Interview Preparation
 
-An interview-first, version-aware handbook for Java backend engineers preparing for mid-level and senior-level interviews. It prioritizes clear explanations of framework mechanics, proxy/lifecycle behavior, debugging, trade-offs, failure modes, and version-aware decisions. Code is supporting material: use small illustrative snippets only when they clarify an interview concept; full runnable applications and exhaustive coding examples are not a goal.
+A focused interview guide for Java backend engineers preparing for experienced and senior roles.
 
-> **Status:** The handbook is ready for interview preparation within its stated scope: 610 numbered Q&A headings across 25 core chapters, the advanced ecosystem chapter, and tricky-question chapters; 85 practice exercises, 75 real-world scenarios, and five mock-interview tracks. Structural checks and targeted technical reviews are recorded in the coverage tracker. This is not a claim of exhaustive answer-by-answer certification, global semantic deduplication, or a complete external-URL crawl.
+## Start here
 
-## Audience and prerequisites
+**[Spring Interview Handbook — Core Concepts to Senior-Level Discussion](Spring-Interview-QA.md)**
 
-Designed for engineers with roughly 2–6 years of Java backend experience. Prerequisites include Java classes/interfaces, exceptions, collections, generics, HTTP, SQL, dependency management, and basic testing. See the [Java handbook](../Java/README.md) for general Java language and JVM fundamentals.
+This is the primary reading path. It contains 40 curated questions with complete, readable answers across dependency injection, bean lifecycle, AOP/proxies, Spring Boot, REST APIs, transactions, security, testing, observability, caching, asynchronous work, messaging, reactive programming, and upgrades.
 
 ## Recommended study path
 
-1. [Learning roadmap](00-Roadmap/learning-roadmap.md), [version compatibility](00-Roadmap/version-compatibility.md), and [interview strategy](00-Roadmap/interview-preparation-strategy.md)
-2. [Spring fundamentals](01-Spring-Fundamentals/README.md), [IoC and dependency injection](02-IoC-and-Dependency-Injection/README.md), [beans and scopes](03-Beans-and-Scopes/README.md)
-3. [Configuration](04-Configuration/README.md), [AOP and proxies](05-Spring-AOP/README.md), [Boot fundamentals](06-Spring-Boot-Fundamentals/README.md), [auto-configuration and startup](07-Auto-Configuration-and-Startup/README.md), [profiles and external configuration](08-Configuration-and-Profiles/README.md)
-4. [MVC and REST APIs](09-Spring-MVC-and-REST-APIs/README.md), [exception handling](10-Exception-Handling/README.md)
-5. [Data access and transactions](11-Data-Access-and-Transactions/README.md), [Spring Data JPA integration](12-Spring-Data-JPA-Integration/README.md)
-6. [Spring Security](13-Spring-Security/README.md), [testing](14-Testing/README.md)
-7. [REST clients](15-REST-Clients/README.md), [reactive programming and WebFlux](16-Reactive-Programming-and-WebFlux/README.md), [Actuator and observability](17-Actuator-and-Observability/README.md)
-8. [Caching](18-Caching/README.md), [async and scheduling](19-Async-and-Scheduling/README.md), [events and messaging](20-Events-and-Messaging/README.md)
-9. [Spring Cloud and microservices](21-Spring-Cloud-and-Microservices/README.md), [deployment](22-Deployment-and-Production-Readiness/README.md), [performance and troubleshooting](23-Performance-and-Troubleshooting/README.md)
-10. [Internals and advanced topics](24-Internals-and-Advanced-Topics/README.md), [version evolution and migration](25-Version-Evolution-and-Migration/README.md)
-11. Read [advanced Spring ecosystem topics](31-Advanced-Ecosystem/README.md) for Spring Batch, Modulith, GraphQL, WebSocket, AOT/native images, virtual threads, and specialized Spring projects.
-12. Practice the [coding exercises](26-Coding-Exercises/01-Core-and-REST-Exercises.md), [real-world scenarios](27-Real-World-Scenarios/01-Container-Web-Transactions.md), [mock interviews](28-Mock-Interviews/01-Junior-Spring-Fundamentals.md), and [common mistakes/tricky questions](29-Common-Mistakes-and-Tricky-Questions/01-Container-Proxies-and-Configuration.md).
+1. Read the handbook in order to understand how the container, proxies, request lifecycle, and transaction infrastructure fit together.
+2. Prioritize the last-minute revision section before interviews.
+3. Practise explaining the mechanism, a common failure mode, and how to investigate it in a real service.
+4. Check the official references for behavior that depends on the Spring Framework, Spring Boot, Spring Security, or Spring Data version.
 
-## Practice collections
+## Editorial standard
 
-### Coding exercises
+- Focus on questions worth revising rather than maximizing the question count.
+- Provide complete answers in clear, human-readable language; avoid shallow definitions and repetitive first-person phrasing.
+- Explain proxy boundaries, transaction semantics, security implications, and operational trade-offs accurately.
+- Use small snippets only where they clarify behavior.
+- Do not claim universal or company-specific question frequency without credible evidence.
 
-- [Exercises 1–25: Core Spring and REST](26-Coding-Exercises/01-Core-and-REST-Exercises.md)
-- [Exercises 26–50: Operations and advanced engineering](26-Coding-Exercises/02-Operations-and-Advanced-Exercises.md)
-- [Exercises 51–70: Testing and integration](26-Coding-Exercises/03-Testing-and-Integration-Exercises.md)
-- [Exercises 71–85: Security, messaging, and cloud](26-Coding-Exercises/04-Security-Messaging-Cloud-Exercises.md)
+## Extended legacy material
 
-**Count:** 85 numbered exercises. Each includes a problem, reference approach/solution, common mistakes, and validation guidance; all 85 exercises now link to one of 11 detailed reference-solution files; examples remain illustrative and are not a single fully runnable project.
+The previous chapter collection includes additional exercises, scenarios, mock interviews, and specialized ecosystem topics. It remains in place while its unique useful content is reviewed and migrated where appropriate. The new handbook is the recommended first-pass study path; legacy files should not be deleted until coverage has been checked.
 
-**Detailed reference solutions:**
-
-- [REST API and validation](26-Coding-Exercises/Reference-Solutions/01-REST-API-Reference-Solution.md)
-- [Transactions](26-Coding-Exercises/Reference-Solutions/02-Transaction-Reference-Solution.md)
-- [Security and JWT](26-Coding-Exercises/Reference-Solutions/03-Security-Reference-Solution.md)
-- [Caching and async](26-Coding-Exercises/Reference-Solutions/04-Cache-and-Async-Reference-Solution.md)
-- [Testcontainers and REST clients](26-Coding-Exercises/Reference-Solutions/05-Testcontainers-and-Client-Reference.md)
-- [Configuration and validation](26-Coding-Exercises/Reference-Solutions/06-Configuration-and-Validation.md)
-- [Outbox and idempotency](26-Coding-Exercises/Reference-Solutions/07-Outbox-and-Idempotency.md)
-- [Actuator and metrics](26-Coding-Exercises/Reference-Solutions/08-Actuator-and-Metrics.md)
-- [Scheduled work and resilience](26-Coding-Exercises/Reference-Solutions/09-Scheduled-Work-and-Resilience.md)
-- [Core and operations patterns](26-Coding-Exercises/Reference-Solutions/10-Core-and-Operations-Patterns.md)
-- [Testing and cloud patterns](26-Coding-Exercises/Reference-Solutions/11-Testing-and-Cloud-Patterns.md)
-
-### Production scenarios
-
-- [Scenarios 1–10: Container, web, and transactions](27-Real-World-Scenarios/01-Container-Web-Transactions.md)
-- [Scenarios 11–20: Resilience, security, and operations](27-Real-World-Scenarios/02-Resilience-Security-Operations.md)
-- [Scenarios 21–30: Architecture and design](27-Real-World-Scenarios/03-Architecture-and-Design.md)
-- [Scenarios 31–55: Additional production scenarios](27-Real-World-Scenarios/04-Additional-Production-Scenarios.md) and [continued](27-Real-World-Scenarios/05-Additional-Production-Scenarios.md)
-- [Scenarios 56–65](27-Real-World-Scenarios/06-Scenarios-56-to-65.md)
-- [Scenarios 66–75](27-Real-World-Scenarios/07-Scenarios-66-to-75.md)
-
-**Count:** 75 numbered scenarios spanning incident investigation, architecture/design decisions, production operations, validation, trade-offs, and follow-up questions.
-
-### Mock interviews
-
-1. [Junior Java Developer](28-Mock-Interviews/01-Junior-Spring-Fundamentals.md)
-2. [Mid-Level Backend Engineer](28-Mock-Interviews/02-Mid-Level-Backend.md)
-3. [Senior Backend Engineer](28-Mock-Interviews/03-Senior-Backend.md)
-4. [Microservices Engineer](28-Mock-Interviews/04-Microservices-Engineer.md)
-5. [Senior Product-Based Company](28-Mock-Interviews/05-Senior-Product-Company.md)
-
-## Coverage and review status
-
-See the [coverage inventory and technical review checklist](COVERAGE-AND-TECHNICAL-REVIEW.md) for the current counted totals and remaining audit work. Count targets are not a substitute for technical accuracy, meaningful non-duplication, version/API consistency, and interview-useful explanations. Small snippets are illustrative; full runnable coding examples are explicitly not a completion requirement.
-
-## Difficulty guidance
-
-- **Beginner:** Explain purpose and basic behavior.
-- **Intermediate:** Implement a feature and explain configuration.
-- **Advanced:** Diagnose proxy, lifecycle, transaction, concurrency, or version edge cases.
-- **Senior:** Compare alternatives, state assumptions, explain failure modes, and defend operational trade-offs.
-
-## Progress tracker
-
-- [x] Root README integration and Spring handbook directory
-- [x] Roadmap, compatibility notes, and interview strategy
-- [x] Initial Q&A chapters for all requested core topic categories
-- [x] Advanced ecosystem chapter covering specialized Spring projects and architecture choices
-- [x] 610 numbered Q&A headings counted: 270 across 25 core chapters, 20 in advanced ecosystem, and 320 tricky questions (depth screen complete; global semantic deduplication remains a review task)
-- [x] 85 numbered coding exercises
-- [x] 75 numbered production scenarios
-- [x] Five mock interview files
-- [x] Structural heading audit: continuous Q&A numbering, no immediate verbatim question repetition beneath headings, and Q&A blocks placed before official-reference sections
-- [x] Exercise numbering audit: 1–85 continuous
-- [x] Exercise entry consistency: all 85 include a reference approach, common-mistake note, and validation points. These are secondary practice material; the primary handbook goal remains interview-ready explanations, not full runnable implementations.
-- [x] Production-scenario numbering audit: 1–75 continuous
-- [x] Scenario-format consistency pass for incident and architecture/design scenarios; prevention guidance and label consistency improved
-- [x] Answer-depth screen and targeted expansions across all 290 core/advanced answers; full claim-by-claim technical correctness review and global semantic deduplication remain pending
-- [x] Local Markdown target audit across all 68 Spring Markdown files (all local targets resolve); no local fragment links were found. Targeted official-reference URL checks corrected stale Boot Javadoc and Spring Cloud links; remaining external URLs and the two project-page `#support` anchors still need review.
-- [x] Compared core and tricky-question titles with overlap screening and refined several near-duplicate prompts into diagnostic/scenario variants; no exact repeats within either batch or within the tricky-question collection
-- [x] Answer-depth screen: all 270 core and 20 advanced ecosystem answers contain at least 35 words after targeted expansions; the 320 tricky Q&As intentionally use concise rapid-fire answers
-- [x] Rechecked version-sensitive guidance against current official release and compatibility pages; the Boot 4.1.2 system requirements and advanced ecosystem heading levels were corrected in this pass
-- [x] Manual review of all 11 detailed reference-solution files for obvious API/version and example-consistency issues (no compilation or runtime execution)
-- [x] Local Markdown target and local-fragment checks; targeted official external-reference checks completed
-- [x] Final editorial/structural pass, answer-depth screening, and targeted cross-topic overlap corrections recorded in the coverage tracker; global semantic deduplication and a repository-wide external URL audit remain open. Full runnable exercise solutions are not a completion requirement for this interview-first handbook.
-
-## Version policy
-
-Do not assume every Spring Framework, Spring Boot, Spring Security, Spring Data, or Spring Cloud release is currently supported. Use the exact versioned documentation and migration guides. Boot 3/Spring Framework 6 introduced the Java 17 baseline and Jakarta namespace migration for relevant APIs; verify the selected Boot 4/Framework 7 runtime requirements in the official release documentation. Modern servlet security uses `SecurityFilterChain`; legacy `WebSecurityConfigurerAdapter` examples should not be copied into new code.
-
-## Official documentation
-
+- [Coverage and Technical Review](COVERAGE-AND-TECHNICAL-REVIEW.md)
 - [Spring Framework Reference](https://docs.spring.io/spring-framework/reference/)
-- [Spring Framework support](https://spring.io/projects/spring-framework#support)
 - [Spring Boot Reference](https://docs.spring.io/spring-boot/reference/)
-- [Spring Boot support](https://spring.io/projects/spring-boot#support)
-- [Spring Security Reference](https://docs.spring.io/spring-security/reference/)
-- [Spring Data JPA Reference](https://docs.spring.io/spring-data/jpa/reference/)
-- [Spring Cloud project and compatibility](https://spring.io/projects/spring-cloud)
-- [Spring Cloud release-train reference](https://spring.io/projects/spring-cloud#overview)
-- [Spring for Apache Kafka](https://docs.spring.io/spring-kafka/reference/)
-- [Spring Batch](https://docs.spring.io/spring-batch/reference/)
-- [Spring guides](https://spring.io/guides)
-- [Full reference index](30-References/README.md)
+
+**Goal:** A manageable, dependable guide that helps readers understand Spring deeply and revise efficiently before an interview.
