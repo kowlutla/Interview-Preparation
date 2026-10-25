@@ -26,9 +26,10 @@ A focused, version-aware guide for Java backend engineers. It prioritizes questi
 17. [Collections framework — deeper interview questions](#17-collections-framework--deeper-interview-questions)
 18. [Concurrency, executors, and asynchronous execution](#18-concurrency-executors-and-asynchronous-execution)
 19. [JVM, garbage collection, and diagnostics](#19-jvm-garbage-collection-and-diagnostics)
-22. [Last-minute revision](#22-last-minute-revision)
-23. [Official references](#23-official-references)
-24. [Editorial and validation notes](#24-editorial-and-validation-notes)
+20. [I/O, networking, JDBC, security, and testing](#20-io-networking-jdbc-security-and-testing)
+25. [Last-minute revision](#25-last-minute-revision)
+26. [Official references](#26-official-references)
+27. [Editorial and validation notes](#27-editorial-and-validation-notes)
 
 ---
 
@@ -1690,7 +1691,170 @@ Capture a thread dump while the application is stuck and inspect monitor ownersh
 
 A heap dump captures objects and references for retained-memory analysis. A thread dump captures thread states and stack traces for blocked threads, deadlocks, and executor problems. Choose the artifact that matches the symptom; collect them with care because dumps may be large and contain sensitive data.
 
-## 22. Last-minute revision
+
+## 20. I/O, networking, JDBC, security, and testing
+
+### Q276. What is the difference between byte streams and character streams?
+
+InputStream and OutputStream operate on bytes and suit binary data. Reader and Writer operate on characters through an encoding. Text is stored or transmitted as bytes, so the encoding must be explicit at the boundary. Do not decode arbitrary binary data as text or rely on a machine's default charset for a file format.
+
+### Q277. Why should text encoding be specified explicitly?
+
+The default charset can vary across environments and has changed in modern Java releases. Specify UTF-8 or the protocol's required charset when reading and writing text. Otherwise, characters may be corrupted only after deployment to a different container, host, or locale.
+
+### Q278. What is try-with-resources and why is it preferred?
+
+Try-with-resources automatically closes AutoCloseable resources when the scope exits, including when an exception occurs. Resources close in reverse declaration order. If the body throws and closing also throws, the body exception remains primary and close failures are recorded as suppressed exceptions.
+
+### Q279. What is the difference between Path and File?
+
+Path, part of NIO.2, represents a path and works with the Files API for richer filesystem operations. File is an older abstraction with a smaller and less expressive API. Prefer Path and Files for new code, specify encodings for text, and stream large files rather than loading them entirely into memory.
+
+### Q280. How do you protect against path traversal?
+
+Resolve untrusted relative paths against an intended base directory, normalize them, and verify that the resulting path remains within the allowed root. Consider symbolic links and filesystem races for sensitive operations; checking whether a string contains ".." is not sufficient. Apply authorization and least privilege in addition to path validation.
+
+### Q281. What is the difference between serialization and JSON mapping?
+
+Java native serialization encodes object graphs using Java-specific mechanisms and can invoke complex object construction behavior during deserialization. JSON mapping usually converts between explicit data representations and Java types through a library. For untrusted input, avoid native deserialization where possible and use constrained data formats with validation.
+
+### Q282. Why is deserializing untrusted Java objects dangerous?
+
+Object deserialization can instantiate classes and invoke hooks before the application has validated the resulting object. Certain dependency chains can expose gadget behavior. Prefer explicit schemas and data transfer formats; if native serialization is unavoidable, apply strict filters and allowlists and keep the boundary narrow.
+
+### Q283. What is a socket, and what does TCP guarantee?
+
+A socket is an endpoint for network communication. TCP provides a reliable, ordered byte stream, but it does not preserve application message boundaries. The application protocol must define framing, such as a length prefix or delimiter. One read call is not guaranteed to return one complete message.
+
+### Q284. What is the difference between connect timeout and request timeout?
+
+A connect timeout limits how long establishing a connection may take. A request or response timeout limits some part of the operation after connection setup, depending on the client API. Production clients should have explicit timeouts aligned with an overall deadline; one timeout setting rarely covers every stage of a distributed request.
+
+### Q285. Why is retrying a timed-out write dangerous?
+
+A timeout means the caller did not receive a response in time, not that the remote operation definitely failed. The server may have committed the write and lost the response. Use idempotency keys, unique constraints, or durable operation identifiers for operations that must not be duplicated; retry only under a defined policy.
+
+### Q286. What is JDBC, and what are Connection, PreparedStatement, and ResultSet?
+
+JDBC is Java's standard API for database access. Connection represents a database session and transaction context, PreparedStatement represents a parameterized SQL statement, and ResultSet exposes query results. Use parameterized values, manage resources with try-with-resources when appropriate, and understand whether the framework or application owns the connection lifecycle.
+
+### Q287. Why are PreparedStatement objects preferred over concatenated SQL?
+
+Prepared statements separate SQL structure from parameter values and help prevent SQL injection for those values. Dynamic identifiers such as table names or sort directions generally cannot be bound as values, so choose them from a strict allowlist. Parameterization is not a substitute for business validation or authorization.
+
+### Q288. What is transaction isolation?
+
+Isolation controls how concurrent transactions observe each other's changes. Common anomalies include dirty reads, non-repeatable reads, and phantom reads, although exact behavior depends on the database and its implementation. Choose isolation based on correctness requirements and test concurrent workflows rather than assuming the strongest level is always best.
+
+### Q289. What is the difference between commit and rollback?
+
+Commit makes the transaction's changes durable according to the database's transaction contract. Rollback abandons uncommitted changes. In application code, ensure exceptions trigger the correct transaction outcome and do not catch an exception and accidentally commit partial work. Framework-managed transactions should be used consistently rather than mixing manual and declarative lifecycle control.
+
+### Q290. What is connection pooling, and what can go wrong?
+
+A connection pool reuses physical database connections to avoid repeatedly paying connection-establishment cost. Problems include pool exhaustion, leaks, too-large pool sizes that overload the database, and connections held during slow remote calls. Monitor active, idle, pending, and timeout metrics; size the pool with the database's capacity and workload in mind.
+
+### Q291. Why should database transactions usually be short?
+
+Long transactions hold connections and may retain locks or snapshots, increasing contention and reducing pool availability. Avoid performing slow remote HTTP calls while holding a database transaction open unless the consistency requirement truly demands it. Design boundaries so the critical database work is as short as correctness allows.
+
+### Q292. What is SQL injection and how does Java code prevent it?
+
+SQL injection occurs when untrusted input is interpreted as SQL syntax. Use PreparedStatement parameters for values, allowlist dynamic identifiers, apply least-privilege database permissions, and avoid leaking query details in public error responses. Manual escaping is fragile and should not replace parameterization.
+
+### Q293. How should secrets be handled in a Java service?
+
+Keep credentials out of source control, logs, and exception messages. Use an approved secret-management mechanism, apply least privilege, rotate secrets where supported, and avoid exposing them through diagnostics or configuration endpoints. Validate required configuration at startup and fail clearly rather than silently using an unsafe default.
+
+### Q294. What is SSRF and why can it affect Java HTTP clients?
+
+Server-side request forgery occurs when an attacker influences a server to make requests to unintended destinations. Validate destination hosts and schemes, account for redirects and DNS resolution, block access to sensitive internal address ranges where appropriate, and apply egress controls. A simple URL string check alone may not cover all routing behaviors.
+
+### Q295. What is the difference between authentication and authorization?
+
+Authentication establishes who or what is making a request; authorization determines which actions that identity is allowed to perform. A valid token or authenticated session does not imply access to every resource. Enforce authorization at the correct boundary and test both allowed and denied cases.
+
+### Q296. How do you avoid leaking sensitive data through logs?
+
+Log enough context to diagnose the event without including passwords, access tokens, private keys, or unnecessary personal data. Redact sensitive fields, constrain payload logging, and use correlation identifiers to connect events. Logs should complement metrics and traces rather than becoming a copy of all request and response bodies.
+
+### Q297. What is the difference between unit and integration testing?
+
+Unit tests verify a small piece of behavior in isolation and should be fast and focused. Integration tests verify interactions among components such as the database, serialization, configuration, and framework wiring. Use mocks where they clarify a unit contract, but do not mock away every integration boundary that could fail in production.
+
+### Q298. What is contract testing?
+
+Contract testing verifies that independently developed components honor an agreed interface, such as an HTTP API or message schema. It can catch incompatible request, response, or event changes before deployment. Contract tests complement, rather than replace, unit and integration tests.
+
+### Q299. How do you test asynchronous code without arbitrary sleeps?
+
+Use latches, futures, barriers, controlled executors, and bounded waits to coordinate the behavior being tested. A fixed sleep only guesses that a thread has reached a state and can make tests flaky. Ensure test failures include diagnostics and that executors and resources are cleaned up.
+
+### Q300. What is the difference between a mock and a stub?
+
+A stub provides predetermined responses; a mock also allows interaction verification in many test frameworks. Both can isolate a unit, but excessive mocking can couple tests to implementation details and hide integration defects. Prefer testing observable behavior and use real lightweight collaborators where practical.
+
+### Q301. Why should performance tests use representative workloads?
+
+Performance depends on input size, data distribution, concurrency, cache state, allocation, and downstream dependencies. A microbenchmark can isolate a small operation but may not predict end-to-end service behavior. Use JMH for JVM microbenchmarks and load tests with production-like traffic, data, and resource constraints for service-level questions.
+
+### Q302. What should be measured before and after a performance optimization?
+
+Measure the relevant outcome—such as throughput, p95/p99 latency, CPU, allocation rate, GC pauses, lock contention, and downstream saturation—against a baseline. Change one variable at a time where feasible and repeat tests to account for noise. An optimization that improves average throughput can still worsen tail latency or memory use.
+
+### Q303. What is JMH and why is a naive benchmark misleading?
+
+JMH is a harness designed for JVM microbenchmarking. Naive timing loops can be distorted by JIT warm-up, dead-code elimination, constant folding, allocation behavior, and measurement noise. Use proper warm-up, forks, and benchmark structure, and avoid extrapolating microbenchmark results directly to a whole service.
+
+### Q304. What is the difference between source, binary, and behavioral compatibility?
+
+Source compatibility means source continues to compile; binary compatibility means existing compiled classes can link; behavioral compatibility means the program continues to behave as expected. A change may preserve one and break another. For library upgrades, check public API signatures, runtime behavior, dependency versions, and integration tests.
+
+### Q305. What does the compiler option --release do?
+
+The --release option selects the language rules, class-file target, and documented Java platform API surface for a specified release. This is safer than only setting source and target levels when building against a newer JDK. Also test with the actual deployment runtime and ensure dependencies support it.
+
+### Q306. What is the difference between classpath and module path?
+
+The classpath loads classes in the traditional unnamed-module model. The module path allows named modules with explicit dependencies and exported packages. Mixing them can affect access and resolution behavior, so diagnose missing classes or illegal reflective access using the actual launch configuration rather than assuming every dependency is simply on the classpath.
+
+### Q307. Why can ClassNotFoundException differ from NoClassDefFoundError?
+
+ClassNotFoundException commonly occurs when code explicitly asks a loader to find a class and it cannot. NoClassDefFoundError is a linkage error raised when the runtime cannot find a class definition needed by already-compiled code, and can also appear after initialization failures. Check the earliest failure, classpath/module path, and class loader identity.
+
+### Q308. Why can two classes with the same fully qualified name be incompatible?
+
+Runtime type identity includes the defining class loader. Two classes with the same name loaded by different class loaders are distinct runtime types, which can cause confusing ClassCastException or linkage failures. This appears in plugin systems, application servers, and dependency isolation; inspect class loader origins rather than only class names.
+
+### Q309. What are the main Java 25 language features finalized in that release?
+
+Java 25 finalized module import declarations, compact source files and instance main methods, and flexible constructor bodies. It also finalized Scoped Values and the Key Derivation Function API. Primitive types in patterns, instanceof, and switch remained preview in Java 25; structured concurrency remained preview and the Vector API remained incubating. Check official release notes for the full status list.
+
+### Q310. What does Java 25's compact source file feature change?
+
+It allows simple programs to be written with less ceremony through compact source files and instance main methods. This is intended to ease the first steps in Java and small utility programs, not to remove the value of ordinary classes or conventional entry points in larger applications. It became final in Java 25 after earlier preview iterations.
+
+### Q311. What are flexible constructor bodies in Java 25 useful for?
+
+They allow certain statements before an explicit superclass constructor invocation while preserving rules that prevent unsafe use of an incompletely initialized object. This can make validation and argument preparation clearer. The feature became final in Java 25; code should still be checked against the target release's constructor rules.
+
+### Q312. What is the Key Derivation Function API in Java 25?
+
+The Key Derivation Function API provides a standard cryptographic API for deriving keys from input keying material using a specified derivation function. Cryptographic use requires careful parameter selection and domain-specific security review; developers should use established protocols and security guidance rather than inventing a scheme. Its presence in Java 25 does not make every use case automatically secure.
+
+### Q313. What is JEP 519, compact object headers, about?
+
+Compact object headers reduce the memory overhead associated with object headers in supported JVM configurations. This can improve memory footprint for object-heavy applications, but exact benefits depend on workload, platform, and configuration. Measure heap usage and performance on the target runtime rather than assuming a fixed improvement.
+
+### Q314. What are ahead-of-time cache ergonomics and ahead-of-time method profiling?
+
+Java 25 includes work to simplify ahead-of-time cache configuration and capture method profiling information for faster or more informed startup optimization. These capabilities target startup and warm-up behavior, particularly for applications where startup latency matters. Evaluate them against deployment constraints and representative cold-start measurements.
+
+### Q315. What are the main reasons to upgrade from Java 17 to Java 25?
+
+Reasons can include a newer LTS support baseline, language/API improvements, runtime and garbage-collection enhancements, security updates, and tooling improvements. The migration also has costs: framework compatibility, dependency upgrades, reflection/module access, changed defaults, and operational validation. Make the decision with a compatibility matrix, tests, performance baseline, and rollback plan rather than adopting new syntax alone.
+
+## 25. Last-minute revision
 
 If only a short time remains, prioritize these questions and make sure the explanations are clear enough to say aloud:
 
@@ -1715,7 +1879,7 @@ If only a short time remains, prioritize these questions and make sure the expla
 
 ---
 
-## 23. Official references
+## 26. Official references
 
 Use official specifications and API documentation as the final authority for language and runtime contracts. Secondary interview guides are useful for discovering recurring themes, not for proving technical behavior or guaranteeing company-specific frequency.
 
@@ -1736,7 +1900,7 @@ Use official specifications and API documentation as the final authority for lan
 
 ---
 
-## 24. Editorial and validation notes
+## 27. Editorial and validation notes
 
 - This is the **curated primary interview guide**, not a claim that every advanced Java API can be covered in 54 questions.
 - It deliberately favors common concepts and senior-level reasoning over obscure trivia and repetitive question variants.
