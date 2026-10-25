@@ -80,7 +80,7 @@ Calling `save()` on an already managed entity is often unnecessary for dirty che
 ```java
 @Transactional
 public void changeStatus(long id, OrderStatus status) {
-    Order order = orderRepository.findById(id).orElseThrow();
+    Order order = orderRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Order not found"));
     order.setStatus(status); // dirty checking detects this change
 }
 ```
@@ -646,7 +646,7 @@ Spring Data repository methods have transaction configuration, but service metho
 ```java
 @Transactional
 public void confirmOrder(long id) {
-    Order order = orderRepository.findById(id).orElseThrow();
+    Order order = orderRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Order not found"));
     order.confirm();
     inventoryRepository.reserveFor(order);
 }
