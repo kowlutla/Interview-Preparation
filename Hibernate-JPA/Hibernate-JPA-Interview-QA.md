@@ -87,7 +87,7 @@ Choose a deliberate policy that fits the entity model and provider. A stable nat
 
 ### Q10. Why are lazy and eager fetching important?
 
-Fetch strategy controls when related data is loaded. Lazy fetching defers loading until the relationship is accessed, while eager fetching expresses that the provider should fetch the association eagerly according to the persistence specification and provider behavior. Eager does not guarantee one SQL join; the provider may issue additional queries.
+Fetch strategy controls when related data is loaded. Jakarta Persistence defaults `@ManyToOne` and `@OneToOne` to `EAGER`, while `@OneToMany` and `@ManyToMany` default to `LAZY`. Lazy fetching defers loading until the relationship is accessed; eager fetching requires the association to be fetched eagerly, but does not guarantee one SQL join—the provider may issue additional queries. Because eager to-one associations can cause extra selects or over-fetching, many teams explicitly request lazy associations where the mapping and provider support it, then choose the required fetch plan per use case.
 
 Lazy loading can reduce unnecessary work but may trigger extra SQL or fail when accessed after the persistence context is closed. Eager loading can load more data than a use case needs. Prefer defining the required fetch plan for the specific use case—through fetch joins, entity graphs, projections, or queries—rather than making every relationship eager to hide a symptom.
 
@@ -109,7 +109,7 @@ The result can be slow even when each individual query is fast. Diagnose it by i
 
 ### Q13. How do you fix N+1 queries?
 
-Choose the fetch plan based on the data the use case actually needs. Options include a fetch join, an entity graph, a DTO/projection query, batch fetching, or restructuring the query to load related data in a small number of calls. The best option depends on cardinality, pagination, selected columns, and how the data is used.
+Choose the fetch plan based on the data the use case actually needs. Options include a JPQL fetch join, a JPA `@EntityGraph`, a DTO/projection query, Hibernate batch fetching, or restructuring the query to load related data in a small number of calls. An entity graph declares which attributes should be fetched for a particular operation without hard-coding every fetch decision into the mapping; a fetch graph treats listed attributes as eager for that operation, while a load graph adds listed attributes to the mapping's eager requirements. Provider details and SQL shape still need inspection. The best option depends on cardinality, pagination, selected columns, and how the data is used.
 
 A fetch join is not universally safe: joining multiple to-many associations can multiply result rows and increase memory use. Batch fetching can reduce round trips without creating one enormous joined result. Verify the fix by checking SQL count, row counts, response latency, and memory under representative data sizes.
 
