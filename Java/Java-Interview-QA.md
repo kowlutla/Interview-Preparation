@@ -10,6 +10,8 @@ A focused, version-aware guide for Java backend engineers. It prioritizes questi
 
 ## Contents
 
+> **Reading map:** Sections 1–9 provide a first-pass core revision set. Sections 10–28 deepen individual topics, add focused coding exercises, and cover production follow-ups. Use the contents list to jump directly to a topic; the later sections are intended to fill in detail rather than replace the core explanations.
+
 1. [Java foundations and language behavior](#1-java-foundations-and-language-behavior)
 2. [Object-oriented design and contracts](#2-object-oriented-design-and-contracts)
 3. [Collections and data structures](#3-collections-and-data-structures)
@@ -69,6 +71,8 @@ flowchart LR
 
 ## 1. Java foundations and language behavior
 
+### Language basics and execution
+
 ### Q1. What are the JDK, JVM, and JRE, and how does a Java program run?
 
 The **JDK** is the development kit: it includes tools such as `javac`, `java`, `jar`, `javadoc`, and diagnostic utilities, together with the runtime components. The **JVM** is the abstract machine that loads and executes class files and defines runtime behavior. The **JRE** traditionally refers to the JVM plus the libraries and supporting files needed to run applications; since Java 9's modular runtime-image model, a separate JRE download is not universally provided.
@@ -82,6 +86,8 @@ In the common workflow, `javac` compiles source code into class files containing
 Java is **always pass-by-value**. For a primitive, the method receives a copy of the primitive value. For an object argument, the method receives a copy of the reference value, so both references can point to the same object.
 
 That allows a method to mutate the referenced object's state, but reassigning its parameter does not change the caller's variable. This distinction explains why a method can modify a passed-in list but cannot make the caller's list variable refer to a newly created list simply by assigning to its parameter.
+
+### Equality and string contracts
 
 ### Q3. What is the difference between `==` and `equals()`?
 
@@ -100,6 +106,8 @@ Use `StringBuilder` for repeated modifications within one thread, such as constr
 If two objects are equal according to `equals()`, they must return the same `hashCode()`. Unequal objects may share a hash code, although a good implementation aims to distribute values well. The hash code must remain consistent while the information used by equality remains unchanged.
 
 Hash-based collections use the hash to find a candidate bucket and equality to identify the key. If equality is overridden without a compatible `hashCode()`, lookups can fail even for logically equal keys. Mutable fields used in equality or hashing are particularly dangerous: changing them after insertion can make an entry difficult to find or remove.
+
+### Exception handling and API contracts
 
 ### Q6. What is the difference between checked and unchecked exceptions?
 
@@ -193,7 +201,9 @@ Choose based on the ordering and coordination contract. A priority queue is not 
 
 ---
 
-## 4. Generics, exceptions, and functional programming
+## 4. Generics and Stream fundamentals
+
+### Generics and type safety
 
 ### Q19. What are generics, and what is type erasure?
 
