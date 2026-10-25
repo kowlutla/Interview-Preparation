@@ -909,19 +909,17 @@ Use dedicated test credentials and ephemeral or isolated infrastructure, and loa
 ## REST Clients and Inter-Service Communication
 
 
-### Q173. How do RestTemplate, RestClient, and WebClient differ?
+### Q173. How do `RestTemplate`, `RestClient`, and `WebClient` differ?
 
-RestTemplate is the established synchronous template-style client; it is deprecated in Spring Framework 7.0 in favor of RestClient. RestClient is a fluent synchronous client introduced in Framework 6.1. WebClient is designed for non-blocking reactive I/O and streaming. Verify the framework baseline before using RestClient; do not assume it exists in older Framework versions.
-
-For new synchronous integrations on Framework 6.1+, evaluate RestClient. For non-blocking reactive pipelines, consider WebClient. Existing RestTemplate applications should follow the official migration guide and can migrate incrementally.
+`RestTemplate` is the older synchronous template-style client and is deprecated in Spring Framework 7 in favor of `RestClient`. `RestClient`, introduced in Framework 6.1, provides a fluent synchronous API and is a natural choice for new blocking integrations on compatible versions. `WebClient` supports non-blocking reactive I/O and streaming, and is useful when the surrounding application is built around reactive pipelines. These clients are not interchangeable just because they all send HTTP requests: the execution model, connector, timeout configuration, error handling, and integration with reactive backpressure differ. Choose the client that matches the application’s concurrency model and the exact Framework version; do not move a blocking call onto a reactive event loop and assume it has become non-blocking.
 
 ### Q174. How should outbound timeouts be configured?
 
-Configure connection establishment and response/read timeouts using the chosen client and request factory/connector. A timeout budget should align with the caller's deadline and leave time for response handling. An absent timeout can tie up threads and connections during a downstream incident.
+Configure the time spent establishing a connection, waiting for a pooled connection, and waiting for the remote response using the options supported by the selected client/connector. These are different failure points and may have different settings. The total downstream budget must fit inside the caller's overall deadline, leaving time for fallback or response serialization. A timeout should be short enough to release resources during an incident but realistic enough for normal latency. Test timeout behavior and cancellation under load; otherwise, requests can accumulate while each waits for a slow dependency.
 
 ### Q175. When are retries appropriate?
 
-Retries can help with transient failures when the operation is safe to repeat and the total deadline allows it. Use bounded attempts, backoff, jitter, and clear retryable-exception rules. Retrying non-idempotent writes without deduplication can create duplicate side effects and amplify an outage.
+Retry only when the failure is plausibly transient, the operation is safe to repeat, and the remaining deadline allows another attempt. Use a small bounded attempt count, exponential backoff with jitter, and an explicit allow-list of retryable failures. Do not retry validation errors, authorization failures, or permanent 4xx responses indiscriminately. A timeout is ambiguous: the server may have completed the write even though the response never reached the caller. Use idempotency keys, deduplication, or reconciliation before retrying side-effecting operations. Coordinate retries across layers because client, gateway, and service retries can multiply traffic during an outage.
 
 ### Q176. Why is connection pooling important?
 
@@ -949,9 +947,9 @@ Modern Spring Framework versions support declarative HTTP service interfaces bac
 ## Reactive Programming and WebFlux
 
 
-### Q180. What are Mono and Flux?
+### Q180. What are `Mono` and `Flux`?
 
-In Project Reactor, `Mono<T>` represents an asynchronous sequence with zero or one item, while `Flux<T>` represents a sequence of zero to many items. They describe a publisher pipeline, not necessarily a separate thread or automatic parallel execution.
+In Project Reactor, `Mono<T>` represents a publisher that can emit zero or one item and then complete or fail; `Flux<T>` can emit zero to many items. They are publisher types that describe a computation or sequence, not containers that necessarily hold an already-computed value. Most pipelines are lazy until subscribed, and operators compose the sequence of work. Neither type automatically creates a new thread or makes blocking code non-blocking. In a web application, the framework subscribes to the returned publisher as part of request processing; avoid calling `block()` on event-loop threads.
 
 ### Q181. What is backpressure?
 
@@ -959,11 +957,11 @@ Backpressure is a mechanism for coordinating demand between a subscriber and a p
 
 ### Q182. How does WebFlux differ from Spring MVC?
 
-Spring MVC is commonly used with a thread-per-request, blocking programming model. WebFlux is designed for non-blocking reactive processing and can use a small event-loop worker set. WebFlux is most beneficial when the whole I/O path is non-blocking and concurrency demands justify the model's complexity.
+Spring MVC is commonly used with imperative request handling and blocking I/O, often using a thread-per-request model. WebFlux is designed for asynchronous, non-blocking I/O and reactive composition, typically using event-loop workers to serve many concurrent requests. WebFlux is not automatically faster: if every request blocks on JDBC or a blocking HTTP client, the event-loop advantage disappears and throughput can degrade sharply. Choose it when the I/O stack supports non-blocking work and the team understands Reactor, cancellation, context propagation, and backpressure. MVC remains a strong choice for conventional CRUD services with blocking persistence.
 
 ### Q183. Why are blocking calls dangerous on event-loop threads?
 
-Blocking work prevents an event-loop worker from servicing other tasks, causing latency and throughput degradation. Use reactive clients and reactive data access where appropriate, or isolate unavoidable blocking work on a suitable bounded scheduler. Moving blocking work to another scheduler still consumes threads and must be capacity-planned.
+An event-loop worker is expected to execute short, non-blocking tasks for many connections. If it waits synchronously for JDBC, filesystem I/O, `Thread.sleep`, or a blocking HTTP client, every other task assigned to that worker waits too, so a small number of blocked workers can create a broad latency spike. Prefer a non-blocking client and reactive data access when the full path supports it. If blocking work is unavoidable, isolate it with a suitable bounded scheduler and explicit concurrency limits; this protects the event loop but does not make the blocking work free or infinitely scalable. Measure queueing and thread utilization rather than treating `subscribeOn` as a universal fix.
 
 ### Q184. How should errors and retries be handled in a reactive pipeline?
 
@@ -981,9 +979,9 @@ Reactive execution can hop threads, so ordinary ThreadLocal assumptions do not n
 
 A method parameter explicitly carries data through a call graph; Reactor Context carries subscriber-associated metadata across a reactive chain. Use Context for cross-cutting metadata such as tracing where supported, but use explicit parameters for business inputs that should remain visible in method contracts.
 
-### Q188. What is the danger of onErrorResume used too broadly?
+### Q188. What is the danger of `onErrorResume` used too broadly?
 
-`onErrorResume` replaces an error signal with another publisher; used too broadly, it can hide a database outage or programming defect behind an apparently successful response. Recover only failures with a domain-valid fallback, preserve the original cause in logs and metrics, and distinguish expected absence (such as an optional record) from infrastructure failure. Avoid returning empty data for critical dependencies unless the API contract explicitly permits it.
+`onErrorResume` replaces an error signal with a fallback publisher. That is appropriate when the fallback is valid for the business contract, but dangerous when it converts a database outage, timeout, or programming defect into an empty result that looks successful. Match the recovery to the exception type, preserve diagnostic context in logs/metrics, and keep expected absence separate from dependency failure. For example, “customer not found” may map to an empty/404 result, while “customer database unavailable” should remain an operational failure. Broadly catching `Throwable` or returning `Mono.empty()` for every failure hides incidents and can cause downstream systems to make incorrect decisions.
 
 ### Q189. Why can flatMap increase concurrency unexpectedly?
 
@@ -1008,11 +1006,11 @@ It can isolate unavoidable blocking work from event-loop threads, but it is not 
 
 ### Q192. What does Spring Boot Actuator provide?
 
-Actuator exposes operational endpoints and integrates health, metrics, and application information with the running application. Common uses include readiness/liveness probes, metrics scraping, and inspecting selected runtime state. Endpoint availability is different from web exposure: configure which endpoints are enabled and exposed, secure sensitive endpoints, and avoid publishing environment/configuration details to untrusted callers. Adding Actuator does not mean every endpoint should be public.
+Actuator adds production-oriented management capabilities such as health indicators, metrics integration, application information, and selected diagnostic endpoints. It can connect the application to readiness/liveness probes and monitoring systems, but it is not a full observability platform by itself. Distinguish an endpoint being enabled from it being exposed over HTTP or JMX, and then distinguish exposure from authorization. Expose only what operators and orchestration require, secure sensitive endpoints, and review the actual endpoint set after configuration or version changes. Environment, configuration, heap/thread dump, and shutdown-related data or actions can reveal sensitive information or affect availability.
 
 ### Q193. What is the difference between liveness and readiness?
 
-Liveness asks whether the process should be restarted because it is unable to make progress. Readiness asks whether the instance should receive traffic. A transient dependency failure should not automatically trigger restart loops unless the operational policy explicitly requires that behavior.
+Liveness asks whether the process is alive enough that restarting it may help; readiness asks whether it should receive new traffic. A database outage may make an instance temporarily unready, but making database health part of liveness can restart every replica repeatedly without fixing the dependency. Configure probe groups around the orchestration decision they support, use bounded checks, and avoid expensive dependency fan-out on every probe. Also distinguish startup probes where supported: a slow but healthy application may need time to initialize before liveness evaluation begins.
 
 ### Q194. What is Micrometer?
 
@@ -1020,7 +1018,7 @@ Micrometer provides an instrumentation facade for metrics that can be exported t
 
 ### Q195. How should health indicators be designed?
 
-A health check should reflect a meaningful operational decision and be fast, bounded, and safe. Decide whether each dependency belongs in liveness or readiness, set timeouts, and avoid making a health endpoint itself a source of load during an incident. Health status is not a replacement for metrics and alerts.
+Design a health indicator to answer a specific operator decision, not to prove that every subsystem is perfect. Keep it cheap and bounded; a check that performs an expensive query or fans out to dozens of downstream services can amplify an outage. Decide whether a dependency affects liveness, readiness, or only a separate diagnostic indicator. Optional dependencies should not necessarily remove the whole instance from traffic. Use metrics, traces, and alerts to diagnose degradation; a single UP/DOWN result rarely explains root cause. Test timeout and partial-failure behavior so the health endpoint remains useful when dependencies are unhealthy.
 
 ### Q196. What is distributed tracing useful for?
 
@@ -1055,13 +1053,20 @@ Endpoint availability, default exposure, configuration properties, and security 
 ## Spring Caching
 
 
-### Q202. What does @Cacheable do?
+### Q202. What does `@Cacheable` do?
 
-It checks the configured cache for a key and, on a miss, invokes the method and stores the result according to the cache configuration. The annotation relies on caching infrastructure and commonly proxy interception, so self-invocation may bypass it. Cache keys and value semantics must be designed explicitly.
+When caching is enabled and the invocation passes through the cache interceptor, Spring evaluates the cache name and key. If a matching entry exists, the method body is skipped and the cached result is returned; on a miss, the method runs and its result is stored according to the cache configuration. This is proxy-based in the common setup, so self-invocation or manual object construction can bypass caching. Define keys from every input that affects the result, choose TTL/eviction semantics deliberately, and avoid caching values whose freshness or tenant/authorization scope is not represented in the key.
 
-### Q203. How do @CachePut and @CacheEvict differ?
+```java
+@Cacheable(cacheNames = "productById", key = "#productId")
+public Product findProduct(String productId) { ... }
+```
 
-`@CachePut` always invokes the method and updates the cache with the result; `@CacheEvict` removes entries. Use them when the data-change semantics are clear. Combining cache annotations without understanding evaluation and ordering can produce stale or contradictory results.
+The example assumes `productId` uniquely identifies the result within the cache's intended security and tenant scope.
+
+### Q203. How do `@CachePut` and `@CacheEvict` differ?
+
+`@CachePut` always invokes the target method and stores its returned value under the selected key, making it useful when a successful update returns the refreshed object. `@CacheEvict` removes one or more entries, often after a mutation so later reads reload the source of truth. A common mistake is to evict too early: if a database transaction later rolls back, the cache may be repopulated from old data or invalidated at the wrong moment. Understand transaction timing and provider behavior, and test cache state after both commit and rollback. Prefer one clear invalidation strategy over combining annotations with overlapping keys without checking their evaluation order.
 
 ### Q204. Why is cache invalidation difficult?
 
@@ -1107,13 +1112,23 @@ Measure hit/miss rate, load duration, evictions, failures, entry count or estima
 ## Asynchronous Processing and Scheduling
 
 
-### Q213. What does @Async do?
+### Q213. What does `@Async` do?
 
-When async execution is enabled and the invocation passes through the relevant proxy, Spring submits the method execution to a configured executor. It does not guarantee more capacity or faster completion; executor sizing, queue bounds, rejection policy, and shutdown behavior determine operational safety.
+When asynchronous execution is enabled and the call crosses the Spring proxy, `@Async` submits the method body to a configured `TaskExecutor` rather than running it on the caller's thread. It changes the execution boundary, not the business guarantee: the caller may return before the work finishes, failures may be observed later, and the task may be rejected when the executor is saturated. Self-invocation and manually constructed objects can bypass the interceptor. Configure thread count, queue capacity, rejection behavior, shutdown policy, and observability deliberately; never assume an unbounded number of tasks can be queued safely.
+
+```java
+@Async("notificationExecutor")
+public CompletableFuture<Void> sendNotification(Event event) {
+    notificationClient.send(event);
+    return CompletableFuture.completedFuture(null);
+}
+```
+
+The executor named `notificationExecutor` must be configured, and callers should observe the returned future if they need to detect completion or failure.
 
 ### Q214. Why should thread pools have bounded queues?
 
-An unbounded queue can accumulate work faster than workers process it, increasing memory use and latency until the service becomes unhealthy. Choose worker count and queue capacity based on workload, downstream limits, and acceptable queueing delay. Define what happens when the system is saturated.
+A pool with an unbounded queue can keep accepting tasks even when arrival rate exceeds processing capacity. Queue delay and memory use grow, so requests may time out long before the queued tasks execute. A bounded queue makes overload visible and forces an explicit decision—reject work, apply backpressure, shed low-priority tasks, or persist work in a durable queue. Size the pool and queue using measured service time, arrival rate, downstream limits, and acceptable end-to-end latency; adding threads can worsen contention or exhaust database connections. Monitor active threads, queue depth, task wait time, rejection count, and task duration.
 
 ### Q215. How are exceptions from asynchronous methods observed?
 
@@ -1125,11 +1140,11 @@ Fixed rate schedules executions according to a target cadence; fixed delay measu
 
 ### Q217. Why can a scheduled job run more than once in a cluster?
 
-Each application replica may register and execute the same schedule. If only one execution is allowed globally, use a distributed coordination/locking mechanism or a scheduler designed for clustered execution, and make the task idempotent. A local synchronized block only coordinates threads in one process.
+Each replica runs its own Spring scheduler, so a three-replica deployment can execute the same `@Scheduled` method three times at roughly the same time. A Java `synchronized` block or local lock coordinates only threads in one JVM. If the business rule requires one global execution, use a distributed lock or a scheduler with cluster coordination, define lock expiry/recovery, and make the job idempotent in case a process crashes after performing work but before releasing the lock. Also decide what happens when one run takes longer than the schedule interval. For critical jobs, store durable progress and use a uniqueness constraint or idempotency key rather than relying solely on timing.
 
 ### Q218. How should transactions interact with async work?
 
-A transaction bound to the calling thread generally does not automatically propagate into a separately executed async task. Define a transaction boundary inside the asynchronous operation if required, and pass immutable data rather than sharing mutable persistence state across threads.
+Imperative Spring transactions are generally bound to the current thread, so an `@Async` task does not automatically participate in the caller's transaction. The caller can commit while the async task is still running, or the async task can fail after the caller has already returned. If the background operation needs a transaction, define its own transactional service boundary inside the task. Pass stable identifiers or immutable command data rather than sharing managed JPA entities or a persistence context across threads. If the work must reliably happen after a database commit, use transaction-aware event handling or an outbox/durable messaging pattern rather than launching an untracked fire-and-forget task.
 
 ### Q219. How should cron time zones be handled?
 
