@@ -92,7 +92,7 @@ The producer's partitioner chooses the destination partition. With the default k
 
 ### Q12. What happens when a record has no key?
 
-The partitioner chooses a partition according to the client version and configuration; modern clients may use sticky partitioning to batch efficiently rather than strictly round-robin each record. With no stable key, per-entity ordering is not naturally ensured.
+Without a key, the partitioner chooses a partition using the behavior of that Kafka client version and configuration; modern clients commonly use a sticky strategy that sends a batch of records to one partition for a time to improve batching efficiency. This means records for the same business entity may be spread across partitions and have no shared ordering guarantee. If entity ordering matters, use a stable key such as `orderId` or `customerId`; if distribution matters more than ordering, a null key may be acceptable. Watch for key skew: a single popular key can create a hot partition even when other partitions are underused.
 
 
 ### Q13. Does Kafka guarantee ordering?
@@ -117,7 +117,7 @@ Kafka retention is independent of whether a consumer has read a record. With `cl
 
 ### Q17. What is log compaction?
 
-Compaction preserves the latest known value per key over time, while older values for the same key may be removed. A null-valued record can act as a tombstone that eventually removes a key's retained state. Compaction is useful for changelog/state topics, not for preserving every historical event forever.
+Log compaction is a cleanup policy designed to retain the latest state for each key rather than every historical update. If a key has values A, B, and C over time, compaction may eventually remove older records and retain C, but cleanup is asynchronous and does not promise that only one record per key exists at every moment. A record with a key and null value is a tombstone; it marks deletion and is retained for a configured period before it can be cleaned up. Compaction is useful for state snapshots, changelogs, and rebuilding keyed state, but it is not an audit-history mechanism. If every event must remain available, use delete-based retention or archive the history separately.
 
 
 ### Q18. What is a replication factor?
@@ -166,7 +166,7 @@ With appropriate processing and transaction configuration, Kafka can atomically 
 
 ### Q26. Why can consumers receive duplicates even when producers are idempotent?
 
-Duplicates may come from consumer redelivery after a crash, independent producer submissions, upstream retry logic, outbox relay retries, application replay, or separate producer sessions. Producer idempotence only covers qualifying producer retries. Trace the event ID and origin through the whole pipeline.
+Producer idempotence protects only a defined class of duplicate sends caused by protocol-level retries for that producer identity. A consumer can still process the same record again if it crashes after committing a database write but before committing its offset. Two service instances can also independently publish the same logical event, an outbox relay can publish twice after an uncertain acknowledgment, and an operator can replay a range. Carry a stable event ID and trace it through producer, topic, consumer, and external side effect. Deduplicate at the business boundary—ideally in the same database transaction as the mutation—and distinguish harmless redelivery from genuinely duplicated source events.
 
 
 ### Q27. Auto commit or manual offset commit: how do you choose?
@@ -193,7 +193,7 @@ Retry transient failures with bounded attempts and backoff. Classify permanent e
 
 ### Q31. How do you configure a Java Kafka producer?
 
-Create a KafkaProducer with bootstrap servers, key/value serializers, and reliability and performance properties. Reuse the producer rather than creating one per record, call send asynchronously when appropriate, and close it gracefully. Match acks, retries, idempotence, batching, compression, and timeouts to the workload.
+Configure a `Properties` object with `bootstrap.servers`, key/value serializers, and the reliability/performance settings required by the workload, then create and reuse a `KafkaProducer`. Common reliability choices include `acks=all`, idempotence enabled, appropriate delivery/request timeouts, and a replication/ISR policy on the brokers. Tune `batch.size`, `linger.ms`, compression, and buffer capacity only after measuring throughput and latency. Call `send()` asynchronously and handle callback failures; blocking on every record can reduce throughput. Close the producer during shutdown so buffered records can be delivered within a controlled timeout. Keep credentials outside source control and use the security protocol configured by the cluster.
 
 
 ### Q32. Is KafkaProducer thread-safe? Is KafkaConsumer thread-safe?
@@ -203,7 +203,7 @@ Create a KafkaProducer with bootstrap servers, key/value serializers, and reliab
 
 ### Q33. How do you handle the result of producer.send()?
 
-send() is asynchronous and returns a Future; a callback can handle success or failure. Avoid blocking on every send unless synchronous confirmation is required, as this can reduce throughput. Surface failures through metrics/logging and configure retries and idempotence appropriately.
+`send(record)` normally queues the record for asynchronous transmission and returns a `Future<RecordMetadata>`; the callback reports success metadata (topic, partition, offset) or an exception. Handle callback failures explicitly because a successful method return only means the record was accepted into the producer's local path, not necessarily persisted by Kafka. Avoid calling `.get()` for every send on a hot path unless the application needs synchronous confirmation; it serializes work and harms throughput. If using callbacks, keep them lightweight and avoid throwing away errors. Apply bounded application-level retry only after understanding the failure, because blindly resending may create duplicate business events; use producer idempotence and stable event IDs as appropriate.
 
 
 ### Q34. What is the purpose of poll() in a Kafka consumer?
@@ -218,7 +218,7 @@ Manual acknowledgment is useful when the application needs an explicit point to 
 
 ### Q36. How does @KafkaListener concurrency work?
 
-Spring Kafka listener concurrency creates multiple consumer threads/containers within the application, each participating in the consumer group. Effective parallelism is bounded by assigned partitions. Concurrency must also fit database pools, CPU, API quotas, and ordering constraints.
+The `concurrency` setting on a Spring Kafka listener container creates multiple listener consumer instances/threads within the application. Those consumers join the configured group and receive partition assignments; for one topic with P partitions, useful active consumer parallelism for that topic is at most P, although assignments across multiple topics can vary. More concurrency can improve throughput only if there are enough partitions and downstream resources can handle the load. Excessive concurrency may increase database connection pressure, thread contention, rebalances, and request bursts. Keep in mind that ordering is per partition, so records from the same partition are not independently safe to process concurrently if their business effects depend on sequence.
 
 
 ### Q37. How do you implement retry and DLT handling in Spring Kafka?
@@ -252,7 +252,7 @@ Producer throughput is determined by both client behavior and cluster capacity: 
 
 ### Q42. What do batch.size and linger.ms do?
 
-batch.size bounds the target batch size per partition, while linger.ms allows the producer to wait briefly so more records can join a batch. Larger batches can improve throughput but may add latency and memory usage. Behavior depends on traffic rate and record size.
+`batch.size` is the target maximum size of a record batch per partition; it is not a global batch size for the whole producer. `linger.ms` lets the producer wait briefly for more records to arrive so it can send fuller batches rather than immediately issuing small requests. Larger batches and a modest linger can improve throughput and compression efficiency, but may increase send latency and memory pressure. If traffic is low, batches may remain small even with a large `batch.size`; if traffic is high, batches may fill quickly. Tune both with realistic record sizes and throughput/latency measurements, and keep `delivery.timeout.ms` and related timeouts consistent.
 
 
 ### Q43. When should you use compression?
@@ -267,7 +267,7 @@ Consumer lag is usually estimated per partition from the difference between the 
 
 ### Q45. How do you detect and fix hot partitions?
 
-Compare throughput, lag, record size, and processing time per partition. Skewed keys, such as one large tenant, can cause a hot partition even when cluster-wide utilization looks low. Improve the hot key's processing, separate traffic, or change partitioning only if ordering semantics permit.
+Compare input rate, consumer lag, bytes, request latency, and processing time by partition rather than looking only at cluster-wide averages. A hot partition commonly comes from skewed keys—for example, one tenant or account producing far more events than others—or from uneven record sizes and processing cost. First optimize the work for that key and inspect whether the key choice is correct. You may isolate high-volume entities into a separate topic or use a composite/sharded key, but sharding one entity across partitions can break strict ordering and requires sequence/version handling or a merge step. Adding partitions alone may not help an existing hot key because all records with that key can still map to one partition.
 
 
 ### Q46. How do you choose partition count?
@@ -282,12 +282,12 @@ Approximate retained primary log storage as daily data volume multiplied by rete
 
 ### Q48. Which consumer settings commonly affect throughput?
 
-max.poll.records controls records returned per poll; fetch sizes influence batching and network requests; max.poll.interval.ms limits time between polls; fetch wait/minimum bytes can trade latency for fuller fetches. Tune together based on payload sizes, processing duration, and consumer resources.
+`max.poll.records` caps how many records the consumer returns in one `poll()` call; it does not change the underlying fetch size by itself. `max.partition.fetch.bytes` and `fetch.max.bytes` constrain fetched data, while `fetch.min.bytes` and `fetch.max.wait.ms` trade additional latency for fuller network responses. `max.poll.interval.ms` limits the time between calls to `poll()` and is critical when processing happens on the consumer thread. Tune these settings together based on record size, processing duration, available memory, and desired latency; oversized polls can cause long processing gaps, while tiny fetches can increase request overhead. Also monitor `session.timeout.ms`/heartbeat behavior and rebalance metrics rather than treating one timeout as a throughput knob.
 
 
 ### Q49. How do you apply backpressure in a Kafka consumer?
 
-Bound worker queues and concurrent requests, pause partitions when downstream capacity is exhausted, and resume them when capacity returns. Avoid unlimited in-memory buffering and ensure offset commits do not move past unfinished records. Consider per-key ordering when dispatching work asynchronously.
+Backpressure means slowing intake when downstream processing cannot keep up. Use bounded worker queues and semaphores, cap concurrent database/API calls, and pause assigned partitions when the queue or dependency reaches a threshold; resume when capacity returns. Do not keep polling and buffering unbounded records, because memory exhaustion and increasingly stale work can follow. If processing is delegated to workers, track completion per partition and commit only a contiguous range of completed offsets. Define what happens during shutdown and partition revocation, and preserve per-key order if concurrent processing could reorder business updates. Monitor queue depth, processing time, lag, and dependency saturation so backpressure activates before an outage.
 
 
 ### Q50. Consumer processing is slower than database writes can sustain. What do you do?
@@ -314,7 +314,7 @@ Repeated rebalances interrupt consumption and can increase lag or duplicate proc
 
 ### Q54. How do you deal with a poison message?
 
-Classify whether the failure is transient or permanent. Use bounded retries for transient errors; route permanent failures to a DLT/quarantine path with source metadata and alerting. Plan replay and respect ordering requirements—continuing past a failed record may not be valid for every business stream.
+A poison message is a record that repeatedly fails processing, often because of invalid data, an incompatible schema, or a deterministic business-rule error. First classify the exception: transient infrastructure failures may deserve bounded retries with backoff, while permanent deserialization/validation errors usually need quarantine or a DLT. Preserve the original payload, key, headers, source topic/partition/offset, exception details, and retry count so the failure can be diagnosed. Alert on DLT growth and define ownership, retention, and a controlled replay procedure. Decide explicitly whether later records may proceed: skipping a failed event can be acceptable for independent notifications but can corrupt state when later events depend on it.
 
 
 ### Q55. How do you safely replay DLT records?
@@ -324,7 +324,7 @@ Identify and fix the cause before replay. Preserve event IDs, record source meta
 
 ### Q56. What is unclean leader election, and what is its trade-off?
 
-Unclean leader election allows a replica outside the ISR to become leader if no eligible in-sync replica is available. This can restore availability but may discard records that existed only on the former leader. Evaluate the setting against the business's tolerance for data loss.
+Clean leader election chooses an eligible in-sync replica, helping preserve records that were replicated according to Kafka's durability rules. Unclean leader election allows an out-of-sync replica to become leader when no ISR replica is available; this can restore service sooner but the new leader may lack acknowledged records, which can be lost when the cluster converges. The decision is therefore availability versus potential data loss, not simply a performance setting. For systems where acknowledged events are business-critical, unclean election is generally treated cautiously and should be consistent with the configured durability policy. During an incident, check ISR state and election logs before changing the setting just to restore writes.
 
 
 ### Q57. What if a Kafka broker's disk is almost full?
@@ -353,7 +353,7 @@ Monitor Kafka infrastructure and application behavior together. Broker-side sign
 
 ### Q61. Why choose event-driven architecture with Kafka?
 
-It decouples producers and consumers, allows independent scaling, retains events for replay, and supports multiple consumers with different responsibilities. Trade-offs include eventual consistency, operational complexity, schema evolution, and duplicate/order handling.
+Kafka is useful in event-driven architectures when services should publish facts without knowing every downstream consumer. The log buffers temporary rate differences, allows consumer groups to scale independently, and supports replay for recovery or rebuilding projections. This reduces synchronous coupling and can improve resilience, but introduces eventual consistency, more operational components, schema governance, duplicate delivery, ordering constraints, and harder end-to-end debugging. Kafka does not remove the need for service ownership, API/event contracts, idempotency, observability, and failure handling. Use it when asynchronous decoupling and event retention provide clear value, not as an automatic replacement for a direct synchronous call.
 
 
 ### Q62. How do you design event contracts between microservices?
@@ -383,7 +383,7 @@ A saga coordinates a multi-service business process as a sequence of local trans
 
 ### Q67. How do you evolve schemas without breaking consumers?
 
-Adopt compatibility rules appropriate for Avro, Protobuf, JSON Schema, or the chosen format. Add optional fields with suitable defaults where compatible; avoid removing or changing required fields without a migration plan. Deploy consumers that can handle the new shape before producers emit it when necessary.
+Schema evolution should let producers and consumers deploy independently. Choose a format and compatibility policy that matches the rollout model: backward compatibility lets new consumers read old data, forward compatibility lets old consumers read new data, and full compatibility combines both under the registry's defined rules. Adding an optional field with a safe default is often compatible; renaming/removing a required field or changing its type can break consumers. A safe rollout commonly deploys consumers that tolerate the new field first, then updates producers, and only later removes deprecated fields after old consumers are retired. Compatibility checks do not catch every semantic change, so add contract tests and document field meaning, nullability, and units.
 
 
 ### Q68. How do you support replay without repeating harmful side effects?
@@ -474,7 +474,7 @@ A schema registry centralizes versioned schema definitions and compatibility che
 
 ### Q84. What is a tombstone record?
 
-For compacted topics, a record with a key and null value acts as a deletion marker. The tombstone is retained for a configured period so downstream state stores can observe the deletion; later compaction may remove it. Tombstones are not equivalent to an empty JSON object.
+In a compacted topic, a tombstone is a record with a non-null key and a null value. It signals that the keyed state has been deleted, allowing consumers rebuilding a state store to remove that key. Kafka retains the tombstone for a configured tombstone retention period so downstream consumers have a chance to observe it; later compaction can remove both the tombstone and older values for that key. A null payload is different from a serialized empty object, string `null`, or an event whose value contains a deletion flag. Consumers and serializers must preserve that distinction, and tombstone cleanup should be aligned with the longest expected consumer outage/rebuild window.
 
 
 ### Q85. What does exactly-once mean in Kafka Streams?
@@ -491,7 +491,7 @@ TLS encrypts traffic in transit and lets clients validate broker certificates; m
 
 ### Q87. What are Kafka ACLs?
 
-Access-control lists authorize principals to perform operations on resources such as topics, consumer groups, and transactional IDs. Apply least privilege, keep producer and consumer identities distinct where practical, and review ACL changes as part of deployment.
+Kafka ACLs define which authenticated principals may perform operations on resources such as topics, consumer groups, transactional IDs, and cluster-level resources. Authentication (TLS/SASL) establishes identity; ACLs or the configured authorizer determine what that identity can do. Apply least privilege: a producer usually needs write access to specific topics, a consumer needs read access to topics and its group, and a transactional producer may need permission for its transactional ID. Avoid broad wildcard access unless justified, separate service identities where practical, audit changes, and test authorization during deployment. Exact ACL behavior depends on the authorizer and Kafka configuration.
 
 
 ### Q88. How should Kafka credentials and certificates be handled?
