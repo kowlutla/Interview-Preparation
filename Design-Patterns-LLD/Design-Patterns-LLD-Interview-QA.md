@@ -780,7 +780,7 @@ Add tests around current behavior, change one responsibility at a time, and keep
 
 ## 12. LLD case studies
 
-The following exercises show how to reason from requirements to a core design. Their snippets demonstrate central rules, not complete production implementations. For each problem, start by clarifying scope with the interviewer; assumptions below are a useful default, not universal requirements.
+The following exercises show how to reason from requirements to a core design. Their snippets demonstrate central rules, not complete production implementations. For each problem, start by clarifying scope with the interviewer; assumptions below are a useful default, not universal requirements. The parking lot, elevator controller, library, vending machine, rate limiter, notification service, payment processing, and file-storage sections are expanded walkthroughs; the remaining cases are deliberately concise blueprints for practising requirement clarification, class responsibilities, invariants, and follow-up trade-offs rather than pretending a production design fits into a few lines.
 
 ### 12.1 Parking lot
 
