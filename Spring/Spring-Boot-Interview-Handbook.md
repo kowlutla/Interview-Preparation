@@ -291,3 +291,273 @@ No. Use AOP for coherent cross-cutting policies at stable method boundaries. Pre
 - [Proxying mechanisms](https://docs.spring.io/spring-framework/reference/core/aop/proxying.html)
 
 ---
+
+## Spring Boot Fundamentals
+
+
+### Q53. What is a Spring Boot starter?
+
+A starter is a convenient dependency descriptor that brings in a curated set of dependencies for a use case. It reduces dependency-selection effort but does not itself implement the feature or guarantee correct production configuration. The managed versions should normally come from the Boot dependency-management model.
+
+### Q54. What does @SpringBootApplication combine?
+
+It combines the common roles of @SpringBootConfiguration, @EnableAutoConfiguration, and @ComponentScan. The package containing the application class becomes the default component-scan root, so placing it too deep can leave controllers, services, repositories, or configuration classes undiscovered. Keep the main class in a sensible root package, and use explicit scan/import configuration only when the application structure requires it. Auto-configuration is separate from component scanning and depends on classpath and configuration conditions.
+
+### Q55. How does auto-configuration work?
+
+Boot evaluates candidate configuration classes and conditional annotations against the classpath, existing beans, properties, and application environment. Auto-configuration provides sensible defaults and often backs off when the application defines its own bean. It is conditional configuration, not hidden magic that overrides every user choice.
+
+### Q56. What does @ConditionalOnMissingBean mean?
+
+It allows a configuration contribution when no matching bean is present at the point the condition is evaluated. It is commonly used to make auto-configuration replaceable by application configuration. Ordering and bean-definition registration matter, so custom auto-configuration should be tested in realistic contexts.
+
+### Q57. What is the purpose of an executable Boot JAR?
+
+It packages an application with the runtime dependencies and a launcher structure so it can be started with the Java launcher without separately assembling a classpath. It is not the same as a native image, and the executable packaging format does not remove the need for runtime configuration and operational controls.
+
+### Q58. What is the difference between CommandLineRunner and ApplicationRunner?
+
+Both provide callbacks after the application context has started. CommandLineRunner receives raw string arguments; ApplicationRunner receives parsed application arguments through ApplicationArguments. Keep startup work bounded, observable, and idempotent because a slow runner can delay the application from becoming ready.
+
+### Q59. How do you diagnose why an auto-configuration did not apply?
+
+Use Boot's condition evaluation report, enable the relevant debug diagnostics, and inspect the classpath, property values, bean definitions, and active profiles. The report explains why conditions matched or did not match; it should be paired with the actual exception and environment rather than treated as a fix by itself.
+
+### Q60. Does Boot require an embedded web server?
+
+No. Boot supports non-web applications as well as servlet and reactive web applications. The application type and dependencies influence which infrastructure is configured. Avoid adding web starters to background jobs that do not need HTTP endpoints.
+
+### Q61. What is the difference between a starter and auto-configuration?
+
+A starter declares a curated dependency set. Auto-configuration is conditional configuration that registers infrastructure when prerequisites match. Adding a starter often brings libraries that allow auto-configuration to activate, but the two concepts are distinct.
+
+### Q62. What is the condition evaluation report used for?
+
+It lists auto-configuration conditions and explains why each configuration matched or backed off. Use it to investigate a missing bean, an unexpected default, or behavior that changed after adding a dependency. Correlate the report with the resolved classpath, active profiles, effective properties, and the first meaningful startup exception; do not assume every negative condition is an error.
+
+### Q63. What is the purpose of SpringApplication events?
+
+They expose lifecycle milestones such as environment preparation, context initialization, and readiness. Use the appropriate phase for a listener; an event's existence does not imply every dependency is healthy or every startup task has completed.
+
+### Q64. Why should application startup avoid remote calls in bean constructors?
+
+Constructors run during object creation, so remote calls there can block context initialization, create hidden network dependencies, or fail startup because of a transient outage. Keep constructors focused on establishing valid object state. If startup genuinely depends on a remote service, use an explicit lifecycle component with a bounded timeout, observable failure policy, and documented readiness strategy; do not let an unbounded call stall deployment indefinitely.
+
+### Q65. What is graceful shutdown in Boot?
+
+Graceful shutdown lets supported web servers stop accepting new requests and gives in-flight requests a configured grace period to finish. Configure the shutdown mode and timeout for the selected Boot version, and ensure the deployment platform sends an appropriate termination signal and allows enough termination grace time. This does not guarantee every background task or message handler completes: those components need their own stop, acknowledgement, checkpoint, and retry/recovery policies.
+
+### Q66. How do you package configuration for an executable JAR?
+
+Build one immutable artifact and provide environment-specific settings through supported external configuration sources such as environment variables, mounted configuration, or command-line/property sources. Keep precedence explicit and validate required values at startup. Never package production secrets in the JAR or log the resolved secret-bearing configuration. External configuration should be versioned and deployed with an auditable change process.
+
+### Q67. What is AOT processing in Spring Boot?
+
+Ahead-of-time processing prepares application metadata/code paths for scenarios such as native images and can improve startup/runtime characteristics in supported cases. It introduces constraints around reflection/dynamic behavior and must be tested with the chosen dependencies and build configuration.
+
+### Q68. Does a successful Boot startup guarantee production correctness?
+
+No. Startup proves only that the initialization path completed under the conditions present at that moment. It does not prove authorization rules, downstream timeouts, database pool capacity, message redelivery, schema compatibility, graceful shutdown, or behavior under load. Validate those with integration and failure-path tests, production-like load, and runtime signals such as readiness, latency, error rate, and saturation.
+
+### Official references
+- [Spring Boot reference](https://docs.spring.io/spring-boot/reference/)
+- [Auto-configuration](https://docs.spring.io/spring-boot/reference/using/auto-configuration.html)
+- [Creating an executable JAR](https://docs.spring.io/spring-boot/maven-plugin/packaging.html)
+
+---
+
+## Auto-Configuration and Application Startup
+
+
+### Q69. How does Spring Boot auto-configuration decide what to configure?
+
+Boot imports candidate auto-configuration classes and evaluates conditions against classpath contents, bean definitions, properties, and application type. Conditions can enable defaults only when their prerequisites hold. Inspect the condition evaluation report rather than guessing which starter or property caused a configuration to activate.
+
+### Q70. Why does auto-configuration often back off when a user bean exists?
+
+Many auto-configurations use conditions such as `@ConditionalOnMissingBean` so an application can replace a default. The condition is evaluated during configuration processing, so registration order and the type/name of the user bean can matter. This is a customization mechanism, not a guarantee that any similarly named bean replaces all related infrastructure.
+
+### Q71. How do you exclude an auto-configuration?
+
+Use the supported exclusion mechanisms, such as the exclude attribute on `@SpringBootApplication` or the corresponding configuration property. First verify why the configuration matched; excluding it may remove supporting beans that other components rely on. Prefer correcting the classpath or property condition when that is the actual cause.
+
+### Q72. How do auto-configuration registration mechanisms differ across Boot generations?
+
+The registration metadata evolved. Older Boot generations commonly used `spring.factories` for auto-configuration candidates; modern Boot uses the dedicated `AutoConfiguration.imports` metadata for auto-configuration discovery. When building a starter, follow the documentation for the exact Boot baseline instead of copying old registration examples.
+
+### Q73. What can go wrong if a BeanFactoryPostProcessor triggers bean creation too early?
+
+A BeanFactoryPostProcessor runs before normal singleton instantiation, so eagerly requesting application beans during that phase can create them before all BeanPostProcessors are registered. Those beans may miss proxying or other instance-level processing and can produce lifecycle warnings. Keep factory post-processors focused on bean definitions, use static @Bean methods for infrastructure where required, and inspect startup logs when a bean unexpectedly lacks advice.
+
+### Q74. What does ApplicationContext refresh mean?
+
+Refresh initializes the context's infrastructure, applies factory post-processors, registers bean post-processors, instantiates eligible non-lazy singletons, and completes lifecycle coordination. Exact details depend on context type and version. A failure during refresh commonly prevents the application from reaching its ready state.
+
+### Q75. How do you investigate slow startup?
+
+Measure startup phases before optimizing. Inspect startup logs and Boot startup metrics or the available startup endpoint/tooling, identify expensive bean constructors and initialization callbacks, and check classpath scanning, remote calls, migrations, and connection initialization. Lazy initialization can shift work rather than remove it, so validate first-request latency and readiness afterward.
+
+### Q76. What is a custom auto-configuration module?
+
+It is a library module that conditionally contributes beans when relevant classes or properties are present and backs off when the application supplies replacements. Keep conditions precise, avoid scanning an application's packages from a library, document properties, and test positive, negative, and override cases with Boot's auto-configuration test support.
+
+### Official references
+- [Boot auto-configuration](https://docs.spring.io/spring-boot/reference/using/auto-configuration.html)
+- [Boot startup and application lifecycle](https://docs.spring.io/spring-boot/reference/features/spring-application.html)
+
+---
+
+## Spring Boot Configuration and Profiles
+
+
+### Q77. How does application.properties differ from application.yaml?
+
+Both express external configuration. YAML can represent nested structures compactly, while properties files use dotted keys. Choose one consistent style per configuration area, avoid duplicate conflicting definitions, and validate effective values in each deployment environment.
+
+### Q78. How are profile-specific files selected?
+
+Boot supports profile-specific configuration files and profile activation through supported configuration sources. Active profiles influence both property loading and beans annotated with `@Profile`. Avoid embedding production secrets in profile files committed to source control.
+
+### Q79. What are configuration imports used for?
+
+Boot configuration imports allow additional configuration sources to be loaded through its external configuration model. Optionality, location semantics, and integration-specific behavior depend on the source type and Boot version. Use the official reference for the exact syntax rather than assuming arbitrary remote URLs are automatically supported.
+
+### Q80. Why use immutable or validated configuration properties?
+
+A dedicated configuration-properties type documents a coherent group of settings and supports type conversion and validation. Validate required URLs, durations, limits, and pool sizes at startup. Keep secrets out of object string representations and diagnostic logs.
+
+### Q81. How should Kubernetes configuration be organized?
+
+Keep environment-specific values external to the image, inject non-secret settings through the platform's configuration mechanism, and use a managed secret mechanism for credentials. Define resource requests/limits, probes, and shutdown behavior separately from application properties. Configuration changes do not automatically refresh arbitrary singleton beans.
+
+### Q82. Does changing an environment variable update a running Spring bean?
+
+Usually not. Environment variables are read by the process environment, and property binding generally occurs during startup. Dynamic refresh requires an explicitly supported refresh mechanism and compatible consumers; a process restart or rollout is often the safer operational model.
+
+### Q83. What is the danger of logging the Environment or all configuration properties?
+
+The effective Environment can contain passwords, tokens, connection strings, internal hostnames, or personal data contributed by several property sources. Dumping it wholesale can leak secrets into logs and log aggregation systems with broad retention/access. Restrict configuration-inspection endpoints, use secret-aware redaction, and log only explicitly allow-listed non-sensitive keys needed for diagnosis. When debugging precedence, report the winning source/key where safe rather than printing the full value.
+
+### Official references
+- [Externalized configuration](https://docs.spring.io/spring-boot/reference/features/external-config.html)
+- [Profiles](https://docs.spring.io/spring-boot/reference/features/profiles.html)
+
+---
+
+## Spring MVC and REST APIs
+
+
+### Q84. What role does DispatcherServlet play?
+
+DispatcherServlet is Spring MVC's front controller. It coordinates handler mapping, handler execution, argument resolution, return-value handling, message conversion, and exception resolution. It does not itself contain application business logic; it orchestrates the web request pipeline.
+
+### Q85. What is the difference between @Controller and @RestController?
+
+@Controller marks a Spring MVC controller, where a return value may be interpreted as a view name. @RestController combines controller semantics with response-body handling, so returned objects are generally serialized into the HTTP response. Individual methods can still customize status and headers using ResponseEntity.
+
+### Q86. What is the difference between @PathVariable and @RequestParam?
+
+@PathVariable binds a value from a URI path segment, commonly identifying a resource such as /orders/{id}. @RequestParam binds a query parameter or form parameter, commonly used for filtering, pagination, or optional modifiers. Choose based on resource semantics and the API contract, not personal preference alone.
+
+### Q87. Why use DTOs rather than returning persistence entities directly?
+
+DTOs define the API contract independently of database mapping, reduce accidental exposure of internal fields, and allow validation and serialization shape to evolve deliberately. Returning entities can also trigger lazy-loading queries or recursion through bidirectional relationships. Map at a clear application boundary and avoid leaking persistence details.
+
+### Q88. How does request-body validation work?
+
+Use Jakarta Bean Validation constraints on request DTOs and trigger validation with @Valid or the supported validation mechanism at the controller boundary. Handle validation exceptions consistently and return actionable field errors without echoing sensitive input. Validation is not a replacement for business-rule validation or database constraints.
+
+### Q89. How should pagination be designed?
+
+Accept bounded page/size or cursor parameters, validate limits, and return predictable metadata. Large offset pagination can become expensive for deep pages; cursor/keyset approaches may be preferable for large, frequently changing datasets. Ensure sorting is deterministic, ideally with a unique tie-breaker.
+
+### Q90. What is content negotiation?
+
+Content negotiation selects a representation based on request headers and supported media types. Message converters handle serialization and deserialization for supported types. Explicitly define supported content types and test malformed payloads, unsupported media types, and incompatible Accept headers.
+
+### Q91. What makes an API operation idempotent?
+
+An operation is idempotent if repeating the same request has the same intended effect as performing it once. HTTP method semantics help communicate this, but implementation must honor them. For retryable create operations, an idempotency key and durable deduplication record may be needed to avoid duplicate side effects.
+
+### Q92. How should file uploads be protected?
+
+Set request-size limits at the application and edge layers, validate content and authorization, avoid trusting client-supplied filenames or MIME types, and stream large files when appropriate. Store files outside executable application paths and apply malware scanning or content inspection when required by the threat model.
+
+### Q93. What is the difference between a servlet filter and HandlerInterceptor?
+
+A filter participates in the servlet request/response chain and can run before DispatcherServlet. A HandlerInterceptor participates in Spring MVC's handler lifecycle after handler mapping. Use filters for servlet-wide concerns such as request wrapping and security integration, and interceptors for handler-oriented concerns that need MVC metadata.
+
+### Q94. How does Spring select an HTTP message converter?
+
+Spring MVC considers the target method parameter/return type, request Content-Type, response Accept negotiation, and converters registered in the application. Unsupported media types can produce 415 for request content or 406 for an unacceptable response representation. Customize converters only when the API needs behavior beyond standard support.
+
+### Q95. What is the difference between 400 and 422?
+
+Both can represent client input problems depending on the API contract. 400 is broadly used for malformed or invalid requests; 422 can express syntactically valid content whose instructions cannot be processed semantically. Choose a consistent contract rather than assuming the framework will choose your domain's preferred status automatically.
+
+### Q96. How should API sorting parameters be secured?
+
+Map public sort keys to a fixed set of entity properties or query expressions, validate direction, cap page size, and pass the resulting `Sort`/`Pageable` through supported repository APIs. Never concatenate client input into SQL or JPQL identifiers. Add a unique tie-breaker (for example, ID) after the requested sort so equal values do not cause unstable page boundaries.
+
+### Q97. What is cursor pagination's main trade-off?
+
+It can avoid expensive deep offsets and behave better under some concurrent insert patterns, but it complicates arbitrary page jumps and requires stable cursor fields/order. Define whether cursors are opaque, signed, and bound to the original filter/sort criteria.
+
+### Q98. How should request validation differ from domain validation?
+
+Request validation checks shape and basic constraints at the boundary. Domain validation protects invariants regardless of whether the operation came from HTTP, messaging, or a job. Do not rely exclusively on controller annotations for business correctness.
+
+### Q99. How should an API handle unsupported media types and oversized payloads?
+
+Return a clear 415 response when the request media type is unsupported and a documented 413 response when a configured payload limit is exceeded, while recognizing that proxies or servlet containers may reject the request before controller code runs. Set limits at ingress and application layers, keep error bodies stable, and test which layer owns each response. Do not rely on JSON validation alone to constrain payload size.
+
+### Q100. When should an API use streaming responses?
+
+Use streaming for large exports, generated reports, or incremental feeds when avoiding whole-response buffering materially reduces memory or improves time-to-first-byte. Define framing/content type, cancellation, timeout, backpressure, and what happens if an error occurs after headers or partial content have been sent. Clients and intermediaries must support the chosen protocol; for small bounded responses, ordinary serialization is usually simpler.
+
+### Q101. How should large file uploads be streamed and stored efficiently?
+
+Avoid buffering the entire upload in heap memory. Stream to controlled temporary or object storage, enforce byte limits while streaming, apply backpressure/timeouts, and clean up incomplete uploads after cancellation or failure. Promote a file to its final state only after validation succeeds, and make retries or duplicate submissions safe. Keep the security checks from the earlier upload-design question: streaming is a resource strategy, not a substitute for authorization or content validation.
+
+### Official references
+- [Spring MVC reference](https://docs.spring.io/spring-framework/reference/web/webmvc.html)
+- [Validation](https://docs.spring.io/spring-framework/reference/core/validation/beanvalidation.html)
+
+---
+
+## Exception Handling and API Error Design
+
+
+### Q102. What is the role of @ControllerAdvice?
+
+It centralizes cross-controller concerns such as exception-to-response mapping and binding behavior. `@RestControllerAdvice` combines advice semantics with response-body handling. Keep handlers specific enough to preserve meaningful status codes and avoid turning unexpected defects into misleading client errors.
+
+### Q103. When should an exception become HTTP 400, 404, 409, or 500?
+
+Use 400 for invalid request syntax or input according to the API contract, 404 when the requested resource is not found, 409 for a conflict with current resource state, and 500 for unexpected server failures. The correct status depends on the semantics and must remain consistent across endpoints.
+
+### Q104. What is ProblemDetail?
+
+In supported Spring Framework versions, `ProblemDetail` represents an RFC 7807-style problem response. It can provide a standard type/title/status/detail/instance shape with extensions. Verify version support and serialization behavior, and do not expose stack traces or internal exception messages to clients.
+
+### Q105. Should controllers catch every exception?
+
+No. Catch exceptions when the layer can meaningfully recover, translate, or add context. A global boundary can map known failures consistently, while unexpected failures should be logged with correlation context and returned as safe generic errors. Swallowing exceptions or returning HTTP 200 for failed operations breaks client behavior and observability.
+
+### Q106. How should validation errors be represented?
+
+Return a stable structure with a general error code and field-level messages that are safe to disclose. Avoid returning rejected secrets or full request bodies. Keep validation messages suitable for API clients and do not make clients parse framework exception class names.
+
+### Q107. How do downstream service failures affect API error mapping?
+
+Distinguish invalid client input from temporary dependency failures, timeouts, and unavailable downstream systems. Map them according to the API contract, preserve retryability information where appropriate, and avoid exposing internal hostnames. Pair error responses with bounded timeouts, metrics, and trace correlation.
+
+### Q108. How do you preserve diagnostic context without leaking sensitive details?
+
+Log the exception and relevant safe identifiers at the boundary where it can be understood; include a trace or correlation ID in logs and responses. Redact tokens and personal data, avoid logging the same exception at every layer, and keep client-facing details separate from internal diagnostics.
+
+### Official references
+- [Spring MVC exception handling](https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-controller/ann-exceptionhandler.html)
+- [Problem Details](https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-ann-rest-exceptions.html)
+
+---
