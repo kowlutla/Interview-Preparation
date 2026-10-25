@@ -280,3 +280,13 @@ The generic Boot system-requirements page currently renders Boot 4.1.0 (Java 17 
 - Official documentation pages were consulted for transaction proxy/rollback semantics, SecurityFilterChain behavior, Boot auto-configuration/testing, and current Framework/Boot version status. A full crawl of every external URL embedded in all Spring Markdown files has not been completed.
 - No code compilation, test execution, or runtime validation was performed. All snippets are illustrative and should be checked against the exact project dependencies before copying into production code.
 - Legacy exercises, scenarios, mock interviews, and topic files have been preserved; do not delete them until the primary handbook has completed the remaining content-quality review and the user explicitly moves to cleanup.
+
+
+### Continued depth and topic-coverage review — 2026-10-25
+
+- Expanded additional concise answers across fundamentals, IoC/DI, bean scopes, secrets/configuration, MVC exception handling, JPA locking and pagination, security context and CORS/CSRF, testing, reactive cancellation/backpressure, caching consistency, transaction-aware events, outbox/idempotency, performance diagnosis, deployment readiness, and version migration.
+- Added an OAuth2 Client Q&A distinguishing outbound token acquisition/client behavior from resource-server token validation. This closes an identified gap in the Spring Security ecosystem overview.
+- The main handbook now contains **307 sequentially numbered Q&As (Q1–Q307)** across **27 topic areas**. This is still an interview-focused curated handbook, not a promise to cover every API in every Spring project.
+- Latest structural verification after these edits: continuous numbering, 27 topic headings, 28 TOC links with no missing heading anchors, and balanced code fences. The shortest detected answer body is above 35 words, but word count is only a heuristic and does not establish accuracy or explanatory quality.
+- Several high-impact sections have now had targeted manual expansions and snippets added where they clarify the mechanism. Remaining work is a final content pass for accuracy, duplication, version-sensitive claims, code-snippet coherence, and links. The handbook has **not** undergone a line-by-line certification of all 307 answers, a full external-link crawl, compilation, or runtime testing.
+- Preserve supplementary exercises/scenarios and other legacy topic files until the main handbook is accepted; cleanup is a separate stage and has not been started.
