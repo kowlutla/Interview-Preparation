@@ -3,62 +3,86 @@
 ## Q1. What is the N+1 query problem?
 **Must Know**
 
-One query loads root entities and additional queries load associations for each root, producing approximately 1 + N statements. It often appears when lazy associations are traversed in a loop, but eager mappings can also cause secondary selects. Diagnose with SQL logs, query counts, traces, and realistic data sizes.
+I call it an N+1 problem when the application runs one query to load a set of root entities and then runs another query for each root to load related data. For example, I might load 100 orders in one query and then trigger 100 separate customer or item queries while building the response.
 
-## Q2. How do you fix N+1 queries?
+The endpoint may still look correct in a small test, but the number of database round trips grows with the result size. I confirm the problem using SQL logs, query counts, traces, and realistic data volumes.
+
+## Q2. How would you fix an N+1 query?
 **Must Know**
 
-Choose a fetch join, entity graph, batch fetching, or DTO projection based on the endpoint and relationship cardinality. A giant join can multiply rows, so verify statement count and result volume after changing the fetch plan. Avoid globally switching associations to EAGER.
+First, I identify which association is triggering repeated queries and what data the use case actually needs. Then I compare a fetch join, an entity graph, batch fetching, or a DTO projection. A fetch join may be ideal for a required to-one relationship; a projection is often better when the endpoint only needs a few fields.
 
-## Q3. What is a fetch join and what are its limitations?
+I don't automatically join every collection, because one large join can multiply rows and consume more memory than a few bounded queries. After changing the fetch plan, I measure both statement count and total rows transferred.
+
+## Q3. What is a fetch join, and what are its limitations?
 **Must Know**
 
-A JPQL fetch join loads an association as part of the query. It is useful for required relationships but joining multiple collections can multiply rows. Collection fetch joins with pagination are particularly problematic because SQL row limits do not correspond to unique roots. Hibernate behavior can vary by version/configuration; inspect warnings and never ignore in-memory pagination.
+A fetch join lets me request an association as part of a JPQL query, so Hibernate can load the relationship along with the root entities. It is useful when I know the response needs that relationship immediately.
 
-## Q4. What are entity graphs?
+The main trap is collection fetching. If a root has multiple child rows, the SQL result contains repeated root columns. Fetching multiple collections can multiply rows, and combining a collection fetch join with pagination can make the database limit rows rather than logical root entities. I check Hibernate warnings and the exact version's behavior instead of assuming the query is safe.
+
+## Q4. When would you use an entity graph?
 **High Value**
 
-Entity graphs specify attributes to fetch for a query or find operation without embedding every fetch choice in JPQL. Named and dynamic graphs are useful for reusable use-case fetch plans. Providers may implement them with joins or secondary queries, so inspect generated SQL.
+I use an entity graph when I want to define which attributes a particular operation should fetch without embedding every fetch decision into the JPQL itself. A named graph can be reused, while a dynamic graph can be assembled for a specific use case.
 
-## Q5. Why not make all associations EAGER?
+An entity graph describes the fetch plan, not a guarantee that Hibernate will use exactly one SQL join. I still inspect generated SQL and verify that the graph doesn't load more data than the endpoint needs.
+
+## Q5. Why not configure every association as EAGER?
 **Must Know**
 
-EAGER does not guarantee one join and may load unnecessary data or trigger extra selects. Prefer LAZY mappings with explicit fetch plans for each use case. Make required data available inside the intended service boundary.
+EAGER means the association must be available, not that Hibernate must fetch everything in one join. Depending on the query, Hibernate can issue secondary selects, and loading associations that a caller never uses wastes work.
+
+I generally keep associations LAZY and explicitly fetch what each use case needs. This gives me more predictable query behavior, but it requires a clear service boundary so required data is loaded before the persistence context closes.
 
 ## Q6. What causes LazyInitializationException?
 **Must Know**
 
-Hibernate cannot initialize an unloaded proxy or collection after the persistence context/session is unavailable. Fetch required data inside the service transaction or map to a DTO before returning. Do not use EAGER everywhere or OSIV simply to hide missing fetch plans.
+With Hibernate, this exception commonly occurs when the code accesses an uninitialized proxy or collection after the Session/persistence context is no longer available to load it. A typical example is returning an entity from a service and then having JSON serialization access a lazy collection after the service transaction has ended.
 
-## Q7. What are Open Session in View trade-offs?
+I fix the fetch plan: load the required data inside the transaction and map it to a DTO before returning. Making everything EAGER can create a different performance problem, so I don't treat it as the default solution.
+
+## Q7. What are the trade-offs of Open Session in View?
 **High Value**
 
-OSIV keeps a persistence context open through web request processing, allowing lazy loads during serialization. This can hide fetch-plan problems and cause unpredictable queries outside the service transaction. Whether it is enabled by default depends on framework configuration/version. Plan DTOs and fetches before disabling it.
+Open Session in View keeps the persistence context open through web request processing, which can allow lazy associations to load while a response is being serialized. That may hide missing fetch plans, but it can also trigger unexpected database calls outside the service transaction and make latency difficult to predict.
 
-## Q8. Why can collection fetch joins break pagination?
+If I disable OSIV, I make sure service methods explicitly load the data the response needs. Whether OSIV is enabled by default depends on framework configuration and version, so I check the application rather than assume.
+
+## Q8. Why can a collection fetch join break pagination?
 **Must Know**
 
-A collection join creates multiple SQL rows per root, so limit/offset may cut across a root's rows. Providers may fetch many rows and paginate in memory, which is dangerous for large datasets. Page root IDs first and fetch associations in a second query, or use a paginated DTO projection.
+A collection join can produce several SQL rows for one root entity. Database pagination applies its limit and offset to those rows, which may cut through a root's children or return an unexpected set of roots. Some provider configurations may instead fetch a large result and paginate in memory, which can be very expensive.
 
-## Q9. When should DTO projections be preferred?
+A safer pattern is to page the root IDs first and then fetch the associations for those IDs in a second query. A DTO projection designed for pagination can be another good option.
+
+## Q9. When would you choose a DTO projection over an entity?
 **High Value**
 
-Use projections when the use case needs selected fields rather than entity lifecycle tracking or relationship navigation. They can reduce transferred columns and avoid graph loading. Validate generated SQL, joins, and count queries instead of assuming every projection is optimal.
+If an endpoint only needs a few fields for display or reporting, I usually prefer a DTO projection. It avoids materializing a full managed entity and can avoid loading associations the endpoint never uses. Entities make more sense when I need domain behavior, relationship navigation, or managed updates.
+
+I verify the generated SQL because the projection type alone doesn't guarantee the most efficient query, especially with nested projections or complex joins.
 
 ## Q10. What is batch fetching?
 **High Value**
 
-Batch fetching loads several eligible lazy associations/entities in one query using an IN-style predicate, reducing round trips without joining every collection into one result. Hibernate supports provider-specific configuration. Results depend on access patterns, dialect, and batch size.
+Batch fetching lets Hibernate load several eligible lazy associations or entities together, often using an IN-style query, instead of issuing one query for every object. It can reduce round trips without joining all collections into a single enormous result.
 
-## Q11. How do you diagnose slow Hibernate queries?
+It is a useful option when access patterns naturally touch several related entities. I tune the batch size based on measurements and database constraints, and I verify the actual statement count.
+
+## Q11. How do you diagnose a slow Hibernate query?
 **Must Know**
 
-Separate ORM overhead from database execution time. Inspect SQL and query counts, traces, pool metrics, execution plans, indexes, row estimates, lock waits, and transferred rows. Look for N+1 patterns, over-fetching, missing indexes, and long transactions. Optimize based on measured evidence.
+I start by separating database execution time from ORM and application overhead. I inspect generated SQL, query counts, bind types where safe, tracing data, connection-pool wait time, and the database execution plan. I look for N+1 patterns, unnecessary columns, missing indexes, poor join cardinality, lock waits, and long transactions.
 
-## Q12. Why can fast SQL still produce a slow endpoint?
+Then I change one likely cause at a time and compare the results under realistic data volume. I don't assume that adding a cache or changing a fetch setting will help without measuring it.
+
+## Q12. Why can an endpoint be slow when each SQL statement is fast?
 **High Value**
 
-Hundreds of fast statements, connection-pool waits, large result sets, JSON serialization, and application work inside a transaction can dominate latency. Measure end-to-end timing, statement count, rows, pool wait, and serialization time.
+The endpoint may be executing hundreds of individually fast statements, waiting for a connection, transferring too many rows, serializing a large object graph, or doing non-database work while holding a transaction open. Looking only at the slowest SQL statement misses those costs.
+
+I measure end-to-end latency, total query count, rows returned, pool wait time, and serialization time. That gives me a better basis for deciding whether to reduce round trips, change the fetch plan, or shorten the transaction.
 
 ## Official references
 - [Hibernate User Guide](https://docs.jboss.org/hibernate/orm/current/userguide/html_single/Hibernate_User_Guide.html)
