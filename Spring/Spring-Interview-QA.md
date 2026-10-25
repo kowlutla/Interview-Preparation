@@ -1,6 +1,6 @@
-# Spring Framework + Spring Boot Interview Handbook
+# Spring Framework + Spring Boot — Quick Revision Guide
 
-A focused interview guide for Java backend engineers. It emphasizes the Spring concepts that matter in real services: dependency management, bean lifecycle, proxies, Boot configuration, HTTP APIs, transactions, security, testing, and production behavior.
+A concise 51-question refresher for Java backend engineers. For full topic coverage and the consolidated 290-question handbook, start with [Spring-Boot-Interview-Handbook.md](Spring-Boot-Interview-Handbook.md). This short guide is intentionally a last-minute revision aid, not the complete Spring/Spring Boot curriculum.
 
 **Audience:** Engineers preparing for experienced and senior backend roles.  
 **Version scope:** Spring Framework 6/7 concepts and Spring Boot 3/4 generation, with version-sensitive behavior called out. Always check the exact Spring, Spring Boot, Java, and dependency versions used by the target application.  
@@ -433,8 +433,7 @@ Official documentation is authoritative for behavior and version compatibility. 
 
 ## Editorial and validation notes
 
-- The guide prioritizes a focused set of recurring questions over hundreds of repetitive variants. It contains 51 numbered questions, including targeted senior-level production troubleshooting scenarios. It contains 51 numbered questions, including targeted senior-level production troubleshooting scenarios.
-- Answers explain mechanisms and practical consequences rather than giving only definitions.
-- Small examples are used only where they clarify behavior; full sample applications are intentionally excluded.
-- Proxy semantics, transaction behavior, and security configuration must be verified against the exact framework generation.
-- This guide is a curated primary study path; it is not a claim that every file in the previous chapter collection has already been migrated or removed.
+- This quick guide contains 51 curated questions and targeted senior-level production troubleshooting prompts.
+- Use [the complete consolidated handbook](Spring-Boot-Interview-Handbook.md) for the broader topic-by-topic study path, including Spring Data JPA, security, testing, clients, reactive programming, messaging, Spring Cloud, and specialized ecosystem topics.
+- Answers explain core mechanisms and practical consequences; version-sensitive behavior must be checked against the exact framework generation.
+- This is a concise revision aid, not a claim that every file in the previous chapter collection has been migrated or removed.
