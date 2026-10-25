@@ -25,7 +25,7 @@ A focused, version-aware handbook for Java backend engineers preparing for exper
 13. [Code-reading and output questions](#13-code-reading-and-output-questions)
 14. [Production, senior-level scenarios, and engineering judgement](#14-production-senior-level-scenarios-and-engineering-judgement)
 15. [Last-minute revision](#15-last-minute-revision)
-16. [Java version feature matrix](#16-java-version-feature-matrix)
+16. [Java Version Features (Java 8–25)](#16-java-version-features-java-825)
 17. [Official references](#17-official-references)
 18. [Editorial and validation notes](#18-editorial-and-validation-notes)
 
@@ -2076,32 +2076,636 @@ Revise language contracts, OOP and equality, strings and wrappers, exceptions, c
 
 ---
 
-## 16. Java version feature matrix
+## 16. Java Version Features (Java 8–25)
 
-This is an interview revision map, not a complete release-notes catalogue. “LTS” identifies releases commonly prioritized for long-term production support. Preview and incubator status is release-specific; verify features against official release documentation before adopting them.
+This section is a practical companion to the interview Q&A: it explains the Java features that are most useful to recognize in code, discuss in interviews, and adopt in backend services. It is organized by release rather than as a matrix.
 
-| Release | LTS? | Main interview features and milestones |
-|---|---|---|
-| Java 8 | Yes | Lambdas, method references, functional interfaces, Stream API, Optional, default methods, CompletableFuture, java.time |
-| Java 9 | No | JPMS modules, collection factory methods, private interface methods, takeWhile/dropWhile, Flow API |
-| Java 10 | No | Local-variable type inference with `var` |
-| Java 11 | Yes | Standard `HttpClient`, String and Files API additions; Java EE/CORBA modules removed from the JDK distribution |
-| Java 12 | No | Switch expressions preview iteration; `Collectors.teeing` |
-| Java 13 | No | Text blocks and switch-expression preview iterations |
-| Java 14 | No | Switch expressions final; helpful NullPointerExceptions; records preview |
-| Java 15 | No | Text blocks final; hidden classes; records and pattern-matching previews |
-| Java 16 | No | Records final; pattern matching for `instanceof` final; `Stream.mapMulti` |
-| Java 17 | Yes | Sealed classes final; stronger encapsulation of JDK internals; pattern matching for switch preview |
-| Java 18 | No | UTF-8 default charset; simple web server; finalization deprecation |
-| Java 19 | No | Virtual threads preview iteration; record patterns preview; structured concurrency incubator |
-| Java 20 | No | Further previews for virtual threads, record patterns, pattern matching, and structured concurrency |
-| Java 21 | Yes | Virtual threads final, record patterns final, pattern matching for switch final, sequenced collections, generational ZGC |
-| Java 22 | No | Foreign Function & Memory API final; unnamed variables/patterns; ongoing previews |
-| Java 23 | No | Module import declarations preview; primitive patterns preview iteration; Markdown documentation comments preview |
-| Java 24 | No | Stream Gatherers final; Class-File API final; ahead-of-time class loading/linking; continued concurrency previews |
-| Java 25 | Yes | Module import declarations final; compact source files and instance main methods final; flexible constructor bodies final; Scoped Values and KDF API final; primitive patterns remained preview, Structured Concurrency preview, Vector API incubating |
+**How to read the status labels**
+- **Final:** available as a standard feature in that release; no preview flag is needed.
+- **Preview:** available for evaluation in that release, but not yet a permanent language/API feature. Preview features can change or be withdrawn and normally require preview options at compile and run time.
+- **Incubator:** an experimental API module that may change before becoming standard.
 
-**LTS releases to focus on:** Java 8, 11, 17, 21, and 25. Be prepared to describe feature impact and migration risk for Java 8→11, 11→17, 17→21, and 21→25.
+The examples are deliberately small snippets, not complete programs. Some snippets use APIs from a later release than the language syntax around them; the stated release identifies when the feature became available. Prioritize Java 8, 11, 17, 21, and 25 when preparing for LTS-oriented backend interviews.
+
+### Java 8 — Functional programming and modern core APIs
+
+Java 8 is a major milestone because it introduced a functional style to the language and standard library. Its features remain central to everyday Java backend development.
+
+#### Lambda expressions and functional interfaces
+
+A lambda provides an implementation of a functional interface: an interface with one abstract method. Lambdas reduce boilerplate for behavior passed to methods.
+
+```java
+Runnable task = () -> System.out.println("Running");
+Comparator<String> byLength =
+        (left, right) -> Integer.compare(left.length(), right.length());
+```
+
+Use lambdas with APIs such as Streams, executors, and collection callbacks. A lambda does not automatically make code faster; clarity and the behavior of the surrounding API still matter.
+
+#### Method references
+
+Method references are a compact form for lambdas that simply call an existing method or constructor.
+
+```java
+names.forEach(System.out::println);
+List<String> normalized = names.stream()
+        .map(String::toLowerCase)
+        .toList(); // toList() itself requires Java 16; use Collectors.toList() on Java 8
+```
+
+For Java 8, the compatible terminal line is `collect(Collectors.toList())`. Method references can target static methods, instance methods, or constructors.
+
+#### Stream API
+
+Streams express data transformations as a pipeline of intermediate operations and a terminal operation. Intermediate operations are generally lazy.
+
+```java
+List<String> result = names.stream()
+        .filter(name -> name != null && !name.isBlank()) // isBlank() requires Java 11
+        .map(String::trim)
+        .map(String::toUpperCase)
+        .collect(Collectors.toList());
+```
+
+For a Java 8-compatible pipeline, replace `isBlank()` with an appropriate Java 8 check, such as `!name.trim().isEmpty()`. Avoid side effects in stream lambdas, and do not assume parallel streams are automatically faster.
+
+#### Optional
+
+`Optional<T>` represents a value that may be absent and encourages explicit handling of that absence.
+
+```java
+String displayName = findUser(id)
+        .map(User::getName)
+        .filter(name -> !name.isEmpty())
+        .orElse("Unknown");
+```
+
+It is most useful as a return type when absence is an expected outcome. It is usually not a replacement for every nullable field, method parameter, or collection.
+
+#### Default and static interface methods
+
+Interfaces can provide default behavior and static utility methods, helping evolve APIs without forcing every existing implementation to add a method.
+
+```java
+interface Identified {
+    String id();
+
+    default boolean hasId() {
+        return id() != null && !id().isEmpty();
+    }
+
+    static boolean isValid(String id) {
+        return id != null && !id.isEmpty();
+    }
+}
+```
+
+A class can inherit defaults from interfaces, but conflicts between unrelated defaults must be resolved explicitly.
+
+#### `java.time` date and time API
+
+The modern date/time API provides immutable types with clearer semantics than the legacy `Date` and `Calendar` APIs.
+
+```java
+LocalDate today = LocalDate.now();
+LocalDate dueDate = today.plusDays(30);
+Instant eventTime = Instant.now();
+ZonedDateTime localMeeting =
+        eventTime.atZone(ZoneId.of("Asia/Kolkata"));
+```
+
+Use `Instant` for a point on the timeline, `LocalDate` for a calendar date without a time zone, and `ZonedDateTime` when regional time-zone rules matter.
+
+#### CompletableFuture
+
+`CompletableFuture` supports asynchronous composition without manually nesting callbacks.
+
+```java
+CompletableFuture<User> user = loadUserAsync(id);
+CompletableFuture<String> name =
+        user.thenApply(User::getName);
+```
+
+Know the difference between transformation (`thenApply`), asynchronous transformation (`thenApplyAsync`), and composition (`thenCompose`). The default async executor and blocking calls inside a chain deserve attention in production.
+
+#### Other Java 8 additions worth knowing
+
+- **Streams collectors:** `groupingBy`, `partitioningBy`, `mapping`, `joining`, and `toMap` are common interview and production tools.
+- **Base64 API:** `Base64.getEncoder().encodeToString(bytes)` provides standard Base64 encoding.
+- **Repeating annotations and type annotations:** improve annotation expressiveness for frameworks and tooling.
+- **Nashorn JavaScript engine:** introduced in Java 8 but later deprecated and removed; do not assume it exists on modern JDKs.
+
+### Java 9 — Modules and collection/API improvements
+
+#### Java Platform Module System (JPMS)
+
+The module system lets an application declare dependencies and control which packages it exposes. A module descriptor is named `module-info.java`.
+
+```java
+module com.example.orders {
+    requires java.sql;
+    exports com.example.orders.api;
+}
+```
+
+`requires` declares a module dependency; `exports` makes a package accessible to other modules. Modules add stronger boundaries but do not mean every application must be converted to a modular deployment immediately.
+
+#### Collection factory methods
+
+`List.of`, `Set.of`, and `Map.of` create compact unmodifiable collections.
+
+```java
+List<String> roles = List.of("READER", "EDITOR");
+Map<String, Integer> limits = Map.of("basic", 10, "pro", 100);
+```
+
+These collections reject null elements/keys/values and are unmodifiable. They are not the same as a mutable `ArrayList` or `HashMap`.
+
+#### Private interface methods
+
+Interfaces can use private helper methods to share implementation among default or static methods without exposing the helper as part of the public API.
+
+#### Stream API additions
+
+- `takeWhile` and `dropWhile` process an ordered stream up to or after the first element that fails a predicate.
+- `ofNullable` creates an empty stream for a null value or a single-element stream otherwise.
+- `iterate(seed, predicate, next)` supports a bounded iteration form.
+
+#### Other Java 9 changes
+
+- The `ProcessHandle` API provides information about and control over operating-system processes.
+- The `Flow` API defines interfaces for reactive-stream-style publish/subscribe interactions.
+- The platform's runtime image and internal APIs changed substantially; avoid depending on unsupported JDK internals.
+
+### Java 10 — Local-variable type inference
+
+#### `var` for local variables
+
+Java 10 introduced local-variable type inference. The compiler infers the static type from the initializer; Java remains statically typed.
+
+```java
+var names = new ArrayList<String>();
+var retries = 3;
+var customer = customerRepository.findById(id);
+```
+
+Use `var` when the initializer makes the type clear. It cannot be used for fields, method parameters, or return types, and a declaration needs an initializer. Avoid it when it hides an important type or makes code harder to read.
+
+### Java 11 — Standard HTTP client and everyday API improvements
+
+Java 11 is an LTS release and a common migration target from Java 8.
+
+#### Standard `HttpClient`
+
+The standardized client supports synchronous and asynchronous HTTP requests and common HTTP features.
+
+```java
+HttpClient client = HttpClient.newHttpClient();
+HttpRequest request = HttpRequest.newBuilder(URI.create("https://example.com"))
+        .GET()
+        .build();
+
+HttpResponse<String> response =
+        client.send(request, HttpResponse.BodyHandlers.ofString());
+```
+
+The snippet is synchronous. For service code, consider timeouts, status codes, connection behavior, and whether asynchronous execution is appropriate.
+
+#### String API additions
+
+Java 11 added methods such as `isBlank()`, `strip()`, `stripLeading()`, `stripTrailing()`, `lines()`, and `repeat()`.
+
+```java
+boolean emptyOrWhitespace = input.isBlank();
+String normalized = input.strip();
+String banner = "-".repeat(20);
+```
+
+`strip()` uses Unicode-aware whitespace handling, while `trim()` follows older, narrower behavior.
+
+#### Files API additions
+
+`Files.readString(path)` and `Files.writeString(path, content)` simplify common text-file operations. Choose an explicit charset when the file format requires one, and avoid reading very large files wholly into memory.
+
+#### Other Java 11 changes
+
+- Local-variable syntax (`var`) is permitted for lambda parameters, useful when annotations are needed.
+- The Java EE and CORBA modules were removed from the JDK distribution; applications relying on them may need external dependencies.
+- The single-file source launch mode makes small scripts easier to run, but it does not replace a build system for a service.
+
+### Java 12 — Switch-expression preview and collector additions
+
+#### Switch expressions (preview in Java 12)
+
+The initial switch-expression preview allowed a `switch` to produce a value. The syntax and details evolved in later previews before becoming final in Java 14. Do not treat the Java 12 preview as the final specification.
+
+```java
+// Illustrative early-preview-era feature; use the finalized syntax shown under Java 14.
+```
+
+#### `Collectors.teeing`
+
+The collector combines the results of two downstream collectors into one result, useful when two aggregates should be calculated in a single collection pass.
+
+```java
+var summary = values.stream().collect(
+        Collectors.teeing(
+                Collectors.minBy(Integer::compareTo),
+                Collectors.maxBy(Integer::compareTo),
+                (min, max) -> List.of(min, max)));
+```
+
+This example uses `var` and `List.of`, so it assumes Java 10 and Java 9 APIs respectively. In real code, handle the empty-stream case explicitly because min/max may be absent.
+
+### Java 13 — Text blocks and switch-expression preview iterations
+
+#### Text blocks (preview)
+
+Text blocks introduced a more readable way to represent multiline strings. They were previewed in Java 13 and became final in Java 15.
+
+```java
+String json = """
+        {
+          "status": "ok",
+          "count": 3
+        }
+        """;
+```
+
+At the preview stage, syntax and escape behavior were not yet final. For modern code, follow the finalized Java 15 rules and pay attention to incidental indentation and trailing newlines.
+
+#### Switch expressions (second preview)
+
+The switch-expression preview was revised, including the use of `yield` to return a value from a multi-statement case block. See the finalized Java 14 form below.
+
+### Java 14 — Switch expressions finalized
+
+#### Switch expressions (final)
+
+Switch expressions let `switch` return a value. Arrow labels do not fall through, and a multi-statement branch uses `yield` to provide its result.
+
+```java
+String category = switch (statusCode) {
+    case 200, 201 -> "Success";
+    case 400, 404 -> "Client error";
+    case 500, 503 -> "Server error";
+    default -> {
+        logUnknownStatus(statusCode);
+        yield "Other";
+    }
+};
+```
+
+This is useful for concise, exhaustive mappings. Unlike a traditional colon-style switch statement, arrow cases do not accidentally continue into the next case.
+
+#### Helpful NullPointerExceptions
+
+The JVM can provide more informative messages about which expression was null in certain null dereferences. This improves diagnosis but does not replace null validation or clear error handling.
+
+#### Records and pattern matching for `instanceof` (preview)
+
+Both features were previewed in Java 14 and finalized in later releases. For production code, use their finalized forms as described under Java 16.
+
+### Java 15 — Text blocks finalized
+
+#### Text blocks (final)
+
+Text blocks became a permanent language feature in Java 15, making multiline SQL, JSON, HTML, and test fixtures easier to read.
+
+```java
+String query = """
+        SELECT id, name
+        FROM customer
+        WHERE status = 'ACTIVE'
+        ORDER BY name
+        """;
+```
+
+Text blocks do not parameterize SQL. Continue to use prepared statements for user-supplied values; a readable multiline query is not inherently safe from injection.
+
+#### Hidden classes
+
+Hidden classes are intended mainly for frameworks and runtime-generated classes that are not meant to be discovered by ordinary application code. Most business applications do not need to define hidden classes directly.
+
+### Java 16 — Records and pattern matching for instanceof finalized
+
+#### Records
+
+Records provide a compact declaration for transparent data carriers. The compiler supplies component fields, accessors, a canonical constructor, `equals`, `hashCode`, and `toString`.
+
+```java
+public record UserSummary(long id, String name) {}
+```
+
+A record is only **shallowly immutable**: a component can refer to a mutable object. Records are a good fit for DTOs and value-like data, but they are not a drop-in replacement for every entity or class.
+
+#### Pattern matching for `instanceof`
+
+Pattern matching combines a type check and cast, reducing boilerplate.
+
+```java
+if (value instanceof String text && !text.isBlank()) {
+    System.out.println(text.strip());
+}
+```
+
+The pattern variable is in scope where the match is known to be true. This example uses Java 11 String methods as well.
+
+#### `Stream.toList()` and `mapMulti`
+
+- `Stream.toList()` returns an unmodifiable list of the stream's elements.
+- `mapMulti` can emit zero or more output elements per input element, sometimes avoiding the overhead of creating a nested stream for each item.
+
+Do not assume `Stream.toList()` returns a mutable list; use `Collectors.toCollection(ArrayList::new)` when you specifically need a mutable result.
+
+### Java 17 — Sealed classes and a modern LTS baseline
+
+#### Sealed classes and interfaces (final)
+
+Sealed types restrict which classes or interfaces may extend or implement them. Permitted subtypes must declare an appropriate relationship such as `final`, `sealed`, or `non-sealed`.
+
+```java
+public sealed interface PaymentResult
+        permits Approved, Declined {}
+
+public record Approved(String transactionId) implements PaymentResult {}
+public record Declined(String reason) implements PaymentResult {}
+```
+
+Sealed hierarchies model a controlled set of alternatives. Combined with records and pattern matching, they can make domain modeling and exhaustive handling clearer.
+
+#### Strong encapsulation of JDK internals
+
+Java 17 strongly encapsulates many internal JDK APIs. Applications that relied on unsupported internals may fail or emit warnings after an upgrade. Prefer supported public APIs and investigate reflective-access errors rather than relying on broad JVM escape flags as a permanent fix.
+
+#### Pattern matching for switch (preview)
+
+Java 17 introduced the first preview of pattern matching for `switch`. The feature evolved across releases and became final in Java 21. Use the finalized syntax in modern examples.
+
+### Java 18 — UTF-8 by default
+
+#### Default charset
+
+Java 18 standardized UTF-8 as the default charset in most standard Java APIs, reducing platform-dependent behavior. Explicitly specify a charset at file, network, and integration boundaries when the external format defines one; explicit intent remains valuable.
+
+```java
+String text = Files.readString(path, StandardCharsets.UTF_8);
+```
+
+#### Simple web server and finalization deprecation
+
+Java 18 included a minimal command-line web server useful for local testing, not as a production server. Object finalization was deprecated for removal; use explicit resource management, try-with-resources, or appropriate cleanup mechanisms instead.
+
+### Java 19 — Virtual threads and record-pattern previews
+
+#### Virtual threads (preview)
+
+Virtual threads were introduced as a preview in Java 19 and became final in Java 21. They are lightweight threads intended to support large numbers of mostly-blocking tasks in a thread-per-request style.
+
+```java
+try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+    Future<String> result = executor.submit(() -> callRemoteService());
+    System.out.println(result.get());
+}
+```
+
+This executor API requires Java 21 for the finalized virtual-thread support shown here; Java 19's preview required preview enablement. Virtual threads improve scalability for blocking workloads, not CPU-bound throughput by themselves. Avoid pooling virtual threads as though they were scarce platform threads.
+
+#### Record patterns (preview)
+
+Record patterns began as a preview in Java 19, enabling components of records to be matched and unpacked declaratively. The syntax evolved before becoming final in Java 21.
+
+#### Structured concurrency (incubator)
+
+Structured concurrency explored treating related concurrent tasks as one unit of work, with coordinated cancellation and failure handling. It was an incubating API at this stage and continued to evolve; do not confuse it with the finalized virtual-thread feature.
+
+### Java 20 — Continued concurrency and pattern previews
+
+Java 20 was primarily an iteration release for several preview and incubator features rather than a major new LTS baseline.
+
+- **Virtual threads:** continued preview refinements.
+- **Record patterns:** preview refinements and better type inference.
+- **Pattern matching for switch:** another preview iteration.
+- **Structured concurrency and scoped values:** continued incubator/preview evolution.
+
+For interviews, understand the problems these features target, but clearly distinguish the Java 20 preview/incubator status from the finalized Java 21 versions where applicable.
+
+### Java 21 — Virtual threads, pattern matching, and sequenced collections
+
+Java 21 is an important LTS release for backend developers.
+
+#### Virtual threads (final)
+
+Virtual threads make thread-per-task designs more scalable when tasks spend much of their time waiting on I/O. They are scheduled by the runtime over a smaller set of platform threads.
+
+```java
+try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+    executor.submit(() -> handleRequest(request));
+}
+```
+
+The try-with-resources block waits for submitted tasks to complete when the executor closes. In a real service, manage task lifetimes, cancellation, timeouts, downstream connection pools, and error propagation deliberately. Virtual threads do not remove downstream capacity limits.
+
+#### Pattern matching for switch (final)
+
+A switch can select behavior by runtime type and use guards with `when`.
+
+```java
+static String describe(Object value) {
+    return switch (value) {
+        case null -> "null";
+        case String text when text.isBlank() -> "blank text";
+        case String text -> "text: " + text;
+        case Integer number -> "integer: " + number;
+        default -> "other";
+    };
+}
+```
+
+The compiler checks coverage in many switch expressions. Order patterns carefully because a broader pattern can dominate a narrower one.
+
+#### Record patterns (final)
+
+Record patterns let code match a record and bind its components in one step.
+
+```java
+if (value instanceof Point(int x, int y)) {
+    System.out.println(x + ", " + y);
+}
+```
+
+Nested record patterns can unpack nested data structures. Use them when the structure is known and the resulting code is clearer than repeated accessor calls.
+
+#### Sequenced collections
+
+Sequenced collection interfaces provide a consistent way to access elements in encounter order, including first/last elements and reversed views.
+
+```java
+SequencedCollection<String> names = new ArrayList<>(List.of("Ada", "Linus", "Grace"));
+String first = names.getFirst();
+String last = names.getLast();
+SequencedCollection<String> reversedView = names.reversed();
+```
+
+The reversed result is a reverse-ordered view, not necessarily a separately copied collection. Mutability and view behavior depend on the underlying collection.
+
+#### Other Java 21 features
+
+- **Generational ZGC:** improves garbage-collection efficiency by separating young and old object generations.
+- **String templates (preview):** introduced as a preview but later withdrawn; do not treat them as a permanent Java feature.
+- **Unnamed patterns and variables (preview):** underscore placeholders can mark values that are intentionally unused; this feature became final in Java 22.
+- **Scoped values (preview):** explored immutable data sharing across a bounded call context and became final in Java 25.
+
+### Java 22 — Foreign Function & Memory API and unnamed variables
+
+#### Foreign Function & Memory (FFM) API (final)
+
+The FFM API provides a supported way to access native memory and call native functions without relying on JNI for many use cases.
+
+It matters for libraries that integrate with native code or need controlled access to off-heap memory. It is lower-level than ordinary business application code; memory lifetime and safety remain important.
+
+#### Unnamed variables and patterns (final)
+
+An underscore can mark a variable or pattern that is intentionally unused.
+
+```java
+try {
+    process();
+} catch (IOException _) {
+    logFailure();
+}
+```
+
+This avoids misleading placeholder names when the value is deliberately ignored. Use it only when the value truly is not needed; otherwise, handle or log the meaningful information.
+
+#### Other Java 22 changes
+
+- The Stream Gatherers API was introduced as a preview for custom intermediate stream operations and became final in Java 24.
+- The Class-File API was introduced as a preview and became final in Java 24.
+- Several foreign-function and concurrency improvements continued to evolve.
+
+### Java 23 — Continued language and API previews
+
+Java 23 continued work on newer language features and tooling APIs.
+
+- **Module import declarations (preview):** proposed a concise way to import exported packages from a module; finalized in Java 25.
+- **Primitive types in patterns, instanceof, and switch (preview):** explored matching primitive values using pattern constructs; still preview in Java 25.
+- **Markdown documentation comments (preview):** explored Markdown as a documentation-comment format.
+- **Stream Gatherers (preview iteration):** custom intermediate stream transformations continued to evolve before Java 24 finalization.
+
+For interview answers, explain the goal and status accurately rather than presenting a preview API as a stable production contract.
+
+### Java 24 — Stream Gatherers and the Class-File API finalized
+
+#### Stream Gatherers (final)
+
+Gatherers allow developers to define custom intermediate operations for stream pipelines, complementing built-in operations such as `map`, `filter`, and `flatMap`.
+
+They are useful for transformations that are awkward to express with the built-in operations, such as custom windowing or stateful grouping. Prefer built-in operations when they already express the intent clearly.
+
+#### Class-File API (final)
+
+The Class-File API provides a supported API for parsing, generating, and transforming Java class files. It is relevant to bytecode tools, agents, frameworks, and language tooling—not something most application developers need in routine business logic.
+
+#### Ahead-of-time class loading and linking
+
+Java 24 introduced ahead-of-time class loading and linking capabilities intended to reduce startup work in suitable applications. The benefit depends on application characteristics and deployment workflow; measure startup and runtime behavior rather than assuming every service will improve.
+
+#### Other Java 24 changes
+
+- More improvements to garbage collection and runtime performance.
+- Continued preview iterations for flexible constructor bodies, module imports, and primitive patterns.
+- The Vector API remained an incubating API; incubating status means it is not a stable standard API contract.
+
+### Java 25 — New LTS release and finalized language improvements
+
+Java 25 is the next LTS release after Java 21 in this guide's scope. It finalizes several features that had been previewed in earlier releases.
+
+#### Module import declarations (final)
+
+A module import declaration can import the packages exported by a module, reducing repetitive imports for certain applications.
+
+```java
+import module java.base;
+```
+
+This is a language feature with specific rules; it does not mean all packages from every dependency become accessible without module or class-path configuration. Use it when it improves clarity, and keep ordinary explicit imports where they better communicate dependencies.
+
+#### Compact source files and instance main methods (final)
+
+Java 25 finalizes a simplified source-file form intended to make small programs easier to write. It reduces ceremony for introductory tools and scripts; traditional classes and explicit `main` methods remain fully valid and are still common in production applications.
+
+#### Flexible constructor bodies (final)
+
+This feature permits certain statements before an explicit superclass constructor invocation, while preserving restrictions that protect object initialization. It helps validate or prepare constructor arguments before calling `super(...) `, but it does not permit arbitrary access to an incompletely initialized instance.
+
+#### Scoped Values (final)
+
+Scoped values provide a way to share immutable data with callees for a bounded dynamic scope. They can be useful for context such as request metadata and work naturally with structured concurrency.
+
+```java
+private static final ScopedValue<String> REQUEST_ID = ScopedValue.newInstance();
+
+ScopedValue.where(REQUEST_ID, requestId)
+        .run(() -> processRequest());
+```
+
+Scoped values are not a universal replacement for every `ThreadLocal`. They are designed for scoped, typically immutable context propagation and should be evaluated against the framework's request-context mechanisms.
+
+#### Key Derivation Function API (final)
+
+The KDF API provides a standard interface for key-derivation operations. It is a security-oriented API; use established cryptographic guidance and approved algorithms rather than inventing a custom key derivation scheme.
+
+#### Features that remain preview or incubating in Java 25
+
+- **Primitive types in patterns, `instanceof`, and `switch`:** still a preview feature in Java 25; do not present it as finalized.
+- **Structured concurrency:** preview API, still evolving.
+- **Vector API:** incubating API, still evolving.
+- **Other preview features:** check the exact JDK release documentation and build/runtime flags before experimenting.
+
+### LTS migration checklist: Java 8 → 11 → 17 → 21 → 25
+
+When discussing a Java upgrade, focus on more than syntax:
+
+1. **Build and runtime compatibility:** verify the compiler release, target bytecode, JDK used by CI, container base image, and production runtime.
+2. **Dependencies and frameworks:** check supported JDK ranges, removed Java EE/CORBA modules, reflective access, bytecode tooling, agents, and native libraries.
+3. **Behavior changes:** review charset assumptions, TLS/security defaults, garbage collector defaults, time-zone data, and locale-sensitive behavior.
+4. **Concurrency:** assess executor sizing and blocking behavior before adopting virtual threads; test downstream pools and cancellation.
+5. **Observability and performance:** establish baseline startup, throughput, latency percentiles, allocation rate, and GC behavior, then compare under representative load.
+6. **Rollout strategy:** run tests on the target JDK, canary the deployment, monitor error and latency changes, and keep a rollback path.
+
+### Quick revision: features interviewers commonly compare
+
+| Comparison | Core distinction |
+|---|---|
+| Lambda vs method reference | A method reference is a concise form when the lambda merely calls an existing method or constructor. |
+| Stream vs collection | A collection stores data; a stream describes a computation over a source. |
+| `var` vs dynamic typing | `var` infers a static compile-time type; Java is not dynamically typed. |
+| `List.of()` vs `Arrays.asList()` | `List.of()` is unmodifiable and rejects nulls; `Arrays.asList()` is fixed-size and backed by the array. |
+| Switch statement vs switch expression | An expression produces a value; arrow cases avoid fall-through. |
+| Record vs ordinary class | Records are concise, shallowly immutable data carriers with generated value-oriented methods. |
+| Sealed vs final class | A final class allows no subclasses; a sealed type allows a declared, controlled set. |
+| Platform vs virtual thread | Platform threads map closely to OS threads; virtual threads are lightweight runtime-managed threads. |
+| Preview vs final feature | Preview features require explicit opt-in and may change; final features are standard for that release. |
+| ScopedValue vs ThreadLocal | Scoped values model bounded context sharing; ThreadLocal associates mutable state with a thread. |
+
+### Official version references
+
+Use the official release documentation to verify details, especially when a feature changed from preview to final or was withdrawn.
+
+- [Java language changes by release — Java 25](https://docs.oracle.com/en/java/javase/25/language/java-language-changes-release.html)
+- [Java language changes summary — Java 25](https://docs.oracle.com/en/java/javase/25/language/java-language-changes-summary.html)
+- [Java SE 25 API documentation](https://docs.oracle.com/en/java/javase/25/docs/api/)
+- [Java SE specifications index](https://docs.oracle.com/javase/specs/)
+- [JEP 361 — Switch Expressions](https://openjdk.org/jeps/361)
+- [JEP 395 — Records](https://openjdk.org/jeps/395)
+- [JEP 409 — Sealed Classes](https://openjdk.org/jeps/409)
+- [JEP 431 — Sequenced Collections](https://openjdk.org/jeps/431)
+- [JEP 444 — Virtual Threads](https://openjdk.org/jeps/444)
+- [JEP 441 — Pattern Matching for switch](https://openjdk.org/jeps/441)
+- [JEP 485 — Stream Gatherers](https://openjdk.org/jeps/485)
+- [JEP 506 — Scoped Values](https://openjdk.org/jeps/506)
 
 ---
 
