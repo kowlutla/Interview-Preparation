@@ -6,7 +6,9 @@ A focused guide for Java backend engineers who need to explain ORM behavior, que
 **Version scope:** Modern Jakarta Persistence, Hibernate ORM, and Spring Data JPA; check the exact provider, Spring Boot, JDBC driver, and database versions before relying on version-sensitive behavior.  
 **Study approach:** Learn the lifecycle and SQL implications behind each feature, not just the annotation name.
 
-**How to use this handbook:** Practise answering each question aloud in this order: direct answer, mechanism, a short example, the trade-off, and how you would verify the behavior in production. For performance questions, describe the evidence you would collect before proposing a fix.
+## How to use this handbook
+
+Practise answering each question aloud in this order: direct answer, mechanism, a short example, the trade-off, and how you would verify the behavior in production. For performance questions, describe the evidence you would collect before proposing a fix.
 
 ## Top 15 Questions to Master First
 
