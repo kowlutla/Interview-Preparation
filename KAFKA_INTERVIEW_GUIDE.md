@@ -107,7 +107,7 @@ A consumer group is identified by `group.id`; its members share the work of cons
 
 ### Q15. What happens when a consumer commits an offset?
 
-The consumer group stores a position indicating where it should resume. If it commits before processing completes, a failure can skip unfinished work. If it commits after processing, a crash between processing and commit can cause redelivery. Commit strategy therefore affects loss/duplication behavior.
+A commit stores the consumer group's resume position for a partition; it does not delete the record or prove that business processing succeeded. If the application commits before its side effect is durable, a crash can cause the record to be skipped on restart. If it performs the side effect and crashes before committing, Kafka can redeliver the record. This is why at-least-once consumers need idempotent processing and why commits should advance only across records known to be complete. In asynchronous processing, track completion per partition and do not commit beyond an unfinished earlier offset. During a rebalance, finish or safely cancel in-flight work and avoid committing offsets for work that was never completed. For Kafka-to-Kafka processing, transactions can atomically publish output and commit input offsets; for an external database, use idempotency/outbox patterns rather than assuming the offset commit and DB transaction are atomic.
 
 
 ### Q16. How does Kafka retention work?
@@ -516,9 +516,9 @@ Define RPO/RTO, backups or replication strategy, cluster provisioning, topic con
 On restart or reassignment, Kafka may deliver the record again because the committed position did not advance. Use a stable event ID and atomically persist a deduplication marker with the business mutation. Commit only after the DB transaction succeeds.
 
 
-### Q92. Scenario: First establish whether lag is increasing, which consumer groups and partitions are affected, and whether user-facing SLAs or data correctness are at risk. Compare the deployment time with processing latency, error rates, rebalance frequency, CPU/GC, thread pools, database/API latency, and input rate. Check whether the release changed deserialization, batch size, retry behavior, concurrency, or offset commits. If the release is strongly implicated and rollback is safe, stabilize first; do not scale blindly if consumers are already overwhelming the database or if the partition count limits useful parallelism. After recovery, replay/reconcile any failed work and add a regression test or alert.
+### Q92. Scenario: Consumer lag starts right after a release. How do you triage?
 
-Compare release timestamps with lag, processing latency, errors, rebalance rate, CPU/GC, DB/API latency, and per-partition metrics. Roll back if the release is the likely cause and rollback is safe. Avoid scaling consumers until you know whether the bottleneck is partition parallelism or downstream saturation.
+First establish whether lag is increasing, which consumer groups and partitions are affected, and whether user-facing SLAs or data correctness are at risk. Compare the deployment time with processing latency, error rates, rebalance frequency, CPU/GC, thread pools, database/API latency, and input rate. Check whether the release changed deserialization, batch size, retry behavior, concurrency, or offset commits. If the release is strongly implicated and rollback is safe, stabilize first; do not scale blindly if consumers are already overwhelming the database or if the partition count limits useful parallelism. After recovery, replay/reconcile any failed work and add a regression test or alert.
 
 
 ### Q93. Scenario: Two independent producers publish the same business event. Will idempotence deduplicate them?
