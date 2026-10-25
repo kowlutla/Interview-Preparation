@@ -1,37 +1,38 @@
 # Java Interview Preparation
 
-A focused, version-aware Java interview guide for backend engineers preparing for experienced and senior roles.
+A focused, version-aware Java interview handbook for backend engineers preparing for experienced and senior roles.
 
 ## Start here
 
 **[Java Interview Handbook — Complete Topic-Wise Revision Guide (Java 8–25)](Java-Interview-QA.md)**
 
-This is the primary reading path. It contains 355 interview questions across dedicated topic sections with detailed, readable answers across Java fundamentals, object-oriented design, collections, generics, streams, concurrency, JVM behavior, modern Java, and production troubleshooting. The guide includes focused explanations, concise code snippets where useful, a dedicated Streams coding section, Java 8–25 version coverage with LTS emphasis, and Mermaid diagrams for visual revision.
+The handbook contains 355 numbered questions. Questions keep stable Q IDs but are grouped by subject rather than numeric order, and each topic has one canonical home. The reading path runs from Java fundamentals and OOP through strings, exceptions, generics, Collections, functional programming and Streams, concurrency, JVM behavior, engineering practices, Java-version evolution, code reading, and finally production/senior-level scenarios.
+
+It includes a dedicated Streams coding section, a Java 8–25 release matrix emphasizing LTS releases, concise code examples, and Mermaid diagrams.
 
 ## Recommended study path
 
-1. Read the handbook in order once to establish the concepts and connections.
-2. Revisit the last-minute revision section before an interview.
-3. Practise explaining the mechanism, one important trade-off, and a real example for each question.
-4. Use the official references linked at the end whenever an answer depends on a specific Java release or API contract.
+1. Read the handbook in the listed topic order rather than following Q numbers.
+2. Practise Streams coding questions after learning the Stream API fundamentals.
+3. Study Java release evolution after core topics, focusing on Java 8, 11, 17, 21, and 25.
+4. Finish with code-reading questions and production/senior-level scenarios.
+5. Use the last-minute revision section and official references before interviews.
 
 ## Scope and accuracy
 
-- The main guide emphasizes recurring interview themes and senior-level reasoning.
-- Java language/API guarantees are distinguished from implementation-specific behavior where relevant.
-- Java 21 and Java 25 features must be checked against their release-specific documentation; preview status is not the same as a finalized API.
-- Secondary interview-question websites help identify themes but do not establish a universal or company-specific question frequency.
+- Interview-question frequency varies across companies; the guide focuses on recurring themes rather than claiming universal question frequency.
+- Java language/API guarantees are distinguished from implementation-specific details where relevant.
+- Preview and incubator statuses are release-specific; use the official references in the handbook to verify target-JDK behavior.
+- Structural organization checks do not imply that every answer and code snippet has been independently audited or compiled.
 
 ## Extended legacy material
 
-The former chapter-by-chapter handbook contains additional specialist topics, scenarios, coding/output problems, and mock interviews. It is being reviewed for unique useful content before any consolidation or removal. Until that review is complete, those files remain available in their existing subfolders but are not the recommended first-pass revision path.
+The former chapter-by-chapter handbook contains additional specialist topics, scenarios, coding/output problems, and mock interviews. Those files remain available while unique useful content is reviewed; they have not been removed as part of this reorganization.
 
 - [Coverage and Technical Review](COVERAGE-AND-TECHNICAL-REVIEW.md)
 - [Quality Audit and Remediation Plan](QUALITY-AUDIT-AND-REMEDIATION.md)
 - [Official Documentation and Resources](references/Official-Documentation-and-Resources.md)
 
-**Editorial standard:** Keep the guide focused, preserve important topics, merge repetitive questions, and provide complete explanations that are technically accurate, human-readable, and useful for interview revision.
+## Coverage plan
 
-## Comprehensive coverage plan
-
-The handbook is being expanded using a topic-by-topic audit rather than an arbitrary question-count target. See the [Java Interview Question Coverage Plan](QUESTION-COVERAGE-PLAN.md) for the complete category checklist and review/acceptance criteria. The existing chapter bank remains in place until its unique useful content has been mapped into the canonical guide.
+See the [Java Interview Question Coverage Plan](QUESTION-COVERAGE-PLAN.md) for the topic checklist, editorial principles, and remaining validation criteria.
