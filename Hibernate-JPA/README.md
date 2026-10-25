@@ -22,7 +22,7 @@ This is the primary reading path. It contains 75 curated questions with small, f
 - The guide focuses on interview understanding and production diagnosis, not long code samples.
 - Question selection is curated for revision efficiency; it is not a claim of universal company-specific frequency.
 
-## Extended legacy material
+## Repository structure
 
 The `Hibernate-JPA` directory is intentionally kept simple: one primary interview Markdown handbook plus this README. The directory was inspected and contains no separate chapter-wise legacy files to consolidate or delete.
 
