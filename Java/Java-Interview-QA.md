@@ -19,6 +19,7 @@ A focused, version-aware guide for Java backend engineers. It prioritizes questi
 7. [Modern Java](#7-modern-java)
 8. [Production and senior-level scenarios](#8-production-and-senior-level-scenarios)
 9. [Additional specialist topics](#9-additional-specialist-topics)
+10. [Expanded coverage: frequently tested Java topics](#10-expanded-coverage-frequently-tested-java-topics)
 10. [Last-minute revision](#10-last-minute-revision)
 11. [Official references](#11-official-references)
 12. [Editorial and validation notes](#12-editorial-and-validation-notes)
@@ -450,6 +451,406 @@ Timeouts should align with the overall request deadline, and retries should be b
 Class loaders locate and define classes at runtime. The traditional parent-delegation model asks a parent loader to load a class before the child defines it, helping avoid duplicate definitions of core classes and supporting a consistent runtime type system. Application servers, plugin systems, module layers, and custom class loaders can use more complex arrangements.
 
 Two classes with the same fully qualified name are not necessarily the same runtime type if they were defined by different class loaders. This can cause confusing `ClassCastException`, `NoClassDefFoundError`, or linkage errors in application servers and plugin architectures. Diagnose the actual class loader, classpath/module path, dependency conflicts, and loading origin rather than assuming the source code type name uniquely identifies the runtime class.
+
+---
+
+## 10. Expanded coverage: frequently tested Java topics
+
+The earlier sections establish the core concepts. This section fills in additional language, API, runtime, and production topics that commonly appear as follow-up questions. Use it alongside the earlier sections rather than treating it as a separate syllabus.
+
+### Strings, wrappers, and numeric behavior
+
+### Q65. What is the difference between String, StringBuilder, and StringBuffer?
+
+`String` is immutable: every apparent modification produces a new string value. That makes strings safe to share and useful as map keys, but repeated concatenation inside a loop can create many temporary objects. `StringBuilder` is mutable and usually the right choice for building text in one thread. `StringBuffer` offers synchronized methods for legacy thread-safe mutation, but synchronization does not automatically make a multi-step sequence of operations atomic.
+
+Use `+` for simple readable concatenation; the compiler can optimize many such expressions. Prefer a builder when accumulating text repeatedly in a loop or when construction logic is complex. Do not choose `StringBuffer` by default merely because a service is multithreaded: a builder should generally be local to the operation rather than shared between threads.
+
+### Q66. How does the String pool work, and what does intern() do?
+
+The runtime maintains a pool of canonical strings. String literals and compile-time constant string expressions are interned, so equal literals can refer to the same pooled object. Calling `intern()` returns the canonical pooled representation for that string value, either an existing one or a pooled entry.
+
+This is different from value equality: use `equals()` to compare string contents. Do not rely on reference identity as an application-level string comparison strategy. Interning arbitrary, high-cardinality input can also add complexity and memory pressure without a useful benefit; use it only when the workload and lifecycle make canonicalization worthwhile.
+
+### Q67. Why is String a good key for HashMap, and what happens if a key is mutable?
+
+A hash-based map expects a key's equality and hash code to remain stable while it is stored. String is immutable, so its content cannot change after insertion and invalidate the bucket chosen by the map. A mutable key can be inserted under one hash code and later searched for under another, making the entry effectively unreachable through normal lookup even though it remains in the map.
+
+If a custom key represents several fields, base equality and hashing on the same logical identity fields and make those fields immutable where practical. If mutability is unavoidable, remove the key before changing its equality-relevant state and reinsert it afterward.
+
+### Q68. Explain autoboxing, unboxing, and a common Integer comparison trap.
+
+Autoboxing converts a primitive to its wrapper type, such as `int` to `Integer`; unboxing extracts the primitive value. Java guarantees caching for certain small integral wrapper values, but code must not depend on two boxed references being identical for arbitrary values. Therefore, `a == b` can compare references when both operands are wrappers, while `a.equals(b)` compares wrapper values.
+
+Unboxing a null wrapper throws `NullPointerException`. Be explicit about nullability at API boundaries, and use primitive types when null has no meaning. For value comparisons, unbox safely or use the wrapper's value equality; don't use reference identity.
+
+### Q69. What should you know about floating-point equality and BigDecimal?
+
+Binary floating-point types such as `float` and `double` cannot represent many decimal fractions exactly. This can produce results such as a sum that is close to, but not exactly, the expected decimal value. For approximate scientific calculations, use a documented tolerance appropriate to the scale and domain rather than direct equality.
+
+For decimal quantities requiring predictable decimal arithmetic, such as many financial calculations, `BigDecimal` is often appropriate. Constructing it from a decimal string avoids importing the binary approximation of a double. Also note that `BigDecimal.equals()` considers both value and scale, whereas `compareTo()` compares numerical value; this distinction matters for equality and sorted collections.
+
+### Exceptions and resource safety
+
+### Q70. When should you create a custom exception?
+
+Create a custom exception when it communicates a meaningful domain or boundary failure that callers can handle differently, such as an invalid business operation or a missing domain resource. Include useful context, preserve the original cause when wrapping, and choose checked versus unchecked based on the contract rather than habit.
+
+Avoid creating a new exception class for every low-level failure if callers cannot act on the distinction. Do not expose secrets, raw credentials, or sensitive payloads in exception messages. At service boundaries, translate implementation-specific exceptions into stable domain or API errors while retaining enough internal diagnostic context.
+
+### Q71. What is exception chaining, and why should the cause be preserved?
+
+Exception chaining wraps a lower-level exception in a higher-level exception while retaining the original cause. For example, a repository layer might translate a driver exception into a persistence-specific exception. The higher layer can then reason about the abstraction it owns, while logs and diagnostics retain the original failure and stack trace.
+
+When wrapping, pass the original exception as the cause. Avoid logging the same exception at every layer and then rethrowing it, because that creates noisy duplicate logs. Log where the failure can be meaningfully handled or where ownership of the error is clear.
+
+### Q72. How do try-with-resources and suppressed exceptions work?
+
+Try-with-resources automatically closes resources that implement `AutoCloseable`, including when the body throws. Resources are closed in reverse order of initialization. If the body throws and closing also throws, the body exception remains primary and the close failure is recorded as a suppressed exception.
+
+This is usually safer than manual `finally` cleanup, where a close exception can accidentally replace the original failure. Use it for files, streams, JDBC resources, and other closeable objects. When diagnosing failures, inspect suppressed exceptions too; the primary stack trace may not tell the whole story.
+
+### Q73. Can a finally block change a method's return value or hide an exception?
+
+Yes, but it should not. A `return` or a thrown exception from `finally` can override a return or exception from the `try` or `catch` block, which makes control flow surprising and can hide the original failure. The safe rule is to use `finally` for cleanup only and avoid returning or throwing from it unless there is a very specific, justified reason.
+
+Try-with-resources is generally preferable for closeable resources because it preserves the primary exception and records close failures as suppressed exceptions.
+
+### Collections and generics: deeper questions
+
+### Q74. How do HashMap collisions work, and why does capacity matter?
+
+A hash map uses a key's hash to select a bucket and then uses equality to distinguish keys that land in the same bucket. Collisions are expected; a correct map must still distinguish unequal keys with the same hash. In modern OpenJDK implementations, heavily populated buckets can be treeified under certain capacity and collision conditions, but the exact implementation details are not all part of the general Map contract.
+
+Resizing occurs as the map grows beyond its threshold, redistributing entries across a larger table. If an approximate entry count is known, sizing the map sensibly can reduce resize work, but excessive preallocation wastes memory. Correct `equals()` and `hashCode()` implementations matter more than trying to avoid every collision.
+
+### Q75. How do HashMap, LinkedHashMap, and TreeMap differ?
+
+`HashMap` provides hash-based lookup and does not promise iteration order. `LinkedHashMap` maintains a predictable encounter order, usually insertion order, and can also maintain access order for patterns such as a simple LRU cache. `TreeMap` keeps keys ordered according to their natural ordering or a supplied comparator, with logarithmic-time basic operations.
+
+Choose based on the contract you need: no order, predictable encounter order, or sorted keys. A comparator used by a sorted map should be consistent with equality when practical; otherwise the map's notion of duplicate keys can differ from `equals()`, which can surprise callers.
+
+### Q76. What is the difference between Comparable and Comparator?
+
+`Comparable` defines a type's natural ordering through `compareTo()`. `Comparator` defines an external ordering and allows multiple orderings for the same type, such as sorting employees by name, salary, or start date. Comparators can be composed using methods such as `comparing()` and `thenComparing()`.
+
+Ordering must be transitive and consistent. In sorted sets and maps, comparison returning zero means the elements are treated as the same ordering key, even if their `equals()` methods say they differ. Document intentional differences and test boundary values, null handling, and tie-breakers.
+
+### Q77. What are the trade-offs of CopyOnWriteArrayList and BlockingQueue?
+
+`CopyOnWriteArrayList` copies its backing array on mutation, so reads and iteration are simple and iterators observe a snapshot. It works well for small collections with many reads and rare writes, but frequent updates can be expensive in allocation and copying. It is not a general replacement for `ArrayList`.
+
+A `BlockingQueue` supports coordination between producers and consumers, including blocking when a bounded queue is full or empty. Bounded queues can provide backpressure and prevent unbounded buffering, but they require an explicit policy for saturation: block, reject, drop, or apply another domain-specific response.
+
+### Q78. What is the difference between an unmodifiable collection and an immutable collection?
+
+An unmodifiable view prevents mutation through that view, but the underlying collection may still be changed elsewhere. A truly immutable collection cannot have its contents changed after creation, although objects stored inside it may themselves be mutable. An unmodifiable wrapper around a mutable list is therefore not automatically a snapshot.
+
+When exposing collection state from an object, consider defensive copying or immutable collection factories so callers cannot mutate internal state through an alias. Also consider whether element mutability can violate the class's invariants.
+
+### Q79. Why can't you create arrays of parameterized types, and what is reifiable?
+
+Java arrays are covariant and enforce their component type at runtime, while generic type parameters are mostly erased at runtime. Creating a `new List<String>[10]` would imply runtime checks that the JVM cannot reliably perform for the erased element type, so generic array creation is prohibited in the usual form.
+
+A reifiable type is one whose runtime type information is fully available, such as a non-generic class or an array of reifiable component type. Generic code sometimes needs a collection instead of an array or a carefully encapsulated varargs operation with appropriate safety guarantees. Do not suppress unchecked warnings without understanding the invariant that makes the operation safe.
+
+### Q80. What are bounded type parameters and generic methods useful for?
+
+A bounded type parameter restricts the types that can be supplied and makes a useful contract available inside the implementation, such as requiring a type to implement `Comparable`. A generic method declares its own type parameter, allowing the same method to work safely across multiple related types without relying on raw types or casts.
+
+Prefer a type signature that expresses the actual relationship between inputs and outputs. Avoid raw collections: they bypass compile-time checks and can cause failures far from the point where an unsafe value entered the system.
+
+### Functional programming and everyday APIs
+
+### Q81. What is the difference between a Predicate, Function, Consumer, and Supplier?
+
+A `Predicate<T>` accepts a value and returns a boolean, commonly for filtering. A `Function<T,R>` transforms a value into another value. A `Consumer<T>` accepts a value and returns no result, often for an action or side effect. A `Supplier<T>` produces a value without taking an input.
+
+These interfaces make behavior composable and are used by streams, collection APIs, and asynchronous APIs. Keep functions passed to stream pipelines focused and avoid hidden side effects, because lazy evaluation and possible parallel execution can make side-effect timing and ordering harder to reason about.
+
+### Q82. Why are side effects in stream pipelines risky?
+
+Streams describe a computation over a source; intermediate operations are lazy, and a terminal operation triggers evaluation. Side effects inside intermediate operations can be skipped when they do not affect the result, run in an unexpected order, or race when a pipeline is parallel. For example, mutating a shared list inside a parallel `forEach` is not automatically safe.
+
+Prefer transformations and reductions that express the result directly. If the operation is inherently side-effecting, make the boundary explicit and use a suitable concurrency or transaction strategy rather than assuming the stream framework will serialize it.
+
+### Q83. When should Optional be returned, and when should it not be used?
+
+`Optional<T>` is useful as a return type when absence is a normal, expected result and callers should handle it explicitly. It is not a universal replacement for null: using it for every field, method parameter, or collection element can add unnecessary complexity and may not match framework serialization or persistence conventions.
+
+Avoid calling `get()` without checking presence. Methods such as `map`, `flatMap`, `orElseGet`, and `orElseThrow` express intent clearly. Remember that `orElse` evaluates its argument eagerly, while `orElseGet` evaluates the supplier only when needed.
+
+### Q84. What is the difference between orElse() and orElseGet()?
+
+`orElse(value)` evaluates the argument before the call, even when the Optional contains a value. `orElseGet(supplier)` invokes the supplier only when the Optional is empty. If the fallback is cheap and already available, `orElse` is fine; if it performs expensive work or has side effects, `orElseGet` avoids unnecessary evaluation.
+
+The key interview point is evaluation behavior, not merely syntax. A fallback that performs a database call should not be placed in `orElse` if it must only run when the value is absent.
+
+### Q85. Why is the Java Date and Time API preferred over Date and Calendar?
+
+The `java.time` API introduced in Java 8 provides clearer types for different concepts: `LocalDate` for a date without a time zone, `Instant` for a point on the UTC timeline, `LocalDateTime` for a local wall-clock date and time, and `ZonedDateTime` for a date-time associated with a time zone. Most of these types are immutable and thread-safe.
+
+Choose the type based on the domain. A birthday is usually a date, an audit event is usually an instant, and a scheduled meeting often needs a local time plus a zone. A `LocalDateTime` alone does not identify a unique instant because it has no time-zone offset or daylight-saving rules.
+
+### Concurrency and asynchronous programming
+
+### Q86. What is the difference between synchronized, Lock, and atomic classes?
+
+`synchronized` provides mutual exclusion and memory-visibility guarantees tied to monitor acquisition and release. Explicit `Lock` implementations provide capabilities such as interruptible acquisition, timed attempts, and multiple condition variables, but require disciplined unlocking, normally in a `finally` block. Atomic classes support specific thread-safe updates such as compare-and-set without requiring a monitor for that operation.
+
+Choose the simplest mechanism that matches the invariant. Atomics are ideal for independent counters or state transitions, but they do not automatically make a multi-field invariant atomic. A lock or synchronized critical section may be clearer when several values must change together.
+
+### Q87. What are atomicity, visibility, and ordering in concurrent code?
+
+Atomicity means an operation appears indivisible; visibility means one thread's writes become observable to another; ordering concerns which operations may be observed before others. These are related but distinct. A volatile write/read pair establishes visibility and ordering guarantees, but does not turn a compound read-modify-write operation into an atomic one.
+
+Use synchronization, volatile, atomics, or higher-level concurrency utilities according to the actual guarantee required. Avoid reasoning from how code appears to execute on one machine: the Java Memory Model defines which behaviors are permitted across threads.
+
+### Q88. What is safe publication, and why does it matter?
+
+Safe publication means making an object visible to other threads in a way that ensures they see its correctly initialized state. This can be achieved through mechanisms such as static initialization, a volatile reference, synchronization, or thread-safe concurrent utilities. Publishing an object before construction is complete can allow another thread to observe inconsistent state.
+
+Immutability simplifies safe sharing, especially when fields are final and the object does not leak its reference during construction. But final fields do not excuse leaking `this` from a constructor or using unsafe publication for mutable surrounding state.
+
+### Q89. How do wait(), notify(), and notifyAll() work, and why should wait be in a loop?
+
+These methods coordinate threads using an object's monitor. A thread must own that monitor before calling `wait()`, `notify()`, or `notifyAll()`. Calling `wait()` releases the monitor while waiting and reacquires it before returning. A thread should check its condition in a loop because wakeups can be spurious and another thread may consume or change the condition before the awakened thread reacquires the lock.
+
+For new code, higher-level utilities such as blocking queues, latches, semaphores, or condition variables are often easier to reason about. Avoid using notification as a substitute for defining a shared state predicate and its synchronization discipline.
+
+### Q90. What is thread starvation, and how is it different from deadlock and livelock?
+
+Deadlock means threads are stuck waiting on resources held by one another. Starvation means a thread repeatedly fails to get the CPU, lock, or resource it needs because others keep winning. Livelock means threads remain active but repeatedly react to one another without making useful progress.
+
+The remedies differ: deadlock prevention often focuses on lock ordering and reducing nested locks; starvation may require fairer scheduling or bounded resource access; livelock may require backoff or a change in coordination strategy. Thread dumps and runtime metrics help distinguish symptoms rather than treating every hang as a deadlock.
+
+### Q91. How should CompletableFuture exception handling and composition work?
+
+Use `thenApply` to transform a completed result, `thenCompose` to chain an asynchronous operation that itself returns a future, and `thenCombine` when combining independent futures. Exception paths can be handled with methods such as `exceptionally`, `handle`, or `whenComplete`, but these have different semantics: some recover with a value, some transform the outcome, and some observe completion.
+
+Do not block carelessly with `get()` or `join()` inside constrained executor threads; this can cause thread starvation or deadlock-like behavior. Consider the executor, timeout policy, cancellation behavior, and whether failures are propagated or converted into fallback results.
+
+### Q92. How do you choose an ExecutorService and prevent thread-pool exhaustion?
+
+Choose pool sizing and queue behavior based on the workload, resource limits, and latency target. CPU-bound tasks often benefit from a pool near the number of available processors; blocking I/O workloads need a different approach because workers spend time waiting. These are starting points, not universal formulas—measure the actual workload.
+
+Unbounded queues can hide overload while latency and memory grow. Unbounded thread creation can exhaust memory or operating-system resources. Define rejection or backpressure behavior, track active threads and queue depth, bound task duration where possible, and shut down executors deliberately. For blocking task-per-request workloads on Java 21+, virtual threads may simplify concurrency, but they do not remove database connection limits or downstream capacity constraints.
+
+### Q93. What are structured concurrency and scoped values, and what should you know about their status?
+
+Structured concurrency aims to make related concurrent tasks share a clear lifetime and failure boundary, so child tasks are not left running unintentionally after the parent operation ends. Scoped values provide a controlled way to share context across call chains without passing it through every method parameter or relying on mutable thread-local state.
+
+Their availability and final status have changed across JDK releases, and some versions expose these capabilities as preview APIs. In an interview, explain the design goal and verify the target JDK's status before claiming a particular API is final or production-ready. Do not treat preview features as stable language contracts.
+
+### JVM, class loading, and memory
+
+### Q94. What happens during class loading, linking, and initialization?
+
+At a high level, a class is loaded, linked, and initialized. Linking includes verification, preparation, and resolution; initialization executes class initializers and static field initializers according to Java's initialization rules. These stages are related but not identical, and some resolution can be lazy.
+
+Initialization order can explain surprising static initialization bugs and class initialization failures. A failed class initializer can cause an initialization error, and later uses may report that the class could not be initialized. Keep static initialization simple and avoid complex dependency work in static blocks.
+
+### Q95. What is the difference between NoClassDefFoundError, ClassNotFoundException, and LinkageError?
+
+`ClassNotFoundException` is a checked exception commonly encountered when code explicitly requests class loading by name and the loader cannot find the class. `NoClassDefFoundError` is a linkage error that can occur when the runtime cannot find a class definition needed by already-compiled code, including certain failed initialization scenarios. `LinkageError` is a broader family covering incompatibilities encountered when linking classes, including some version or duplicate-definition problems.
+
+Diagnose the underlying classpath, module path, class loader, dependency versions, and original startup logs. The visible exception is often a symptom; the first failure in the logs may be more informative than the final error reported by the framework.
+
+### Q96. What are strong, soft, weak, and phantom references?
+
+A strong reference keeps an object reachable and therefore normally prevents garbage collection. Soft, weak, and phantom references provide weaker reachability semantics for specialized use cases, with different collection and notification behavior. Weak references are used in designs such as certain caches or canonicalization maps, but they should not be treated as a general-purpose cache policy.
+
+Reference queues can help a program learn when referenced objects become eligible for cleanup or associated bookkeeping. Do not depend on a specific garbage-collection time, and do not use finalization for resource management. Prefer explicit lifecycle management and try-with-resources for external resources.
+
+### Q97. What is a class-loader memory leak?
+
+A class loader can become collectible only when it and the classes it defined are no longer reachable through relevant runtime references. In application servers or plugin systems, static registries, thread locals, long-lived threads, callbacks, or cached objects can retain classes from a redeployed application and therefore retain its class loader.
+
+Symptoms can include growing metaspace usage across redeployments and increasing numbers of loaded classes. Investigate class-loader statistics and heap dumps, then identify the retaining references. Closing resources and clearing registries or thread-local values at the correct lifecycle boundary can prevent the leak.
+
+### Q98. What are heap dumps, thread dumps, and Java Flight Recorder used for?
+
+A heap dump captures object and reference information at a point in time and helps investigate retained memory, object populations, and possible leaks. A thread dump captures thread states and stack traces, useful for deadlocks, blocked threads, and executor problems. Java Flight Recorder (JFR) records runtime events such as allocations, garbage collection, locks, and thread activity with configurable overhead.
+
+Use the diagnostic artifact that matches the symptom and correlate it with metrics and timestamps. A heap dump alone may show what retains memory but not why the workload allocated it; a thread dump alone may not explain a latency spike that has already passed. Collect data safely in production because dumps can be large and may contain sensitive values.
+
+### Q99. What is the difference between metaspace, heap, and direct memory?
+
+The heap stores Java objects managed by the garbage collector. Metaspace stores class metadata and is managed separately from the Java object heap. Direct buffers can use memory outside the ordinary heap, which can reduce copying for some I/O paths but still consumes finite native memory.
+
+A process can run out of native memory even when heap usage appears acceptable. When diagnosing memory pressure, inspect heap occupancy, metaspace, direct-buffer usage, thread stacks, native allocations, and the container or operating-system limit rather than looking only at `-Xmx`.
+
+### I/O, JDBC, reflection, and modules
+
+### Q100. Why is the platform default charset a production risk?
+
+The default charset can differ between environments, so code that relies on it may read or write text differently across machines. Specify a charset such as UTF-8 when encoding or decoding text unless the protocol explicitly requires something else. Also distinguish bytes from characters: network protocols and file formats define byte encodings, not an abstract Java string.
+
+Use APIs that accept an explicit charset and test non-ASCII content. This avoids data corruption that may appear only when deployment locale, container image, or operating-system defaults change.
+
+### Q101. What is the difference between byte streams and character streams?
+
+Byte streams such as `InputStream` and `OutputStream` handle raw bytes and are appropriate for binary content. Character streams such as `Reader` and `Writer` handle text through character encoding and decoding. A text file is still stored as bytes, so the encoding must be known at the boundary.
+
+Do not use a character reader for arbitrary binary content or convert bytes to strings without knowing the encoding. For large files, stream the content and manage buffers rather than loading everything into memory unnecessarily.
+
+### Q102. What are Path and Files in NIO.2 useful for?
+
+The `Path` API represents a filesystem path, and `Files` provides operations for reading, writing, copying, moving, and inspecting files. These APIs are generally more expressive than older `File` methods and support attributes, directory traversal, and explicit options. For large files, prefer streaming or buffered operations over convenience methods that read the entire file into memory.
+
+When paths come from users, normalize and resolve them against an intended root and verify that the resolved target remains within that root. Symbolic links and filesystem races can complicate security, so path string checks alone are not a complete defense for sensitive file operations.
+
+### Q103. How should JDBC resources and transactions be managed?
+
+Use try-with-resources for `Connection`, `PreparedStatement`, and `ResultSet` where the surrounding transaction framework does not own their lifecycle. Use prepared statements for parameter values rather than concatenating user input into SQL. A transaction should group changes that must succeed or fail together, and failures should trigger the appropriate rollback behavior.
+
+In frameworks such as Spring, understand whether the transaction is managed declaratively or manually and avoid closing a connection that the framework owns. Keep transactions reasonably short, define isolation requirements, and be careful about remote calls inside a database transaction because they extend lock and connection occupancy.
+
+### Q104. What are transaction isolation levels, and why can anomalies occur?
+
+Isolation defines which concurrent transaction effects are visible to a transaction. Common anomalies include dirty reads, non-repeatable reads, and phantom reads; the exact behavior and implementation details depend on the database. Higher isolation can reduce some anomalies but may increase contention, retries, or locking costs.
+
+Choose isolation based on correctness requirements, not simply by selecting the strongest level everywhere. Understand the database's actual semantics and transaction mechanism, and test concurrency-sensitive workflows. Application-level checks can still race unless they are protected by suitable constraints, locking, or transactional design.
+
+### Q105. What is reflection, and what are its trade-offs?
+
+Reflection lets code inspect classes, methods, fields, constructors, and annotations at runtime, and in some cases invoke or access them dynamically. Frameworks use it for dependency injection, serialization, mapping, and test tooling. The trade-offs include weaker compile-time guarantees, more complex error handling, possible performance costs, and access restrictions under the module system.
+
+Use reflection when runtime discovery is a real requirement, not as a default replacement for ordinary interfaces and polymorphism. Cache reflective metadata when justified by profiling, handle missing members deliberately, and test behavior against the target JDK and module configuration.
+
+### Q106. What problem does the Java Platform Module System solve?
+
+The module system, introduced in Java 9, allows applications and libraries to declare module dependencies and which packages they export. A module descriptor uses declarations such as `requires` and `exports`; qualified exports and `opens` support more controlled access, including certain reflective use cases.
+
+Modules can improve encapsulation and make dependencies more explicit, but migration can reveal libraries that relied on unsupported access to JDK internals. Do not solve every access error by opening all packages broadly; understand which module needs access and whether a supported public API exists.
+
+### Q107. What are annotations and annotation processing used for?
+
+Annotations attach metadata to declarations and can be consumed by the compiler, build tools, runtime reflection, or frameworks. Retention policy determines whether an annotation is available only in source, in class files, or at runtime. Annotation processors can inspect source-level elements and generate additional source or resources during compilation.
+
+Annotations do not automatically cause behavior; some tool or runtime component must interpret them. When debugging framework behavior, check the annotation's retention, target, processor configuration, and whether the relevant framework actually scans that class or package.
+
+### Java evolution and compatibility
+
+### Q108. What is the difference between source, bytecode, and runtime compatibility?
+
+Source compatibility concerns whether code continues to compile under a language version. Bytecode compatibility concerns whether compiled class files can be read by a target JVM. Runtime or API compatibility concerns whether the required classes and methods exist and behave as expected on the deployed platform. These are separate dimensions.
+
+For builds, configure the intended language/API target explicitly and test on the actual supported runtime. A project may compile using a newer JDK while accidentally referencing APIs unavailable on the production JDK if the build is not configured appropriately.
+
+### Q109. Which Java 9–17 changes are worth revising beyond records and sealed classes?
+
+Be familiar with the module system and collection factory methods from Java 9, local-variable type inference with `var` from Java 10, the standard HTTP Client and single-file source execution from Java 11, switch expressions and text blocks from Java 14/15, and records, pattern matching for `instanceof`, and sealed classes from Java 16/17. Exact availability matters: features often progressed through preview stages before becoming final.
+
+Explain what a feature improves and where it does not apply. For example, `var` is local-variable type inference, not dynamic typing; records are concise data carriers with specific generated members, not a universal replacement for mutable domain entities.
+
+### Q110. What should you consider when upgrading a service to a newer JDK?
+
+Check the supported runtime and build tool versions, framework and library compatibility, removed or encapsulated JDK internals, TLS and security defaults, garbage collector behavior, container awareness, and startup/runtime flags. Compile and test with the intended release, then run integration and performance tests on a production-like environment.
+
+An upgrade is not complete merely because compilation succeeds. Monitor startup, memory, latency, GC, dependency warnings, and behavior under load. Roll out gradually where possible and maintain a rollback plan.
+
+### Security, testing, and engineering practice
+
+### Q111. Why are prepared statements safer than constructing SQL strings?
+
+Prepared statements separate SQL structure from parameter values, allowing the database driver to treat supplied values as data rather than executable SQL syntax. This is a key defense against SQL injection for values. Dynamic identifiers such as table names or sort directions usually cannot be handled as ordinary bind parameters, so they should be selected from an allowlist of known identifiers.
+
+Validation remains useful for business rules, but escaping or manual string replacement is not a reliable substitute for parameterized queries. Use the same principle for other interpreters: keep untrusted data separate from executable commands whenever the API permits it.
+
+### Q112. What is deserialization risk in Java, and how can it be reduced?
+
+Deserializing untrusted native Java object streams can trigger complex object construction and gadget behavior before application code has validated the result. The safest approach is generally to avoid native serialization for untrusted input and prefer a data format with an explicit schema and constrained types. If native serialization must be used, apply strict filtering and allowlisting appropriate to the application and JDK.
+
+Do not assume that a signature alone makes every deserialization path safe, and do not deserialize arbitrary classes from external clients. Review dependency chains and keep serialization boundaries narrow.
+
+### Q113. How do you test concurrent code without flaky sleeps?
+
+Test synchronization conditions, not elapsed time guesses. Use latches, barriers, bounded waits, controlled executors, and deterministic setup to coordinate the interleavings relevant to the behavior. A timeout can prevent a hung test from running forever, but a fixed sleep does not prove that a particular thread reached a state.
+
+For complex concurrency algorithms, consider stress testing and specialized tools in addition to unit tests. Ensure tests fail with useful diagnostics and clean up executors so a failed test does not leave background threads running.
+
+### Q114. What is the difference between unit, integration, and contract testing in a Java service?
+
+Unit tests isolate a small unit of behavior and run quickly. Integration tests verify that components work together, such as persistence mappings, serialization, configuration, and framework wiring. Contract tests verify agreed behavior at a boundary between independently developed components, such as a REST API or message schema.
+
+Use the level that gives confidence in the relevant risk. Mocking every dependency can make tests fast but may miss configuration, SQL, transaction, and serialization problems. Conversely, using a full integration environment for every simple branch can make feedback slow and debugging difficult.
+
+### Q115. What does good logging look like in a Java backend service?
+
+Logs should explain significant events and failures with useful context such as correlation identifiers, operation names, durations, and safe identifiers. Use appropriate severity levels and avoid logging secrets, access tokens, personal data, or large unredacted payloads. Include the exception cause when it helps diagnosis, but avoid logging and rethrowing the same failure repeatedly at every layer.
+
+Logging is not a replacement for metrics or traces. Metrics reveal rates and trends; traces connect work across service boundaries; logs provide event-level detail. Together they help narrow down production failures without relying on one noisy log line.
+
+### Q116. How should a Java service handle configuration and secrets?
+
+Separate environment-specific configuration from application code, validate required configuration at startup, and keep secrets in an appropriate secret-management system rather than source control or plain logs. Avoid silent fallbacks for critical settings because they can make a service start with unsafe or incorrect behavior.
+
+Configuration should have clear ownership, safe defaults where possible, and documented units and timeouts. Treat configuration changes as operational changes: test them, audit sensitive changes, and expose enough sanitized effective configuration to diagnose behavior.
+
+### Q117. What is the difference between equals(), hashCode(), and compareTo() contracts?
+
+`equals()` defines logical equality, and equal objects must have equal hash codes. `compareTo()` defines ordering and returns zero when values are considered equal under that ordering. The `Comparable` contract recommends consistency with `equals()`, though it does not strictly require it in all cases.
+
+Hash-based collections use equality and hashing; sorted collections use comparison. Inconsistent contracts can cause a value to appear present in one collection but behave differently in another. For domain objects, choose stable identity fields and test the contracts together.
+
+### Q118. How should you reason about Java API design for nullability?
+
+Decide whether absence is valid for each parameter, field, and return value, then document and enforce that contract. Use validation at boundaries and return meaningful errors instead of allowing a null to travel through multiple layers until an unrelated dereference fails. Optional can communicate an optional return value, but it is not automatically the right type for every field or parameter.
+
+Avoid mixing conventions without explanation. In large codebases, annotations and static analysis can make nullability contracts more visible, but they do not replace clear API design and runtime validation where untrusted input is involved.
+
+### Code-reading and output questions
+
+### Q119. What is printed when a method is overloaded with primitive, boxed, and varargs parameters?
+
+Overload selection is performed at compile time. Java generally prefers a more specific applicable fixed-arity overload before considering variable-arity invocation, and primitive widening, boxing, and reference widening can affect which overload is selected. The exact choice depends on the available signatures and the compile-time types of the arguments.
+
+In an interview, work through the overload-resolution phases rather than guessing from runtime values. If the argument is a reference typed as a superclass or interface, overload resolution uses that declared compile-time type; overriding, by contrast, is dynamically dispatched at runtime.
+
+### Q120. Why can string concatenation and numeric promotion produce surprising output?
+
+The `+` operator can mean numeric addition or string concatenation depending on operand types and evaluation order. Numeric operands may undergo binary numeric promotion, and concatenation converts non-string operands to string representations. Parentheses and the type of the left operand can therefore change the result.
+
+For output questions, annotate each intermediate expression with its type and evaluate left to right according to operator precedence and associativity. Do not rely on visual intuition, especially when strings, chars, boxed values, and arithmetic are mixed.
+
+### Q121. What is the difference between compile-time errors and runtime exceptions in code-output questions?
+
+Compile-time errors occur when source code violates language or type rules, so the program does not compile. Runtime exceptions occur after compilation, when execution reaches an operation that fails. Some examples depend on whether a value is a compile-time constant, the declared type, overload resolution, or generic type erasure.
+
+When asked what a snippet does, first determine whether it compiles. If it does, then evaluate initialization, overload selection, dispatch, and runtime control flow. This sequence prevents wasting time tracing code that is invalid before execution begins.
+
+### Production scenario questions
+
+### Q122. A production service has rising latency but normal CPU utilization. What do you check first?
+
+Look for waiting rather than computation: thread-pool queue depth, blocked or parked threads, connection-pool saturation, slow database queries, downstream latency, lock contention, rate limits, and timeout/retry amplification. Compare request latency percentiles with dependency timings and resource metrics. A thread dump taken during the incident can reveal where request threads are waiting.
+
+Avoid increasing thread counts blindly. If the database pool is exhausted, adding application threads can increase queueing and contention without increasing throughput. Find the constrained resource, bound waiting, and align deadlines across service and dependency calls.
+
+### Q123. A service has high allocation rates but no obvious memory leak. How do you investigate?
+
+High allocation and a memory leak are different problems. Frequent short-lived allocation can increase GC work even if objects are eventually reclaimed; a leak involves objects remaining reachable longer than intended. Use allocation profiling or JFR to identify allocation sites, correlate allocation rate with request volume and latency, and inspect GC behavior.
+
+Optimize only after identifying the dominant allocation source. Reuse can help in selected hot paths, but unnecessary object pools often add complexity and contention. First consider algorithmic improvements, avoid repeated parsing or copying, and verify any change under a representative workload.
+
+### Q124. A request times out, but the client retries and duplicate work occurs. How do you prevent it?
+
+A timeout does not prove that the original operation failed; the server may have completed it while the response was lost. For operations that must not be duplicated, design idempotency into the boundary—for example, use an idempotency key stored with the operation result, unique constraints, or a durable state transition that makes repeated requests safe.
+
+Retries should be bounded, use backoff and jitter, respect an overall deadline, and be applied only when repeating the operation is safe. Exactly-once effects across distributed systems are not achieved merely by retrying or using a message broker; they require careful coordination of durable state and side effects.
+
+### Q125. A CompletableFuture chain hangs under load. What would you investigate?
+
+Inspect which executor each stage uses, whether blocking calls occupy a limited pool, whether a stage waits on work scheduled to the same saturated executor, and whether a future is never completed on an error path. Look at thread dumps, executor metrics, queue depth, timeout behavior, and the chain's exception-handling stages.
+
+Avoid calling blocking joins inside a constrained worker pool when dependent work needs that same pool to make progress. Make timeout and cancellation behavior explicit, and ensure exceptional completion cannot silently leave the request waiting forever.
+
+### Q126. How would you choose between a concurrent collection and external synchronization?
+
+Start with the shared invariant. If threads only need independent thread-safe map or queue operations, a concurrent collection may be sufficient. If correctness depends on a sequence of operations being atomic—for example, check-then-act across multiple map calls—use an atomic collection method, a suitable lock, or redesign the state transition so it is indivisible.
+
+Thread-safe individual methods do not automatically make a multi-step workflow thread-safe. Document the invariant, choose the smallest synchronization boundary that protects it, and test concurrent interleavings that could violate it.
 
 ---
 
