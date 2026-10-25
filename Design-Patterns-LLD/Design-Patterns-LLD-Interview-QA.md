@@ -25,10 +25,10 @@ This is a single-file revision handbook. Examples are intentionally small enough
   - [12.4 Vending machine](#124-vending-machine)
   - [12.5 Rate limiter](#125-rate-limiter)
   - [12.6 Notification service](#126-notification-service)
-  - [12.7 Payment processing](#127-payment-processing)
+  - [12.7 Payment processing](#127-payment-processing-system)
   - [12.8 Logging framework](#128-logging-framework)
   - [12.9 In-memory cache](#129-in-memory-cache)
-  - [12.10 Splitwise / expense sharing](#1210-splitwise--expense-sharing)
+  - [12.10 Splitwise / expense sharing](#1210-splitwise-and-expense-sharing)
   - [12.11 Food ordering](#1211-food-ordering)
   - [12.12 Hotel booking](#1212-hotel-booking)
   - [12.13 Ride booking](#1213-ride-booking)
@@ -1015,7 +1015,7 @@ The enum ordering is illustrative and must be defined intentionally; real framew
 
 A basic LRU usually combines a hash map for O(1) lookup with a doubly linked list for recency; access moves a node to the front and eviction removes the tail. Synchronize map and list mutations as one invariant, or use a well-tested library in production. Discuss cache stampedes, per-key load coordination, TTL jitter, negative caching, and whether invalidation is local or distributed.
 
-### 12.10 Splitwise / expense sharing
+### 12.10 Splitwise and expense sharing
 
 **Requirements.** Create groups, add expenses with equal/exact/percentage splits, calculate balances, and optionally simplify debts. Clarify rounding, currency, edits, and settlement records.
 
