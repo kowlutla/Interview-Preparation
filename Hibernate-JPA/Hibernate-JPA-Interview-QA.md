@@ -656,12 +656,14 @@ Prioritize these questions first:
 14. N+1 investigation, stable pagination, optimistic-lock retry design, transaction/outbox failures, and mapping safety (Q46–Q50)
 15. Relationship ownership and common association cardinalities (Q51, Q73)
 16. Parameter binding, custom count queries, and JPQL aggregation (Q52–Q53, Q74)
-17. Hibernate batch/subselect fetching versus JDBC batching, OSIV, and cache strategy (Q54–Q56)
-18. Pessimistic lock failures, constraints, validation, and persistence exception diagnosis (Q57–Q59)
-19. N+1 regression tests, schema migrations, bulk-update lifecycle effects, and JDBC batch settings (Q60–Q63)
-20. Persistence-context identity, automatic flush, native query mapping, and entity equality pitfalls (Q64–Q66)
-21. Choosing entity updates versus bulk DML/JDBC, read-only patterns, and service transaction boundaries (Q67–Q68)
-22. Specifications, JPA portability, and fetch join versus entity graph (Q69–Q72, Q75)
+17. Hibernate batch/subselect fetching and Open Session in View (Q54–Q55)
+18. Second-level/query caching and pessimistic locking (Q56–Q57)
+19. Constraints, validation, and persistence exception diagnosis (Q58–Q59)
+20. N+1 regression tests and production schema migrations (Q60–Q61)
+21. Bulk-update lifecycle effects and JDBC batching configuration (Q62–Q63)
+22. Persistence-context identity, automatic flush, and native query mapping (Q64–Q66)
+23. Lombok/entity equality, entity-vs-bulk-vs-JDBC decisions, immutable/read-only patterns, and service transactions (Q67–Q70)
+24. Specifications, portability boundaries, and fetch join versus entity graph (Q71–Q72, Q75)
 
 For each, explain provider behavior, the generated SQL or transaction consequence, the trade-off, and how to diagnose it in production.
 
