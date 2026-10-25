@@ -1630,206 +1630,67 @@ JMH is a harness designed for JVM microbenchmarking. Naive timing loops can be d
 
 ## 12. Java version evolution and migration: Java 8–25
 
-### Q279. Which Java 8 language and library additions changed everyday Java development?
+This section focuses on interview questions about compatibility, upgrade decisions, and safe migration—not a second feature-by-feature release history. For the detailed Java 8–25 feature timeline, examples, and release status, see [Section 16: Java Version Features (Java 8–25)](#16-java-version-features-java-8-25).
 
-The most important topics are lambda expressions, functional interfaces, method references, the Stream API, `Optional`, the `java.time` date/time API, default methods in interfaces, and CompletableFuture. These features changed how Java code expresses data transformations, optional results, dates/times, and asynchronous composition.
+### Q279. What is the difference between source, binary, and behavioral compatibility?
 
-The interview value lies in trade-offs, not just syntax. Streams can improve pipeline readability but become harder to debug when overloaded with side effects. Optional can make absence explicit but should not be applied mechanically to every field. CompletableFuture supports composition but requires deliberate executor, timeout, and exception handling.
+Source compatibility means source code continues to compile; binary compatibility means already-compiled code can continue to link; behavioral compatibility means the program continues to behave as expected. A change can preserve one form of compatibility while breaking another.
 
-### Q280. What changed in Java 9–11 that a backend engineer should know?
+When upgrading a JDK or library, check API signatures, runtime behavior, dependency support, and integration tests. Compilation alone does not prove that a deployment is compatible.
 
-Java 9 introduced the module system, collection factory methods such as `List.of`, and other API/runtime changes. Java 10 added local-variable type inference with `var` for local variables. Java 11, an LTS release, added useful APIs including standard HTTP Client (introduced earlier as incubating/preview and finalized in Java 11), and it removed several Java EE and CORBA modules from the JDK distribution.
+### Q280. What should you consider when upgrading a Java service to a newer JDK?
 
-Version details matter when migrating. `var` does not make Java dynamically typed; the compiler infers a static type. Factory-created collections are unmodifiable, not deeply immutable if they contain mutable elements. Check API availability and behavior against the target JDK rather than assuming code that compiles on a recent JDK will run on Java 8.
+Check supported JDK versions for frameworks and dependencies, build-tool and plugin compatibility, removed or encapsulated JDK internals, TLS and security defaults, charset and locale assumptions, JVM flags, container images, agents, and native libraries. Compile and test against the intended release, then run integration and performance tests in a production-like environment.
 
-### Q281. What are records and sealed classes, and when are they useful?
+Compare startup time, memory, garbage collection, latency, and error rates against a baseline. Roll out gradually where possible and keep a rollback plan.
 
-Records, finalized in Java 16, provide a concise way to model transparent data carriers with component fields, accessors, and generated methods such as `equals`, `hashCode`, and `toString`. They are implicitly final and are not a general replacement for every mutable domain entity. Their component references are final, but referenced objects can still be mutable.
+### Q281. What does the compiler option --release do?
 
-Sealed classes and interfaces, finalized in Java 17, restrict which types may extend or implement them. They are useful when a domain has a known set of variants, such as a result type with success and failure cases. Together with pattern matching, they can improve exhaustive handling, but only if the type hierarchy and null behavior are designed deliberately.
+The `--release` option selects the language rules, class-file target, and documented Java platform API surface for a specified release. It is generally safer than setting only `-source` and `-target` when building with a newer JDK, because it also restricts the platform APIs available to the compilation.
 
-### Q282. What are the most important Java 21 features?
+Use the release target that matches your compatibility commitment, and test on the actual runtime used in deployment. Third-party dependencies must also support that target.
 
-Java 21 finalized virtual threads, record patterns, pattern matching for switch, and sequenced collections, among other features. It also delivered generational ZGC. Structured concurrency and scoped values were preview features in Java 21, not finalized APIs in that release.
+### Q282. What is the difference between the classpath and module path?
 
-For backend work, virtual threads are especially relevant to high-concurrency blocking-I/O services. Pattern matching can simplify branching over structured data. Sequenced collections standardize operations for collections with a defined encounter order. Always label preview features accurately and check whether the exact target JDK finalizes or changes an API.
+The classpath uses the traditional class-loading model, where classes generally belong to the unnamed module. The module path supports named modules with explicit dependencies and package exports, enabling stronger encapsulation and more predictable dependency declarations.
 
-### Q283. What should an experienced developer know about Java 25?
+When migrating to modules or diagnosing access errors, inspect the actual launch configuration and dependency graph. Do not treat broad reflective access to internal JDK packages as a permanent fix when a supported public API is available.
 
-Java 25 is an LTS release. For interviews, know the main language and runtime evolution since Java 17/21, but avoid presenting every release feature as equally important to backend development. Review the official Java 25 release notes and JEPs for finalized versus preview features, APIs that changed, and migration implications.
+### Q283. What is the difference between an LTS release and a feature release?
 
-A strong answer should explain the impact on code, deployment, observability, and compatibility rather than reciting a feature list. In production, confirm the exact vendor distribution, runtime flags, dependency support, container base image, and test matrix before upgrading. Do not use a newer language feature in code that must still compile on an older source/target release.
+An LTS release is one for which a vendor offers a longer support commitment; the duration and terms depend on the vendor and distribution. Feature releases deliver platform changes on a shorter cadence.
 
----
+Choose a production baseline based on security support, framework and library compatibility, operational readiness, and upgrade cost—not the LTS label alone. Confirm the support policy for the exact JDK distribution you deploy.
 
-### Q284. What problem does the Java Platform Module System solve?
+### Q284. How should you evaluate a preview or incubating feature before adopting it?
 
-The module system, introduced in Java 9, allows applications and libraries to declare module dependencies and which packages they export. A module descriptor uses declarations such as `requires` and `exports`; qualified exports and `opens` support more controlled access, including certain reflective use cases.
+Verify the feature's status in the exact target release, required compiler and runtime flags, compatibility expectations, and whether dependencies and production tooling support it. Preview features can change or be removed before finalization; incubating APIs likewise are not a stable standard API contract.
 
-Modules can improve encapsulation and make dependencies more explicit, but migration can reveal libraries that relied on unsupported access to JDK internals. Do not solve every access error by opening all packages broadly; understand which module needs access and whether a supported public API exists.
+Adopt one only when its benefits justify the upgrade and maintenance cost. Document the dependency, test the deployment path, and have a plan to revise or remove it if the API changes. Use Section 16 and the official release documentation to check feature status.
 
-### Q285. What is the difference between source, bytecode, and runtime compatibility?
+### Q285. How would you plan a migration from Java 8 to a current LTS release?
 
-Source compatibility concerns whether code continues to compile under a language version. Bytecode compatibility concerns whether compiled class files can be read by a target JVM. Runtime or API compatibility concerns whether the required classes and methods exist and behave as expected on the deployed platform. These are separate dimensions.
+Treat it as a compatibility and operational project rather than just a source-code update. Inventory the JDK, framework, libraries, build plugins, runtime flags, agents, and native dependencies. Check removed JDK modules and unsupported internal API use, then upgrade dependencies along supported paths.
 
-For builds, configure the intended language/API target explicitly and test on the actual supported runtime. A project may compile using a newer JDK while accidentally referencing APIs unavailable on the production JDK if the build is not configured appropriately.
+Compile with an explicit release target, run unit and integration tests on the destination JDK, and test startup, security, performance, and production-like traffic. Where the distance between versions is large, use staged upgrades or intermediate baselines if that makes incompatibilities easier to isolate. Canary the rollout, compare metrics, and preserve a rollback path.
 
-### Q286. Which Java 9–17 changes are worth revising beyond records and sealed classes?
+### Q286. What are the main reasons to upgrade from Java 17 or 21 to a newer LTS release?
 
-Be familiar with the module system and collection factory methods from Java 9, local-variable type inference with `var` from Java 10, the standard HTTP Client and single-file source execution from Java 11, switch expressions and text blocks from Java 14/15, and records, pattern matching for `instanceof`, and sealed classes from Java 16/17. Exact availability matters: features often progressed through preview stages before becoming final.
+Potential reasons include newer language and library capabilities, runtime and garbage-collection improvements, security updates, and continued framework or vendor support. The value depends on the workload, libraries, deployment environment, and support policy.
 
-Explain what a feature improves and where it does not apply. For example, `var` is local-variable type inference, not dynamic typing; records are concise data carriers with specific generated members, not a universal replacement for mutable domain entities.
+Build a small evidence-based case: identify the features or operational improvements that matter, verify dependencies, benchmark representative traffic, and quantify migration risk. Do not assume every application becomes faster simply by changing the JDK.
 
-### Q287. What should you consider when upgrading a service to a newer JDK?
+### Q287. How should a team introduce a new Java language or runtime feature safely?
 
-Check the supported runtime and build tool versions, framework and library compatibility, removed or encapsulated JDK internals, TLS and security defaults, garbage collector behavior, container awareness, and startup/runtime flags. Compile and test with the intended release, then run integration and performance tests on a production-like environment.
+Start with a real need and confirm the minimum JDK version and feature status. Check code style, framework support, build and IDE support, operational diagnostics, and whether the feature affects public APIs or deployment requirements. Keep adoption incremental and make sure the team can maintain the code.
 
-An upgrade is not complete merely because compilation succeeds. Monitor startup, memory, latency, GC, dependency warnings, and behavior under load. Roll out gradually where possible and maintain a rollback plan.
+For runtime or performance features, define baseline metrics and test under representative load. For preview features, explicitly document the non-final status and the cost of revisiting the implementation when upgrading.
 
-### Q288. How should you evaluate a newer Java API or preview feature before adopting it?
+### Q288. How do you distinguish a Java feature's introduction release from its final release?
 
-Check the exact JDK release, whether the feature is final, preview, or incubating, the required compiler/runtime flags, and whether dependent libraries and production tooling support it. Preview APIs can change or disappear, so adoption needs a conscious compatibility and upgrade plan rather than assuming source code will remain valid.
+A feature may first appear as preview or incubating, evolve over multiple releases, and only later become final—or be withdrawn. A reliable version reference should distinguish the initial release, preview/incubator iterations, finalization release, and any later status changes.
 
-Evaluate the feature against a real maintenance or performance need, and test migration, observability, packaging, and production behavior. In interviews, distinguish the feature's design goal from its status in the specific release being discussed.
-
-### Q289. Which Java 8 features are most important for backend interviews?
-
-Prioritize lambdas, method references, functional interfaces, streams, Optional, default interface methods, and java.time. Be able to explain laziness, map versus flatMap, collector behavior, effectively final captured variables, and when a loop is clearer than a stream. These concepts remain common even in codebases running newer JDKs.
-
-### Q290. What is the difference between Java 9 modules and the classpath?
-
-The module system makes dependencies and exported packages explicit through module descriptors. The classpath traditionally exposes classes without the same module-level encapsulation. Modules can improve maintainability and encapsulation, but migration may expose libraries that rely on internal JDK APIs or broad reflective access.
-
-### Q291. What does var mean in Java 10?
-
-var asks the compiler to infer the static type from the initializer of a local variable. It is not dynamic typing, cannot be used without an initializer, and does not mean the variable can later hold a different type. Use it when the initializer makes the type obvious and avoid it when it obscures important information.
-
-### Q292. What Java 11 features should a backend engineer remember?
-
-Java 11 is an LTS release with the standard HTTP Client and useful String and Files APIs. It also removed Java EE and CORBA modules from the JDK distribution. When upgrading from Java 8, check library dependencies, removed modules, TLS behavior, build plugins, and runtime assumptions in addition to source changes.
-
-### Q293. What is the difference between a preview feature and a final feature?
-
-A preview feature is exposed for evaluation and may require explicit compiler/runtime enablement; it can change or be removed before finalization. A final feature is part of the standard platform contract for that release. Always identify both the first preview release and the release where the feature became final.
-
-### Q294. What should you know about records in Java 16 and later?
-
-Records are concise data carriers with generated component accessors and value-oriented equals, hashCode, and toString implementations. Their components are final, but immutability is shallow: a component can reference a mutable object. Use defensive copying if the record must protect its internal state.
-
-### Q295. Why are sealed classes useful in Java 17?
-
-Sealed classes and interfaces restrict which types may extend or implement them. They help model a closed set of domain alternatives and can make exhaustive handling clearer when combined with pattern matching. Use them only when the hierarchy is intentionally controlled rather than open to arbitrary extensions.
-
-### Q296. Why is Java 21 a major LTS milestone?
-
-Java 21 finalized virtual threads, record patterns, pattern matching for switch, and sequenced collections. It also included important runtime improvements. Structured concurrency and scoped values were preview APIs in Java 21, so they should not be described as final in that release.
-
-### Q297. What should you know about Java 25?
-
-Java 25 is an LTS release. Prepare its finalized language and API features, runtime and garbage-collection improvements, and migration implications from Java 17 or 21. Verify the exact release notes rather than relying on a remembered list, because feature status can change across preview iterations.
-
-### Q298. How should you plan a Java 17-to-21 or Java 25 migration?
-
-Verify framework, library, build-tool, and runtime compatibility; compile and test against the intended release; review reflective access, removed APIs, security defaults, and JVM flags; and run integration and performance tests under representative load. Roll out gradually where possible and compare latency, memory, GC, and error metrics with a baseline.
-
-### Q299. What is the difference between LTS and a feature release?
-
-LTS means a vendor offers an extended support commitment for that release; the exact duration depends on the vendor and distribution. Feature releases deliver newer platform changes on a shorter cadence. Choose a runtime based on security support, compatibility, operational readiness, and upgrade cost, not the label alone.
-
-### Q300. How should a version matrix distinguish introduced, preview, and finalized features?
-
-Track at least three states: first introduced, preview/incubator status if applicable, and final release. For example, virtual threads appeared as preview before becoming final in Java 21. This avoids saying that a feature was stable merely because it appeared in an earlier release.
-
-### Q301. What is the difference between a record and a regular class?
-
-A record is a concise declaration for a data carrier with generated component accessors and value-oriented equality, hashing, and string representation. A regular class gives more freedom over inheritance, mutable lifecycle state, and representation. Records are implicitly final and cannot extend another class, so choose them based on domain semantics rather than code-length reduction alone.
-
-### Q302. How does pattern matching for switch improve code?
-
-    String description = switch (value) {
-        case String s -> "text: " + s;
-        case Integer i -> "number: " + i;
-        case null -> "missing";
-        default -> "other";
-    };
-
-Pattern matching can combine type testing and binding, reducing repeated casts and making alternatives easier to read. The exact supported syntax depends on the Java release; pattern matching for switch became final in Java 21, while primitive patterns remained preview in Java 25.
-
-### Q303. What are module import declarations in Java 25?
-
-Java 25 finalized module import declarations, which allow importing the exported packages of a module with a module-oriented import form. They can reduce import boilerplate in some applications, but they do not replace understanding module dependencies, exported packages, or classpath/module-path behavior. Verify the syntax against the Java 25 language documentation before using it in a code sample.
-
-### Q304. What are compact source files and instance main methods in Java 25?
-
-Java 25 finalized compact source files and instance main methods, making small teaching programs and simple utilities possible with less ceremony. They reduce the amount of scaffolding required for beginner examples, but traditional classes and static main methods remain important for libraries and conventional applications. These features are useful to recognize in newer examples without assuming all production code should adopt the compact form.
-
-### Q305. What are flexible constructor bodies in Java 25?
-
-Java 25 finalized flexible constructor bodies, which permit certain statements before an explicit superclass constructor invocation while preserving restrictions needed for safe construction. This can make constructor validation and initialization logic clearer. It does not mean that a constructor may freely use the partially initialized object before the superclass constructor has run.
-
-### Q306. What is ScopedValue, and how is it different from ThreadLocal?
-
-Scoped values provide a way to share immutable or effectively immutable contextual data across a bounded dynamic scope, including supported task structures. Java 25 finalized scoped values. ThreadLocal associates data with a thread and can be easy to misuse with pooled threads if values are not cleared; scoped values make lifetime and propagation intent more explicit. They are not a universal replacement for every ThreadLocal use case.
-
-### Q307. What is the status of structured concurrency in Java 25?
-
-Structured concurrency remained a preview API in Java 25, while scoped values became final. Structured concurrency treats related concurrent subtasks as a unit with a common lifetime and coordinated failure handling. Since preview APIs can change and require enablement, verify the target JDK release before using them in production code or describing them as finalized.
-
-### Q308. What performance-oriented Java 25 changes should you recognize?
-
-Java 25 includes performance and runtime improvements such as compact object headers, ahead-of-time cache and method-profiling work, generational Shenandoah, and JFR improvements. Some behavior depends on flags, platform, or collector choice. The interview-level answer should explain the problem each feature targets and emphasize measuring a representative workload rather than enabling tuning flags by intuition.
-
-### Q309. Which Java 25 features are finalized versus preview or incubating?
-
-Among the language-facing finalized features are module import declarations, compact source files and instance main methods, and flexible constructor bodies. Scoped values are final in Java 25. The Key Derivation Function API is preview in Java 25. Primitive types in patterns/instanceof/switch remained a preview feature in Java 25; structured concurrency was still preview and the Vector API remained incubating. Check the official release documentation for the full feature and status list.
-
-### Q310. What is the difference between source, binary, and behavioral compatibility?
-
-Source compatibility means source continues to compile; binary compatibility means existing compiled classes can link; behavioral compatibility means the program continues to behave as expected. A change may preserve one and break another. For library upgrades, check public API signatures, runtime behavior, dependency versions, and integration tests.
-
-### Q311. What does the compiler option --release do?
-
-The --release option selects the language rules, class-file target, and documented Java platform API surface for a specified release. This is safer than only setting source and target levels when building against a newer JDK. Also test with the actual deployment runtime and ensure dependencies support it.
-
-### Q312. What is the difference between classpath and module path?
-
-The classpath loads classes in the traditional unnamed-module model. The module path allows named modules with explicit dependencies and exported packages. Mixing them can affect access and resolution behavior, so diagnose missing classes or illegal reflective access using the actual launch configuration rather than assuming every dependency is simply on the classpath.
-
-### Q313. What are the main Java 25 language features finalized in that release?
-
-Java 25 finalized module import declarations, compact source files and instance main methods, and flexible constructor bodies. It finalized Scoped Values; the Key Derivation Function API remained preview. Primitive types in patterns, instanceof, and switch remained preview in Java 25; structured concurrency remained preview and the Vector API remained incubating. Check official release notes for the full status list.
-
-### Q314. What does Java 25's compact source file feature change?
-
-It allows simple programs to be written with less ceremony through compact source files and instance main methods. This is intended to ease the first steps in Java and small utility programs, not to remove the value of ordinary classes or conventional entry points in larger applications. It became final in Java 25 after earlier preview iterations.
-
-### Q315. What are flexible constructor bodies in Java 25 useful for?
-
-They allow certain statements before an explicit superclass constructor invocation while preserving rules that prevent unsafe use of an incompletely initialized object. This can make validation and argument preparation clearer. The feature became final in Java 25; code should still be checked against the target release's constructor rules.
-
-### Q316. What is the Key Derivation Function API in Java 25?
-
-The Key Derivation Function (KDF) API was introduced as a preview API in Java 25 for deriving keys from input keying material and optional additional data. It requires preview enablement and may change before finalization. Cryptographic use requires careful parameter selection and domain-specific security review; follow established protocols and security guidance rather than inventing a scheme.
-
-### Q317. What is JEP 519, compact object headers, about?
-
-Compact object headers reduce the memory overhead associated with object headers in supported JVM configurations. This can improve memory footprint for object-heavy applications, but exact benefits depend on workload, platform, and configuration. Measure heap usage and performance on the target runtime rather than assuming a fixed improvement.
-
-### Q318. What are ahead-of-time cache ergonomics and ahead-of-time method profiling?
-
-Java 25 includes work to simplify ahead-of-time cache configuration and capture method profiling information for faster or more informed startup optimization. These capabilities target startup and warm-up behavior, particularly for applications where startup latency matters. Evaluate them against deployment constraints and representative cold-start measurements.
-
-### Q319. What are the main reasons to upgrade from Java 17 to Java 25?
-
-Reasons can include a newer LTS support baseline, language/API improvements, runtime and garbage-collection enhancements, security updates, and tooling improvements. The migration also has costs: framework compatibility, dependency upgrades, reflection/module access, changed defaults, and operational validation. Make the decision with a compatibility matrix, tests, performance baseline, and rollback plan rather than adopting new syntax alone.
-
-### Q320. What is a safe approach to introducing a new Java language feature?
-
-Confirm the project's minimum JDK and compiler configuration, ensure the feature is final in that release, check code-style and team familiarity, and evaluate whether it improves clarity. Do not use preview syntax in a stable codebase without explicit policy and build support. Small, consistent adoption is usually easier to review than a sweeping stylistic rewrite.
-
----
-
----
+When answering an interview question, state the status in the specific release being discussed rather than saying a feature is simply “available since” the first release where it appeared. See Section 16 for the release-by-release reference and verify details against the official JDK documentation.
 
 ## 13. Code-reading and output questions
 
