@@ -290,3 +290,13 @@ The generic Boot system-requirements page currently renders Boot 4.1.0 (Java 17 
 - Latest structural verification after these edits: continuous numbering, 27 topic headings, 28 TOC links with no missing heading anchors, and balanced code fences. The shortest detected answer body is above 35 words, but word count is only a heuristic and does not establish accuracy or explanatory quality.
 - Several high-impact sections have now had targeted manual expansions and snippets added where they clarify the mechanism. Remaining work is a final content pass for accuracy, duplication, version-sensitive claims, code-snippet coherence, and links. The handbook has **not** undergone a line-by-line certification of all 307 answers, a full external-link crawl, compilation, or runtime testing.
 - Preserve supplementary exercises/scenarios and other legacy topic files until the main handbook is accepted; cleanup is a separate stage and has not been started.
+
+
+### Final structural verification after numbering correction — 2026-10-25
+
+- Re-fetched the committed primary handbook and confirmed **307 questions numbered continuously Q1–Q307**, with no duplicate question numbers.
+- Confirmed 27 topic areas, 28 TOC links with no missing target headings, and 18 Markdown code-fence markers (balanced).
+- The answer-body screen found a minimum of 40 words and an average of approximately 77 words per question under the current parser. This is a heuristic, not a quality guarantee; 78 answers remain below 50 words and should be judged by whether the question genuinely needs a concise answer or needs more explanation.
+- Final primary handbook blob SHA at this check: `77bb0025e5c16887017b4acb0018ecfefdab7d44`.
+- README count and this review log agree on 307 questions. No stale reference to the removed `Spring-Boot-Interview-Handbook.md` was found in the primary handbook or README.
+- Remaining limitation is unchanged: selected high-risk topics have received substantive edits and current official-source spot-checks, but a full manual certification of every answer, every external URL, or snippet compilation has not been completed.
