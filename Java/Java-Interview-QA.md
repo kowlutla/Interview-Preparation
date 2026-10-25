@@ -1780,9 +1780,11 @@ Each argument has a different best match: an `int` literal selects `int`, a `lon
 ```java
 static final int LIMIT = 10;
 
-switch (value) {
-    case LIMIT -> System.out.println("limit");
-    default -> System.out.println("other");
+static void printValue(int value) {
+    switch (value) {
+        case LIMIT -> System.out.println("limit");
+        default -> System.out.println("other");
+    }
 }
 ```
 
