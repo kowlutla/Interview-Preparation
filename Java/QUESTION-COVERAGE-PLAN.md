@@ -6,6 +6,8 @@
 
 ## Editorial principles
 
+> **Current implementation status (2026-10-25):** The primary handbook has been expanded to 355 sequentially numbered Q&As. It now has dedicated sections for stream coding exercises, Java 8–25 version evolution with LTS emphasis, core language/API contracts, collections, concurrency, JVM diagnostics, I/O/JDBC/security/testing, and production scenarios. Three Mermaid diagrams provide visual navigation. Structural checks confirmed sequential numbering and no duplicate question titles. A complete line-by-line technical audit and a full legacy-bank content-parity review remain separate tasks; do not treat structural checks as proof that every technical statement has been independently verified.
+
 1. Topic completeness comes before compression. The current 64-question guide is a starting point, not a complete syllabus.
 2. Every major category must have its own section and sufficient questions. Exception handling, wrappers, strings, generics, collections, and concurrency must not be reduced to a single overview question.
 3. Similar wording does not make questions duplicates if they test different mechanisms, edge cases, or design decisions.
