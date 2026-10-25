@@ -35,7 +35,7 @@ For each question, practice explaining the concept or failure mechanism, the pro
 
 ### Q1. What is Apache Kafka, and what problems does it solve?
 
-Kafka is a distributed event-streaming platform that stores records in partitioned, replicated logs and lets independent applications publish, consume, process, and retain event streams. It decouples producers from consumers, supports replay, and scales through partitioning. It is not automatically a replacement for a database or every message broker; the right choice depends on replay, ordering, retention, latency, and delivery requirements.
+Apache Kafka is a distributed event-streaming platform built around durable, partitioned, replicated logs. Producers append records to topics, and consumer groups read those records independently at their own pace; records can be retained and replayed rather than being deleted simply because one consumer processed them. Partitioning enables horizontal throughput and parallelism, while replication provides fault tolerance. Kafka is commonly used for event-driven microservices, activity streams, log/data pipelines, CDC, and stream processing. It is not a database or a guarantee of exactly-once business effects by itself: the design must still address schemas, ordering, retries, consumer idempotency, retention, and downstream consistency.
 
 
 ### Q2. How is Kafka different from a traditional message queue?
@@ -45,7 +45,7 @@ Many traditional queues emphasize work distribution and may remove messages once
 
 ### Q3. What is a Kafka topic?
 
-A topic is a named stream of records. It is split into partitions, each an append-only ordered log. Topic-level settings control behavior such as replication factor, retention, and cleanup policy. Different consumer groups can read the same topic independently and maintain separate offsets.
+A topic is a logical name for a stream of records, such as `orders-created` or `payments-updated`. A topic is divided into partitions; each partition is an ordered log with its own offsets and replicas. Topic configuration controls settings such as partition count, replication factor, retention, and cleanup policy (`delete` or `compact`). Consumer groups maintain independent offsets, so several services can consume the same topic for different purposes without competing with one another. Topic design should reflect event meaning, ownership, expected throughput, retention, access control, and ordering requirements.
 
 
 ### Q4. What is a partition, and why does Kafka use partitions?
@@ -132,7 +132,7 @@ The leader handles normal reads and writes for a partition under the standard mo
 
 ### Q20. What is the ISR, and why does it matter?
 
-The in-sync replica set contains replicas considered caught up enough to participate in normal leader-election and durability decisions. With producer acks=all and a suitable min.insync.replicas, Kafka can reject writes when too few replicas are in sync, reducing the risk of acknowledging data with weak replication.
+The in-sync replica set (ISR) contains the partition leader and follower replicas that are sufficiently caught up according to Kafka's replication rules. ISR membership matters because `acks=all` waits for the current ISR, not necessarily every configured replica. `min.insync.replicas` sets the minimum ISR size required for a write with `acks=all`; if the ISR falls below that threshold, the broker rejects the write instead of accepting it with weaker durability. For example, replication factor 3 with `min.insync.replicas=2` can tolerate one replica being unavailable while continuing to accept acknowledged writes, but it may stop writes if only one replica remains in sync. This is a durability/availability trade-off, and producer settings alone cannot compensate for poor replica placement or unsafe leader-election configuration.
 
 
 ## Phase 2 — Delivery guarantees and Java (Q21–Q40)
@@ -141,22 +141,22 @@ The in-sync replica set contains replicas considered caught up enough to partici
 
 ### Q21. Explain at-most-once, at-least-once, and exactly-once processing.
 
-At-most-once may lose work but avoids retries that cause duplicate processing; at-least-once retries unfinished work but can duplicate effects; exactly-once has a specific scope and requires coordinated transactional or idempotent design. In distributed applications, exactly-once business effects across independent systems usually require idempotency, transactional state, and reconciliation.
+**At-most-once:** commit the offset before processing (or otherwise avoid retrying completed delivery). A crash can lose the work, but the record is less likely to be processed again. **At-least-once:** process first and commit after success; a crash between the business operation and offset commit can redeliver the record, so duplicates are possible. **Exactly-once:** ensure a defined input-to-output operation is committed atomically within a supported boundary, for example Kafka input offsets and Kafka output records in a transaction. Do not claim that Kafka automatically makes a database update, HTTP call, email, or payment happen exactly once. For external effects, combine stable event IDs, idempotency keys or a deduplication table with durable state and reconciliation.
 
 
 ### Q22. What does producer acks control?
 
-acks controls how much broker acknowledgment the producer waits for. acks=0 waits for no broker acknowledgment, acks=1 waits for the leader, and acks=all waits for the required in-sync replicas. Actual durability also depends on replication factor, min.insync.replicas, and leader-election settings.
+`acks` controls the acknowledgment level the producer requires before treating a send as successful. `acks=0` does not wait for a broker response, so the producer cannot reliably know whether the record reached Kafka. `acks=1` waits for the leader to append the record but not for followers to confirm replication; a leader failure before replication can lose an acknowledged record. `acks=all` (equivalent to `-1`) waits for all replicas currently in the ISR, subject to the configured ISR and broker behavior. For a common durability-oriented setup, combine `acks=all`, producer idempotence, replication factor 3, and `min.insync.replicas=2`, then test failure scenarios. This reduces risk but does not replace backups, monitoring, or careful leader-election settings.
 
 
 ### Q23. How does producer idempotence work?
 
-Idempotent production uses producer IDs and sequence numbers so Kafka can deduplicate qualifying retries from a producer session and preserve ordering under its supported settings. It does not deduplicate independent application submissions, nor does it guarantee a consumer's external side effect runs only once. Compatible configuration is required; current clients generally choose suitable defaults unless overridden.
+Kafka producer idempotence assigns a producer identity and uses per-partition sequence numbers so the broker can recognize duplicate protocol-level retries and preserve order under the supported configuration. It is designed for retries caused by network errors or uncertain acknowledgments, not for detecting that two separate calls represent the same business event. If an application independently submits the same order twice, Kafka normally treats those as two records. Idempotence is enabled by default in modern Kafka clients unless incompatible settings override it; older client versions and customized settings should be checked explicitly. For broader guarantees, use a business event ID and idempotent consumer logic. Idempotent production also does not make external database or API effects exactly once.
 
 
 ### Q24. What is a Kafka transaction?
 
-A Kafka transaction can atomically publish records across multiple Kafka partitions and commit consumed offsets as part of a consume-transform-produce workflow. Transactional producers use a transactional ID and transaction coordinator. Consumers needing committed transactional visibility should use read_committed isolation.
+A Kafka transaction groups writes to multiple topic partitions into one atomic unit and can include the consumed offsets that correspond to the input records. A transactional producer is configured with a stable, unique `transactional.id`, initializes transactions, writes records, adds consumed offsets when appropriate, and commits or aborts. Downstream consumers that must not observe aborted transactional output should use `isolation.level=read_committed`; `read_uncommitted` can expose records from transactions that later abort. Transactions are useful for consume-transform-produce pipelines, but they add coordination and latency and are not a distributed transaction with arbitrary databases or HTTP services. The application must handle transaction aborts, fencing, timeouts, and retries correctly.
 
 
 ### Q25. What does exactly-once semantics mean in Kafka Streams or consume-transform-produce?
@@ -176,7 +176,7 @@ Auto commit is simpler but can commit positions independently of completion of b
 
 ### Q28. How do you maintain consistency between a database and Kafka?
 
-A database commit followed by Kafka publication creates a dual-write gap. The transactional outbox pattern writes the business change and an outbox row in one database transaction; a separate relay or CDC connector publishes the event. Consumers should be idempotent because publication can repeat.
+The classic dual-write problem occurs when a service commits a database transaction and then publishes to Kafka: a crash between those operations leaves database state and the event stream inconsistent. Reversing the order has the opposite failure mode—an event can be published for a database transaction that later rolls back. The transactional outbox solves this by writing both the business change and an outbox row in the same local database transaction. A polling relay or CDC connector such as Debezium later publishes outbox rows to Kafka. The relay can crash after publishing but before recording progress, so duplicates remain possible; consumers should use event IDs and idempotent processing. Monitor outbox age/backlog and define cleanup, retry, ordering, and schema policies.
 
 
 ### Q29. What is the idempotent consumer pattern?
@@ -198,7 +198,7 @@ Create a KafkaProducer with bootstrap servers, key/value serializers, and reliab
 
 ### Q32. Is KafkaProducer thread-safe? Is KafkaConsumer thread-safe?
 
-KafkaProducer is thread-safe and can be shared. KafkaConsumer is not thread-safe; one thread should own its poll, assignment, seek, pause/resume, and commit interactions. Worker threads can process dispatched records only if the application coordinates completion and offset commits carefully.
+`KafkaProducer` is thread-safe and is normally created once per application component and reused; creating one per record wastes connections, buffers, and metadata work. `KafkaConsumer` is not thread-safe, so a single owner thread should perform consumer operations such as `poll`, `commit`, `seek`, `pause`, `resume`, and assignment handling. If records are dispatched to worker threads, the application must track which records have completed and commit only the highest safe contiguous offset per partition. Committing the maximum completed offset while an earlier record is still processing can skip that unfinished record after a crash. For per-key ordering, serialize work for each key or partition, and pause partitions when bounded worker capacity is exhausted.
 
 
 ### Q33. How do you handle the result of producer.send()?
@@ -208,7 +208,7 @@ send() is asynchronous and returns a Future; a callback can handle success or fa
 
 ### Q34. What is the purpose of poll() in a Kafka consumer?
 
-poll() fetches records and drives consumer-group coordination and rebalance callbacks. Consumers must call poll often enough to remain active within configured limits. Long-running work inside the poll thread can exceed max.poll.interval.ms.
+`poll()` is not merely a fetch call: it returns available records and drives group coordination, heartbeats/consumer liveness behavior, and rebalance processing according to the client protocol and configuration. If application processing blocks the poll thread longer than `max.poll.interval.ms`, the consumer can be considered unhealthy and lose its assignment, causing a rebalance and possible redelivery. Keep processing time bounded, tune `max.poll.records` to a realistic workload, or move work to a carefully coordinated worker pool. If using workers, preserve per-partition commit ordering and stop or drain work safely during revocation. Increasing timeout values blindly can hide slow processing and delay recovery.
 
 
 ### Q35. When would you use manual acknowledgments in Spring Kafka?
@@ -223,12 +223,12 @@ Spring Kafka listener concurrency creates multiple consumer threads/containers w
 
 ### Q37. How do you implement retry and DLT handling in Spring Kafka?
 
-Use an appropriate container error handler and recoverer, such as DefaultErrorHandler with DeadLetterPublishingRecoverer, or configured non-blocking retry topics where suitable. Classify transient versus permanent exceptions, set bounded backoff, preserve headers and source metadata, and monitor recoveries. Exact APIs and capabilities vary by Spring Kafka version and listener type.
+In Spring Kafka, container error handling is commonly configured with `DefaultErrorHandler` and, when appropriate, `DeadLetterPublishingRecoverer`. Configure a bounded backoff and retry count, classify exceptions so permanent failures (for example, invalid payloads) are not retried pointlessly, and decide what happens after retries are exhausted: publish to a DLT, quarantine, or stop processing. A DLT should preserve original topic/partition/offset and exception metadata, have access controls and alerting, and support controlled replay. Non-blocking retry topics can free the original partition to process later records, but this can break ordering and are not supported with every listener/transaction arrangement. Validate behavior against the exact Spring Kafka version, listener mode (record/batch), and transaction configuration.
 
 
 ### Q38. How do Kafka transactions work with Spring Kafka?
 
-Spring Kafka can use a transaction-capable producer factory and listener container so consumed offsets and produced Kafka records participate in Kafka transactions. Failure can roll back the transaction and make records eligible for redelivery. External database writes are not automatically in the same Kafka transaction.
+Spring Kafka supports transactions by configuring a `DefaultKafkaProducerFactory` with a `transactionIdPrefix` and using transactional templates and/or listener containers. In a consume-transform-produce flow, output records and the consumed offsets can be committed atomically to Kafka; if processing fails, the transaction can be aborted and the input records re-delivered. Downstream consumers that must hide aborted output should use `read_committed`. Spring's transaction synchronization can coordinate a Kafka transaction with a database transaction, but it is not a single atomic commit across both systems: one resource can commit while the other commit fails. For database-to-Kafka consistency, the transactional outbox is often the clearer design. Keep transaction IDs unique across concurrently running application instances and account for transaction timeouts and fencing.
 
 
 ### Q39. How do you test a Spring Kafka consumer?
@@ -247,7 +247,7 @@ Stop accepting new work, allow in-flight processing to finish within a deadline,
 
 ### Q41. What determines Kafka producer throughput?
 
-Throughput depends on batching, linger time, compression, record size, request size, broker/network capacity, partition distribution, acknowledgment requirements, and producer concurrency. Optimize from a representative load test and measure end-to-end latency as well as throughput.
+Producer throughput is determined by both client behavior and cluster capacity: records per batch, `batch.size`, `linger.ms`, compression, record size, `buffer.memory`, request limits, network bandwidth, broker disk/CPU, replication factor, acknowledgment level, and how evenly keys distribute traffic. Batching and compression often improve throughput by reducing request overhead and bytes transferred, but may increase latency or CPU use. More producer threads do not automatically help if a single partition, broker, or network link is the bottleneck. Benchmark with realistic payload sizes, key skew, replication, security, and consumer load; measure p95/p99 latency and error rate alongside throughput. Change one or two variables at a time and retain headroom for bursts and failures.
 
 
 ### Q42. What do batch.size and linger.ms do?
@@ -262,7 +262,7 @@ Compression reduces network and disk bytes and can improve throughput, at the co
 
 ### Q44. How do you calculate consumer lag?
 
-Lag is commonly measured as the difference between a partition's latest available offset position and the consumer group's committed/current position, with tooling-specific details affecting exact counts. Monitor both lag count and oldest-record age because a small lag of slow, time-sensitive events can matter more than a large backlog of low-priority events.
+Consumer lag is usually estimated per partition from the difference between the log end offset and the consumer group's committed offset; monitoring tools may use slightly different definitions and may also report records behind the high watermark. Sum lag across partitions only as a rough workload indicator, because offset distance is not the same as bytes or processing time when record sizes and rates vary. Track lag trend, oldest unprocessed event age, input rate, processing rate, and per-partition skew. Rising lag means incoming work exceeds sustainable processing for long enough; stable lag may be acceptable if the age stays within the service objective. Diagnose whether the bottleneck is partition count, hot keys, consumer CPU/GC, downstream latency, rebalances, or broker fetch performance before scaling.
 
 
 ### Q45. How do you detect and fix hot partitions?
@@ -272,7 +272,7 @@ Compare throughput, lag, record size, and processing time per partition. Skewed 
 
 ### Q46. How do you choose partition count?
 
-Estimate required throughput per partition, consumer parallelism, expected growth, key distribution, and failover/recovery requirements. More partitions enable more parallelism but increase metadata, open files, replication overhead, and operational work. Partition count is not easy to reduce in place.
+Choose partitions from measured throughput and the parallelism the workload needs, not from a universal rule. Estimate producer throughput per partition, consumer processing capacity per partition, key distribution, peak traffic, future growth, and the maximum recovery time you can tolerate. Within one consumer group, a partition is assigned to at most one consumer at a time, so partitions cap parallel consumer ownership; extra consumers beyond the partition count may sit idle. More partitions also increase metadata, replication traffic, open files, recovery/reassignment work, and can affect end-to-end latency. Increasing partition count can change keyed partition mapping for new records and may break per-key ordering across the transition; reducing partition count generally requires creating a new topic and migrating data.
 
 
 ### Q47. How do you estimate Kafka storage?
@@ -304,12 +304,12 @@ Check DNS and advertised.listeners, network paths, TLS/SASL configuration, load 
 
 ### Q52. What do under-replicated partitions mean?
 
-They indicate that some replicas are not caught up enough to be in sync. Investigate broker load, disk latency, network saturation, GC pauses, restarts, and replication throttles. Restore replica health and confirm ISR recovery before treating the incident as resolved.
+An under-replicated partition has at least one replica that is not currently in sync with the leader; the metric is an early warning that redundancy is reduced. Check whether the cause is a broker outage, overloaded disk, network saturation, long GC pauses, slow replica fetch, throttling, or a reassignment. Also inspect offline partitions and ISR shrink/expand events: an under-replicated partition with a healthy leader differs from a partition with no leader. Restore broker and replication health, verify replicas rejoin the ISR, and confirm the cluster has adequate failure tolerance before closing the incident. Avoid weakening durability settings merely to make the alert disappear.
 
 
 ### Q53. How do you debug repeated rebalances?
 
-Inspect group membership churn, consumer crashes, processing time versus max.poll.interval.ms, heartbeat/session failures, network disruptions, deployments, and JVM pauses. Fix long blocking work and unstable instances; tune timeouts only to match legitimate processing needs. Cooperative assignment may reduce disruption where supported.
+Repeated rebalances interrupt consumption and can increase lag or duplicate processing. Check consumer logs and group coordinator metrics for join/leave churn, failed heartbeats, session timeouts, `max.poll.interval.ms` violations, JVM pauses, network issues, rolling deployments, and autoscaling. Slow processing inside the poll loop is a common cause; reduce work per poll, bound downstream calls, or use a coordinated worker model. Cooperative assignment protocols can reduce how many partitions move during a rebalance, but they do not fix unstable members or long processing. Tune timeouts only after measuring real processing and failure-detection requirements, and verify the client/broker versions support the chosen protocol.
 
 
 ### Q54. How do you deal with a poison message?
@@ -334,7 +334,7 @@ Identify which topics and partitions consume space, check retention/compaction c
 
 ### Q58. How do you differentiate producer timeout from failed publication?
 
-A timeout means the client did not receive a result within the configured window; the broker may have written the record. Inspect delivery callback/error details, retries, producer metrics, broker logs, and event IDs. Idempotence protects qualifying retries, while business-level idempotency handles broader duplicates.
+A producer timeout is an uncertain outcome, not proof that Kafka rejected the record. The broker may have appended it and the acknowledgment may have been lost, or the request may never have succeeded. Check the exception type, delivery callback, `delivery.timeout.ms`, request/retry metrics, broker logs, and partition health. Do not blindly create a new business operation because the first send timed out; use a stable event ID and downstream deduplication where duplicates are harmful. Producer idempotence can make protocol retries safe within its scope, but it cannot identify an independent application-level resend as the same business event.
 
 
 ### Q59. What does NOT_LEADER_OR_FOLLOWER or LEADER_NOT_AVAILABLE suggest?
@@ -378,7 +378,7 @@ Write the business row and an outbox event in one database transaction. A relay 
 
 ### Q66. What is a saga?
 
-A saga coordinates a business workflow across services through local transactions and events/commands. On failure, it may execute compensating actions, such as refunding a payment if inventory cannot be reserved. Compensation is a new business action, not a rollback of an already committed remote transaction.
+A saga coordinates a multi-service business process as a sequence of local transactions, with events or commands advancing the workflow. In a choreography, services react to each other's events; in an orchestration, a coordinator explicitly manages state and next steps. If a later step fails, the workflow runs compensating business actions—for example, release a reservation or refund a payment—rather than rolling back a remote database transaction that already committed. Design explicit states, idempotent handlers, timeouts, retry policies, compensation failure handling, and reconciliation for ambiguous outcomes. Kafka can transport saga messages, but the application still owns the workflow state machine and operational recovery.
 
 
 ### Q67. How do you evolve schemas without breaking consumers?
@@ -486,7 +486,7 @@ Kafka Streams can coordinate input offsets, state-store changelog records, and o
 
 ### Q86. How do you secure Kafka clients with TLS and SASL?
 
-TLS protects traffic in transit and can authenticate brokers; SASL mechanisms authenticate clients. Configuration must match broker listeners and trust/key material. Store credentials in a secrets manager, rotate them, and avoid logging secrets. Test certificate renewal and expiration ahead of time.
+TLS encrypts traffic in transit and lets clients validate broker certificates; mutual TLS can also authenticate clients through certificates. SASL authenticates a client using a supported mechanism such as SCRAM or OAUTHBEARER, while authorization is a separate decision typically enforced with ACLs or an authorizer. Configure the correct listener security protocol, truststore/CA chain, credentials, and mechanism on both client and broker. Use least-privilege identities, keep secrets out of code and logs, rotate credentials and certificates, and test expiration/renewal before production. Encryption and authentication do not replace topic/group/transaction authorization or payload-level privacy controls.
 
 
 ### Q87. What are Kafka ACLs?
