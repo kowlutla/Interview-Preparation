@@ -65,7 +65,7 @@ A class diagram without behavior is incomplete. Code without responsibilities an
 
 ## 2. Object-oriented design fundamentals
 
-### Q1. Explain encapsulation, abstraction, inheritance, and polymorphism.?
+### Q1. Explain encapsulation, abstraction, inheritance, and polymorphism.
 
 These concepts solve different problems. **Encapsulation** protects an object's state and rules; **abstraction** exposes a useful contract while hiding implementation details; **inheritance** models a genuine subtype relationship; **polymorphism** lets callers use a common contract while implementations provide different behavior.
 
@@ -85,13 +85,13 @@ final class CardPayment implements PaymentMethod {
 
 The caller depends on `PaymentMethod`, not the card provider's implementation. This is abstraction and polymorphism. Encapsulation means the payment object should not expose mutable internal state that callers can corrupt. Inheritance is not required merely to obtain polymorphism; interface implementation is often enough.
 
-### Q2. How do Composition compare?inheritance: which should you choose?
+### Q2. Composition vs. inheritance: which should you choose?
 
 Prefer composition when behavior can vary independently or be assembled from collaborators. Use inheritance when the subtype truly satisfies the base type's contract and the shared abstraction is stable.
 
 Inheritance can be concise, but it creates a strong coupling to base-class behavior. A subclass may accidentally inherit methods that do not make sense, or break assumptions made by callers. Composition makes dependencies explicit and supports runtime substitution, but can add delegation code and more objects. The right question is not “Is inheritance bad?” but “Is this a stable subtype relationship, or am I using inheritance only to reuse code?”
 
-### Q3. How do Interface compare?abstract class in Java
+### Q3. Interface vs. abstract class in Java: which should you choose?
 
 An interface defines a capability or contract that unrelated implementations can share. An abstract class is useful when closely related implementations need shared state or protected implementation.
 
@@ -103,7 +103,7 @@ Use an interface for a payment processor, notification sender, or pricing policy
 
 For example, an `OrderService` that validates an order, formats email HTML, queries SQL directly, calls three payment vendors, and writes audit files has low cohesion. Split responsibilities when each one has a meaningful reason to change. Avoid splitting every method into a new class merely to reduce line count.
 
-### Q5. How do Dependency inversion compare?dependency injection
+### Q5. Dependency inversion vs. dependency injection: what is the difference?
 
 Dependency Inversion is a design principle: high-level policy should not be tightly coupled to low-level implementation details; both should depend on abstractions where that boundary is useful. Dependency Injection is a technique for supplying collaborators from outside an object rather than having it construct them itself.
 
@@ -139,7 +139,7 @@ public record Money(BigDecimal amount, Currency currency) {
 
 Records are shallowly immutable: a record containing a mutable list still exposes that list unless it is copied. For money, define rounding and scale policy explicitly rather than assuming every currency has two decimal places.
 
-### Q7. How do Object identity compare?equality
+### Q7. Object identity vs. equality: what is the difference?
 
 Identity asks whether two references point to the same object; equality asks whether two objects represent the same value or domain concept. Use identity for entities whose lifecycle matters and value equality for value objects such as a date range or monetary amount. In Java, implement `equals` and `hashCode` consistently: equal objects must have equal hash codes. Do not base hash codes on mutable fields when objects are used as hash-map keys.
 
@@ -149,7 +149,7 @@ An **entity** has identity across changes, such as an Order identified by order 
 
 Do not create a domain service for every calculation. Put behavior on an entity when it naturally protects that entity's invariants; use a service when the operation genuinely spans concepts or represents a policy.
 
-### Q9. Explain Tell, Don't Ask and the Law of Demeter.?
+### Q9. Explain Tell, Don't Ask and the Law of Demeter.
 
 Tell, Don't Ask encourages asking an object to perform behavior rather than pulling out its data and making decisions elsewhere. The Law of Demeter advises avoiding long chains through unrelated object internals.
 
@@ -394,7 +394,7 @@ Use Builder for complex parameterized construction; Factory Method when a subtyp
 
 ---
 
-### Q7. What is choosing a creational pattern from the construction problem?
+### Q7. How do you choose a creational pattern based on the construction problem?
 
 Use the construction problem—not the pattern name—to decide.
 
@@ -519,7 +519,7 @@ Bridge separates an abstraction from an implementation so both can vary independ
 
 Flyweight shares common immutable intrinsic state among many logical objects to reduce memory use. A text renderer might share font metadata while keeping character position and content as extrinsic state. The shared state must not contain per-object mutable data. Flyweight is useful only when profiling or scale justifies the added indirection.
 
-### Q8. How do Adapter compare?Facade vs Decorator at a glance
+### Q8. How do Adapter, Facade, and Decorator differ?
 
 | Pattern | Main intent | Typical example |
 |---|---|---|
@@ -530,7 +530,7 @@ Flyweight shares common immutable intrinsic state among many logical objects to 
 
 ---
 
-### Q9. What is structural patterns in a backend service?
+### Q9. How are structural patterns used in a backend service?
 
 Structural patterns help assemble objects without making callers understand every implementation detail. Consider an order service that calls a third-party shipping API, needs metrics around calls, and uses a vendor SDK with a different interface.
 
@@ -664,7 +664,7 @@ Memento captures an object's state so it can be restored later without exposing 
 
 Interpreter models a small language as expressions that can evaluate themselves or be evaluated by an interpreter. It can be useful for a limited rule DSL, query expression, or filter language. For complex languages, a parser and dedicated AST are more maintainable than nested string conditionals. Never evaluate arbitrary user-provided Java or script code just to implement a simple rule engine.
 
-### Q12. How do Strategy compare?State vs Template Method
+### Q12. How do Strategy, State, and Template Method differ?
 
 - **Strategy:** the caller chooses one interchangeable algorithm, such as a pricing policy.
 - **State:** the object's current state determines permitted behavior and transitions.
@@ -672,13 +672,13 @@ Interpreter models a small language as expressions that can evaluate themselves 
 
 Use the simplest model that communicates the variation. A conditional is not a design failure when it is short, local, and stable.
 
-### Q13. How do Observer compare?Pub/Sub
+### Q13. How do Observer and Pub/Sub differ?
 
 Observer commonly connects an in-process subject directly to listeners. Pub/sub typically introduces a topic or broker that decouples publishers from subscribers, often across processes. Pub/sub raises additional concerns—durability, delivery semantics, ordering, retries, dead letters, and schema evolution—which are covered in the Distributed Systems and Kafka handbooks.
 
 ---
 
-### Q14. What is behavioral patterns through one real workflow?
+### Q14. How do behavioral patterns work together in a real workflow?
 
 Behavioral patterns organize communication and the choice of behavior. The easiest way to understand them is to ask what is varying or communicating.
 
@@ -773,11 +773,11 @@ Specification encapsulates a business predicate so it can be composed, reused, a
 
 A DTO carries data across a boundary; a mapper converts between representations such as API requests, domain objects, and persistence models. DTOs prevent external API shape from dictating internal domain structure. Avoid blindly mirroring every field in every layer; mappings should be explicit about defaults, validation, nullability, and fields clients are not allowed to set.
 
-### Q7. How do Transaction Script compare?Domain Model
+### Q7. Transaction Script vs. Domain Model: how do they differ?
 
 A Transaction Script organizes business logic as procedures for use cases and is often effective for straightforward CRUD workflows. A Domain Model represents business rules and state in collaborating objects and is useful when invariants and behavior become complex. Neither is universally superior. A small stable workflow may be clearer as a script; a complex lifecycle with many transitions may benefit from a richer domain model.
 
-### Q8. How do Domain service compare?application service
+### Q8. Domain service vs. application service: how do they differ?
 
 A **domain service** expresses a domain rule that does not naturally belong to one entity or value object. An **application service** coordinates a use case: load data, invoke domain behavior, persist results, and return a response. Application services should not become the only place where all business logic lives.
 
@@ -864,7 +864,7 @@ If a service updates a database and publishes an event, a crash between those op
 
 ## 8. Design principles, code smells, and refactoring
 
-### Q1. What is dRY, KISS, and YAGNI?
+### Q1. What are DRY, KISS, and YAGNI?
 
 - **DRY:** avoid duplicating knowledge or rules that must stay consistent. Similar-looking code is not always the same knowledge; premature generic helpers can make unrelated behavior harder to change.
 - **KISS:** prefer the simplest design that correctly meets requirements. Simplicity is about cognitive load, not necessarily the fewest classes.
@@ -938,7 +938,7 @@ Refactor in small steps with tests. A clean design is not the design with the mo
 
 ## 9. UML and communicating a design
 
-### Q1. What is class diagram essentials?
+### Q1. What are the essentials of a UML class diagram?
 
 A class diagram shows static structure: classes, interfaces, attributes, operations, and relationships. Common notations include:
 - Inheritance/generalization: solid line with a hollow triangle pointing to the parent.
@@ -950,7 +950,7 @@ A class diagram shows static structure: classes, interfaces, attributes, operati
 
 Do not use composition just because one object has a field referencing another. Ask whether the part's lifecycle is owned by the whole and whether it can meaningfully exist independently.
 
-### Q2. What is sequence diagram essentials?
+### Q2. What are the essentials of a UML sequence diagram?
 
 A sequence diagram explains how participants interact over time. Lifelines represent participants; arrows represent calls or messages; return arrows are optional. Use it to show a critical path, not every getter. Mark external boundaries and failure branches when those affect correctness.
 
@@ -973,7 +973,7 @@ sequenceDiagram
 
 This is a conceptual flow. A real design must specify transaction boundaries and how payment-provider side effects are reconciled if saving the result fails.
 
-### Q3. What is state and activity diagrams?
+### Q3. What are state diagrams and activity diagrams used for?
 
 A state diagram models states and legal transitions of one entity or process. It is useful for orders, bookings, payments, and vending machines. An activity diagram models a workflow with decisions, parallel steps, and alternative paths. Use a state diagram when lifecycle validity is the central concern; use an activity diagram when process flow is the concern.
 
@@ -1058,15 +1058,15 @@ When multiple threads read and modify the same mutable state without a suitable 
 
 For example, `if (inventory.available() >= quantity) inventory.decrease(quantity)` is unsafe if another thread can consume stock between the check and update. Put the check-and-reserve operation behind one atomic boundary, such as a synchronized aggregate in a single process or a conditional database update/transaction in a persistent application.
 
-### Q2. What is synchronization, atomics, and concurrent collections?
+### Q2. How do synchronization, atomic variables, and concurrent collections differ?
 
 Use synchronization or locks when several fields must change together under one invariant. Atomic classes are useful for individual atomic variables and compare-and-set loops, but they do not automatically make multi-object invariants safe. Concurrent collections protect their documented operations; check whether the full workflow is atomic. Choose the narrowest lock scope that preserves correctness, but avoid complicated nested locks without a clear ordering strategy.
 
-### Q3. What is booking race conditions?
+### Q3. How do you handle booking race conditions?
 
 Two requests may both observe a room as available and attempt to reserve the same interval. A process-local lock only coordinates threads in that process; it does not protect multiple application instances. A production booking system needs a durable conflict-prevention mechanism: for example, database constraints/locking or a serializable transaction appropriate to the schema. Re-check availability at commit time. A prior availability search is advisory, not a reservation.
 
-### Q4. What is inventory race conditions?
+### Q4. How do you handle inventory race conditions?
 
 A conditional update can protect a single stock row:
 
@@ -1079,15 +1079,15 @@ WHERE sku = :sku
 
 Treat one updated row as a successful reservation and zero rows as insufficient stock or a concurrent conflict. Validate that quantity is positive and decide how reservations expire or are released. Multi-SKU orders need an all-or-nothing policy, usually a transaction or a reservation workflow with explicit compensation.
 
-### Q5. What is thread-safe rate limiters and caches?
+### Q5. How do you design thread-safe rate limiters and caches?
 
 Rate limiters need atomic accounting for tokens or request timestamps. Caches need explicit choices for concurrent loads, expiration, eviction, failure behavior, and invalidation. A `ConcurrentHashMap` can help with per-key atomic initialization, but a cache with maximum size and time-based expiration still needs a policy and lifecycle management. Discuss whether duplicate computation is acceptable and whether the stored value is immutable.
 
-### Q6. What is deadlocks and lock granularity?
+### Q6. What causes deadlocks, and how does lock granularity matter?
 
 Deadlocks can occur when threads acquire the same locks in different orders. Reduce nested locking, keep critical sections short, establish a global lock ordering where multiple locks are unavoidable, and avoid calling unknown external code while holding a lock. Coarse locks simplify correctness but reduce concurrency; fine-grained locks improve parallelism at the cost of more complex reasoning. Measure before optimizing.
 
-### Q7. What is idempotent command handling?
+### Q7. How do you implement idempotent command handling?
 
 An idempotent operation can be retried without producing an additional business effect for the same logical request. For payment or booking commands, associate a client-provided or generated idempotency key with the request and its result. Persist the key and outcome atomically with the business state where possible. Define behavior when the same key is reused with different request parameters. An in-memory set is not sufficient across restarts or multiple instances.
 
@@ -1099,7 +1099,7 @@ An idempotent operation can be retried without producing an additional business 
 
 Test public behavior and domain invariants rather than private methods. For a booking, test valid creation, overlapping booking rejection, cancellation rules, and transitions after cancellation. Tests should state what the object guarantees, not how many internal helper methods it calls.
 
-### Q2. How do Mocks compare?stubs vs fakes
+### Q2. Mocks vs. stubs vs. fakes: how do they differ?
 
 - **Stub:** returns controlled answers for a test.
 - **Mock:** records or verifies interactions when those interactions are part of the behavior being tested.
@@ -1214,7 +1214,7 @@ Design a rule engine for evaluating business rules such as eligibility, pricing,
 
 ## 13. Pattern selection and comparison
 
-### Q1. What is quick decision guide?
+### Q1. How do you choose a design pattern quickly?
 
 | Problem you observe | Pattern or technique to consider | First question to ask |
 |---|---|---|
@@ -1233,19 +1233,19 @@ Design a rule engine for evaluating business rules such as eligibility, pricing,
 | Algorithm skeleton is fixed but steps vary | Template Method | Would composition be more flexible? |
 | Stable core must be isolated from external systems | Ports and Adapters | Which dependencies are volatile or hard to test? |
 
-### Q2. How do Factory Method compare?Abstract Factory vs Builder
+### Q2. Factory Method vs. Abstract Factory vs. Builder: how do they differ?
 
 Factory Method chooses a product through a creation method, often overridden by subclasses. Abstract Factory creates a family of related products. Builder assembles one complex object through explicit construction steps. If an interviewer asks “Which pattern creates objects?”, clarify the construction problem before naming a pattern.
 
-### Q3. How do Decorator compare?Proxy vs Adapter vs Facade
+### Q3. Decorator vs. Proxy vs. Adapter vs. Facade: how do they differ?
 
 Decorator keeps the same contract while adding behavior; Proxy keeps a similar contract while controlling access or indirection; Adapter translates an incompatible contract; Facade provides a simpler contract over a subsystem. Their structures can overlap—intent and responsibility distinguish them.
 
-### Q4. How do Strategy compare?Chain of Responsibility
+### Q4. Strategy vs. Chain of Responsibility: how do they differ?
 
 Strategy chooses an algorithm to perform a task. Chain of Responsibility passes a request through potentially multiple handlers, often with short-circuiting. A list of validators can be a chain when order and stopping matter; a pricing algorithm selected for the whole order is more naturally Strategy.
 
-### Q5. How do Inheritance compare?composition
+### Q5. Inheritance vs. composition: how do they differ?
 
 Choose inheritance when a stable subtype relationship satisfies the base behavioral contract. Choose composition when capabilities or policies vary independently, can be swapped, or should be tested separately. Composition introduces delegation, so use it where flexibility or ownership clarity repays the cost.
 
@@ -1257,7 +1257,7 @@ Do not use a pattern merely because it is on an interview checklist. A pattern i
 
 ## 14. Interview follow-ups and design review checklist
 
-### Q1. What is questions interviewers commonly ask after your design?
+### Q1. What questions do interviewers commonly ask after your design?
 
 - Which invariant does each class protect?
 - What changes if a new payment method, channel, rule, or vehicle type is added?
@@ -1273,7 +1273,7 @@ Do not use a pattern merely because it is on an interview checklist. A pattern i
 - What evidence would justify adding another abstraction?
 - Which failure paths are deliberately outside the scope of this implementation?
 
-### Q2. What is final design checklist?
+### Q2. What is the final design checklist?
 
 Before declaring an LLD answer complete, verify:
 
