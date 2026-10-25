@@ -300,6 +300,28 @@ Use the official migration guides and release notes, upgrade in controlled steps
 
 ---
 
+## 9A. Resilience, microservices, and migration
+
+### Q41. How should resilience be designed for calls to downstream services?
+
+A resilient client uses explicit connection/read/response deadlines, bounded retries for transient failures, exponential backoff with jitter, and concurrency limits appropriate to the dependency. A circuit breaker can stop repeatedly calling a dependency that is failing, while bulkheads isolate resource usage so one slow integration does not consume every request thread or connection.
+
+These patterns solve different problems and should not be stacked without a clear failure model. Retries can amplify load during an outage and can duplicate side effects unless the operation is idempotent. A timeout does not prove the remote operation failed. Define an overall deadline, observe retry/circuit-breaker metrics, and return a deliberate fallback or failure response when continuing is unsafe.
+
+### Q42. What does Spring Cloud add to a microservice architecture?
+
+Spring Cloud provides integrations and abstractions for common distributed-system concerns, depending on the selected projects: centralized/external configuration, service discovery, client-side load balancing, gateway routing, resilience integrations, and messaging-related patterns. It is an ecosystem of modules rather than one mandatory runtime layer; not every application needs every component.
+
+These tools do not remove distributed-systems failure modes. Service discovery can return stale endpoints, configuration changes need rollout and validation, gateways become critical infrastructure, and retries can multiply load. Choose components based on deployment architecture and operational needs, and make timeouts, authentication, tracing, version compatibility, and failure handling explicit.
+
+### Q43. What should be checked when upgrading from Spring Boot 2 to 3 or newer generations?
+
+Spring Boot 3 moved to the Jakarta EE namespace for APIs such as Servlet and Persistence, requiring imports and dependencies to migrate from `javax.*` to the relevant `jakarta.*` packages. It also raised the Java baseline and changed dependency generations. Newer Boot generations introduce further requirements and compatibility changes, so the exact target release's migration guide is essential.
+
+Review the Java version, dependency management, Spring Security configuration, Hibernate/Jakarta Persistence generation, servlet container, validation APIs, test libraries, observability, and build plugins. Search for removed/deprecated APIs, run integration tests against the actual database and deployment environment, and verify startup/readiness/metrics after packaging. Compilation alone is not enough to prove runtime compatibility.
+
+---
+
 ## 10. Last-minute revision
 
 Prioritize these questions when time is limited:
