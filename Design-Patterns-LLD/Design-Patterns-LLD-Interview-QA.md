@@ -778,261 +778,87 @@ Add tests around current behavior, change one responsibility at a time, and keep
 
 ## 12. LLD case studies
 
-This section contains **problem statements only**. Treat each as a fresh interview prompt: clarify assumptions, identify functional requirements and constraints, and then design the solution yourself. No reference class diagrams, solution walkthroughs, pseudocode, or implementation snippets are included here because a meaningful LLD solution deserves its own focused coding exercise.
+Use these as LLD interview practice prompts. This section intentionally contains only the question and problem statement; solutions and coding implementations will be maintained separately in a different repository.
 
-The separate LLD coding/use-cases work should contain the complete implementation and discussion for each selected problem, including class responsibilities, relationships, state transitions, concurrency, failure handling, tests, and design trade-offs where relevant.
+### 12.1 Design a Parking Lot
 
-### 12.1 Parking lot
+Design a parking-lot system for a facility with multiple floors and different types of parking spots. Vehicles receive a ticket on entry and complete payment before exiting. Account for spot allocation, parking fees, a full facility, lost tickets, and payment failures.
 
-Design a parking-lot system for a facility with multiple floors and different types of parking spots. Vehicles should receive a ticket on entry and complete payment before exiting.
+### 12.2 Design an Elevator Controller
 
-The system should support:
-- Different vehicle and spot types, with explicit compatibility rules.
-- Finding and allocating an available spot.
-- Tracking entry time, exit time, and parking fees.
-- Handling a full facility, lost tickets, payment failures, and repeated exit attempts.
+Design a controller for a building with multiple elevator cars and floors. Support hall calls, in-car destination requests, elevator assignment, stop scheduling, and cars becoming unavailable.
 
-Clarify whether reservations, electric-vehicle charging, accessible spots, and multiple entrances are in scope.
+### 12.3 Design a Library Management System
 
-### 12.2 Elevator controller
+Design a library system that supports catalogue search, physical book copies, checkout, return, renewal, reservations, borrowing limits, due dates, and overdue fees.
 
-Design a controller for a building with multiple elevator cars and multiple floors. Users can request an elevator from a floor and choose a destination once inside.
+### 12.4 Design a Vending Machine
 
-The system should support:
-- Hall calls and in-car destination requests.
-- Assigning requests to suitable elevator cars.
-- Tracking direction, current floor, pending stops, and car availability.
-- Handling simultaneous requests, out-of-service cars, and duplicate button events.
+Design a vending machine that supports product selection, stock checks, cash or electronic payment, dispensing, change return, cancellation, and failures such as sold-out products or a jammed dispenser.
 
-Clarify the scheduling objective, such as reducing average waiting time, avoiding starvation, or prioritizing certain requests. Safety-critical door and movement interlocks are outside the scope of an ordinary application-level LLD exercise.
+### 12.5 Design a Rate Limiter
 
-### 12.3 Library management
+Design a rate limiter that controls how frequently a client can call an API. Consider configurable limits, limiting algorithms, concurrent requests, and whether limits are local or shared across application instances.
 
-Design a library management system for a library that maintains a catalogue and lends physical book copies to members.
+### 12.6 Design a Notification Service
 
-The system should support:
-- Searching the catalogue and checking copy availability.
-- Checkout, return, and renewal.
-- Reserving unavailable books and managing a reservation queue.
-- Borrowing limits, due dates, overdue fees, lost copies, and member restrictions.
+Design a notification service that sends messages through channels such as email, SMS, and push notifications. Consider templates, recipient preferences, provider failures, retries, delivery status, and adding new channels.
 
-Clarify whether multiple branches, inter-branch transfers, fee waivers, and digital books are in scope. Distinguish a book title from each individually lendable copy.
+### 12.7 Design a Payment Processing System
 
-### 12.4 Vending machine
+Design a payment component that supports multiple payment providers and payment lifecycle operations such as authorization, capture, and refunds. Consider idempotency, duplicate requests, provider callbacks, timeouts, and uncertain payment outcomes.
 
-Design a vending machine that sells products from stocked compartments and accepts cash or an external payment method.
+### 12.8 Design a Logging Framework
 
-The system should support:
-- Product selection and price display.
-- Stock checking and reservation.
-- Accepting payment, dispensing exactly one item, and returning change where applicable.
-- Cancellation, sold-out products, insufficient payment, and hardware failures.
+Design a reusable logging framework with named loggers, severity levels, structured events, configurable filtering, and multiple outputs such as console and file appenders. Consider asynchronous logging and failures in output handlers.
 
-Specify what should happen when payment succeeds but dispensing fails, when the machine cannot return exact change, or when a request is repeated after a power interruption.
+### 12.9 Design an In-Memory Cache
 
-### 12.5 Rate limiter
+Design a thread-safe in-memory cache with get, put, update, and remove operations. Support a capacity limit, an eviction policy such as LRU or LFU, and optional expiration.
 
-Design a rate limiter that controls how frequently a client or user can call an API.
+### 12.10 Design Splitwise / an Expense-Sharing System
 
-The system should support:
-- Configurable limits and a clearly defined limiting key.
-- Choosing a policy such as fixed window, sliding window, or token bucket.
-- Allowing or rejecting each request and communicating the result.
-- Handling concurrent requests and reclaiming state for inactive keys.
+Design an expense-sharing application that supports groups, members, shared expenses, equal/exact/percentage splits, balance calculation, and settlements. Consider currency and rounding rules, expense edits, and optional debt simplification.
 
-Clarify whether limits are per process or shared across multiple application instances, whether bursts are allowed, and what the system should do when shared storage is unavailable.
+### 12.11 Design a Food-Ordering System
 
-### 12.6 Notification service
+Design a food-ordering system that lets customers browse menus, place orders, pay, and track restaurant preparation and delivery. Consider item availability, restaurant acceptance or rejection, cancellation, refunds, and duplicate order requests.
 
-Design a notification service that can send notifications through channels such as email, SMS, and push notifications.
+### 12.12 Design a Hotel Booking System
 
-The system should support:
-- Selecting a channel and rendering message templates.
-- Validating recipients and respecting user preferences or opt-outs.
-- Recording notification status and handling provider failures.
-- Retries, duplicate requests, provider rate limits, and adding new channels.
+Design a hotel booking system that supports searching for available rooms, reserving rooms for date ranges, confirming bookings, and cancelling reservations. Prevent conflicting bookings and consider payment, temporary holds, and concurrent attempts to reserve the last available room.
 
-Clarify whether sending is synchronous or asynchronous, what delivery guarantees are expected, and whether a provider acceptance response should be considered successful delivery.
+### 12.13 Design a Ride-Booking System
 
-### 12.7 Payment processing system
+Design a ride-booking system that matches riders with drivers and tracks a trip from request to completion. Support driver acceptance or rejection, trip status, fare calculation, cancellation, timeouts, and driver unavailability.
 
-Design a payment component that supports one or more payment providers and exposes a consistent API to the application.
+### 12.14 Design a Meeting Room Scheduler
 
-The system should support:
-- Creating a payment and authorizing, capturing, or charging it according to the chosen flow.
-- Tracking payment states and mapping provider responses to internal outcomes.
-- Handling duplicate client requests and idempotency keys.
-- Processing provider callbacks and recovering from timeouts or uncertain outcomes.
-- Supporting refunds or voids if they are in scope.
+Design a meeting-room scheduler that supports availability search, booking creation and cancellation, room capacity and equipment requirements, and optional recurring meetings. Prevent overlapping bookings, including concurrent booking requests.
 
-Clarify which payment lifecycle operations are required and how the application should resolve a timeout when the provider may have completed the operation but its response was lost. Do not treat a network timeout as definitive proof of payment failure.
+### 12.15 Design an Inventory Management System
 
-### 12.8 Logging framework
+Design an inventory system that tracks stock by product and location. Support stock reservations, releases, fulfilment, adjustments, and reconciliation while preventing invalid quantities and duplicate inventory operations.
 
-Design a reusable logging framework for application code.
+### 12.16 Design a Task Scheduler
 
-The system should support:
-- Named loggers and configurable severity levels.
-- Structured log events with timestamps and contextual fields.
-- Multiple outputs, such as console and file appenders.
-- Filtering, formatting, and runtime configuration changes if required.
-- Handling slow or failing appenders and safely shutting down buffered logging.
+Design a task scheduler that supports one-time and recurring tasks, execution dispatch, cancellation, retries, and execution status. Consider process restarts, missed schedules, duplicate execution, time zones, and multiple workers.
 
-Clarify whether logging is synchronous or asynchronous, whether event ordering matters, and what level of log loss is acceptable during overload or process shutdown.
+### 12.17 Design a File Storage and Metadata Management System
 
-### 12.9 In-memory cache
+Design a file storage service that supports upload, metadata lookup, authorized download, deletion, and optional versioning. Consider large or multipart uploads, file validation, access control, interrupted uploads, and failures between file storage and metadata persistence.
 
-Design a thread-safe in-memory cache that supports storing and retrieving key-value entries under a configured memory or entry limit.
+### 12.18 Design an ATM
 
-The system should support:
-- Get, put, update, and remove operations.
-- An eviction policy such as LRU or LFU.
-- Expiration, such as time-to-live, if required.
-- Concurrent access and predictable behavior when entries expire or capacity is exceeded.
+Design an ATM that supports card/PIN authentication, balance inquiry, cash withdrawal, cash inventory, and receipts. Consider insufficient funds, unavailable denominations, hardware failure, and the case where an account is debited but cash is not dispensed.
 
-Clarify how cache values are loaded, whether stale values are acceptable, how invalidation works, and whether the cache is local to one process. Consider cache stampedes, bounded memory usage, and per-key load coordination as follow-ups.
+### 12.19 Design a Pub/Sub Event Dispatcher
 
-### 12.10 Splitwise / expense sharing
+Design an event dispatcher that allows publishers to publish typed events and subscribers to register handlers. Consider registration and unregistration, synchronous or asynchronous delivery, ordering, handler failures, and duplicate events.
 
-Design an expense-sharing application in which a group of people can record shared expenses and understand who owes whom.
+### 12.20 Design a Pluggable Rule Engine
 
-The system should support:
-- Creating groups and managing group members.
-- Recording an expense with a payer, total amount, and participants.
-- Equal, exact-amount, and percentage-based splits.
-- Viewing each participant's net balance and recording settlements.
-- Editing or deleting expenses under clearly defined rules.
-
-Clarify currency handling, rounding and remainder allocation, audit history, and whether debt simplification is required. Use exact monetary arithmetic rather than binary floating-point values.
-
-### 12.11 Food ordering
-
-Design a food-ordering system that allows customers to place orders with restaurants and follow them through fulfilment.
-
-The system should support:
-- Browsing menus and item availability.
-- Creating an order with prices and quantities.
-- Restaurant acceptance or rejection and order status tracking.
-- Payment, preparation, delivery, cancellation, and refunds as applicable.
-- Handling unavailable items, price changes, and duplicate order requests.
-
-Clarify when inventory is reserved and payment is authorized or captured, which actors can change each status, and which cancellation rules apply.
-
-### 12.12 Hotel booking
-
-Design a hotel booking system that lets users search for accommodation and reserve rooms for a date range.
-
-The system should support:
-- Searching by location, dates, room type, and relevant availability criteria.
-- Creating and confirming a reservation.
-- Preventing conflicting reservations beyond the property's inventory.
-- Cancellation, refunds or fees, and expiring temporary holds if used.
-
-Clarify check-in and check-out boundary rules, time zones, room inventory, overbooking policy, and how concurrent attempts to book the final available room should be handled.
-
-### 12.13 Ride booking
-
-Design a ride-booking system that connects a rider with a suitable driver and tracks a trip from request to completion.
-
-The system should support:
-- Creating and cancelling ride requests.
-- Matching drivers and managing offer acceptance or rejection.
-- Tracking driver and trip states.
-- Calculating fares and recording payment outcomes.
-- Handling driver unavailability, timeouts, repeated commands, and cancellation fees.
-
-Clarify driver-selection criteria, dispatch timeouts, location freshness, fare rules, and what happens if a driver becomes unavailable after accepting a request.
-
-### 12.14 Meeting room scheduler
-
-Design a meeting-room booking system for an organization with multiple rooms and employees.
-
-The system should support:
-- Searching for rooms available for a requested time interval.
-- Creating, updating, and cancelling bookings.
-- Checking room capacity and equipment requirements.
-- Supporting attendees and recurring meetings if required.
-- Preventing overlapping confirmed bookings, including under concurrent requests.
-
-Clarify time-zone handling, interval boundary semantics, recurrence rules, organizer permissions, and how conflicts are resolved when a booking is modified.
-
-### 12.15 Inventory management
-
-Design an inventory system that tracks products and stock across one or more storage locations.
-
-The system should support:
-- Tracking stock by product/SKU and location.
-- Reserving stock for an order, releasing reservations, and confirming fulfilment.
-- Handling concurrent reservations without allowing invalid stock quantities.
-- Supporting shipment, adjustment, and stock reconciliation.
-- Preventing duplicate commands from changing inventory twice.
-
-Clarify the meaning of on-hand, reserved, and available quantities; whether partial fulfilment and multi-warehouse allocation are required; and how reservation expiry or damaged stock is handled.
-
-### 12.16 Task scheduler
-
-Design a task scheduler that lets applications schedule work to run once or repeatedly.
-
-The system should support:
-- Creating, updating, pausing, and cancelling scheduled tasks.
-- Supporting one-time and recurring schedules.
-- Dispatching due tasks to handlers.
-- Recording execution outcomes and retrying eligible failures.
-- Handling task timeouts, duplicate delivery, missed schedules, and process restarts.
-
-Clarify durability requirements, time-zone semantics, recurrence syntax, retry limits, execution ordering, and whether multiple worker instances must process tasks safely.
-
-### 12.17 File storage and metadata management
-
-Design a file storage service that stores file content and maintains searchable metadata about each file.
-
-The system should support:
-- Uploading files and retrieving metadata.
-- Downloading files only when the caller is authorized.
-- Deleting files and optionally keeping versions.
-- Recording attributes such as owner, size, media type, checksum, and timestamps.
-- Handling large or multipart uploads, interrupted uploads, duplicate requests, and partial failures.
-
-Clarify size limits, retention policy, access-control model, versioning, content validation, and whether file bytes pass through the application or are uploaded directly to object storage.
-
-### 12.18 ATM
-
-Design an ATM application that supports common banking operations using external banking services and physical cash-dispensing hardware.
-
-The system should support:
-- Card and PIN authentication.
-- Balance inquiry and cash withdrawal; deposits may be included if required.
-- Cash inventory and denomination selection.
-- Transaction status, receipts, and session termination.
-- Handling insufficient balance, insufficient cash, hardware failure, and uncertain banking responses.
-
-Clarify whether the bank ledger is part of the design and how the system should recover when an account is debited but the ATM fails to dispense the requested cash.
-
-### 12.19 Pub/sub event dispatcher
-
-Design an event dispatcher that allows publishers to publish typed events and subscribers to register handlers for those event types.
-
-The system should support:
-- Registering and unregistering handlers.
-- Delivering events to the appropriate subscribers.
-- Defining synchronous or asynchronous execution.
-- Isolating handler failures according to an explicit policy.
-- Handling concurrent registration and publication.
-
-Clarify delivery ordering, retry behavior, duplicate handling, backpressure, and whether events need to survive process restarts. State explicitly whether this is an in-process component or a durable cross-process messaging system.
-
-### 12.20 Pluggable rule engine
-
-Design a rule engine that evaluates configurable business rules, such as eligibility checks, pricing rules, or request routing.
-
-The system should support:
-- Defining rules and applying them to validated input.
-- Choosing evaluation order and short-circuit behavior.
-- Handling multiple matching rules and conflicts.
-- Versioning or replacing rules without rewriting the engine, if required.
-- Explaining which rule or rules produced a result.
-
-Clarify who authors the rules, how they are validated, whether rule execution must be deterministic, and how rule versions and evaluation outcomes should be audited. Treat arbitrary user-supplied code execution as out of scope unless a safe execution model is explicitly part of the problem.
+Design a rule engine for evaluating business rules such as eligibility, pricing, or routing. Support rule registration, evaluation order, short-circuiting, conflicting matches, rule updates, and explaining why a result was produced.
 
 
 ---
