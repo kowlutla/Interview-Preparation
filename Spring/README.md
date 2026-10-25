@@ -4,7 +4,7 @@ This directory contains a comprehensive interview-preparation handbook for Java 
 
 ## Start here
 
-**[Complete Spring + Spring Boot Interview Handbook](Spring-Boot-Interview-Handbook.md)**
+**[Complete Spring + Spring Boot Interview Handbook](Spring-Interview-QA.md)**
 
 The consolidated handbook contains **298 sequentially numbered questions** across 27 topic areas, including Spring fundamentals, IoC/DI, beans and scopes, configuration, AOP/proxies, Spring Boot, auto-configuration, MVC/REST, exception handling, transactions, Spring Data JPA, Security, testing, REST clients, WebFlux, Actuator/observability, caching, async/scheduling, messaging, Spring Cloud, production readiness, troubleshooting, internals, migration, and specialized Spring ecosystem modules.
 
