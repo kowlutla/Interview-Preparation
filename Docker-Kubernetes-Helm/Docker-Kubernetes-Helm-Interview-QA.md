@@ -160,9 +160,9 @@ Start with `docker ps -a`, then examine `docker logs <container>` and `docker in
 Run the application in the foreground as the main container process. In Kubernetes, also inspect Pod events and current/previous container logs; repeated failures may lead to `CrashLoopBackOff`, which is Kubernetes backing off between restarts, not the underlying cause. If the container exits before logs appear, verify that the command actually launches the application and that the required files are present in the image.
 
 ### Q18. Why are immutable image tags and digests important?
-A tag is a convenient name, not an immutable identity: a registry can move a tag such as \`latest\` to different content. A digest identifies exact image content and is useful for audit trails, incident reproduction, and confirming which build actually ran. Prefer unique release tags and record the digest; promote the same tested image across environments instead of rebuilding it for each environment.
+A tag is a convenient name, not an immutable identity: a registry can move a tag such as `latest` to different content. A digest identifies exact image content and is useful for audit trails, incident reproduction, and confirming which build actually ran. Prefer unique release tags and record the digest; promote the same tested image across environments instead of rebuilding it for each environment.
 
-Also understand \`imagePullPolicy\`. When a workload is first created and the field is omitted, Kubernetes defaults to \`Always\` if the tag is \`latest\` or no tag is specified, and to \`IfNotPresent\` for a non-\`latest\` tag or a digest reference. Importantly, Kubernetes sets this default at object creation; changing the image tag later does not automatically recalculate the pull policy. With a mutable tag and \`IfNotPresent\`, a node may use a cached image instead of pulling the tag's current content. Prefer immutable tags or digests and make the pull policy consistent with the release process.
+Also understand `imagePullPolicy`. When a workload is first created and the field is omitted, Kubernetes defaults to `Always` if the tag is `latest` or no tag is specified, and to `IfNotPresent` for a non-`latest` tag or a digest reference. Importantly, Kubernetes sets this default at object creation; changing the image tag later does not automatically recalculate the pull policy. With a mutable tag and `IfNotPresent`, a node may use a cached image instead of pulling the tag's current content. Prefer immutable tags or digests and make the pull policy consistent with the release process.
 
 ### Q19. How should an application handle shutdown signals?
 With exec-form `ENTRYPOINT`, Java is launched without an unnecessary shell layer, so it can receive the container's termination signal. With Kubernetes, deletion starts a bounded termination period: a configured `preStop` hook runs within that grace period, the runtime sends the stop signal, and the container is force-killed if it has not exited before the deadline.
@@ -443,13 +443,13 @@ resources:
 The chart's `version` identifies the chart package; `appVersion` is informational metadata about the application unless templates explicitly use it. Do not assume changing `appVersion` changes the deployed image tag. Render the chart using the same values and flags as the real release process, and review the resulting Pod template, config references, ports, probes, and resources.
 
 ### Q55. How do you inspect and validate a chart before deploying?
-Run \`helm lint ./chart\` to catch common chart issues and \`helm template orders ./chart -f values-prod.yaml\` to inspect rendered resources locally. Review image reference, labels/selectors, ports, probes, Secret/ConfigMap references, resource settings, and rollout strategy. Local \`helm template\` rendering does not contact the cluster to validate that every API resource/version is supported, and chart functions that normally read cluster data may be evaluated with local/fake capabilities.
+Run `helm lint ./chart` to catch common chart issues and `helm template orders ./chart -f values-prod.yaml` to inspect rendered resources locally. Review image reference, labels/selectors, ports, probes, Secret/ConfigMap references, resource settings, and rollout strategy. Local `helm template` rendering does not contact the cluster to validate that every API resource/version is supported, and chart functions that normally read cluster data may be evaluated with local/fake capabilities.
 
 Where the installed Helm version supports it, use a server-side dry run against the target cluster as an additional check, for example:
 
-\`\`\`bash
+```bash
 helm upgrade --install orders ./chart -n production -f values-prod.yaml --dry-run=server --debug --hide-secret
-\`\`\`
+```
 
 Dry-run/debug output can still contain sensitive application configuration; keep it private, and use the secret-hiding option supported by your Helm version. Even a server-side dry run is not a replacement for a controlled rollout and application smoke tests.
 
