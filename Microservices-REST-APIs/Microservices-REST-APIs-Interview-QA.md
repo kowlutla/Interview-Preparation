@@ -712,6 +712,143 @@ Set an end-to-end deadline and give each dependency a budget. Reduce unnecessary
 
 Validate the fix with a load test and percentile histograms. An improved average alone is not acceptance evidence.
 
+
+### Q84. Your API starts returning HTTP 429 responses after a client integration goes live. How do you investigate and fix it?
+
+First establish whether the rate limit is expected policy or an accidental limit caused by incorrect identity, routing, or configuration. Compare request rates by client, tenant, credential, endpoint, and gateway instance. Check whether retries are multiplying traffic and whether limits are applied consistently across replicas.
+
+Define limits around the resource being protected: per API key or tenant for fairness, and sometimes a global concurrency or capacity limit for a fragile dependency. Return `429 Too Many Requests` with a useful error body and, when appropriate, `Retry-After`. Clients should use bounded exponential backoff with jitter and respect the server's guidance; immediate retries make overload worse.
+
+Do not simply raise the limit until the database or downstream is saturated. Load-test the proposed policy, document quotas, and make rate-limit metrics distinguish legitimate demand from retry storms.
+
+### Q85. A cache makes the API fast, but users sometimes see stale data. How would you diagnose and correct it?
+
+Identify the freshness requirement first: a product description may tolerate a short delay, while account balance or authorization state may not. Trace the read path and determine whether staleness comes from TTL, failed invalidation, asynchronous event lag, replica lag, or a cache key that omits a tenant or version dimension.
+
+Choose a strategy that matches the requirement: short TTL for bounded staleness, explicit invalidation after successful writes, versioned keys, or read-through refresh. For critical read-after-write behavior, bypass or update the cache for the writer's next read rather than assuming invalidation is instantaneous across every node.
+
+Test invalidation failure and concurrent updates, monitor cache age and hit rate, and provide a repair path. A cache is a performance layer, not the source of truth; never let a cache-only value silently become authoritative business data.
+
+### Q86. A paginated REST endpoint skips or repeats records while data changes. What would you change?
+
+Offset pagination is easy to understand, but inserts and deletes before the current offset can shift rows between requests. Ensure ordering is deterministic, including a unique tie-breaker; ordering only by a non-unique timestamp is not enough.
+
+For large or frequently changing datasets, prefer keyset (cursor) pagination using the last seen ordered values, such as `created_at` plus a unique ID. The cursor should be opaque, validated, and bound to the relevant filter and sort criteria so clients cannot accidentally reuse it for a different query. If the product requires a stable snapshot across pages, explain the snapshot or versioning mechanism because cursor pagination alone does not freeze the dataset.
+
+Set maximum page sizes, validate filters, index the sort path, and test concurrent inserts/deletes. The right answer depends on whether the requirement is simple browsing, deep traversal, or a consistent export.
+
+### Q87. A request triggers work that takes several minutes and exceeds gateway timeouts. How should the API be designed?
+
+Do not keep an HTTP request open indefinitely. Accept the request, validate it, create a durable job or operation record, and return `202 Accepted` with a stable operation URL and an appropriate `Location` header. The client can poll that resource or receive a callback/event if the product supports it. The status resource should represent states such as queued, running, succeeded, failed, and cancelled, with safe error details.
+
+Persist the job before acknowledging acceptance; otherwise a process restart can lose work that the client believes was accepted. Workers need bounded retries, idempotent processing, concurrency limits, and a dead-letter or operator-recovery path for poison jobs.
+
+Document retention, cancellation semantics, progress reporting, and how clients resume after losing the response. A queue alone is not a complete job API: the operation's lifecycle and failure contract must also be designed.
+
+### Q88. Your service sends webhooks, but customers report missed or duplicate notifications. What is the design?
+
+Treat webhook delivery as an at-least-once asynchronous workflow. Persist an event or delivery task durably, send it with a stable event ID, and record each attempt and its outcome. Retry transient failures with exponential backoff and jitter, but cap attempts or age and expose failed deliveries for inspection and replay.
+
+The receiver may process the webhook and then lose its response, so the sender cannot know whether the side effect occurred. Duplicate delivery is therefore expected: consumers should deduplicate by event ID and make processing idempotent. Sign payloads or requests using a documented signature scheme, include timestamps to reduce replay risk, and provide secret rotation.
+
+Offer delivery history, replay controls, endpoint-disable safeguards, and clear timeout/response requirements. Never claim exactly-once delivery across two independently operated systems; define delivery guarantees and make duplicates safe.
+
+### Q89. Authentication succeeds at the API gateway, but a downstream service rejects the request—or accepts too much. How do you troubleshoot it?
+
+Map the identity and authorization flow end to end. Check token issuer, audience, expiry, signing-key rotation, scopes/roles, and whether the downstream is receiving the intended user or service identity. A token valid for the gateway is not automatically valid for every backend. Inspect clock skew and key-cache refresh behavior without logging raw tokens.
+
+Choose an explicit trust model: each service validates a suitable access token, or the gateway authenticates the external caller and forwards a narrowly scoped, cryptographically trustworthy identity assertion over authenticated internal channels. Do not trust arbitrary identity headers supplied by clients; strip and overwrite them at the boundary.
+
+Separate authentication (who is calling) from authorization (what this caller may do). Add negative tests for wrong audiences, missing scopes, expired tokens, and cross-tenant access, and ensure gateway bypass paths cannot expose unprotected services.
+
+### Q90. One tenant's workload degrades the API for everyone else. How would you enforce tenant fairness?
+
+Measure traffic, concurrency, queue depth, latency, and resource consumption by tenant, then identify whether the shared bottleneck is CPU, database connections, storage, or a downstream quota. Apply tenant-aware rate limits and concurrency budgets, and use bounded queues so one tenant cannot occupy all workers. Priority classes can protect critical operations, but their policy must be explicit and observable.
+
+Isolation may also require per-tenant database quotas, partitioning, or separate infrastructure for high-value or regulated tenants. Avoid placing tenant IDs only in logs: tenant identity must be enforced in authorization checks, cache keys, queries, and asynchronous messages.
+
+Test a noisy-neighbor workload alongside normal tenants and verify that throttling one tenant does not starve others. Fairness should be demonstrated with per-tenant SLOs, not assumed because the service has multiple replicas.
+
+### Q91. A bulk REST endpoint processes 500 items, but 7 items fail. What should its contract look like?
+
+Decide whether the operation is atomic or allows partial success. If all-or-nothing semantics are required, validate before committing where possible and use a transaction only if the data and side effects fit within its boundary. If partial success is allowed, return a result for each item with a stable item identifier, outcome, and machine-readable error; do not return only a generic success status that hides failures.
+
+Document whether the endpoint is synchronous or creates an asynchronous job, how clients retry failed items, and whether repeating the entire batch is safe. Use per-item idempotency or stable business keys to prevent duplicate effects when a client retries after a connection failure.
+
+Bound batch size and processing time, validate all input, and avoid one malformed item silently aborting unrelated items unless that is the promised contract. Test mixed outcomes, duplicate items, and failure after some items have committed.
+
+### Q92. A database column or event field must change while old and new service versions run together. How do you roll it out safely?
+
+Use an expand-and-contract migration. First add the compatible schema or field without removing the old one. Deploy readers that can handle both forms, then update writers in a controlled sequence. Backfill existing data, compare old and new representations, and switch reads only after validation. Remove the old field in a later release after all application instances, consumers, and replay paths no longer depend on it.
+
+For event contracts, prefer additive optional fields with defined defaults and tolerant handling of unknown fields where the format and business semantics permit it. A field whose meaning changes is not compatible merely because its name and type stay the same.
+
+Automate compatibility checks and test mixed-version deployments and event replay. Dual writes introduce their own consistency problem, so define a source of truth and a reconciliation plan rather than leaving two fields to drift indefinitely.
+
+### Q93. Clients need to upload multi-gigabyte files through your REST service. What architecture would you propose?
+
+Avoid proxying every byte through a general-purpose application service if it creates unnecessary memory, bandwidth, or timeout pressure. A common design is for the API to authenticate and authorize the upload, create an upload session, and issue a short-lived, narrowly scoped signed URL to object storage. The client uploads directly, then calls a completion endpoint or triggers a verified storage event.
+
+Validate file size, type, checksum, ownership, and upload state; do not trust a client-supplied filename or content type as proof of safety. Use multipart/resumable uploads where supported, and scan or quarantine content before making it available to downstream consumers.
+
+Make completion idempotent, expire abandoned sessions, and prevent public exposure before validation. Consider malware scanning, retention, encryption, auditability, and cleanup as part of the API contract—not merely storage configuration.
+
+### Q94. A region becomes unavailable and the business asks for automatic failover. What questions must be answered before enabling it?
+
+Determine which operations must remain available, the acceptable recovery time objective (RTO) and recovery point objective (RPO), and whether writes can be safely accepted in another region. Active-active deployments require explicit conflict handling and a data model that tolerates concurrent updates; active-passive deployments need a tested promotion and traffic-switch procedure.
+
+Check dependencies beyond compute: identity, secrets, DNS, queues, object storage, databases, rate limits, and third-party services. A healthy application in a second region is not useful if its data is stale or it cannot authenticate. Avoid automatic failover that creates split-brain writers or silently loses acknowledged writes.
+
+Run failover and failback exercises, verify replication lag and data integrity, and define who decides to promote a region. Recovery objectives are operational commitments that must be tested against real failure modes.
+
+### Q95. A cache miss causes hundreds of concurrent requests to recompute the same expensive value. How do you prevent this cache stampede?
+
+Recognize the pattern by correlating a cache expiry or eviction with a sudden increase in backend calls and latency. Use request coalescing or single-flight behavior so concurrent callers share one refresh. For suitable data, refresh before expiry, add jitter to TTLs to avoid synchronized expiration, or serve a bounded-stale value while one refresh runs.
+
+A distributed lock can coordinate refreshes across instances, but it adds lease, expiry, and failure concerns; do not introduce one without a clear need. Bound refresh concurrency and ensure failed refreshes do not trigger an unbounded retry loop.
+
+Measure backend load during expiry events and test cold-cache behavior, not only warm-cache throughput. Stale-while-revalidate is appropriate only when the business accepts the defined staleness window.
+
+### Q96. Distributed traces stop at one service boundary. What would you check?
+
+Verify that the incoming trace context is extracted and the outgoing context is injected using the agreed propagation standard, such as W3C Trace Context. Check HTTP clients, message producers/consumers, asynchronous executors, and framework instrumentation; custom thread pools or manually constructed requests can break propagation. Confirm that services do not accidentally start a new root trace for every hop.
+
+Use trace IDs and span IDs for correlation, but do not treat them as business identifiers or put sensitive data in baggage. Sampling may explain why only some spans are visible, so inspect sampling configuration and exporter failures before assuming instrumentation is broken.
+
+Validate with a known request that crosses synchronous and asynchronous boundaries. Combine traces with structured logs and metrics; tracing is diagnostic evidence, not a substitute for service-level error and saturation monitoring.
+
+### Q97. A user can access another customer's order by changing the ID in the URL. What is the root issue and how do you fix it?
+
+This is a broken object-level authorization issue. Authentication proves who the caller is; it does not prove that the caller owns or may access a particular order. Enforce authorization on every operation that reads or mutates an object, using the authenticated principal and the object's tenant/owner/relationship. Prefer queries scoped to the authorized tenant or owner when practical, rather than fetching an unrestricted record and relying on every caller to remember a later check.
+
+Do not rely on unpredictable IDs as the security control. Apply the same checks to nested resources, bulk endpoints, exports, background jobs, and cached responses. Avoid leaking whether another tenant's object exists if that information is sensitive.
+
+Add integration tests that use two principals and attempt cross-tenant reads, updates, deletes, and indirect references. Audit access failures without recording secrets or unnecessary personal data.
+
+### Q98. An API's response time regresses after adding a new field to the response. How do you prove whether the field is responsible?
+
+Compare before-and-after traces, response sizes, serialization time, database query plans, downstream calls, and p95/p99 latency by endpoint and payload size. The field might add an expensive join, trigger lazy-loading N+1 queries, increase JSON serialization and network transfer, or cause clients to perform additional work. Correlation alone is not proof, so reproduce the change with representative data and controlled load.
+
+Use query-count assertions or profiling to catch N+1 behavior, and avoid fetching large nested object graphs when the contract needs only a summary. If the data is expensive or optional, consider a separate expansion parameter or dedicated endpoint, but keep the contract predictable and protect against unbounded expansions.
+
+Roll back or gate the expensive behavior if user impact is severe. Add performance tests and budgets for response size and query count, not just functional tests.
+
+### Q99. Two services show different values for what should be the same business fact. How do you restore consistency?
+
+First identify the authoritative owner and whether the difference is expected propagation lag or a real correctness defect. Compare event IDs, entity versions, timestamps, consumer offsets or checkpoints, failed-message queues, and the time since the last successful update. Do not “fix” the discrepancy by letting both services overwrite each other's data.
+
+Provide a reconciliation process that compares authoritative state with projections, detects missing or duplicate events, and repairs derived data idempotently. If events can arrive out of order, use entity versions or sequence numbers to reject stale updates; if a consumer is stuck, fix the cause before replaying a large backlog.
+
+Track projection lag, reconciliation discrepancies, and repair outcomes. Define which reads may be stale and how long, and make rebuilds/replays safe. Reconciliation is a normal control for distributed systems, not an exceptional manual database-editing procedure.
+
+### Q100. A client disconnects or cancels a request, but expensive downstream work continues. How should cancellation and deadlines propagate?
+
+Distinguish client cancellation from a server-side timeout and from an operation that has already committed. Propagate a deadline budget to downstream calls rather than giving every hop a fresh full timeout; otherwise a request can outlive the caller's useful time window. Cancel work that is safe to stop, release resources, and ensure queued tasks can be removed or marked cancelled.
+
+Cancellation is not rollback. If a payment or order has crossed its commit point, the service must report or expose the operation's actual state rather than imply that disconnecting undid it. Long-running jobs should use an explicit cancellation API with documented state transitions and cooperative worker checks.
+
+Test disconnects, timeouts at different hops, cancellation races, and cleanup of database connections and executor tasks. Monitor abandoned work so client impatience does not silently consume production capacity.
+
 ## 11. References
 
 These sources support protocol semantics and implementation practices. Interview emphasis and examples in this handbook are synthesized rather than copied verbatim.
