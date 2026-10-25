@@ -1257,6 +1257,157 @@ LTS means a vendor offers an extended support commitment for that release; the e
 
 Track at least three states: first introduced, preview/incubator status if applicable, and final release. For example, virtual threads appeared as preview before becoming final in Java 21. This avoids saying that a feature was stable merely because it appeared in an earlier release.
 
+
+### Q185. How do you find the longest string in a list with streams?
+
+    Optional<String> longest = words.stream()
+        .max(Comparator.comparingInt(String::length));
+
+The result is optional because the source may be empty. If several strings have the same maximum length, the contract may not express which one should win in every stream configuration; define a tie-breaker if deterministic selection matters.
+
+### Q186. How do you safely handle null values before sorting?
+
+    List<String> sorted = values.stream()
+        .filter(Objects::nonNull)
+        .sorted()
+        .toList();
+
+Filtering nulls is one possible policy, but it is not always the correct business behavior. Another option is a null-aware comparator such as Comparator.nullsLast. State the policy explicitly rather than letting a NullPointerException decide it.
+
+### Q187. How do you use mapMulti, and when might it be useful?
+
+    Stream<String> tokens = lines.stream()
+        .<String>mapMulti((line, out) -> {
+            for (String token : line.split("\\s+")) {
+                out.accept(token);
+            }
+        });
+
+mapMulti can emit zero or more results for each input element and can be useful for simple one-to-many transformations without creating an inner stream for every element. It became a standard Stream API method in Java 16. Prefer flatMap when it communicates the transformation more clearly.
+
+### Q188. How do you use takeWhile and dropWhile?
+
+    List<Integer> prefix = values.stream()
+        .takeWhile(n -> n < 10)
+        .toList();
+
+    List<Integer> remainder = values.stream()
+        .dropWhile(n -> n < 10)
+        .toList();
+
+For ordered streams, takeWhile keeps the longest matching prefix and dropWhile skips that prefix. They are not equivalent to filter: filter can retain later matching values after a non-matching value appears.
+
+### Q189. What does Collectors.teeing do?
+
+    Summary summary = values.stream().collect(
+        Collectors.teeing(
+            Collectors.minBy(Integer::compareTo),
+            Collectors.maxBy(Integer::compareTo),
+            Summary::new));
+
+teeing sends each input to two downstream collectors and combines their results with a merger. It can calculate related summaries in one traversal, but the result type and empty-input behavior still need a clear design.
+
+### Q190. What are the common pitfalls of Collectors.toMap?
+
+Duplicate keys cause an exception unless a merge function is supplied. A null key or value may also be rejected depending on the collector and map implementation. Decide whether duplicates are invalid, should overwrite, or should be aggregated; do not add a merge function just to silence an exception without defining the rule.
+
+### Q191. How do you use a method reference, and when is a lambda clearer?
+
+    names.stream().map(String::trim).toList();
+
+A method reference is concise when an existing method exactly matches the functional interface's shape. A lambda can be clearer when it performs additional logic, handles edge cases, or makes the transformation more explicit. Choose readability rather than using method references everywhere.
+
+### Q192. What is the effectively final rule for captured local variables?
+
+A lambda can capture a local variable only when it is final or effectively final, meaning its value is assigned once and not reassigned. This rule avoids the appearance that a lambda is sharing a mutable local stack variable across execution contexts. It does not make the referenced object immutable: a captured reference can still point to a mutable object.
+
+### Q193. How should you use Comparator.comparing with nullable fields?
+
+    Comparator<Employee> byName = Comparator.comparing(
+        Employee::getName,
+        Comparator.nullsLast(Comparator.naturalOrder()));
+
+The comparator defines how null names are ordered. Make null handling explicit in the comparator or validate the data before sorting. Comparator composition should also include tie-breakers when deterministic ordering is important.
+
+### Q194. How do you avoid accidental integer overflow in stream sums?
+
+    long total = values.stream()
+        .mapToLong(Integer::longValue)
+        .sum();
+
+Summing into a wider primitive reduces the risk of 32-bit overflow, but long can overflow too. For exact large integer totals, use BigInteger; for decimal financial values, choose BigDecimal with an explicit rounding policy.
+
+### Q195. What is the difference between mapToInt and map?
+
+map transforms each input into another reference value and produces a Stream of objects. mapToInt produces an IntStream, which provides primitive-specialized operations such as sum and summaryStatistics and avoids boxing each value. Use primitive streams when the result is numeric and their operations make the code clearer.
+
+### Q196. How do you combine two independent asynchronous tasks with CompletableFuture?
+
+    CompletableFuture<Result> a = loadA();
+    CompletableFuture<Result> b = loadB();
+
+    CompletableFuture<Combined> combined =
+        a.thenCombine(b, Combined::new);
+
+thenCombine waits for both stages and combines their results. The tasks are independent only if their creation starts the work independently. Consider failure propagation, deadlines, executor choice, and whether one failed result should cancel or merely affect the combined outcome.
+
+### Q197. What is the difference between thenApply and thenCompose?
+
+thenApply transforms a result synchronously into another value. thenCompose is used when the transformation itself returns a CompletableFuture, flattening the nested asynchronous result. Use thenCompose to chain dependent asynchronous operations without producing CompletableFuture<CompletableFuture<T>>.
+
+### Q198. How do you handle an exceptional CompletableFuture result?
+
+    future.exceptionally(error -> fallbackValue);
+
+exceptionally can recover from a failure by producing a fallback result. handle can inspect either success or failure and transform both; whenComplete is intended for observation while preserving the original outcome. Do not silently convert every error into a default value if doing so hides a business failure.
+
+### Q199. How do you make a Java object immutable in practice?
+
+Make the class's state private, initialize it completely during construction, avoid setters, and prevent mutable internal objects from escaping. Use defensive copies for mutable input and output collections. Final fields help express initialization guarantees but do not make a referenced list or date-like mutable object immutable by themselves.
+
+### Q200. What is the difference between a record and a regular class?
+
+A record is a concise declaration for a data carrier with generated component accessors and value-oriented equality, hashing, and string representation. A regular class gives more freedom over inheritance, mutable lifecycle state, and representation. Records are implicitly final and cannot extend another class, so choose them based on domain semantics rather than code-length reduction alone.
+
+### Q201. How does pattern matching for switch improve code?
+
+    String description = switch (value) {
+        case String s -> "text: " + s;
+        case Integer i -> "number: " + i;
+        case null -> "missing";
+        default -> "other";
+    };
+
+Pattern matching can combine type testing and binding, reducing repeated casts and making alternatives easier to read. The exact supported syntax depends on the Java release; pattern matching for switch became final in Java 21, while primitive patterns remained preview in Java 25.
+
+### Q202. What are module import declarations in Java 25?
+
+Java 25 finalized module import declarations, which allow importing the exported packages of a module with a module-oriented import form. They can reduce import boilerplate in some applications, but they do not replace understanding module dependencies, exported packages, or classpath/module-path behavior. Verify the syntax against the Java 25 language documentation before using it in a code sample.
+
+### Q203. What are compact source files and instance main methods in Java 25?
+
+Java 25 finalized compact source files and instance main methods, making small teaching programs and simple utilities possible with less ceremony. They reduce the amount of scaffolding required for beginner examples, but traditional classes and static main methods remain important for libraries and conventional applications. These features are useful to recognize in newer examples without assuming all production code should adopt the compact form.
+
+### Q204. What are flexible constructor bodies in Java 25?
+
+Java 25 finalized flexible constructor bodies, which permit certain statements before an explicit superclass constructor invocation while preserving restrictions needed for safe construction. This can make constructor validation and initialization logic clearer. It does not mean that a constructor may freely use the partially initialized object before the superclass constructor has run.
+
+### Q205. What is ScopedValue, and how is it different from ThreadLocal?
+
+Scoped values provide a way to share immutable or effectively immutable contextual data across a bounded dynamic scope, including supported task structures. Java 25 finalized scoped values. ThreadLocal associates data with a thread and can be easy to misuse with pooled threads if values are not cleared; scoped values make lifetime and propagation intent more explicit. They are not a universal replacement for every ThreadLocal use case.
+
+### Q206. What is the status of structured concurrency in Java 25?
+
+Structured concurrency remained a preview API in Java 25, while scoped values became final. Structured concurrency treats related concurrent subtasks as a unit with a common lifetime and coordinated failure handling. Since preview APIs can change and require enablement, verify the target JDK release before using them in production code or describing them as finalized.
+
+### Q207. What performance-oriented Java 25 changes should you recognize?
+
+Java 25 includes performance and runtime improvements such as compact object headers, ahead-of-time cache and method-profiling work, generational Shenandoah, and JFR improvements. Some behavior depends on flags, platform, or collector choice. The interview-level answer should explain the problem each feature targets and emphasize measuring a representative workload rather than enabling tuning flags by intuition.
+
+### Q208. Which Java 25 features are finalized versus preview or incubating?
+
+Among the language-facing finalized features are module import declarations, compact source files and instance main methods, and flexible constructor bodies. Scoped values and the Key Derivation Function API are also final. Primitive types in patterns/instanceof/switch remained a preview feature in Java 25; structured concurrency was still preview and the Vector API remained incubating. Check the official release documentation for the full feature and status list.
+
 ## 16. Last-minute revision
 
 If only a short time remains, prioritize these questions and make sure the explanations are clear enough to say aloud:
