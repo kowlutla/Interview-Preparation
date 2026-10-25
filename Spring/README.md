@@ -20,7 +20,6 @@ Answers are intended for interview preparation rather than API memorization: exp
 
 ## Quick revision and practice material
 
-- [51-question concise revision guide](Spring-Interview-QA.md) — a shorter refresher; it is not a replacement for the complete handbook.
 - [Common mistakes and tricky questions](29-Common-Mistakes-and-Tricky-Questions/README.md) — rapid-fire diagnostic prompts.
 - [Real-world production scenarios](27-Real-World-Scenarios/README.md) — incident-style reasoning practice.
 - [Mock interviews](28-Mock-Interviews/README.md) — structured practice at different experience levels.
