@@ -561,3 +561,341 @@ Log the exception and relevant safe identifiers at the boundary where it can be 
 - [Problem Details](https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-ann-rest-exceptions.html)
 
 ---
+
+## Spring Data Access and Transactions
+
+
+### Q109. What does @Transactional do?
+
+@Transactional declares transaction semantics for a method or class when transaction management is configured. In common Spring proxy mode, calls passing through the proxy are intercepted and a transaction manager coordinates the relevant resource transaction. The annotation does not make arbitrary remote calls atomic with a database write.
+
+### Q110. What is transaction propagation?
+
+Propagation determines how a method participates when a transaction already exists. REQUIRED joins an existing transaction or starts one; REQUIRES_NEW suspends an existing transaction and starts a separate one where supported; SUPPORTS can run with or without a transaction. Choose based on business consistency, locking, and failure semantics rather than treating propagation as a performance toggle.
+
+### Q111. What is transaction isolation?
+
+Isolation controls which effects of concurrent transactions are visible, subject to the database and transaction manager. Standard levels describe anomalies such as dirty reads, non-repeatable reads, and phantom reads, but exact behavior depends on the database implementation. Validate assumptions against the production database, not only an in-memory test database.
+
+### Q112. Does Spring roll back for every exception?
+
+Traditional declarative defaults generally roll back for unchecked exceptions and Errors, not all checked exceptions. Explicit rollback rules can change this. Since Spring Framework 6.2, transaction management can also be configured with a global `rollbackOn = ALL_EXCEPTIONS` policy; version and transaction-specific rollback rules still matter. A caught exception that never escapes the transactional boundary may not trigger rollback automatically, and rollback-only status can lead to an unexpected rollback at commit time.
+
+### Q113. Why might @Transactional appear not to work?
+
+Common causes include self-invocation bypassing the proxy, a method not being intercepted, transaction management not being enabled/configured, an unexpected transaction manager, or exception handling that prevents rollback rules from applying. Inspect transaction logs, proxy boundaries, propagation, and the actual exception path.
+
+### Q114. What is the difference between JdbcTemplate and NamedParameterJdbcTemplate?
+
+JdbcTemplate provides JDBC operations with resource handling and exception translation, using positional placeholders. NamedParameterJdbcTemplate supports named parameters that are expanded into JDBC placeholders. Both reduce repetitive JDBC plumbing but do not eliminate the need for correct SQL, transaction boundaries, or query performance analysis.
+
+### Q115. What does readOnly=true guarantee?
+
+It communicates that a transaction is intended to be read-only and may allow transaction-manager or persistence-provider optimizations. It is not a universal guarantee that the database will reject writes; behavior depends on the transaction manager, driver, and database. Do not use it as a security control.
+
+### Q116. Why is a database transaction not enough for reliable Kafka publishing?
+
+A local database transaction and a broker publish usually involve separate resource managers. One can succeed while the other fails, creating inconsistent state. Depending on the use case, use an outbox pattern, idempotent consumer, retry strategy, or a deliberately designed transaction integration; do not assume @Transactional alone creates distributed atomicity.
+
+### Q117. Which coding patterns hold JDBC connections longer than intended?
+
+Long transactions that include remote HTTP calls, slow processing, user interaction, or large result iteration can retain a connection while doing work that does not require the database. Keep transaction boundaries around the required database operation, avoid remote I/O inside them, and use bounded streaming/chunking where appropriate. Confirm the actual connection-acquisition/release lifecycle for the chosen transaction manager and data-access API.
+
+### Q118. What resource-pool risk does REQUIRES_NEW introduce?
+
+When an outer transaction holds a connection and a proxied inner call starts a REQUIRES_NEW transaction, the outer resources may remain bound while the inner transaction needs another connection. Under high concurrency, a small pool can become exhausted or cause threads to wait for connections held by their own suspended outer transactions.
+
+Use REQUIRES_NEW only when independent commit semantics are required. Size and test the connection pool against nested transactional call patterns, keep transaction scopes short, and remember that self-invocation may prevent the intended propagation from being applied.
+
+### Q119. When is NESTED propagation useful?
+
+Where the transaction manager and resource support it, NESTED can use a savepoint inside an existing transaction. It is not universally supported and should not be assumed equivalent to REQUIRES_NEW, which creates a separate transaction.
+
+### Q120. Why can a caught exception still lead to rollback failure at commit?
+
+An inner operation may mark the transaction rollback-only before the exception is caught. The outer method then returns normally, but commit cannot succeed and may result in an unexpected rollback exception. Trace where rollback-only was set rather than focusing only on the final return path.
+
+### Q121. What is the difference between a local transaction and a distributed workflow?
+
+A local transaction coordinates supported resources through one transaction manager. A workflow spanning HTTP services, databases, and a broker needs explicit reliability semantics such as outbox, idempotency, saga compensation, or a supported distributed transaction protocol where appropriate.
+
+### Q122. How can transaction boundaries affect connection pool usage?
+
+A transaction may hold a connection until completion. Long computation or remote calls inside the boundary increase hold time and pool pressure. Measure transaction duration and connection acquisition latency, and keep the critical section focused on required database work.
+
+### Q123. What is transaction-aware caching?
+
+It coordinates cache operations with transaction completion so changes are not made visible at an inappropriate phase. Exact behavior depends on the cache abstraction/provider configuration. Verify rollback and after-commit behavior rather than assuming cache eviction is automatically atomic with the database.
+
+### Q124. How should a service handle an optimistic-lock conflict?
+
+Treat an optimistic-lock failure as evidence that another transaction changed the row after it was read, not as a generic transient database outage. Reload the current state and either re-evaluate the business command, return a conflict response, or ask the caller to reconcile. Retry only if the operation is safe and its rules can be recomputed against fresh data; do not blindly replay external side effects or overwrite the competing update.
+
+### Q125. Why can an in-memory database hide transaction defects?
+
+An in-memory database may differ from production in SQL dialect, implicit casts, constraint timing, lock acquisition, isolation semantics, sequence behavior, and query planning. A test can pass while a production query fails or concurrent updates violate assumptions. Use fast in-memory tests for focused logic, but run migrations and critical transaction/concurrency tests against the production database engine and a compatible version.
+
+### Q126. How do you investigate a deadlock?
+
+Collect database deadlock diagnostics and transaction/query logs, map lock acquisition order, and identify cycles. Reduce transaction scope, access rows in consistent order where possible, and implement safe retry for database-detected transient deadlocks only when the business operation is repeatable.
+
+### Official references
+- [Spring transaction management](https://docs.spring.io/spring-framework/reference/data-access/transaction.html)
+- [JDBC abstraction](https://docs.spring.io/spring-framework/reference/data-access/jdbc.html)
+
+---
+
+## Spring Data JPA Integration
+
+
+### Q127. What does Spring Data JPA add on top of JPA?
+
+It provides repository abstractions, derived query parsing, pagination and sorting integration, projections, auditing support, and extension points. JPA still defines persistence semantics and the provider implements them; Spring Data does not eliminate the need to understand entity state, query plans, or transaction boundaries.
+
+### Q128. How do repository interfaces work without a handwritten implementation?
+
+Spring Data creates repository proxy implementations based on repository metadata and configured infrastructure. Method names, annotations, and fragments describe query behavior. When a derived query becomes hard to understand, prefer an explicit `@Query` or a custom repository fragment rather than an opaque method name.
+
+### Q129. What is the purpose of Page, Slice, and List return types?
+
+A Page commonly includes total-count metadata and may require an additional count query. A Slice indicates whether more data exists without necessarily calculating the full total. A List returns results without pagination metadata. Choose based on product needs and query cost.
+
+### Q130. What is a projection?
+
+A projection retrieves a subset or alternate view of data instead of exposing the full entity model. Interface and DTO projections can reduce unnecessary data transfer, but actual SQL and optimization depend on query form and provider behavior. Inspect generated SQL and query plans for critical paths.
+
+### Q131. How should dynamic filtering be implemented?
+
+Use a supported approach such as Specifications, query-by-example where suitable, or a custom repository query. Validate allowed filter and sort fields, combine predicates deliberately, and avoid string-concatenating untrusted SQL. Query design should remain understandable and testable.
+
+### Q132. How do N+1 queries arise?
+
+An initial query loads a collection of entities, then accessing relationships triggers additional queries per entity. Detect it with SQL logs, tracing, query-count assertions, and database metrics. Fix with an appropriate fetch strategy, projection, entity graph, or query redesign; indiscriminately eager-loading everything can create oversized joins.
+
+### Q133. How do optimistic and pessimistic locking differ?
+
+Optimistic locking detects conflicting updates, commonly using a version attribute, and fails one competing update rather than holding a long-lived lock throughout work. Pessimistic locking requests database locks for selected records. Choose based on contention, transaction duration, retry policy, and database capabilities.
+
+### Q134. What repository abstractions should you use?
+
+The available interfaces vary by Spring Data version. Common options include `CrudRepository`, `ListCrudRepository`, `PagingAndSortingRepository`, and `JpaRepository`; do not assume inheritance relationships from one version apply unchanged to another. Select the smallest useful contract and consult the reference for the chosen release.
+
+### Q135. Why can repository pagination return inconsistent results during concurrent writes?
+
+Offset pages are positional, so inserts/deletes between requests can shift records across page boundaries. A deterministic sort reduces ambiguity but does not create a consistent snapshot across independent requests. For large changing datasets, consider cursor/keyset pagination and document its consistency model.
+
+### Q136. How do Specifications help with dynamic queries?
+
+Specifications compose predicates in a type-aware way for supported Spring Data JPA setups. They are useful when filters are optional, but complex joins and fetches can become difficult to reason about. Keep sorting, filtering, and fetch strategy deliberate and inspect generated SQL.
+
+### Q137. Why can @Modifying queries leave managed entities stale?
+
+Bulk JPQL/native updates can bypass ordinary entity-by-entity state tracking. The persistence context may still hold old values. Clear or refresh state when appropriate and understand flush/clear options; test subsequent reads in the same transaction.
+
+### Q138. What is the risk of using native queries everywhere?
+
+Native SQL is useful for database-specific features, vendor functions, complex reporting, or a measured performance need, but it couples the query to the schema and often to a database dialect. It can bypass assumptions made by entity mappings or complicate pagination/count queries. Keep native queries focused, document why JPQL or derived queries are insufficient, bind parameters safely, and test against the production database engine and representative data.
+
+### Q139. How should auditing timestamps be handled?
+
+Choose a consistent time model: UTC instants are usually appropriate for event timestamps, while business concepts such as a store's opening time may require a local date/time and explicit zone. Configure Spring Data auditing and its date-time provider deliberately, and avoid relying on the host's default time zone. Test persistence, JSON serialization, daylight-saving transitions where relevant, and user-facing display separately; formatting a timestamp is not the same as defining its meaning.
+
+### Q140. How do you diagnose a query that is fast locally but slow in production?
+
+Compare data volume and distribution, index definitions, current database statistics, execution plans, parameter selectivity, lock waits, connection acquisition time, and network latency. Local fixtures often omit skew and scale, so an index that helps a tiny table may not help the production workload. Capture slow SQL and timings first, inspect the plan using representative parameters and safe production-like data, and validate the change with measured latency and resource use.
+
+### Official references
+- [Spring Data JPA reference](https://docs.spring.io/spring-data/jpa/reference/)
+- [Query methods](https://docs.spring.io/spring-data/jpa/reference/jpa/query-methods.html)
+
+---
+
+## Spring Security
+
+
+### Q141. What is the difference between authentication and authorization?
+
+Authentication establishes the identity or principal associated with a request. Authorization decides whether that principal may perform an action on a resource. A valid login or JWT does not automatically imply permission to access every endpoint or tenant's data.
+
+### Q142. What is SecurityFilterChain?
+
+SecurityFilterChain defines servlet filters and request-matching security rules applied to matching requests. Modern configuration commonly declares one or more SecurityFilterChain beans instead of extending the removed WebSecurityConfigurerAdapter pattern. Multiple chains require deliberate ordering and matchers because the first matching chain controls processing.
+
+### Q143. What is the difference between 401 and 403?
+
+401 indicates that the request lacks acceptable authentication credentials or authentication failed. 403 indicates the request was understood but access is denied for the current principal, although exact responses can be customized. A configured entry point and access-denied handler influence the response behavior.
+
+### Q144. How should a REST API validate JWTs?
+
+Prefer Spring Security's OAuth 2.0 Resource Server support and configure trusted issuer or JWK settings rather than hand-writing token parsing. Validate signature and relevant claims such as issuer, expiry, and audience when required by the trust model. A decoded JWT is not trustworthy until cryptographic and claim validation succeeds.
+
+### Q145. What is SecurityContextHolder?
+
+It provides access to the current SecurityContext, which holds authentication information. The default servlet strategy is typically thread-bound; asynchronous execution and reactive pipelines have different context-propagation considerations. Do not assume security context automatically follows arbitrary executor tasks.
+
+### Q146. What is the difference between roles and authorities?
+
+Authorities are granted permission strings. Role-based checks are a convention that often adds a ROLE_ prefix when using role-oriented APIs. Be consistent about prefixes and use authorities that express the actual permission needed rather than overloading broad roles for every decision.
+
+### Q147. Why does CSRF protection matter, and when should it remain enabled?
+
+CSRF protection mitigates cross-site request forgery when browsers automatically attach credentials such as session cookies. Stateless APIs using non-ambient bearer tokens have a different threat profile, but disabling CSRF should follow a deliberate authentication and browser-client analysis, not a blanket rule for every endpoint called REST.
+
+### Q148. What are CORS and CSRF, and why are they not interchangeable?
+
+CORS is a browser-enforced cross-origin access policy; CSRF is an attack in which a victim's browser is induced to submit an authenticated request. CORS is not a general server-side authorization mechanism and does not replace CSRF defenses.
+
+### Q149. How should method-level security be enabled and used?
+
+Enable method security using the supported configuration for the selected version and apply annotations such as @PreAuthorize at appropriate service boundaries. Because interception is proxy-based in common setups, self-invocation and proxy visibility matter. Authorization rules should be tested for both allowed and denied principals.
+
+### Q150. How should multiple SecurityFilterChain beans be ordered?
+
+Each chain has a request matcher and an order. The first matching chain is used, so a broad high-priority matcher can shadow a more specific chain. Keep matchers explicit and test both intended and unintended paths.
+
+### Q151. What is the difference between UserDetailsService and AuthenticationProvider?
+
+UserDetailsService loads user-related data for authentication flows that use it; AuthenticationProvider performs an authentication strategy and returns an authenticated result or rejects the attempt. They are extension points with different responsibilities, not interchangeable service interfaces.
+
+### Q152. How should passwords be stored?
+
+Store password hashes using a supported adaptive password encoder, such as the framework's delegating encoder configuration, and never store plaintext or reversible encrypted passwords as a substitute. Choose parameters appropriate to the deployment and plan migration when algorithms or parameters change.
+
+### Q153. What is the purpose of a PasswordEncoder?
+
+It defines how passwords are encoded and how a submitted password is checked against a stored encoded value. Use an adaptive password-hashing algorithm with cost parameters appropriate to the deployment; never decrypt a password or store plaintext. A delegating encoder can identify the algorithm for each stored hash and support gradual upgrades when the preferred algorithm or work factor changes.
+
+### Q154. What is method security's proxy limitation?
+
+Method security commonly uses Spring AOP interception. A direct self-call may bypass the proxy, and non-proxy-compatible methods may not be intercepted as expected. Put authorization at a clear service boundary and test the invocation path.
+
+### Q155. Should authorization exist only at the controller layer?
+
+No. Controller rules protect the HTTP entry point, but the same business operation may be invoked by a scheduled job, message listener, batch process, or another service. Enforce authorization at a boundary that covers every relevant caller, using method security or domain/application checks where appropriate. Keep request-shape validation separate from permission checks, and test allowed and denied paths through each meaningful entry point.
+
+### Q156. How should multi-tenant authorization be enforced?
+
+Derive the caller's tenant from trusted authentication claims or a verified server-side mapping, then verify that the requested resource belongs to that tenant at the service or data-access boundary. Apply the same tenant context to asynchronous work, scheduled jobs, exports, caches, and message consumers. Never trust a client-supplied tenant ID by itself; test cross-tenant object IDs and ensure query filters, cache keys, and administrative paths cannot bypass isolation.
+
+### Q157. What is session fixation protection?
+
+Session fixation protection changes or otherwise protects the session identifier when the security context changes, preventing an attacker from reusing a session ID known before authentication. Spring Security provides session-management protections, but the exact behavior depends on the authentication mechanism and configuration. Verify that authentication rotates the session as expected, logout invalidates it, and concurrent-session or remember-me behavior matches the application's threat model.
+
+### Q158. How do authentication entry points differ from access-denied handlers?
+
+An AuthenticationEntryPoint handles a request that requires authentication when no acceptable authentication is present, commonly producing a 401 response or initiating a login flow. An AccessDeniedHandler handles an authenticated principal that lacks permission, commonly producing 403. API applications should configure these paths deliberately so clients receive consistent machine-readable errors without leaking internal details; test anonymous, invalid/expired credentials, and authenticated-but-forbidden requests.
+
+### Q159. What should security tests cover beyond a happy path?
+
+Cover anonymous access, authenticated-but-forbidden access, authorized access, malformed/expired tokens, wrong issuer or audience, authority mapping, CSRF where relevant, and tenant isolation. A successful test alone does not establish that forbidden requests are rejected.
+
+### Official references
+- [Spring Security reference](https://docs.spring.io/spring-security/reference/)
+- [Servlet architecture](https://docs.spring.io/spring-security/reference/servlet/architecture.html)
+- [OAuth 2.0 Resource Server JWT](https://docs.spring.io/spring-security/reference/servlet/oauth2/resource-server/jwt.html)
+
+---
+
+## Spring Boot Testing
+
+
+### Q160. What is the difference between a unit test and an integration test?
+
+A unit test isolates a small unit and usually replaces collaborators with test doubles. An integration test verifies that components work together across real framework configuration or infrastructure boundaries. Use the smallest test scope that proves the behavior, but retain integration coverage for wiring, serialization, transactions, and database-specific behavior.
+
+### Q161. What does @SpringBootTest do?
+
+It creates an application context using Boot's test support and can load a broad slice of the application. It is useful for integration behavior but may be slower and more coupled to configuration than a focused test. Avoid using it for every simple service unit test.
+
+### Q162. What is a test slice?
+
+A slice annotation loads a focused subset of application infrastructure for a testing purpose, such as MVC or JPA. It improves feedback speed and helps isolate concerns, but components outside the slice may need explicit mocks or test configuration. A slice test does not prove that the entire production context starts.
+
+### Q163. When should you use MockMvc?
+
+MockMvc exercises Spring MVC request handling through the test framework without requiring a live HTTP server. It can verify routing, serialization, validation, status codes, and security filters when configured. Use a real-server test when network/server behavior itself matters.
+
+### Q164. What is Testcontainers useful for?
+
+Testcontainers starts disposable infrastructure such as a database or broker for tests, allowing verification against a real engine rather than relying solely on an in-memory substitute. It improves fidelity but adds runtime and environment requirements; keep test data deterministic and ensure containers are cleaned up.
+
+### Q165. What is the difference between @MockBean and @MockitoBean?
+
+`@MockBean` was the established Spring Boot test annotation for replacing beans in an application context. It was deprecated for removal in Spring Boot 3.4 in favor of Spring Framework's `@MockitoBean`, and Boot 4 removes `@MockBean`/`@SpyBean` support. Use `@MockitoBean` (and `@MockitoSpyBean` for spies) on modern Framework/Boot lines, but retain the older annotation only when maintaining a compatible legacy Boot line.
+
+The migration is not always a mechanical import swap: on Framework 6.2/7.0, use the supported test-class field or type-level declarations rather than declaring mocks inside configuration classes. Framework 7.1 prerelease documentation adds constructor-parameter support for these annotations; do not assume that API is available on the stable 7.0 line. Follow the exact Boot/Framework migration guide and verify test-context replacement semantics.
+
+### Q166. Why can Spring tests become flaky or slow?
+
+Common causes include excessive full-context startup, shared mutable test state, nondeterministic asynchronous work, external dependencies, timing assumptions, and misuse of context caching. Prefer deterministic fixtures, bounded waits, isolated test data, and focused contexts. Do not add arbitrary sleeps to conceal race conditions.
+
+### Q167. How should security tests be designed?
+
+Test anonymous access, authenticated-but-forbidden access, authorized access, malformed credentials, and relevant claim/authority combinations. Verify the actual filter chain and endpoint rules, not only service-level authorization annotations. Include negative tests to prevent accidental exposure.
+
+### Q168. When should a test use a real HTTP server instead of MockMvc?
+
+Use a real-server test when transport behavior, actual server configuration, socket handling, compression, or deployed HTTP integration is part of the risk. MockMvc is faster for MVC handler behavior but does not exercise the full network stack.
+
+### Q169. How should asynchronous tests avoid timing races?
+
+Use bounded futures, latches, Awaitility-style conditions, or controlled executors rather than arbitrary sleeps. Assert a clear completion condition and include diagnostics on timeout so the test reveals whether work was never scheduled, rejected, or stalled.
+
+### Q170. What is the risk of @DirtiesContext?
+
+@DirtiesContext marks a cached test ApplicationContext for removal, causing Spring TestContext to close and rebuild it rather than reuse it. This can substantially increase suite time and may hide state-isolation problems if used routinely. Use it when a test genuinely changes context-level state that cannot be safely reset; otherwise reset the specific database, mock, cache, or singleton state and keep tests independent.
+
+### Q171. How do you test a migration against an existing schema?
+
+Start from a known baseline schema and run the real migration sequence against the production database engine, including representative data where migration behavior depends on volume or constraints. Verify both final schema and transformed data, not just that the migration command exits successfully.
+
+### Q172. How should test secrets and environment configuration be handled?
+
+Use dedicated test credentials and ephemeral or isolated infrastructure, and load secrets through the test environment rather than committing real credentials. Keep configuration deterministic so tests do not accidentally connect to production systems. Be careful with failed assertions, HTTP wire logs, container output, and test reports that may print request payloads or effective properties; redact tokens and personal data before storing CI artifacts, and rotate any credential that is exposed.
+
+### Official references
+- [Spring Boot testing](https://docs.spring.io/spring-boot/reference/testing/index.html)
+- [Spring Framework testing](https://docs.spring.io/spring-framework/reference/testing.html)
+- [Testcontainers](https://java.testcontainers.org/)
+
+---
+
+## REST Clients and Inter-Service Communication
+
+
+### Q173. How do RestTemplate, RestClient, and WebClient differ?
+
+RestTemplate is the established synchronous template-style client; it is deprecated in Spring Framework 7.0 in favor of RestClient. RestClient is a fluent synchronous client introduced in Framework 6.1. WebClient is designed for non-blocking reactive I/O and streaming. Verify the framework baseline before using RestClient; do not assume it exists in older Framework versions.
+
+For new synchronous integrations on Framework 6.1+, evaluate RestClient. For non-blocking reactive pipelines, consider WebClient. Existing RestTemplate applications should follow the official migration guide and can migrate incrementally.
+
+### Q174. How should outbound timeouts be configured?
+
+Configure connection establishment and response/read timeouts using the chosen client and request factory/connector. A timeout budget should align with the caller's deadline and leave time for response handling. An absent timeout can tie up threads and connections during a downstream incident.
+
+### Q175. When are retries appropriate?
+
+Retries can help with transient failures when the operation is safe to repeat and the total deadline allows it. Use bounded attempts, backoff, jitter, and clear retryable-exception rules. Retrying non-idempotent writes without deduplication can create duplicate side effects and amplify an outage.
+
+### Q176. Why is connection pooling important?
+
+Pooling reuses connections and reduces repeated connection setup, while pool limits provide a resource boundary. Size the pool together with request concurrency, connection-acquisition timeout, downstream capacity, and expected request duration; remember that the total across all application replicas matters. A pool that is too small creates waiting, while an oversized pool can overload the dependency. Monitor active, idle, pending, and acquisition-latency metrics and load-test realistic traffic.
+
+### Q177. How should authentication be propagated between services?
+
+Choose an explicit trust model: separate service credentials, token exchange, or narrowly scoped delegated user tokens depending on the downstream authorization requirement. Do not forward an inbound bearer token to every destination simply because the request originated in your service. Allow-list trusted destinations, review redirect behavior, avoid putting credentials in URLs, redact authorization headers from logs, and define token audience/scope so a leaked token cannot be reused against unrelated services.
+
+### Q178. How should client errors be observed?
+
+Capture latency, outcome, timeout/retry counts, and dependency identity with low-cardinality metric labels. Add distributed tracing when supported and avoid logging sensitive request bodies. Separate caller-side timeouts from server-side error responses during diagnosis.
+
+### Q179. What are HTTP Service Clients?
+
+Modern Spring Framework versions support declarative HTTP service interfaces backed by a configured client adapter. They can reduce boilerplate for stable service contracts, but still need explicit timeout, authentication, error mapping, and observability configuration. Verify availability and configuration details for the target Framework release.
+
+### Official references
+- [Spring Framework REST clients](https://docs.spring.io/spring-framework/reference/integration/rest-clients.html)
+- [Spring Framework 6.1 RestClient announcement](https://spring.io/blog/2023/07/13/new-in-spring-6-1-restclient/)
+- [Spring Framework HTTP Service Clients](https://docs.spring.io/spring-framework/reference/integration/rest-clients.html)
+
+---
