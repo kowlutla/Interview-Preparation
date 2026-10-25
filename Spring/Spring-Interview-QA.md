@@ -435,7 +435,7 @@ It is a library module that conditionally contributes beans when relevant classe
 
 ### Q77. How does application.properties differ from application.yaml?
 
-Both express external configuration. YAML can represent nested structures compactly, while properties files use dotted keys. Choose one consistent style per configuration area, avoid duplicate conflicting definitions, and validate effective values in each deployment environment.
+Both formats feed Boot's externalized-configuration system; the main difference is syntax. Properties files express nested configuration with dotted keys, while YAML represents hierarchy through indentation and is often easier to scan for grouped settings. Neither format is inherently more powerful, and YAML indentation mistakes can change the structure. Avoid defining the same key in several files unless the override is intentional, because property-source precedence determines the effective value. Choose one style consistently, then verify the resolved value and source for each active profile in the deployed environment.
 
 ### Q78. How are profile-specific files selected?
 
@@ -447,7 +447,7 @@ Boot configuration imports allow additional configuration sources to be loaded t
 
 ### Q80. Why use immutable or validated configuration properties?
 
-A dedicated configuration-properties type documents a coherent group of settings and supports type conversion and validation. Validate required URLs, durations, limits, and pool sizes at startup. Keep secrets out of object string representations and diagnostic logs.
+Immutable or validated configuration properties turn deployment assumptions into startup checks. Group related values in a dedicated type, bind them with @ConfigurationProperties, and validate required URLs, durations, pool sizes, and limits before the service accepts traffic. This catches a missing endpoint or impossible timeout during startup rather than during a customer request. Prefer constructor-bound or otherwise immutable properties where supported by the target version. Keep secrets out of generated toString output and diagnostics, and test both valid configuration and expected startup failure for invalid values.
 
 ### Q81. How should Kubernetes configuration be organized?
 
@@ -472,7 +472,7 @@ The effective Environment can contain passwords, tokens, connection strings, int
 
 ### Q84. What role does DispatcherServlet play?
 
-DispatcherServlet is Spring MVC's front controller. It coordinates handler mapping, handler execution, argument resolution, return-value handling, message conversion, and exception resolution. It does not itself contain application business logic; it orchestrates the web request pipeline.
+DispatcherServlet is Spring MVC's front controller: it receives the servlet request and coordinates handler mapping, handler execution, argument resolution, message conversion, return-value handling, and exception resolution. It does not implement business logic itself. A request can be rejected before reaching a controller by a servlet filter or Spring Security; after the servlet begins processing, failures may arise from handler mapping, argument binding, validation, controller logic, or response serialization. When debugging, trace the request through the filter chain and inspect which handler was selected rather than assuming every HTTP error originates in the controller.
 
 ### Q85. What is the difference between @Controller and @RestController?
 
@@ -528,7 +528,7 @@ It can avoid expensive deep offsets and behave better under some concurrent inse
 
 ### Q98. How should request validation differ from domain validation?
 
-Request validation checks shape and basic constraints at the boundary. Domain validation protects invariants regardless of whether the operation came from HTTP, messaging, or a job. Do not rely exclusively on controller annotations for business correctness.
+Request validation checks whether the incoming representation is structurally acceptable—for example, a required field is present and a quantity is positive. Domain validation protects business invariants regardless of entry point: HTTP, a Kafka listener, a scheduled job, or a direct service call must not be able to create an invalid state. Use Bean Validation annotations at the API boundary for simple constraints, but keep rules such as “an order can only be cancelled before shipment” in the application/domain layer where they can inspect current state. Avoid duplicating complex rules in controllers and never rely on request validation alone to protect data integrity.
 
 ### Q99. How should an API handle unsupported media types and oversized payloads?
 
@@ -553,7 +553,20 @@ Avoid buffering the entire upload in heap memory. Stream to controlled temporary
 
 ### Q102. What is the role of @ControllerAdvice?
 
-It centralizes cross-controller concerns such as exception-to-response mapping and binding behavior. `@RestControllerAdvice` combines advice semantics with response-body handling. Keep handlers specific enough to preserve meaningful status codes and avoid turning unexpected defects into misleading client errors.
+@ControllerAdvice centralizes MVC concerns across controllers, most commonly mapping exceptions to consistent HTTP responses and handling selected binding/validation behavior. @RestControllerAdvice adds response-body semantics, so returned objects are serialized rather than treated as view names. Keep handlers specific enough to preserve the distinction between invalid input, missing resources, conflicts, and unexpected server failures. Do not return stack traces or database messages to clients; log safe diagnostics with a correlation ID at an appropriate boundary. For APIs using Problem Details, keep the public error contract stable even if the underlying framework exception changes.
+
+```java
+@RestControllerAdvice
+class ApiExceptionHandler {
+    @ExceptionHandler(OrderNotFoundException.class)
+    ProblemDetail handleNotFound(OrderNotFoundException ex) {
+        return ProblemDetail.forStatusAndDetail(
+            HttpStatus.NOT_FOUND, "Order not found");
+    }
+}
+```
+
+This is a focused fragment; imports and the application's exception type are omitted.
 
 ### Q103. When should an exception become HTTP 400, 404, 409, or 500?
 
@@ -654,7 +667,7 @@ A local transaction coordinates supported resources through one transaction mana
 
 ### Q122. How can transaction boundaries affect connection pool usage?
 
-A transaction may hold a connection until completion. Long computation or remote calls inside the boundary increase hold time and pool pressure. Measure transaction duration and connection acquisition latency, and keep the critical section focused on required database work.
+Transactions often bind a database connection until the transaction completes. A service that reads a row, makes a slow HTTP call, and only then updates the row can hold a scarce connection during unrelated network waiting. Under load, the pool may run out even when SQL execution itself is fast. Keep the transaction around the database consistency boundary, move remote calls outside it where the business sequence allows, and measure connection-acquisition wait, transaction duration, and query/lock time separately. Do not split a transaction without checking whether doing so changes atomicity or exposes partially completed business state.
 
 ### Q123. What is transaction-aware caching?
 
@@ -707,7 +720,14 @@ The application loads a list of parent entities with one query and then triggers
 
 ### Q133. How do optimistic and pessimistic locking differ?
 
-Optimistic locking assumes conflicts are uncommon. A `@Version` field lets the provider detect that another transaction updated the row since it was read; the losing update fails with an optimistic-lock exception, and the application must reload and reconcile. Pessimistic locking asks the database to lock selected rows, which can prevent conflicting updates but increases blocking and deadlock risk. Prefer optimistic locking for many read-heavy workloads with occasional conflicts; consider pessimistic locking when contention is expected and the critical section is short. A retry is not automatically correct: re-evaluate the business command against current state rather than blindly replaying an old entity.
+Optimistic locking assumes concurrent updates are relatively uncommon and detects conflicts, commonly through a @Version field; the losing update fails rather than silently overwriting the newer state. Pessimistic locking asks the database to lock selected rows and can be useful under predictable contention, but increases waiting and deadlock risk. Prefer optimistic locking for many read-heavy workflows and use pessimistic locking only when its blocking semantics are justified. On conflict, reload current state and re-evaluate the business command; blindly retrying a stale entity can repeat invalid decisions or side effects.
+
+```java
+@Version
+private long version;
+```
+
+The provider updates and checks this field as part of entity persistence; do not increment it manually.
 
 ### Q134. What repository abstractions should you use?
 
@@ -801,7 +821,7 @@ Give each chain a clear, non-overlapping purpose where possible—for example, a
 
 ### Q151. What is the difference between UserDetailsService and AuthenticationProvider?
 
-UserDetailsService loads user-related data for authentication flows that use it; AuthenticationProvider performs an authentication strategy and returns an authenticated result or rejects the attempt. They are extension points with different responsibilities, not interchangeable service interfaces.
+UserDetailsService loads user-related data for authentication flows that use it, often by username; it does not itself validate a password or complete every authentication mechanism. AuthenticationProvider implements a specific authentication strategy: it checks the supplied Authentication object using the relevant credential/identity logic and returns an authenticated result or rejects the attempt. A common username/password flow asks UserDetailsService for the stored user and uses a PasswordEncoder to compare the submitted password. Custom providers are useful for genuinely different authentication mechanisms, but avoid reimplementing standard OAuth2/JWT validation when Spring Security already provides it.
 
 ### Q152. How should passwords be stored?
 
@@ -813,7 +833,7 @@ It defines how passwords are encoded and how a submitted password is checked aga
 
 ### Q154. What is method security's proxy limitation?
 
-Method security commonly uses Spring AOP interception. A direct self-call may bypass the proxy, and non-proxy-compatible methods may not be intercepted as expected. Put authorization at a clear service boundary and test the invocation path.
+Method security commonly relies on Spring AOP interception. If one method calls another method on the same object through this, the call bypasses the proxy, so the annotation on the inner method may not be evaluated. Proxy type and method visibility also affect interception. Put security checks at a clear application-service boundary that external callers actually cross, or refactor the protected operation into a separate injected bean. Do not depend on a controller-only check if the same operation is reachable through messaging, jobs, or another internal path. Test both permitted and denied invocations through the real wiring.
 
 ### Q155. Should authorization exist only at the controller layer?
 
@@ -885,7 +905,7 @@ Use a real-server test when transport behavior, actual server configuration, soc
 
 ### Q169. How should asynchronous tests avoid timing races?
 
-Use bounded futures, latches, Awaitility-style conditions, or controlled executors rather than arbitrary sleeps. Assert a clear completion condition and include diagnostics on timeout so the test reveals whether work was never scheduled, rejected, or stalled.
+Avoid arbitrary Thread.sleep calls because they depend on machine speed and can make a test flaky or unnecessarily slow. Use a bounded future, latch, controlled executor, or condition-based wait with an explicit timeout. Assert the observable completion condition, and on timeout report useful state such as task submission, queue depth, or captured exception. Ensure the test can distinguish “task was never scheduled,” “task failed,” and “task is still running.” A deterministic executor or fake clock is often preferable when the behavior being tested is scheduling logic rather than real concurrency.
 
 ### Q170. What is the risk of @DirtiesContext?
 
@@ -1014,7 +1034,7 @@ Liveness asks whether the process is alive enough that restarting it may help; r
 
 ### Q194. What is Micrometer?
 
-Micrometer provides an instrumentation facade for metrics that can be exported to supported monitoring systems. Prefer counters, timers, gauges, and histograms that answer operational questions. Avoid high-cardinality labels such as user IDs, raw URLs, or request IDs.
+Micrometer is an instrumentation facade that provides a common API for recording counters, timers, gauges, distribution summaries, and related measurements across supported monitoring backends. Spring Boot integrates Micrometer with Actuator and can auto-configure meters for common infrastructure. Instrument business-relevant operations as well as technical resources, but choose bounded dimensions: user IDs, request IDs, raw URLs, and arbitrary exception messages can create unbounded metric cardinality. A timer or histogram is often more useful for latency percentiles than an average alone. Define the question each metric should answer and pair important signals with dashboards and alerts.
 
 ### Q195. How should health indicators be designed?
 
@@ -1066,7 +1086,7 @@ The example assumes `productId` uniquely identifies the result within the cache'
 
 ### Q203. How do `@CachePut` and `@CacheEvict` differ?
 
-`@CachePut` always invokes the target method and stores its returned value under the selected key, making it useful when a successful update returns the refreshed object. `@CacheEvict` removes one or more entries, often after a mutation so later reads reload the source of truth. A common mistake is to evict too early: if a database transaction later rolls back, the cache may be repopulated from old data or invalidated at the wrong moment. Understand transaction timing and provider behavior, and test cache state after both commit and rollback. Prefer one clear invalidation strategy over combining annotations with overlapping keys without checking their evaluation order.
+@CachePut always executes the target method and stores its returned value under the selected key, so it can be useful when an update returns the new representation. @CacheEvict removes entries, commonly after a mutation so later reads fetch the source of truth. Neither annotation makes cache changes automatically atomic with a database transaction in every provider/configuration. If eviction occurs before commit, another reader can repopulate stale data; if eviction happens after commit, a crash can leave stale entries until recovery or TTL. Define the consistency requirement, verify transaction-aware cache behavior, and test commit and rollback paths.
 
 ### Q204. Why is cache invalidation difficult?
 
@@ -1086,7 +1106,7 @@ Behavior depends on the cache provider and application configuration. Decide whe
 
 ### Q208. How do cache keys affect correctness and security?
 
-Keys must include every input that changes the result, including tenant or authorization scope where relevant. A missing dimension can return one user's data to another. Test key separation across tenants, locale, filters, and permission-sensitive responses.
+A cache key must include every input dimension that can change the returned result. If a result depends on tenant, locale, permission scope, filters, or feature flags, omitting one can return incorrect data—and in a multi-tenant system, may leak another tenant's result. Use stable, bounded key structures and make invalidation use the same key model. Avoid including secrets or high-cardinality values without a clear need. Test two callers with different authorization/tenant contexts and verify they cannot share a cache entry accidentally.
 
 ### Q209. How should cache invalidation interact with transaction commit?
 
@@ -1094,11 +1114,11 @@ Evicting before a database transaction commits can allow a concurrent reader to 
 
 ### Q210. What is cache penetration?
 
-Repeated requests for absent keys can bypass a cache and repeatedly hit the source. Depending on semantics, cache negative results briefly, validate identifiers, or rate-limit abuse. Do not cache authorization failures in a way that leaks across identities.
+Cache penetration occurs when repeated requests for keys that do not exist bypass the cache and hit the backing store every time. It can arise from normal lookups for absent IDs or deliberate probing. Depending on the domain, validate identifiers, apply rate limits, or briefly cache a negative result. Negative caching must have a short and understood lifetime so newly created records do not remain invisible. Do not cache authorization failures in a way that lets one caller's denial affect another caller, and distinguish “not found” from a database or network failure.
 
 ### Q211. What is stale-while-revalidate?
 
-It serves a previously cached value while refreshing it asynchronously, trading strict freshness for lower latency and reduced stampedes. Define maximum staleness and do not use it for data where stale reads violate critical invariants.
+Stale-while-revalidate serves a cached value while refreshing it asynchronously, improving latency and reducing simultaneous recomputation at the cost of temporarily stale reads. It works when the business contract permits bounded staleness, such as some catalog or reference data. Define the maximum stale interval, refresh failure behavior, and whether callers may trigger duplicate refreshes. It is inappropriate for balances, permissions, or state transitions where stale data can violate correctness or security. Treat stale serving as an explicit consistency decision rather than a generic cache optimization.
 
 ### Q212. How do you observe cache usefulness?
 
@@ -1160,7 +1180,7 @@ Specify the intended time zone explicitly through the scheduling annotation/conf
 
 ### Q220. Are Spring application events synchronous by default?
 
-The standard event multicaster invokes listeners synchronously unless configured otherwise. A slow listener can therefore increase the publisher's latency. Asynchronous event delivery changes error handling and transaction/context assumptions and is not a durable message queue.
+Spring's standard application event multicaster invokes listeners synchronously by default, so the publisher's call does not finish until synchronous listeners finish. A slow listener can therefore increase request latency, and an uncaught listener exception may affect the publisher's flow. Configuring asynchronous event delivery changes the failure and context model; it does not make the event durable, and listeners may not run if the process terminates. Use local events for in-process decoupling, transaction-bound listeners when a specific transaction phase matters, and a durable broker/outbox when delivery must survive process failure or cross service boundaries.
 
 ### Q221. What does @TransactionalEventListener provide?
 
@@ -1217,7 +1237,7 @@ Use supported Micrometer Tracing/OpenTelemetry instrumentation and propagate sta
 
 ### Q232. What does a load balancer not solve?
 
-It does not make a slow or failing service healthy, guarantee session consistency, or remove the need for timeouts and retries. Health checks, balancing algorithm, connection reuse, request distribution, and overload behavior all affect outcomes.
+A load balancer distributes requests among selected instances; it does not make an unhealthy dependency healthy or guarantee that each instance has capacity. Stale discovery, slow health checks, sticky sessions, uneven request duration, connection reuse, and overload can still cause poor distribution. Clients still need bounded timeouts, retry discipline, and clear behavior when no instance is eligible. A load balancer can also amplify an outage if it sends traffic to instances that are technically up but saturated. Use readiness signals that reflect traffic eligibility and observe per-instance latency, error rate, and saturation.
 
 ### Q233. What is the difference between a retry and a circuit breaker?
 
@@ -1258,7 +1278,7 @@ Coordinate readiness removal, server graceful shutdown, consumer pause/stop, in-
 
 ### Q240. How should database pool size be selected?
 
-Estimate concurrent database demand and compare it with database connection limits and query duration. More connections can increase contention and overwhelm the database. Monitor active, idle, pending, acquisition latency, and query timings, then load-test realistic concurrency.
+Estimate the database's sustainable connection capacity, query duration, concurrency, and number of application replicas before choosing a pool size. A large pool can increase database contention and memory usage rather than improve throughput; the total connection count across all pods matters. Monitor active/idle connections, pending borrowers, acquisition latency, transaction duration, and slow queries. Load-test realistic request mixes and failure conditions, and investigate leaks or long-held transactions before increasing the limit. Pool size is a system-level capacity decision shared with database operators, not merely a local application property.
 
 ### Q241. Why should container memory limits include more than heap?
 
@@ -1369,7 +1389,7 @@ Framework 7 deprecates RestTemplate in favor of RestClient. RestClient was intro
 
 ### Q261. Why is a major Boot upgrade more than a dependency version change?
 
-Major upgrades may change Java baselines, managed dependency versions, configuration properties, removed APIs, servlet/Jakarta integration, security defaults, and observability behavior. Read migration guides and release notes, resolve compatibility first, and run tests against production-like infrastructure.
+A major Boot upgrade can change the Java baseline, managed dependency graph, configuration properties, auto-configuration conditions, removed APIs, servlet/Jakarta integrations, security behavior, test utilities, and observability defaults. Updating the version string alone can compile while still changing runtime behavior. Read the official migration guide and release notes, inspect deprecations and the resolved dependency tree, then test startup, authentication/authorization, persistence/migrations, messaging, outbound clients, graceful shutdown, and actuator exposure. Upgrade through a supported dependency set and keep a rollback plan; avoid overriding individual transitive versions to silence the first compatibility error.
 
 ### Q262. How should Spring Cloud compatibility be managed?
 
@@ -1385,7 +1405,7 @@ Determine the replacement, migration constraints, and reason for deprecation fro
 
 ### Q265. What is the role of a BOM?
 
-A Bill of Materials centralizes compatible dependency versions so related libraries are aligned. Boot's dependency management reduces manual version selection. Overriding managed dependencies can be necessary, but should be evidence-based and tested for binary compatibility.
+A Bill of Materials (BOM) centralizes a tested set of dependency versions so related libraries are aligned. Spring Boot's dependency management reduces the need to specify each transitive version manually, while Spring Cloud and other ecosystem projects may provide their own BOMs with compatibility constraints. Avoid mixing unrelated release trains or overriding a managed version without a documented reason. When diagnosing NoSuchMethodError or ClassNotFoundException, inspect the resolved dependency graph and compare it with the supported matrix instead of upgrading arbitrary jars one at a time.
 
 ### Q266. What are notable Spring Framework 7 additions worth checking during migration?
 
