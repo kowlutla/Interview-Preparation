@@ -6,7 +6,7 @@ A focused guide for Java backend engineers preparing for experienced and senior 
 
 **[Hibernate, JPA, and Spring Data JPA Interview Handbook](Hibernate-JPA-Interview-QA.md)**
 
-This is the primary reading path. It contains 30 curated questions with complete answers covering persistence contexts, entity lifecycle, dirty checking, relationship ownership, fetch strategies, N+1 queries, transactions, locking, Spring Data repository behavior, caching, and production troubleshooting.
+This is the primary reading path. It contains 33 curated questions with complete answers covering persistence contexts, entity lifecycle, dirty checking, relationship ownership, fetch strategies, N+1 queries, transactions, locking, Spring Data repository behavior, caching, and production troubleshooting.
 
 ## Recommended study path
 
