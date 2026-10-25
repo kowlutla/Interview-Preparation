@@ -87,7 +87,7 @@ Running `docker run image --server.port=9090` replaces the default CMD arguments
 ### Q9. Why use a multi-stage build?
 A multi-stage build separates the environment that compiles the application from the environment that runs it. The build stage can contain a full JDK, Maven or Gradle, and build dependencies; the final stage can contain only a supported Java runtime and the executable JAR. This usually reduces image size and removes build tools that are unnecessary at runtime.
 
-\`\`\`dockerfile
+```dockerfile
 FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /src
 COPY pom.xml .
@@ -100,14 +100,14 @@ WORKDIR /app
 COPY --from=build /src/target/orders-api.jar app.jar
 USER 10001
 ENTRYPOINT ["java", "-jar", "app.jar"]
-\`\`\`
+```
 
-This example assumes a single-module Maven project and does not show the separate test stage a real release pipeline should run. A multi-module Maven build may need the parent POM and sibling module POMs copied before dependency resolution. Private artifact repositories may also need credentials during the build; use BuildKit secret mounts rather than putting tokens in \`ARG\`, \`ENV\`, or copied settings files. The same principle applies to Gradle: compile with a builder image and copy only the required runtime artifact into the final stage.
+This example assumes a single-module Maven project and does not show the separate test stage a real release pipeline should run. A multi-module Maven build may need the parent POM and sibling module POMs copied before dependency resolution. Private artifact repositories may also need credentials during the build; use BuildKit secret mounts rather than putting tokens in `ARG`, `ENV`, or copied settings files. The same principle applies to Gradle: compile with a builder image and copy only the required runtime artifact into the final stage.
 
 ### Q10. How do image layers and build caching work?
 Docker can reuse the result of a build step when the instruction and its relevant inputs have not changed. That is why Dockerfile order matters. If you copy the entire source tree before resolving dependencies, a small source edit can invalidate the dependency layer and force dependencies to be downloaded again.
 
-For a simple Maven project, copy the POM first, resolve dependencies, and then copy source files. Use a \`.dockerignore\` file to keep local build output, Git metadata, IDE files, logs, and local secrets out of the build context. Excluding \`target/\` is useful when CI builds the artifact inside Docker, but would be wrong if the Dockerfile expects to copy a JAR that was built on the host.
+For a simple Maven project, copy the POM first, resolve dependencies, and then copy source files. Use a `.dockerignore` file to keep local build output, Git metadata, IDE files, logs, and local secrets out of the build context. Excluding `target/` is useful when CI builds the artifact inside Docker, but would be wrong if the Dockerfile expects to copy a JAR that was built on the host.
 
 Never bake a secret into an image layer. Deleting it in a later layer does not guarantee removal from the image's history. For build-time authentication, use BuildKit secret or SSH mounts; for runtime credentials, use the organization's approved secret injection mechanism.
 
@@ -118,9 +118,9 @@ Use a JDK when compiling or running tools that require compiler modules. A runti
 Keep environment-specific configuration outside the image. For Spring Boot, environment variables such as `SPRING_PROFILES_ACTIVE`, `SERVER_PORT`, and `SPRING_DATASOURCE_URL` can override configuration properties using Spring Boot's relaxed binding rules. Credentials should come from a secret-management mechanism, not source code or a Dockerfile. Avoid printing the full environment because it may expose credentials.
 
 ### Q13. How does port publishing work?
-Three things must line up: the application must listen on a port, the container must be reachable on that interface, and the host or platform must route traffic to it. \`EXPOSE 8080\` is image metadata; it does not publish a port. Locally, \`docker run -p 8080:8080 image\` maps host port 8080 to container port 8080.
+Three things must line up: the application must listen on a port, the container must be reachable on that interface, and the host or platform must route traffic to it. `EXPOSE 8080` is image metadata; it does not publish a port. Locally, `docker run -p 8080:8080 image` maps host port 8080 to container port 8080.
 
-A common trap is binding a server only to \`127.0.0.1\` inside the container. That makes it listen on the container's loopback interface, not its externally reachable container interface. A web service normally listens on \`0.0.0.0\` (or the intended network interface). In Kubernetes, \`containerPort\` is descriptive metadata; the Service's \`targetPort\` must still match the actual listening port.
+A common trap is binding a server only to `127.0.0.1` inside the container. That makes it listen on the container's loopback interface, not its externally reachable container interface. A web service normally listens on `0.0.0.0` (or the intended network interface). In Kubernetes, `containerPort` is descriptive metadata; the Service's `targetPort` must still match the actual listening port.
 
 ### Q14. How do containers connect to a database or another service?
 Inside a container, `localhost` means that same container's network namespace. It does not mean the host machine, a sibling container, or a database container. In Docker Compose, services on the same Compose network can usually reach each other using the service name and container port, for example `jdbc:postgresql://db:5432/orders`. In Kubernetes, use a Service DNS name. Host access from Docker Desktop differs from Linux Docker Engine; use the documented host gateway mechanism for your environment rather than assuming one hostname works everywhere.
@@ -131,7 +131,7 @@ A container's writable layer is ephemeral: replacing the container can discard i
 ### Q16. When is Docker Compose useful?
 Compose defines a repeatable local environment for the API and its dependencies, such as a database, Redis, or Kafka. Services on the same Compose network can usually reach one another by service name, while the port used between containers is the container port—not necessarily the host-published port.
 
-\`\`\`yaml
+```yaml
 services:
   api:
     build: .
@@ -150,24 +150,24 @@ services:
 
 volumes:
   db-data:
-\`\`\`
+```
 
 This is only a local-development sketch: use a local-only password and never reuse it in shared or production environments. The database volume preserves local database files across container recreation. Add health checks or application-level retry/readiness behavior when startup order matters—Compose starting the database container does not necessarily mean the database is ready to accept connections. A working Compose setup also does not prove production Kubernetes networking, secrets, resource limits, or rollout behavior are correct.
 
 ### Q17. How do you debug a container that exits?
-Start with \`docker ps -a\`, then examine \`docker logs <container>\` and \`docker inspect <container>\`. Look at the exit code, command/entrypoint, working directory, mounts, permissions, and the application's startup exception. Common causes include a missing JAR, incompatible Java runtime, invalid JVM arguments, missing configuration, or a script that backgrounds Java and exits.
+Start with `docker ps -a`, then examine `docker logs <container>` and `docker inspect <container>`. Look at the exit code, command/entrypoint, working directory, mounts, permissions, and the application's startup exception. Common causes include a missing JAR, incompatible Java runtime, invalid JVM arguments, missing configuration, or a script that backgrounds Java and exits.
 
-Run the application in the foreground as the main container process. In Kubernetes, also inspect Pod events and current/previous container logs; repeated failures may lead to \`CrashLoopBackOff\`, which is Kubernetes backing off between restarts, not the underlying cause. If the container exits before logs appear, verify that the command actually launches the application and that the required files are present in the image.
+Run the application in the foreground as the main container process. In Kubernetes, also inspect Pod events and current/previous container logs; repeated failures may lead to `CrashLoopBackOff`, which is Kubernetes backing off between restarts, not the underlying cause. If the container exits before logs appear, verify that the command actually launches the application and that the required files are present in the image.
 
 ### Q18. Why are immutable image tags and digests important?
-A tag is a convenient name, not an immutable identity: a registry can move a tag such as \`latest\` to different content. A digest identifies exact image content and is useful for audit trails, incident reproduction, and confirming which build actually ran. Prefer unique release tags and record the digest; promote the same tested image across environments instead of rebuilding it for each environment.
+A tag is a convenient name, not an immutable identity: a registry can move a tag such as `latest` to different content. A digest identifies exact image content and is useful for audit trails, incident reproduction, and confirming which build actually ran. Prefer unique release tags and record the digest; promote the same tested image across environments instead of rebuilding it for each environment.
 
-Also understand \`imagePullPolicy\`. Kubernetes commonly defaults to \`Always\` when the image tag is \`latest\`, and to \`IfNotPresent\` for other tags when the field is omitted. With a mutable tag, nodes may not all run the content you expect. Prefer immutable tags or digests and make the pull policy consistent with the release process.
+Also understand `imagePullPolicy`. Kubernetes commonly defaults to `Always` when the image tag is `latest`, and to `IfNotPresent` for other tags when the field is omitted. With a mutable tag, nodes may not all run the content you expect. Prefer immutable tags or digests and make the pull policy consistent with the release process.
 
 ### Q19. How should an application handle shutdown signals?
-With exec-form \`ENTRYPOINT\`, Java is launched without an unnecessary shell layer, so it can receive the container's termination signal. With Kubernetes, deletion starts a bounded termination period: a configured \`preStop\` hook runs within that grace period, the runtime sends the stop signal, and the container is force-killed if it has not exited before the deadline.
+With exec-form `ENTRYPOINT`, Java is launched without an unnecessary shell layer, so it can receive the container's termination signal. With Kubernetes, deletion starts a bounded termination period: a configured `preStop` hook runs within that grace period, the runtime sends the stop signal, and the container is force-killed if it has not exited before the deadline.
 
-Endpoint and load-balancer updates are not instantaneous across all clients and network paths. The application should stop accepting new work, complete or safely cancel in-flight requests, close pools, and exit before the deadline. Budget any hook time and Spring Boot's shutdown timeout inside \`terminationGracePeriodSeconds\`. Test termination under active traffic; graceful shutdown reduces disruption but cannot guarantee that every request finishes or that a client can tell whether a request completed before the connection closed.
+Endpoint and load-balancer updates are not instantaneous across all clients and network paths. The application should stop accepting new work, complete or safely cancel in-flight requests, close pools, and exit before the deadline. Budget any hook time and Spring Boot's shutdown timeout inside `terminationGracePeriodSeconds`. Test termination under active traffic; graceful shutdown reduces disruption but cannot guarantee that every request finishes or that a client can tell whether a request completed before the connection closed.
 
 ### Q20. What is a good Docker troubleshooting checklist?
 Check build context and ignore rules; image architecture and Java version; command/entrypoint; user and file permissions; listening address and port; runtime environment variables; mounted paths; logs and exit code; network/DNS reachability; and memory limits. Reproduce with the exact image and configuration used in the target environment whenever possible.
@@ -177,14 +177,14 @@ Check build context and ignore rules; image architecture and Java version; comma
 ## 3. Java runtime behavior in containers
 
 ### Q21. Why can a Java container be OOMKilled when the heap limit looks reasonable?
-The container memory limit is a budget for total memory charged to the container, not just the Java object heap. The JVM also needs metaspace, JIT code cache, thread stacks, direct/off-heap buffers, garbage-collector structures, native libraries, and other native allocations. Depending on the runtime and cgroup accounting, charged file cache and memory-mapped pages may matter too. If \`-Xmx\` is nearly the whole container limit, total usage can exceed the limit even before the heap reaches its maximum.
+The container memory limit is a budget for total memory charged to the container, not just the Java object heap. The JVM also needs metaspace, JIT code cache, thread stacks, direct/off-heap buffers, garbage-collector structures, native libraries, and other native allocations. Depending on the runtime and cgroup accounting, charged file cache and memory-mapped pages may matter too. If `-Xmx` is nearly the whole container limit, total usage can exceed the limit even before the heap reaches its maximum.
 
-Distinguish a container/OS OOM kill from a Java \`OutOfMemoryError\`. A Java error may be logged and might allow a heap dump; a kernel OOM kill can terminate the process before useful Java diagnostics are written. Check the last termination reason, container memory metrics, GC logs, thread count, direct-buffer use, and native-memory behavior. Newer supported HotSpot JDKs are container-aware on supported platforms, but verify the actual JDK and make sure container support has not been disabled.
+Distinguish a container/OS OOM kill from a Java `OutOfMemoryError`. A Java error may be logged and might allow a heap dump; a kernel OOM kill can terminate the process before useful Java diagnostics are written. Check the last termination reason, container memory metrics, GC logs, thread count, direct-buffer use, and native-memory behavior. Newer supported HotSpot JDKs are container-aware on supported platforms, but verify the actual JDK and make sure container support has not been disabled.
 
 ### Q22. How should heap sizing be approached?
-Treat heap sizing as budget allocation. Suppose the Pod has a 1 GiB memory limit: setting \`-Xmx1g\` leaves no practical room for thread stacks, metaspace, direct buffers, JIT code cache, and other native allocations. A setting such as \`-XX:MaxRAMPercentage\` lets HotSpot calculate maximum heap from the memory it detects, but it is not a complete memory-management strategy and the right percentage depends on the workload and JDK.
+Treat heap sizing as budget allocation. Suppose the Pod has a 1 GiB memory limit: setting `-Xmx1g` leaves no practical room for thread stacks, metaspace, direct buffers, JIT code cache, and other native allocations. A setting such as `-XX:MaxRAMPercentage` lets HotSpot calculate maximum heap from the memory it detects, but it is not a complete memory-management strategy and the right percentage depends on the workload and JDK.
 
-For Java 21 HotSpot, the documented default for \`MaxRAMPercentage\` is 25%; do not assume every JDK vendor/version or runtime configuration behaves identically. Measure peak container memory under representative load, observe garbage collection and native memory, and leave headroom. Heap-used graphs alone are not enough: a process can be OOMKilled while heap usage appears below \`-Xmx\`.
+For Java 21 HotSpot, the documented default for `MaxRAMPercentage` is 25%; do not assume every JDK vendor/version or runtime configuration behaves identically. Measure peak container memory under representative load, observe garbage collection and native memory, and leave headroom. Heap-used graphs alone are not enough: a process can be OOMKilled while heap usage appears below `-Xmx`.
 
 ### Q23. How does CPU throttling affect API latency?
 A CPU limit is enforced through throttling. When a container exhausts its allotted CPU time, it can be forced to wait even if the node has spare CPU. The JVM and HTTP server remain alive, but requests take longer, queues grow, clients time out, and retries can amplify load.
@@ -217,7 +217,7 @@ A request is the resource quantity Kubernetes uses when deciding where a Pod can
 
 If a limit is specified but no request is supplied, Kubernetes normally copies the limit into the request unless admission-time defaults or policies change it. Set values from startup and load-test measurements, peak traffic, JVM native overhead, and cluster capacity—not from a generic recipe.
 
-\`\`\`yaml
+```yaml
 resources:
   requests:
     cpu: "250m"
@@ -225,17 +225,17 @@ resources:
   limits:
     cpu: "1"
     memory: "768Mi"
-\`\`\`
+```
 
 These are examples only. A request that is too high can make the Pod difficult to schedule; a CPU limit that is too low may cause latency; a memory limit that is too low can cause OOM kills. In a Java service, include startup peaks and non-heap memory when budgeting.
 
 ### Q30. ConfigMap versus Secret?
 A ConfigMap holds non-confidential configuration. A Secret is intended for credentials and other sensitive values, but base64 encoding is not encryption. Access should be constrained with RBAC, encryption-at-rest configuration, and the organization's approved secret-management workflow; some platforms use an external secret manager. Never expose secret values in logs, support tickets, or broadly shared rendered manifests.
 
-Environment variables are snapshots taken when a container starts. Updating a ConfigMap or Secret does not change environment variables in an already-running process, so a rollout is normally needed. Mounted ConfigMap/Secret volumes can be updated eventually, but the application must re-read or reload the file to use the new value. A volume mounted with \`subPath\` does not receive automatic projected-volume updates. A checksum annotation on the Pod template or a controlled rollout is a common way to keep configuration and process lifecycle aligned.
+Environment variables are snapshots taken when a container starts. Updating a ConfigMap or Secret does not change environment variables in an already-running process, so a rollout is normally needed. Mounted ConfigMap/Secret volumes can be updated eventually, but the application must re-read or reload the file to use the new value. A volume mounted with `subPath` does not receive automatic projected-volume updates. A checksum annotation on the Pod template or a controlled rollout is a common way to keep configuration and process lifecycle aligned.
 
 ### Q31. What does a rolling update do?
-A Deployment gradually replaces old Pods with new Pods. \`maxSurge\` is the allowed number (or percentage) of extra Pods above the desired replica count; \`maxUnavailable\` is how many replicas may be unavailable during the rollout. Cluster capacity must accommodate the strategy, and new Pods should not become Ready until they can safely serve requests. Readiness affects rollout availability and Service traffic, but it does not prove every business operation works.
+A Deployment gradually replaces old Pods with new Pods. `maxSurge` is the allowed number (or percentage) of extra Pods above the desired replica count; `maxUnavailable` is how many replicas may be unavailable during the rollout. Cluster capacity must accommodate the strategy, and new Pods should not become Ready until they can safely serve requests. Readiness affects rollout availability and Service traffic, but it does not prove every business operation works.
 
 A rollout can still cause errors if the new version is incompatible with the old database schema or API contract, if the old Pods terminate before requests drain, or if readiness is too optimistic. Even a rollout marked complete only means Kubernetes reached the desired Deployment state. Verify representative API flows, dependency connectivity, errors, latency, and logs after deployment.
 
@@ -254,7 +254,7 @@ Pods are replaceable, and a container writable layer is lost when the container 
 Know the API server as the Kubernetes API endpoint, the scheduler as the component assigning Pods to nodes, controllers as desired-state reconcilers, and kubelet/runtime as the node-side mechanism that starts containers and reports status. That mental model helps explain Pending Pods, image-pull failures, and restarts. Deep control-plane operations and node administration are platform-team responsibilities for this handbook's scope.
 
 ### Q36. Example Deployment and Service for a Spring Boot API?
-\`\`\`yaml
+```yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -334,7 +334,7 @@ spec:
       port: 80
       targetPort: http
   type: ClusterIP
-\`\`\`
+```
 
 Treat this as a starting point, not production-ready YAML for every environment. The named Actuator health groups must be exposed and configured in the chosen Spring Boot version. If management endpoints use a separate port, set the probe port accordingly. The non-root user must be able to read the JAR and any required files; if the application needs a writable temporary directory, provide a deliberate writable mount rather than weakening the whole security context. The database URL is shown as a Secret reference only to keep the example short; production deployments usually inject URL, username, and password using the approved secret workflow. Validate this manifest and its resource values in a representative environment before rollout.
 
@@ -361,9 +361,9 @@ The opposite problem is a readiness probe pointed at a path that does not exist,
 Use externalized URL, username, and password settings, configure connection and query timeouts, and size the pool according to workload and database capacity. Pool size must be considered across all replicas: 10 connections per replica multiplied by 20 replicas means up to 200 connections, before migrations, jobs, and other services are counted. A pool too small causes request waiting; a pool too large can overwhelm the database and increase contention. Measure acquisition latency, active/idle counts, waiters, query latency, and DB saturation.
 
 ### Q41. What is graceful shutdown for a REST service?
-Graceful shutdown gives the application a chance to stop taking new requests and complete work already in progress before the process exits. Spring Boot's embedded servers support graceful shutdown, but defaults can differ by Spring Boot version; check the version used by the service. Where explicit configuration is needed, \`server.shutdown=graceful\` enables it and \`spring.lifecycle.timeout-per-shutdown-phase\` sets the application lifecycle timeout.
+Graceful shutdown gives the application a chance to stop taking new requests and complete work already in progress before the process exits. Spring Boot's embedded servers support graceful shutdown, but defaults can differ by Spring Boot version; check the version used by the service. Where explicit configuration is needed, `server.shutdown=graceful` enables it and `spring.lifecycle.timeout-per-shutdown-phase` sets the application lifecycle timeout.
 
-In Kubernetes, the Pod's termination grace period is a larger deadline that must cover any \`preStop\` hook plus the application's shutdown time. Endpoint updates and proxy convergence take time, so a few requests may still arrive as termination begins. Configure bounded HTTP/database timeouts, stop background consumers deliberately, and ensure long-running tasks can be cancelled. A caller may not know whether an operation completed before the connection closed, so idempotency and safe retry semantics still matter.
+In Kubernetes, the Pod's termination grace period is a larger deadline that must cover any `preStop` hook plus the application's shutdown time. Endpoint updates and proxy convergence take time, so a few requests may still arrive as termination begins. Configure bounded HTTP/database timeouts, stop background consumers deliberately, and ensure long-running tasks can be cancelled. A caller may not know whether an operation completed before the connection closed, so idempotency and safe retry semantics still matter.
 
 ### Q42. How do multiple replicas affect state and caches?
 Any request may reach any ready replica. In-memory sessions, locks, counters, or local caches are not automatically shared. A later request may land on a different Pod, and a Pod restart discards its memory. Prefer stateless APIs, external session storage when sessions are unavoidable, and cache designs with explicit consistency and invalidation rules. Sticky sessions can route around the issue but do not make local state durable and can complicate scaling and failover.
@@ -372,7 +372,7 @@ Any request may reach any ready replica. In-memory sessions, locks, counters, or
 Write application logs to stdout/stderr so the platform's log collector can capture them. Include timestamps, severity, service/version, and a request or trace correlation ID; avoid logging credentials, access tokens, or sensitive payloads. Use structured logs where supported. Correlation IDs must be propagated across service calls rather than generated independently at every hop. Logs from a replaced Pod may no longer be available through the current Pod, so central collection is important.
 
 ### Q44. What is the relationship between Actuator health and Kubernetes probes?
-Spring Boot Actuator exposes health information, but an endpoint only works if the relevant Actuator dependency, exposure settings, security rules, health group, and port configuration allow it. For supported Spring Boot versions, the liveness and readiness groups commonly map to \`/actuator/health/liveness\` and \`/actuator/health/readiness\`. Confirm those exact paths in the deployed application instead of assuming the example works unchanged.
+Spring Boot Actuator exposes health information, but an endpoint only works if the relevant Actuator dependency, exposure settings, security rules, health group, and port configuration allow it. For supported Spring Boot versions, the liveness and readiness groups commonly map to `/actuator/health/liveness` and `/actuator/health/readiness`. Confirm those exact paths in the deployed application instead of assuming the example works unchanged.
 
 Keep probe endpoints minimal, fast, and reachable from the kubelet. If the management server runs on a separate port, the probe must target that port. Avoid exposing every management endpoint publicly just to make a health check work. Also keep the intent clear: readiness answers whether the instance should receive traffic; liveness should not simply mirror the health of every external dependency.
 
@@ -382,11 +382,11 @@ Keep probe endpoints minimal, fast, and reachable from the kubelet. If the manag
 A caller uses the destination Service's DNS name and Service port, for example `http://inventory-service:8080` when both services are in the same namespace and the Service exposes port 8080. Across namespaces, use the fully qualified service DNS name when necessary, commonly `inventory-service.team-a.svc.cluster.local` (the cluster domain may differ). The Service gives clients a stable name while Pods change.
 
 ### Q46. Service port versus targetPort versus containerPort?
-- \`port\` is the port clients use on the Kubernetes Service.
-- \`targetPort\` is the destination port on each selected Pod; it can be a number or a named container port.
-- \`containerPort\` documents a port in the Pod spec and provides a name that a Service can reference. It does not itself publish the port or make the application listen on it.
+- `port` is the port clients use on the Kubernetes Service.
+- `targetPort` is the destination port on each selected Pod; it can be a number or a named container port.
+- `containerPort` documents a port in the Pod spec and provides a name that a Service can reference. It does not itself publish the port or make the application listen on it.
 
-For example, a Service can expose port 80 and forward to the Pod's named \`http\` port, which maps to the application listening on 8080. If clients cannot connect, verify the actual application port, Service port, targetPort, selector, and ready EndpointSlices rather than assuming \`containerPort\` opens the port.
+For example, a Service can expose port 80 and forward to the Pod's named `http` port, which maps to the application listening on 8080. If clients cannot connect, verify the actual application port, Service port, targetPort, selector, and ready EndpointSlices rather than assuming `containerPort` opens the port.
 
 ### Q47. ClusterIP, NodePort, LoadBalancer, Ingress, and Gateway API?
 **ClusterIP** provides an internal virtual IP for cluster clients. **NodePort** exposes a port on nodes, subject to cluster networking. **LoadBalancer** asks the environment's integration to provision or configure an external load-balancing endpoint. **Ingress** is a widely used HTTP(S) routing API that requires an Ingress controller. **Gateway API** is a newer, more expressive family of APIs for traffic routing, but support depends on the installed implementation. Developers usually configure app ports and health behavior and coordinate public routing rules with the platform team.
@@ -420,9 +420,9 @@ Helm packages Kubernetes resources into a **chart** and tracks each deployment a
 Keep defaults safe and sensible. Environment-specific secrets should be supplied through approved secret references, not committed in values files.
 
 ### Q54. How do values become Kubernetes manifests?
-Helm merges the chart defaults with values supplied by the release command, renders the templates, and generates Kubernetes resources. For example, \`image.tag\`, \`replicaCount\`, \`resources\`, and \`probes\` values may become fields in the Deployment template. A typo in a values key may not fail if the template never references it, so a successful Helm command does not guarantee the intended value was used.
+Helm merges the chart defaults with values supplied by the release command, renders the templates, and generates Kubernetes resources. For example, `image.tag`, `replicaCount`, `resources`, and `probes` values may become fields in the Deployment template. A typo in a values key may not fail if the template never references it, so a successful Helm command does not guarantee the intended value was used.
 
-\`\`\`yaml
+```yaml
 # values.yaml (illustrative)
 replicaCount: 2
 image:
@@ -438,9 +438,9 @@ resources:
   limits:
     cpu: "1"
     memory: 768Mi
-\`\`\`
+```
 
-The chart's \`version\` identifies the chart package; \`appVersion\` is informational metadata about the application unless templates explicitly use it. Do not assume changing \`appVersion\` changes the deployed image tag. Render the chart using the same values and flags as the real release process, and review the resulting Pod template, config references, ports, probes, and resources.
+The chart's `version` identifies the chart package; `appVersion` is informational metadata about the application unless templates explicitly use it. Do not assume changing `appVersion` changes the deployed image tag. Render the chart using the same values and flags as the real release process, and review the resulting Pod template, config references, ports, probes, and resources.
 
 ### Q55. How do you inspect and validate a chart before deploying?
 Run `helm lint ./chart` to catch common chart issues and `helm template orders ./chart -f values-prod.yaml` to inspect rendered resources. Review image reference, labels/selectors, ports, probes, Secret/ConfigMap references, resource settings, and rollout strategy. Template output can be valid YAML but still semantically wrong, so check the fields that affect your application.
@@ -448,22 +448,22 @@ Run `helm lint ./chart` to catch common chart issues and `helm template orders .
 ### Q56. How do you install or upgrade a release?
 A common workflow is to inspect the rendered output first, then run the approved release command:
 
-\`\`\`bash
+```bash
 helm lint ./chart
 helm template orders ./chart -n production -f values-prod.yaml
 helm upgrade --install orders ./chart -n production -f values-prod.yaml --wait --timeout 5m
 helm history orders -n production
 helm rollback orders 3 -n production
-\`\`\`
+```
 
-\`upgrade --install\` handles both an existing release and a first install. \`--wait\` asks Helm to wait for supported resources to become ready until the timeout; it is useful, but it is not an application smoke test. A release may be Kubernetes-ready while a business flow still fails.
+`upgrade --install` handles both an existing release and a first install. `--wait` asks Helm to wait for supported resources to become ready until the timeout; it is useful, but it is not an application smoke test. A release may be Kubernetes-ready while a business flow still fails.
 
 Be deliberate about values merging on upgrades. Chart defaults, previously stored release values, and explicitly supplied files/flags can interact; Helm provides reset/reuse options that change this behavior. Inspect the effective values and rendered manifests, avoid putting secrets on a command line, and follow the team's approved deployment process.
 
 ### Q57. Why might a values change not restart Pods?
 A Helm value change only changes the resources that the templates actually render. Kubernetes creates a new Deployment ReplicaSet only when the Pod template changes. If a value changes a ConfigMap but leaves the Deployment template unchanged, the Pods normally keep running with their existing environment variables; mounted files may update eventually, but the application must reload them.
 
-A common chart pattern adds a checksum of the rendered configuration to the Pod-template annotations. The checksum changes when the ConfigMap content changes, which triggers a Deployment rollout. Another option is application-level reload for mounted files. Remember that a ConfigMap/Secret mounted with \`subPath\` does not receive automatic projected-volume updates. First compare the rendered template and live Deployment, then decide whether a rollout or a supported reload is appropriate.
+A common chart pattern adds a checksum of the rendered configuration to the Pod-template annotations. The checksum changes when the ConfigMap content changes, which triggers a Deployment rollout. Another option is application-level reload for mounted files. Remember that a ConfigMap/Secret mounted with `subPath` does not receive automatic projected-volume updates. First compare the rendered template and live Deployment, then decide whether a rollout or a supported reload is appropriate.
 
 ### Q58. How do Helm rollback and database migrations interact?
 Helm rollback restores Kubernetes resources to a previous release revision; it cannot undo a schema migration or external side effect that has already happened. A rollback may even make things worse if the old application version cannot run against the new schema. Design migrations and API contracts for backward compatibility, and define a recovery plan that includes data and external side effects—not only a chart revision.
@@ -487,7 +487,7 @@ Kubernetes Secret data is base64-encoded in the API representation; that encodin
 A ServiceAccount is an identity available to a Pod when configured. RBAC determines which API operations that identity can perform. An application that only serves HTTP requests usually does not need permission to list or modify Kubernetes resources. Disable or avoid unnecessary API credentials when possible and request the narrowest permissions required by a real use case.
 
 ### Q63. What belongs in a container security context?
-Useful controls, subject to the platform's policy, include running as a non-root user, disabling privilege escalation, dropping unneeded Linux capabilities, using the runtime's default seccomp profile, and making the root filesystem read-only where the application supports it. These settings should be tested with the actual image and mounted paths: a JVM or library may need a writable temporary directory, so a read-only root filesystem may require an explicit writable \`emptyDir\` mount for \`/tmp\`.
+Useful controls, subject to the platform's policy, include running as a non-root user, disabling privilege escalation, dropping unneeded Linux capabilities, using the runtime's default seccomp profile, and making the root filesystem read-only where the application supports it. These settings should be tested with the actual image and mounted paths: a JVM or library may need a writable temporary directory, so a read-only root filesystem may require an explicit writable `emptyDir` mount for `/tmp`.
 
 Do not switch the whole application to root simply to work around a file-permission issue. Identify which path needs access and grant only that access. Security context controls complement, rather than replace, patched base images, dependency scanning, RBAC, and safe secret handling.
 
@@ -545,56 +545,56 @@ For incident questions, explain the evidence you would gather before committing 
 ### Q68. The application works locally but fails in a container. What do you check?
 **Symptoms:** The same JAR works on a laptop, but the container exits, cannot reach a dependency, or behaves differently.
 
-**Investigate:** Start with \`docker logs <container>\` and \`docker inspect <container>\`. Compare the Java version, active Spring profile, required environment-variable names, working directory, permissions, mounted paths, listening address, and database/service URL. Check whether a URL still points to \`localhost\`, which inside the container means the container itself.
+**Investigate:** Start with `docker logs <container>` and `docker inspect <container>`. Compare the Java version, active Spring profile, required environment-variable names, working directory, permissions, mounted paths, listening address, and database/service URL. Check whether a URL still points to `localhost`, which inside the container means the container itself.
 
 **Likely causes and fix:** Missing files or configuration, an incompatible Java runtime, a port/bind-address mismatch, a dependency hostname that only works on the laptop, or a permission error. Reproduce using the exact image and configuration from the target environment rather than rebuilding a subtly different image.
 
 **Prevention:** Add a container smoke test to the build/release process, externalize configuration, document required settings, and exclude local secrets from the build context.
 
 ### Q69. The container exits immediately after startup.
-**Symptoms:** The container appears briefly in \`docker ps\` and then stops, or Kubernetes repeatedly restarts it.
+**Symptoms:** The container appears briefly in `docker ps` and then stops, or Kubernetes repeatedly restarts it.
 
-**Investigate:** Check \`docker ps -a\`, \`docker logs <container>\`, and \`docker inspect <container>\` for exit code and command. In Kubernetes, use \`kubectl describe pod\` and \`kubectl logs <pod> --previous\` to capture the previous failed run.
+**Investigate:** Check `docker ps -a`, `docker logs <container>`, and `docker inspect <container>` for exit code and command. In Kubernetes, use `kubectl describe pod` and `kubectl logs <pod> --previous` to capture the previous failed run.
 
 **Likely causes and fix:** The JAR is missing, the JVM option is invalid, runtime configuration validation fails, the image uses the wrong Java version, or a wrapper script starts Java in the background and exits. Run Java in the foreground as the main process and fix the first meaningful startup error rather than keeping an unrelated shell alive.
 
 **Prevention:** Test the built image itself in CI, validate required configuration, and include a startup smoke test with production-like environment variable names.
 
 ### Q70. A Pod is repeatedly OOMKilled.
-**Symptoms:** The Pod restarts and its last termination reason shows \`OOMKilled\`; application logs may stop abruptly without a Java exception.
+**Symptoms:** The Pod restarts and its last termination reason shows `OOMKilled`; application logs may stop abruptly without a Java exception.
 
-**Investigate:** Run \`kubectl describe pod <pod> -n <ns>\` and \`kubectl logs <pod> -n <ns> --previous\`. Compare the memory limit with actual container/cgroup usage, heap settings, GC logs, thread count, direct-buffer use, and traffic spikes. Distinguish an operating-system kill from a Java \`OutOfMemoryError\`.
+**Investigate:** Run `kubectl describe pod <pod> -n <ns>` and `kubectl logs <pod> -n <ns> --previous`. Compare the memory limit with actual container/cgroup usage, heap settings, GC logs, thread count, direct-buffer use, and traffic spikes. Distinguish an operating-system kill from a Java `OutOfMemoryError`.
 
 **Likely causes and fix:** Heap consumes most of the limit, a leak or burst increases heap, or native/off-heap memory is underestimated. Leave room for metaspace, code cache, thread stacks, direct buffers, and native allocations. Adjust heap, concurrency, or container memory based on measurements; increasing the limit alone can mask a leak and may create cluster-capacity pressure.
 
 **Prevention:** Load-test realistic peak concurrency, alert on container memory as well as heap, retain useful GC diagnostics, and review memory budget whenever thread pools or client pools change.
 
 ### Q71. A Pod is Running but the REST API is unavailable.
-**Investigate:** Check \`kubectl get pods -n <ns>\`, \`kubectl describe pod <pod> -n <ns>\`, readiness status, probe events, Service selectors, and the Service's EndpointSlices. Confirm that the application is listening on the expected interface and port, that the Service \`targetPort\` matches, and that the management/health port has not been confused with the application port. Then check ingress routing, DNS, NetworkPolicy, TLS, authentication, and application logs.
+**Investigate:** Check `kubectl get pods -n <ns>`, `kubectl describe pod <pod> -n <ns>`, readiness status, probe events, Service selectors, and the Service's EndpointSlices. Confirm that the application is listening on the expected interface and port, that the Service `targetPort` matches, and that the management/health port has not been confused with the application port. Then check ingress routing, DNS, NetworkPolicy, TLS, authentication, and application logs.
 
 **Likely causes:** Running only confirms that the container process exists. The app may not be Ready, may be bound to loopback, may have no matching Service endpoints, or may be reachable only on a different port.  
 **Fix and prevention:** Correct the selector/port/probe configuration, then verify a real API request and dependency call—not just the Pod phase. Keep an after-deploy smoke test for a stable, non-destructive endpoint.
 
 ### Q72. Readiness probes fail after deployment.
-Check the exact path, port, scheme, timeout, response code, Actuator exposure/security, and startup duration. Review \`kubectl describe pod\` events alongside startup logs. A new release may initialize more slowly, use a different management port, or expose a health group at a different path. A startup probe can protect genuinely slow initialization by delaying liveness/readiness enforcement until startup succeeds; it should not hide an app that never becomes ready.
+Check the exact path, port, scheme, timeout, response code, Actuator exposure/security, and startup duration. Review `kubectl describe pod` events alongside startup logs. A new release may initialize more slowly, use a different management port, or expose a health group at a different path. A startup probe can protect genuinely slow initialization by delaying liveness/readiness enforcement until startup succeeds; it should not hide an app that never becomes ready.
 
 Fix the underlying path, configuration, dependency, or startup problem before tuning thresholds. Base the startup window on measured cold-start time plus reasonable variability. Add the probe check to the rendered-manifest and post-deploy verification process so a misconfigured endpoint is found before production rollout.
 
 ### Q73. One service cannot call another using localhost.
-**Symptoms:** The caller gets connection refused or a timeout at a URL such as \`http://localhost:8080\`.
+**Symptoms:** The caller gets connection refused or a timeout at a URL such as `http://localhost:8080`.
 
 **Investigate:** Inspect the caller's effective destination URL and logs. Confirm the destination Service exists in the correct namespace and has ready EndpointSlices; check the Service port and targetPort.
 
-**Likely cause and fix:** \`localhost\` refers to the caller's own network namespace, not a different Pod. Use the Kubernetes Service DNS name, such as \`http://inventory-service:8080\` for a Service exposing port 8080 in the same namespace. Across namespaces, include the namespace in the DNS name.
+**Likely cause and fix:** `localhost` refers to the caller's own network namespace, not a different Pod. Use the Kubernetes Service DNS name, such as `http://inventory-service:8080` for a Service exposing port 8080 in the same namespace. Across namespaces, include the namespace in the DNS name.
 
 **Prevention:** Externalize service URLs per environment and test service-to-service connectivity using the same DNS name and port that the application will use after deployment.
 
 ### Q74. A Service has no ready endpoints.
 Compare the Service selector with the labels on the Pod template and inspect the EndpointSlices associated with that Service. For example:
 
-\`\`\`bash
+```bash
 kubectl get endpointslices -n <ns> -l kubernetes.io/service-name=<service>
-\`\`\`
+```
 
 Look at endpoint readiness/serving/terminating conditions and the port recorded in the slice. Common causes include a label typo, a failing readiness probe, the wrong target port, or a Service and Pod in different namespaces. Correct the manifest or underlying readiness/configuration issue; do not manually edit controller-managed endpoint data. Add a basic Service-selector check to chart review.
 
@@ -603,7 +603,7 @@ Look at endpoint readiness/serving/terminating conditions and the port recorded 
 
 **Investigate:** Render the chart with the same values files/flags as the release and inspect the live Deployment template. Confirm whether the changed value is actually referenced by a template, and inspect the running Pod's configuration without printing secret values. Check whether the value is an environment variable, mounted file, or external secret.
 
-**Likely causes and fix:** The value was overridden, the template does not use it, or the Deployment Pod template did not change. Environment variables are read when the process starts; updating the source Secret does not mutate them. A projected ConfigMap/Secret volume may update eventually, but the application must reload the file, and a \`subPath\` mount will not receive automatic updates. Use a controlled rollout or implement a safe reload mechanism; a chart checksum annotation can trigger a rollout when rendered configuration changes.
+**Likely causes and fix:** The value was overridden, the template does not use it, or the Deployment Pod template did not change. Environment variables are read when the process starts; updating the source Secret does not mutate them. A projected ConfigMap/Secret volume may update eventually, but the application must reload the file, and a `subPath` mount will not receive automatic updates. Use a controlled rollout or implement a safe reload mechanism; a chart checksum annotation can trigger a rollout when rendered configuration changes.
 
 **Prevention:** Validate rendered manifests during review and test configuration changes through the actual deployment path. Never use a restart as a substitute for finding which source of configuration won precedence.
 
@@ -617,12 +617,12 @@ Look at endpoint readiness/serving/terminating conditions and the port recorded 
 **Prevention:** Include HPA maximum replicas in connection-budget reviews and load tests. Set a pool budget across the whole service fleet, not independently in each application instance.
 
 ### Q77. A rolling deployment causes temporary errors.
-Correlate each error with the rollout timeline and identify whether it came from a new Pod, an old Pod being terminated, or a downstream service. Check readiness accuracy, startup duration, \`maxSurge\`/\`maxUnavailable\`, capacity during surge, termination grace period, preStop hooks, and application shutdown logs. Also investigate keep-alive connections, load-balancer convergence, and whether clients retry non-idempotent operations.
+Correlate each error with the rollout timeline and identify whether it came from a new Pod, an old Pod being terminated, or a downstream service. Check readiness accuracy, startup duration, `maxSurge`/`maxUnavailable`, capacity during surge, termination grace period, preStop hooks, and application shutdown logs. Also investigate keep-alive connections, load-balancer convergence, and whether clients retry non-idempotent operations.
 
 New Pods can receive traffic too early if readiness is optimistic; old Pods can still receive requests after termination begins because routing changes take time. Improve readiness and graceful draining, maintain capacity for the rollout strategy, keep old and new versions compatible with the same schema/API contracts, and test the rollout under realistic load. Capture error rate and latency around deploys so the team can distinguish a rollout regression from a coincident dependency incident.
 
 ### Q78. The app receives SIGTERM but does not shut down gracefully.
-Check Pod termination events, whether a \`preStop\` hook runs, the effective container command, and application shutdown logs. A shell wrapper may interfere with signal forwarding; prefer exec-form Docker entrypoints or a deliberate init process. Check the Spring Boot version: recent lines enable graceful shutdown for embedded servers by default, while older versions/configurations may require \`server.shutdown=graceful\`. \`spring.lifecycle.timeout-per-shutdown-phase\` controls the application lifecycle timeout where applicable.
+Check Pod termination events, whether a `preStop` hook runs, the effective container command, and application shutdown logs. A shell wrapper may interfere with signal forwarding; prefer exec-form Docker entrypoints or a deliberate init process. Check the Spring Boot version: recent lines enable graceful shutdown for embedded servers by default, while older versions/configurations may require `server.shutdown=graceful`. `spring.lifecycle.timeout-per-shutdown-phase` controls the application lifecycle timeout where applicable.
 
 The Pod grace period must cover hook time and application shutdown, with enough margin for the process to exit before SIGKILL. If a worker never terminates, investigate blocked I/O, missing timeouts, or non-cooperative background tasks instead of only increasing the grace period. Test while requests are in flight and check that clients handle an interrupted connection safely.
 
@@ -633,12 +633,12 @@ The Pod grace period must cover hook time and application shutdown, with enough 
 
 **Likely cause and fix:** Kubernetes rolls out a Deployment when its Pod template changes, not simply because any resource in the Helm release changed. A ConfigMap update alone does not restart Pods. Add a checksum annotation of the rendered configuration to the Pod template, trigger a controlled rollout, or implement application-level reload for mounted files. Environment variables require a new process.
 
-**Prevention:** Include rendered-manifest review in the release process and make the chart's configuration-update behavior explicit. Remember that \`subPath\` mounts do not receive automatic projected-volume updates.
+**Prevention:** Include rendered-manifest review in the release process and make the chart's configuration-update behavior explicit. Remember that `subPath` mounts do not receive automatic projected-volume updates.
 
 ### Q80. A new image version causes startup failures.
 **Symptoms:** The new ReplicaSet is created, but its Pods crash, fail probes, or cannot start while the previous version worked.
 
-**Investigate:** Verify the exact image tag and digest first. Inspect Pod events, startup logs, Java version, command/entrypoint, required environment settings, mounted paths, file permissions, architecture, and database/API compatibility. Use \`kubectl logs <pod> --previous\` if the container has restarted.
+**Investigate:** Verify the exact image tag and digest first. Inspect Pod events, startup logs, Java version, command/entrypoint, required environment settings, mounted paths, file permissions, architecture, and database/API compatibility. Use `kubectl logs <pod> --previous` if the container has restarted.
 
 **Likely causes and fix:** A missing configuration key, incompatible JDK, changed startup argument, image built for another architecture, permission regression, or a schema/API change can prevent startup. Roll back through the release process if it is safe; separately assess migrations and side effects because reverting a container does not revert data changes.
 
@@ -681,14 +681,14 @@ The Pod grace period must cover hook time and application shutdown, with enough 
 **Prevention:** Monitor request latency percentiles, pool wait time, downstream latency, and saturation together; include slow-dependency and overload cases in testing.
 
 ### Q85. A rollout is stuck and old Pods remain.
-Start with \`kubectl rollout status deployment/orders-api -n <ns>\`, then inspect the Deployment, ReplicaSets, new Pods, events, image-pull status, readiness failures, and available capacity. Determine whether the new ReplicaSet cannot schedule, cannot pull the image, is crashing, or is running but never becomes Ready. An old ReplicaSet can intentionally remain available while Kubernetes tries to establish the new version.
+Start with `kubectl rollout status deployment/orders-api -n <ns>`, then inspect the Deployment, ReplicaSets, new Pods, events, image-pull status, readiness failures, and available capacity. Determine whether the new ReplicaSet cannot schedule, cannot pull the image, is crashing, or is running but never becomes Ready. An old ReplicaSet can intentionally remain available while Kubernetes tries to establish the new version.
 
 Fix the cause or follow the release procedure to roll back. Do not delete old Pods merely to make the status look cleaner: they may be the only healthy capacity available. After recovery, add a check for the failure mode—such as pre-deploy image availability, probe verification, or resource validation—to reduce repeat incidents.
 
 ### Q86. A Pod cannot pull the image.
-**Symptoms:** The Pod shows \`ErrImagePull\` or \`ImagePullBackOff\` and the application container never starts.
+**Symptoms:** The Pod shows `ErrImagePull` or `ImagePullBackOff` and the application container never starts.
 
-**Investigate:** Use \`kubectl describe pod <pod> -n <ns>\` and read the events. Verify the repository and tag/digest exist, registry authentication is configured, the image reference is correct, and registry DNS/TLS/network access works from the cluster. Check rate limits and architecture compatibility where relevant.
+**Investigate:** Use `kubectl describe pod <pod> -n <ns>` and read the events. Verify the repository and tag/digest exist, registry authentication is configured, the image reference is correct, and registry DNS/TLS/network access works from the cluster. Check rate limits and architecture compatibility where relevant.
 
 **Likely cause and fix:** Common causes include a misspelled or deleted tag, missing credentials, inaccessible registry, or a bad image reference. Correct the image or pull credentials and retry via the release pipeline; do not solve a production pull failure by switching to an unreviewed public image.
 
