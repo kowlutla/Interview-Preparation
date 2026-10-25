@@ -10,12 +10,23 @@ This is a single-file revision handbook. Examples are intentionally small enough
 - [1. How to approach an LLD interview](#1-how-to-approach-an-lld-interview)
 - [2. Object-oriented design fundamentals](#2-object-oriented-design-fundamentals)
 - [3. SOLID principles](#3-solid-principles)
+  - [3.8 SOLID in a real refactoring](#38-solid-in-a-real-refactoring-an-order-checkout-example)
+  - [3.9 How SOLID principles reinforce one another](#39-how-do-solid-principles-reinforce-one-another)
 - [4. Creational patterns](#4-creational-patterns)
+  - [4.7 Choosing a creational pattern](#47-choosing-a-creational-pattern-from-the-construction-problem)
 - [5. Structural patterns](#5-structural-patterns)
+  - [5.9 Structural patterns in a backend service](#59-structural-patterns-in-a-backend-service)
 - [6. Behavioral patterns](#6-behavioral-patterns)
+  - [6.14 Behavioral patterns through one real workflow](#614-behavioral-patterns-through-one-real-workflow)
 - [7. Enterprise and backend application patterns](#7-enterprise-and-backend-application-patterns)
+  - [7.15 How backend architecture patterns fit together](#715-how-the-main-backend-architecture-patterns-fit-together)
 - [8. Design principles, code smells, and refactoring](#8-design-principles-code-smells-and-refactoring)
+  - [8.7 Refactoring toward a better design](#87-refactoring-toward-a-better-design-a-practical-checklist)
 - [9. UML and communicating a design](#9-uml-and-communicating-a-design)
+  - [9.6 UML relationships](#96-uml-relationships-how-to-choose-the-correct-notation)
+  - [9.7 Worked sequence diagram: checkout](#97-a-worked-sequence-diagram-checkout)
+  - [9.8 Diagram type comparison](#98-state-diagrams-vs-sequence-diagrams-vs-activity-diagrams)
+  - [9.9 Whiteboard workflow](#99-a-repeatable-whiteboard-workflow)
 - [10. Concurrency and thread safety in LLD](#10-concurrency-and-thread-safety-in-lld)
 - [11. Testing design and maintainability](#11-testing-design-and-maintainability)
 - [12. LLD case studies](#12-lld-case-studies)
@@ -274,6 +285,49 @@ An application service may coordinate validation, pricing, payment, and persiste
 
 ---
 
+### 3.8 SOLID in a real refactoring: an order checkout example
+
+Imagine an `OrderService` that validates a cart, calculates discounts, charges a card, saves the order, sends an email, and writes an audit record. At first this looks convenient: one method coordinates everything. As requirements grow, however, every change becomes risky. A new discount affects checkout; a new payment provider affects the same class; a new email template requires touching code that also handles money.
+
+A better design does not mean creating a class for every line. It means separating policies and I/O that change for different reasons.
+
+```mermaid
+flowchart TD
+    C[Checkout request] --> A[CheckoutService]
+    A --> V[OrderValidator]
+    A --> P[PricingPolicy]
+    A --> Pay[PaymentPort]
+    A --> R[OrderRepository]
+    A --> N[NotificationPort]
+```
+
+The application service still coordinates the use case. The validator owns validation rules, the pricing policy owns price calculation, and adapters implement payment and notification integrations. This illustrates SRP and DIP; Strategy can represent variable pricing rules. You do not need a design pattern for every dependency.
+
+A practical refactoring sequence is:
+
+1. Add tests around the existing checkout behavior, including invalid input and payment failure.
+2. Extract pure calculations first because they are easiest to test.
+3. Define interfaces only at meaningful boundaries, such as an external payment provider.
+4. Move persistence and notification behind collaborators.
+5. Keep the order's legal state transitions inside the domain model.
+6. Re-run tests after each change rather than performing one large rewrite.
+
+**Interview point:** SOLID is not a scorecard. Explain which change becomes easier, which dependency is isolated, and what additional complexity the abstraction introduces. If a small, stable feature is clearer as one class, keeping it simple can be the more maintainable choice.
+
+### 3.9 How do SOLID principles reinforce one another?
+
+The principles overlap, but they answer different questions:
+
+| Principle | Design question | Typical warning sign |
+|---|---|---|
+| SRP | Does this module have one coherent reason to change? | One class owns pricing, persistence, and delivery |
+| OCP | Can likely variations be added without rewriting stable decision logic? | A growing switch over provider types |
+| LSP | Can each implementation honor the contract callers rely on? | A subtype rejects an operation the base type promises |
+| ISP | Do clients depend only on capabilities they need? | A client must implement irrelevant methods |
+| DIP | Does business policy depend on stable contracts rather than volatile details? | Domain logic constructs vendor SDK clients directly |
+
+Do not try to maximize all five in isolation. A highly fragmented design may technically have small classes and interfaces but still be hard to follow. The goal is a coherent model with explicit boundaries, valid contracts, and a reasonable cost of change.
+
 ## 4. Creational patterns
 
 ### 4.1 Singleton
@@ -371,6 +425,62 @@ Use Builder for complex parameterized construction; Factory Method when a subtyp
 
 ---
 
+### 4.7 Choosing a creational pattern from the construction problem
+
+Use the construction problem—not the pattern name—to decide.
+
+| Situation | Likely fit | Example |
+|---|---|---|
+| A single process-scoped instance is genuinely required | Singleton or container-managed singleton scope | Immutable configuration registry |
+| The caller needs one implementation behind a common product contract | Factory Method / simple factory | Select a notification sender |
+| Several related products must be compatible as a family | Abstract Factory | Build a UI theme's button, menu, and dialog |
+| Construction has many optional steps or invariants | Builder | Create a complex search request |
+| A new object is best initialized from an existing configured instance | Prototype | Clone a template with a few changes |
+
+A common mistake is using Abstract Factory when a simple constructor or map lookup is enough. Another is using Singleton to make a dependency globally reachable. That hides coupling and can create shared mutable state. In Spring, a singleton-scoped bean means one bean instance per application context, not one object shared by every process in a distributed deployment.
+
+#### Real-life example: building a notification sender
+
+If an application only needs to choose among email and SMS implementations, a factory can centralize that choice:
+
+```java
+interface NotificationSender {
+    void send(String recipient, String message);
+}
+
+final class NotificationSenderFactory {
+    private final Map<String, NotificationSender> senders;
+
+    NotificationSenderFactory(Map<String, NotificationSender> senders) {
+        this.senders = Map.copyOf(senders);
+    }
+
+    NotificationSender forChannel(String channel) {
+        NotificationSender sender = senders.get(channel);
+        if (sender == null) {
+            throw new IllegalArgumentException("Unsupported channel: " + channel);
+        }
+        return sender;
+    }
+}
+```
+
+The factory does not send notifications; it resolves the implementation. A service can then use the returned contract. In a dependency-injection framework, the map can be assembled by the container. This keeps object creation/selection separate from business behavior without introducing an elaborate factory hierarchy.
+
+#### Builder: what problem does it solve?
+
+Builder is useful when an object has many optional fields, validation rules, or construction steps. It is not automatically better than a constructor.
+
+```java
+SearchRequest request = SearchRequest.builder()
+    .query("payments")
+    .pageSize(50)
+    .includeArchived(false)
+    .build();
+```
+
+The example is illustrative; the key point is that `build()` should validate invariants and return a valid object. If the object has only two required fields, a constructor or record may be clearer. Avoid builders that permit invalid intermediate state to escape into application code.
+
 ## 5. Structural patterns
 
 ### 5.1 Adapter
@@ -450,6 +560,74 @@ Flyweight shares common immutable intrinsic state among many logical objects to 
 | Proxy | Control access or add indirection | Authorization check, lazy object, remote stub |
 
 ---
+
+### 5.9 Structural patterns in a backend service
+
+Structural patterns help assemble objects without making callers understand every implementation detail. Consider an order service that calls a third-party shipping API, needs metrics around calls, and uses a vendor SDK with a different interface.
+
+```mermaid
+classDiagram
+    class ShippingService {
+      +createShipment(Order)
+    }
+    class ShippingPort {
+      <<interface>>
+      +createShipment(ShipmentRequest)
+    }
+    class VendorShippingAdapter {
+      +createShipment(ShipmentRequest)
+    }
+    class MetricsShippingDecorator {
+      +createShipment(ShipmentRequest)
+    }
+    ShippingService --> ShippingPort
+    ShippingPort <|.. VendorShippingAdapter
+    ShippingPort <|.. MetricsShippingDecorator
+    MetricsShippingDecorator --> ShippingPort
+```
+
+- **Adapter** translates the application's shipping contract into the vendor SDK's contract and maps the vendor response back.
+- **Decorator** wraps the same contract to add metrics, tracing, caching, or retry behavior without changing the caller.
+- **Proxy** controls access to an object, for example by enforcing authorization or lazy remote access. A proxy is not automatically a security boundary; enforcement must be complete and hard to bypass.
+- **Facade** provides a simpler operation over several subsystem calls, such as `checkout()` coordinating inventory, payment, and order confirmation.
+- **Bridge** separates two independent dimensions of variation, such as a notification abstraction from its delivery mechanism.
+- **Composite** lets callers treat a group and an individual uniformly, as with nested folders and files.
+- **Flyweight** shares immutable intrinsic state among many logical objects, as a text renderer might share glyph definitions.
+
+The same wrapper structure can sometimes serve more than one purpose. Distinguish patterns by intent. If the wrapper translates an incompatible contract, call it an Adapter; if it preserves the contract while adding behavior, it is a Decorator.
+
+#### Example: adding metrics with a decorator
+
+```java
+interface PaymentGateway {
+    PaymentResult charge(PaymentRequest request);
+}
+
+final class MetricsPaymentGateway implements PaymentGateway {
+    private final PaymentGateway delegate;
+    private final PaymentMetrics metrics;
+
+    MetricsPaymentGateway(PaymentGateway delegate, PaymentMetrics metrics) {
+        this.delegate = Objects.requireNonNull(delegate);
+        this.metrics = Objects.requireNonNull(metrics);
+    }
+
+    @Override
+    public PaymentResult charge(PaymentRequest request) {
+        long started = System.nanoTime();
+        try {
+            PaymentResult result = delegate.charge(request);
+            metrics.recordSuccess(System.nanoTime() - started);
+            return result;
+        } catch (RuntimeException ex) {
+            metrics.recordFailure(System.nanoTime() - started);
+            throw ex;
+        }
+    }
+}
+```
+
+Supporting types are intentionally omitted. The decorator preserves the `PaymentGateway` contract while adding instrumentation. In production, define whether checked exceptions, timeouts, cancellations, and failures returned as result values are counted as failures. Do not accidentally log card data or other sensitive request fields.
 
 ## 6. Behavioral patterns
 
@@ -531,6 +709,73 @@ Observer commonly connects an in-process subject directly to listeners. Pub/sub 
 
 ---
 
+### 6.14 Behavioral patterns through one real workflow
+
+Behavioral patterns organize communication and the choice of behavior. The easiest way to understand them is to ask what is varying or communicating.
+
+#### Strategy: choose one algorithm
+
+A checkout can choose among pricing policies, routing policies, or payment selection rules. The caller uses a common interface and the chosen implementation performs the algorithm.
+
+```mermaid
+classDiagram
+    class PricingPolicy {
+      <<interface>>
+      +calculate(Order) Money
+    }
+    class StandardPricing
+    class SeasonalPricing
+    class CheckoutService
+    PricingPolicy <|.. StandardPricing
+    PricingPolicy <|.. SeasonalPricing
+    CheckoutService --> PricingPolicy
+```
+
+Use Strategy when alternatives represent interchangeable ways to perform the same job. It is usually better than a long conditional when the alternatives are expected to grow or change independently. A two-branch, stable rule may remain a conditional for clarity.
+
+#### State: behavior depends on lifecycle
+
+A payment behaves differently when it is created, authorized, captured, refunded, or declined. State design is about valid transitions, not merely storing a status string.
+
+```mermaid
+stateDiagram-v2
+    [*] --> CREATED
+    CREATED --> AUTHORIZED: authorization accepted
+    CREATED --> DECLINED: definitive decline
+    AUTHORIZED --> CAPTURED: capture accepted
+    AUTHORIZED --> VOIDED: void accepted
+    CAPTURED --> REFUNDED: refund completed
+```
+
+Reject illegal transitions explicitly. Do not allow arbitrary setters to change `CAPTURED` back to `CREATED`. A state enum plus guarded methods is often enough; State objects become useful when each state has substantially different behavior.
+
+#### Command: represent a request as an object
+
+A command packages an action and its parameters, such as `CancelOrder(orderId)` or `CapturePayment(paymentId)`. This makes it possible to queue, audit, retry, or authorize an operation consistently. But retries are safe only if the command's effects are idempotent or the system has a reliable deduplication mechanism.
+
+#### Observer: notify registered listeners
+
+Observer is useful when one in-process object needs to notify listeners that something changed. For example, a local order model may notify a UI view. For reliable communication between independent backend services, a durable message broker and explicit delivery semantics are usually more appropriate than an in-memory observer list.
+
+#### Chain of Responsibility: try ordered handlers
+
+A request may pass through authentication, validation, risk checks, and routing. Each handler either rejects, handles, or passes the request along. Make order and stop behavior explicit; otherwise an innocent reordering can change business semantics.
+
+#### Template Method: keep a stable skeleton
+
+A base workflow defines the order of steps while subclasses supply selected steps. This can work for stable algorithms with controlled variation, but it couples subclasses to the base-class lifecycle. Prefer Strategy/composition when the steps need to vary independently at runtime.
+
+#### Pattern comparison
+
+| Need | Better starting point | Why |
+|---|---|---|
+| Pick one interchangeable algorithm | Strategy | One policy is selected for the operation |
+| Enforce legal lifecycle transitions | State or guarded enum transitions | Behavior depends on current state |
+| Package an operation for queueing/audit | Command | The action becomes a value |
+| Notify in-process listeners | Observer | One subject informs multiple dependents |
+| Pass work through ordered handlers | Chain of Responsibility | A handler can handle or pass onward |
+| Reuse a fixed algorithm skeleton | Template Method | The sequence is stable, selected steps vary |
+
 ## 7. Enterprise and backend application patterns
 
 These are not all GoF patterns. They are architectural or enterprise application patterns that organize application boundaries and business behavior.
@@ -609,6 +854,45 @@ An **anti-corruption layer** translates an external or legacy model into the app
 
 ---
 
+### 7.15 How the main backend architecture patterns fit together
+
+These patterns are complementary rather than competing. A common Java backend request path may look like this:
+
+```mermaid
+flowchart TD
+    HTTP[REST Controller] --> App[Application Service]
+    App --> Domain[Domain Model and Policies]
+    App --> RepoPort[Repository Interface]
+    RepoPort --> RepoAdapter[Database Adapter]
+    App --> PaymentPort[Payment Port]
+    PaymentPort --> ProviderAdapter[Payment Provider Adapter]
+```
+
+- The **controller** translates transport-level input into an application request and maps the result to HTTP.
+- The **application service** coordinates the use case and transaction boundary.
+- The **domain model** protects business invariants and state transitions.
+- The **repository** provides collection-like persistence operations for domain objects without exposing SQL details to business policy.
+- The **adapter** translates an external technology's API into the application's port.
+- The **DTO and mapper** keep the public API representation separate from internal domain state.
+
+For example, a controller should not calculate discounts, directly update payment state, and publish messages in one method. Nor should every single-line operation be split into a separate service. Put each rule where it is easiest to reason about and test.
+
+#### Repository vs DAO
+
+A DAO often emphasizes persistence operations and database mapping. A Repository presents a domain-oriented collection abstraction. In real code, the names overlap, and a Spring Data repository may perform both roles. The important question is whether business rules are leaking into SQL access code or persistence details are leaking into the domain model.
+
+#### Application service vs domain service
+
+An application service coordinates a use case: load an order, invoke domain behavior, persist changes, and return a result. A domain service represents a domain rule that does not naturally belong to one entity or value object. An application service should not become the home for all business calculations merely because it is already called by the controller.
+
+#### CQRS: use it only when the read/write needs differ
+
+CQRS separates the model used to change state from the model used to query it. It can help when reads need different projections, query volume is high, or read and write concerns evolve differently. It also introduces synchronization, duplicate models, and more operational complexity. CQRS does not automatically require separate databases, event sourcing, or microservices.
+
+#### Outbox: commit state and publication intent together
+
+If a service updates a database and publishes an event, a crash between those operations can leave the database updated but the event missing—or the event published even though the transaction rolls back. The outbox pattern writes the business change and an outgoing-event record in one local database transaction; a separate publisher delivers the event later. Consumers still need idempotency because delivery may be repeated.
+
 ## 8. Design principles, code smells, and refactoring
 
 ### 8.1 DRY, KISS, and YAGNI
@@ -649,6 +933,39 @@ Make valid use explicit, avoid surprising side effects, choose names that descri
 Start with a correct, understandable design for current requirements. Add an abstraction when there is real variation, a boundary to isolate, or a testability problem. Keep extension points narrow and observable. A pragmatic implementation with one clear conditional can be better than a pattern-heavy design. The interview answer should explain what you chose, what you deliberately deferred, and what evidence would trigger a refactor.
 
 ---
+
+### 8.7 Refactoring toward a better design: a practical checklist
+
+When code becomes hard to change, do not immediately introduce patterns. Identify the source of the pain first.
+
+1. **Duplicated rule:** extract a shared function or policy only if the behavior really has the same meaning.
+2. **Growing type switch:** consider polymorphism or Strategy if each branch is a stable, meaningful variation.
+3. **Long parameter list:** introduce a parameter object or value object when the fields form one concept.
+4. **Primitive obsession:** replace raw strings, numbers, or booleans with domain types when validation or meaning matters.
+5. **Feature envy:** move behavior closer to the data and invariants it uses, unless the logic belongs to a coordinating service.
+6. **God class:** split by cohesive responsibilities and reasons to change, not by arbitrary line counts.
+7. **Shotgun surgery:** group behavior that changes together behind a clear module boundary.
+8. **Premature abstraction:** remove abstractions that add indirection without protecting a real boundary or variation.
+
+#### Example: replace primitive values with a value object
+
+A method accepting `String currency` and `BigDecimal amount` can be called with inconsistent combinations and repeated validation. A `Money` value object can define currency consistency and arithmetic rules in one place.
+
+```java
+record Money(BigDecimal amount, Currency currency) {
+    Money {
+        Objects.requireNonNull(amount);
+        Objects.requireNonNull(currency);
+        if (amount.signum() < 0) {
+            throw new IllegalArgumentException("Amount cannot be negative");
+        }
+    }
+}
+```
+
+This particular type is suitable only for non-negative amounts; a general accounting domain may need signed values for balances and adjustments. That is the lesson: domain types should encode the actual business rules, not assumptions borrowed from one use case.
+
+Refactor in small steps with tests. A clean design is not the design with the most abstractions; it is the design where important rules are visible and changes have a predictable blast radius.
 
 ## 9. UML and communicating a design
 
@@ -700,6 +1017,69 @@ Underline nouns as candidate concepts and verbs as candidate operations, but do 
 Begin with assumptions and invariants. Present the main classes and their responsibilities. Walk through one successful use case and one failure or race condition. Explain why a pattern is useful and what would be simpler if the requirements were smaller. End with persistence, concurrency, and extension points. This makes your reasoning auditable and invites useful discussion.
 
 ---
+
+### 9.6 UML relationships: how to choose the correct notation
+
+Class diagrams are useful only when the relationships communicate real design intent.
+
+| Relationship | Meaning | Example |
+|---|---|---|
+| Association | One object knows or collaborates with another | `OrderService` calls `PaymentGateway` |
+| Dependency | A temporary use, often as a parameter or local variable | A mapper uses a date formatter |
+| Aggregation | A whole refers to parts that can exist independently; semantics are often domain-specific | A team refers to employees |
+| Composition | Strong ownership/lifecycle relationship; the part is owned by the whole | An order owns its line items in a simple order model |
+| Generalization | Inheritance or subtype relationship | `CardPayment` implements `PaymentMethod` |
+| Realization | A class implements an interface | `StripeAdapter` implements `PaymentGateway` |
+
+Do not use composition diamonds simply because one class has a field of another type. Ask whether the part's lifecycle is owned by the whole and whether it can meaningfully exist independently. UML is a communication tool, not a replacement for domain reasoning.
+
+### 9.7 A worked sequence diagram: checkout
+
+A sequence diagram explains the order of calls and the boundary where failures can happen.
+
+```mermaid
+sequenceDiagram
+    actor Customer
+    participant API as CheckoutController
+    participant App as CheckoutService
+    participant Pay as PaymentGateway
+    participant DB as OrderRepository
+    Customer->>API: POST /checkout
+    API->>App: checkout(request)
+    App->>App: validate and price
+    App->>Pay: authorize(amount, key)
+    Pay-->>App: authorization result
+    App->>DB: save order and payment state
+    DB-->>App: persisted order
+    App-->>API: checkout result
+    API-->>Customer: response
+```
+
+This is one possible flow, not a universal implementation. A real system must decide what happens if the payment provider succeeds but the database write fails, or if the provider times out after processing the request. The diagram helps expose these questions; it does not solve them by itself. Payment authorization/capture policy and transaction boundaries must be made explicit.
+
+### 9.8 State diagrams vs sequence diagrams vs activity diagrams
+
+- Use a **class diagram** to communicate static structure: types, responsibilities, and relationships.
+- Use a **sequence diagram** to show which participant calls which collaborator and in what order.
+- Use a **state diagram** to show valid states and transitions for one lifecycle-bearing object.
+- Use an **activity diagram** to show workflow branching, decisions, and parallel paths.
+
+A common interview mistake is drawing only a class diagram. The interviewer may understand which classes exist but still not know how a use case succeeds or what happens on failure. For a typical LLD question, a small class diagram plus one sequence or state diagram is often enough. Add more only when they clarify a difficult part.
+
+### 9.9 A repeatable whiteboard workflow
+
+For a 35–45 minute interview, a reasonable approach is:
+
+1. **Clarify the scope** and list the actors and primary use cases.
+2. **State assumptions** instead of silently guessing.
+3. **Write the core entities and value objects**, then identify the rules that must always hold.
+4. **Assign responsibilities** and draw only the relationships needed for the main flow.
+5. **Walk through one successful scenario** with a sequence diagram or numbered steps.
+6. **Walk through one failure or race condition**, such as duplicate payment or simultaneous booking.
+7. **Show extension points** only where variation is realistic.
+8. **Discuss tests and trade-offs**, including what is intentionally out of scope.
+
+For example, in a meeting-room scheduler, the key invariant is not simply “there is a Booking class.” It is “two confirmed bookings for the same room cannot overlap.” That invariant affects the repository operation, transaction/locking strategy, and concurrency tests. A strong design ties requirements to the classes and operations that enforce them.
 
 ## 10. Concurrency and thread safety in LLD
 
