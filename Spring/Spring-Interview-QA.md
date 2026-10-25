@@ -663,7 +663,7 @@ An inner transactional method can mark the shared transaction rollback-only when
 
 ### Q121. What is the difference between a local transaction and a distributed workflow?
 
-A local transaction coordinates supported resources through one transaction manager. A workflow spanning HTTP services, databases, and a broker needs explicit reliability semantics such as outbox, idempotency, saga compensation, or a supported distributed transaction protocol where appropriate.
+A local transaction coordinates supported resources through one transaction manager, such as a database transaction. A distributed business workflow crosses independent boundaries—HTTP services, databases, and brokers—and a local @Transactional boundary cannot make all of them commit atomically. Design the workflow around durable state transitions, idempotency, and recovery. An outbox can close the database-to-message dual-write gap; a saga can coordinate a sequence of local transactions with compensating actions when needed. These patterns do not provide a magical global rollback, so define what users see during partial completion and how operations are retried or reconciled.
 
 ### Q122. How can transaction boundaries affect connection pool usage?
 
@@ -671,7 +671,7 @@ Transactions often bind a database connection until the transaction completes. A
 
 ### Q123. What is transaction-aware caching?
 
-It coordinates cache operations with transaction completion so changes are not made visible at an inappropriate phase. Exact behavior depends on the cache abstraction/provider configuration. Verify rollback and after-commit behavior rather than assuming cache eviction is automatically atomic with the database.
+Transaction-aware caching attempts to align cache actions with transaction completion so that a cache is not updated or invalidated at a phase inconsistent with the database outcome. The exact guarantees depend on the cache provider, transaction manager, and integration configuration; the cache and database are not automatically one atomic resource. For example, evicting before commit can let another request reload old data, while a process crash after database commit but before distributed invalidation can leave stale entries. Define the required consistency level, test both commit and rollback paths, and use durable invalidation/outbox mechanisms if missed updates would be harmful.
 
 ### Q124. How should a service handle an optimistic-lock conflict?
 
@@ -683,7 +683,7 @@ An in-memory database may differ from production in SQL dialect, implicit casts,
 
 ### Q126. How do you investigate a deadlock?
 
-Collect database deadlock diagnostics and transaction/query logs, map lock acquisition order, and identify cycles. Reduce transaction scope, access rows in consistent order where possible, and implement safe retry for database-detected transient deadlocks only when the business operation is repeatable.
+A database deadlock occurs when transactions hold locks that the other transactions need, creating a cycle that the database resolves by aborting one participant. Start with the database's deadlock report and identify the statements, rows/indexes, and lock-acquisition order involved. Reduce transaction duration, access resources in a consistent order where practical, and add appropriate indexes if scans are causing broad locking. Retrying a deadlock can be reasonable because the database has aborted one transaction, but only retry a bounded, repeatable business operation and do not repeat external side effects without idempotency protection.
 
 ### Official references
 - [Spring transaction management](https://docs.spring.io/spring-framework/reference/data-access/transaction.html)
@@ -704,7 +704,7 @@ Spring Data creates repository proxy implementations based on repository metadat
 
 ### Q129. What is the purpose of Page, Slice, and List return types?
 
-A Page commonly includes total-count metadata and may require an additional count query. A Slice indicates whether more data exists without necessarily calculating the full total. A List returns results without pagination metadata. Choose based on product needs and query cost.
+A Page usually provides the requested content plus total-element/page metadata, which can require a count query in addition to the data query. A Slice reports whether more content is available without necessarily calculating the total, making it cheaper when the UI only needs “next page.” A List returns the records but no pagination metadata by itself. Choose the smallest contract that meets the client need, cap page sizes, define stable sorting, and inspect generated count queries for expensive joins. For deep or frequently changing datasets, cursor/keyset pagination may be more efficient and stable than large offsets.
 
 ### Q130. What is a projection?
 
@@ -712,7 +712,7 @@ A projection retrieves a subset or alternate view of data instead of exposing th
 
 ### Q131. How should dynamic filtering be implemented?
 
-Use a supported approach such as Specifications, query-by-example where suitable, or a custom repository query. Validate allowed filter and sort fields, combine predicates deliberately, and avoid string-concatenating untrusted SQL. Query design should remain understandable and testable.
+Specifications let a repository compose optional predicates using the JPA Criteria API, which is useful when clients can supply several independent filters. They reduce hand-built query strings, but complex joins, fetches, grouping, and pagination can still become hard to reason about. Validate which fields may be filtered or sorted, define how null/empty filters behave, and avoid letting clients choose arbitrary entity properties. Keep the predicate construction testable and inspect generated SQL for important queries. For a small fixed set of filters, a clearly named @Query may be simpler than a generic specification framework.
 
 ### Q132. How do N+1 queries arise, and how would you fix them?
 
@@ -789,7 +789,7 @@ This is an illustrative fragment, not a complete security policy; authentication
 
 ### Q143. What is the difference between 401 and 403?
 
-401 indicates that the request lacks acceptable authentication credentials or authentication failed. 403 indicates the request was understood but access is denied for the current principal, although exact responses can be customized. A configured entry point and access-denied handler influence the response behavior.
+401 generally means authentication is missing or unacceptable; 403 generally means the request is understood but the current principal is not permitted. The distinction can vary with the configured entry point, access-denied handler, and API authentication model—for example, some configurations deliberately avoid revealing whether a resource exists. Clients should not infer more than the API contract promises. Test anonymous requests, invalid/expired credentials, and authenticated users lacking an authority, and ensure error bodies remain consistent without exposing sensitive resource details.
 
 ### Q144. How should a REST API validate JWTs?
 
@@ -797,11 +797,11 @@ Prefer Spring Security OAuth 2.0 Resource Server support instead of writing a cu
 
 ### Q145. What is SecurityContextHolder?
 
-It provides access to the current SecurityContext, which holds authentication information. The default servlet strategy is typically thread-bound; asynchronous execution and reactive pipelines have different context-propagation considerations. Do not assume security context automatically follows arbitrary executor tasks.
+SecurityContextHolder exposes the current SecurityContext, which contains the Authentication for the current execution context. In the standard servlet setup, the context is typically associated with the current thread, so arbitrary executor tasks may not inherit it automatically. Reactive applications use Reactor Context and supported security integrations rather than assuming ThreadLocal behavior. If asynchronous work needs identity or authorization data, propagate it through supported mechanisms or pass an explicit, minimal immutable command context. Clear or scope security context correctly to avoid accidental identity leakage between reused threads.
 
 ### Q146. What is the difference between roles and authorities?
 
-Authorities are granted permission strings. Role-based checks are a convention that often adds a ROLE_ prefix when using role-oriented APIs. Be consistent about prefixes and use authorities that express the actual permission needed rather than overloading broad roles for every decision.
+An authority is a permission string granted to an authenticated principal, while a role is commonly a naming convention built on authorities. In Spring Security, role-oriented checks typically apply the ROLE_ prefix, whereas hasAuthority checks the supplied authority value as written. Mixing the conventions can cause confusing access-denied behavior. Use authorities for specific capabilities such as order:read or invoice:approve, roles for broader job functions where appropriate, and test the actual values produced by authentication/claim mapping. Do not rely on role names alone for resource ownership or tenant isolation.
 
 ### Q147. Why does CSRF protection matter, and when should it remain enabled?
 
@@ -809,7 +809,7 @@ Cross-site request forgery abuses the browser's automatic attachment of credenti
 
 ### Q148. What are CORS and CSRF, and why are they not interchangeable?
 
-CORS is a browser-enforced cross-origin access policy; CSRF is an attack in which a victim's browser is induced to submit an authenticated request. CORS is not a general server-side authorization mechanism and does not replace CSRF defenses.
+CORS controls whether browser JavaScript from one origin may access a cross-origin response under the browser's same-origin model; it is not a server-side authorization system. CSRF concerns an attacker causing a browser to send an authenticated request, often because cookies are attached automatically. Permissive CORS does not fix CSRF, and CSRF protection does not decide which origins may read responses. Configure both according to the actual browser credential model, allowed origins/methods/headers, and authentication mechanism. Avoid wildcard origin policies with credentials and test preflight plus actual requests through the real security chain.
 
 ### Q149. How should method-level security be enabled and used?
 
@@ -901,7 +901,7 @@ Security tests should prove both that legitimate requests succeed and that unaut
 
 ### Q168. When should a test use a real HTTP server instead of MockMvc?
 
-Use a real-server test when transport behavior, actual server configuration, socket handling, compression, or deployed HTTP integration is part of the risk. MockMvc is faster for MVC handler behavior but does not exercise the full network stack.
+Use a real-server test when behavior depends on an actual embedded container, socket handling, compression, connection limits, TLS termination, or deployment-specific HTTP configuration. MockMvc is better for most controller contract tests because it is faster and exercises Spring MVC without a real network server. A real-server test still does not automatically reproduce the production gateway, ingress, DNS, or TLS configuration, so test those separately when they are part of the risk. Choose the test level based on the failure mode you need to detect rather than making every test expensive.
 
 ### Q169. How should asynchronous tests avoid timing races?
 
@@ -913,7 +913,7 @@ Avoid arbitrary Thread.sleep calls because they depend on machine speed and can 
 
 ### Q171. How do you test a migration against an existing schema?
 
-Start from a known baseline schema and run the real migration sequence against the production database engine, including representative data where migration behavior depends on volume or constraints. Verify both final schema and transformed data, not just that the migration command exits successfully.
+Start from a known baseline schema and apply the same migration sequence that production uses against the production database engine. Verify both the final schema and the data transformation, including constraints, indexes, nullability, default values, and behavior on representative existing records. A migration that succeeds on an empty database may fail or lock a large production table when data volume is realistic. Test rollback/recovery where supported, estimate operational impact, and design expand-and-contract changes when old and new application versions may run simultaneously during a rolling deployment.
 
 ### Q172. How should test secrets and environment configuration be handled?
 
@@ -973,7 +973,7 @@ In Project Reactor, `Mono<T>` represents a publisher that can emit zero or one i
 
 ### Q181. What is backpressure?
 
-Backpressure is a mechanism for coordinating demand between a subscriber and a publisher so the consumer can signal how many items it is ready to process. It helps manage flow but does not magically bound every external resource or make a blocking call safe.
+Backpressure lets a downstream subscriber communicate demand so an upstream publisher does not have to deliver an unlimited stream regardless of consumer capacity. Reactor operators and publishers have different buffering and request behaviors, and an adapter around a non-reactive source may still buffer or block. Backpressure is not a complete resource-management policy: bound queues, concurrency, payload size, and downstream calls as well. If a consumer is slower than a producer, decide whether the system should slow down, buffer within a limit, drop/coalesce data, or persist it durably; that is a business and operational decision as well as a reactive-streams concern.
 
 ### Q182. How does WebFlux differ from Spring MVC?
 
@@ -989,7 +989,7 @@ Use Reactor operators to map, recover, or retry at a deliberate boundary. Retry 
 
 ### Q185. What is cancellation, and why does it matter?
 
-A subscriber can cancel its subscription when it no longer needs data. Well-designed pipelines propagate cancellation to upstream work where supported, releasing resources and avoiding unnecessary processing. External calls and custom publishers must be examined to ensure cancellation really stops or limits work.
+Cancellation means the subscriber no longer wants the result, often because the client disconnected, a timeout expired, or another branch won a race. A well-behaved reactive pipeline propagates cancellation upstream where supported so it can stop unnecessary work and release resources. It cannot guarantee that an already-issued remote side effect is undone. Check whether HTTP/database drivers and custom publishers honor cancellation, and avoid assuming that client disconnect cancels every downstream operation. For side-effecting work, design idempotency and reconciliation independently from reactive cancellation.
 
 ### Q186. How is context propagated in reactive applications?
 
@@ -1009,11 +1009,11 @@ A method parameter explicitly carries data through a call graph; Reactor Context
 
 ### Q190. How should retries interact with cancellation?
 
-A retry operator can resubscribe after a failure, but cancellation and deadlines should stop unnecessary work. Ensure retries are bounded and safe to repeat, and test that cancellation does not leave unmanaged side effects running.
+Retries resubscribe to a publisher after selected failures, so cancellation and the overall request deadline must stop further attempts. Configure a maximum attempt count and backoff, classify retryable errors, and ensure the operation is safe to repeat. A retry may happen after the remote system completed the first attempt but the response was lost; use idempotency or deduplication for writes. Test cancellation during both the original attempt and backoff, and confirm that resources are released and no untracked side effect continues after the caller no longer needs the result.
 
 ### Q191. When should a reactive application use a boundedElastic scheduler?
 
-It can isolate unavoidable blocking work from event-loop threads, but it is not a substitute for a non-blocking dependency and still has finite resource capacity. Bound the work, observe queueing, and prefer reactive I/O when feasible.
+boundedElastic is intended to isolate unavoidable blocking work from reactive event-loop threads. It can prevent a legacy blocking call from freezing the event loop, but it still consumes worker capacity and can queue work; it does not convert JDBC or a blocking client into non-blocking I/O. Use it as a boundary around a small amount of unavoidable blocking work, cap concurrency where possible, and monitor queue delay. If most of the application blocks, Spring MVC may be simpler and more predictable than building a reactive stack around a blocking data layer.
 
 ### Official references
 - [Spring WebFlux reference](https://docs.spring.io/spring-framework/reference/web/webflux.html)
@@ -1054,7 +1054,7 @@ Use short, bounded timeouts and cheap checks; a health indicator should not exec
 
 ### Q199. What is the difference between an application metric and a business metric?
 
-Application metrics measure technical behavior such as latency, errors, pool usage, and saturation. Business metrics measure outcomes such as completed orders or failed checkouts. Both are needed because a service can be technically healthy while business success degrades.
+Application metrics describe technical behavior—latency, error rate, CPU, memory, queue depth, and connection-pool saturation. Business metrics describe outcomes such as completed orders, rejected payments, or successful onboarding. A service can have low CPU and few HTTP 500s while business success collapses because a downstream response is being mapped incorrectly or orders are stuck in a queue. Connect technical indicators to business outcomes, define denominators carefully, and avoid high-cardinality labels. Use the metrics together to detect impact and then traces/logs to investigate why it happened.
 
 ### Q200. How do you design alerts from SLOs?
 
@@ -1090,19 +1090,19 @@ The example assumes `productId` uniquely identifies the result within the cache'
 
 ### Q204. Why is cache invalidation difficult?
 
-The source of truth can change through multiple paths, and distributed caches introduce propagation delay and concurrent updates. Define which writes invalidate which keys, consider TTL as a safety bound rather than perfect consistency, and test concurrent read/write scenarios.
+Cache invalidation is difficult because the source of truth may change through several paths, and replicas or distributed caches may observe updates at different times. A write path that forgets one key, invalidates too early, or races with a concurrent cache miss can repopulate stale data. Document which mutations affect which keys, choose TTL as a bounded-staleness fallback rather than a correctness mechanism, and test concurrent read/write behavior. If several services write the same data, define a single invalidation/event strategy and monitor cache age, hit ratio, and source-of-truth load.
 
 ### Q205. What is a cache stampede?
 
-A large number of callers miss or expire the same key and simultaneously recompute the value, potentially overwhelming the backing service. Depending on the cache, use request coalescing, controlled refresh, jittered TTLs, or stale-while-revalidate patterns. Measure whether complexity is justified.
+A cache stampede happens when many requests miss or expire the same key at once and all recompute it, potentially overwhelming the database or downstream service. Depending on the cache and freshness requirement, use per-key request coalescing, a single-flight refresh, jittered expirations, controlled background refresh, or stale-while-revalidate. Avoid solving it with a global lock that serializes unrelated keys. Measure the regeneration cost and concurrency first, and ensure refresh failure does not cause every caller to retry the expensive computation independently.
 
 ### Q206. When should Redis be used instead of an in-memory cache?
 
-A local cache is fast and simple but is per-process and can diverge across replicas. Redis can share entries across instances but adds network latency, operational dependency, and its own consistency/failure modes. Select based on freshness, sharing, availability, and capacity requirements.
+An in-memory cache has very low access latency and avoids a network dependency, but each application replica has its own entries and can return different values. Redis can share cached values across replicas and offers useful data structures and expiration controls, but introduces network latency, operational dependency, serialization costs, and distributed invalidation concerns. Choose based on consistency, sharing, latency, memory, availability, and failure behavior. Define what happens if Redis is unavailable: fail open only if the source of truth can safely absorb the extra load, and monitor both cache health and backend saturation.
 
 ### Q207. What happens to caching when the backing cache is unavailable?
 
-Behavior depends on the cache provider and application configuration. Decide whether to fail open by invoking the underlying method or fail closed, and ensure the fallback cannot overwhelm the source of truth. Monitor cache errors and hit ratio rather than assuming the cache is always available.
+The response depends on the cache provider and the configured failure path. Failing open means bypassing the cache and invoking the source of truth; this can preserve functionality but may overload the database during a cache outage. Failing closed avoids that load but can turn a cache problem into a user-visible outage. Choose deliberately based on criticality and capacity, bound fallback concurrency, and alert on cache failures and hit-ratio changes. Do not silently treat cache infrastructure failures as “not found,” and test outage recovery as well as steady-state behavior.
 
 ### Q208. How do cache keys affect correctness and security?
 
@@ -1110,7 +1110,7 @@ A cache key must include every input dimension that can change the returned resu
 
 ### Q209. How should cache invalidation interact with transaction commit?
 
-Evicting before a database transaction commits can allow a concurrent reader to reload old data; evicting only after commit has its own failure window. Understand provider transaction awareness and consistency requirements, and consider versioned keys or event-driven invalidation for distributed writers.
+Cache/database consistency has a timing window. Evicting before commit can let another request miss the cache, read the old committed database value, and repopulate the stale entry; evicting after commit can still fail if the process stops before the distributed invalidation reaches all nodes. Understand provider transaction awareness and choose the consistency level the business requires. Options include after-commit invalidation, short TTLs, versioned keys, or durable outbox-driven invalidation. Test rollback, concurrent readers, and cache/backend failure instead of assuming an annotation makes two independent systems atomic.
 
 ### Q210. What is cache penetration?
 
@@ -1184,23 +1184,23 @@ Spring's standard application event multicaster invokes listeners synchronously 
 
 ### Q221. What does @TransactionalEventListener provide?
 
-It binds listener execution to a transaction phase, commonly after commit. If no transaction is active, behavior depends on the configured fallback option. It helps coordinate in-process reactions with transaction outcomes but does not guarantee durable delivery if the process crashes after commit.
+@TransactionalEventListener binds an in-process listener to a transaction phase such as BEFORE_COMMIT, AFTER_COMMIT, AFTER_ROLLBACK, or AFTER_COMPLETION. It is useful when a side effect should happen only after a database transaction succeeds, but it is still an in-memory event: a process crash after commit can prevent the listener from running. If no transaction is active, the listener is skipped unless fallback execution is configured. Use it for best-effort local reactions; use an outbox or durable messaging when the event must reliably reach another process.
 
 ### Q222. Why is an outbox pattern useful?
 
-The application writes business state and an event record in the same local database transaction. A separate publisher relays the outbox record to the broker and marks progress. This avoids the dual-write gap, but requires handling retries, duplicate publication, cleanup, ordering, and operational monitoring.
+The outbox pattern writes the business change and a message/outbox record in the same local database transaction. A separate publisher reads unsent records, publishes them to the broker, and records progress. This closes the common dual-write gap where the database commits but the message publish fails. It does not eliminate duplicates: the publisher may crash after sending but before marking the record complete. Consumers must be idempotent, and the publisher needs bounded retries, ordering policy, cleanup/retention, monitoring, and replay procedures. Use it when event delivery must be reliable rather than relying on an in-memory after-commit callback alone.
 
 ### Q223. Why must Kafka consumers be idempotent?
 
-At-least-once processing and retries can deliver the same logical event more than once. Use a durable deduplication key or design side effects to be idempotent. Acknowledgment timing and consumer transactions affect delivery behavior, but they do not remove the need to reason about external side effects.
+Kafka consumers often process messages with at-least-once semantics, so a message can be delivered again after a crash, rebalance, retry, or failure between side effect and offset commit. Idempotency means processing the same logical event multiple times produces the same final business result as processing it once. Use a stable event ID and durable deduplication record or design updates as naturally idempotent state transitions. Kafka transactions can coordinate certain Kafka read/process/write flows, but they do not automatically make an external database or HTTP side effect exactly once. Align offset/acknowledgement timing with the persistence boundary and test crash windows.
 
 ### Q224. How should listener retries and dead-letter handling be designed?
 
-Classify retryable and non-retryable failures, bound attempts, use backoff, and send poison messages to a monitored dead-letter destination when appropriate. Define replay procedures and preserve enough metadata to diagnose failures without exposing secrets. Ensure retry behavior does not block partitions indefinitely.
+Listener retry design should distinguish transient infrastructure errors from permanent payload or business errors. Use bounded retries with backoff, avoid holding a partition behind a poison message indefinitely, and route exhausted failures to a monitored dead-letter destination with original metadata and a safe error summary. Define ownership, alert thresholds, retention, replay tooling, and how replay interacts with already-applied side effects. Do not place secrets or full sensitive payloads in error headers/logs. A dead-letter queue is an operational workflow, not a garbage bin: it needs triage and a controlled, idempotent recovery path.
 
 ### Q225. What is the difference between an application event and a broker message?
 
-An application event is an in-process communication mechanism within an application context. A broker message crosses a process boundary and can provide durable retention and independent consumers, depending on configuration. Use local events for local decoupling, not as a substitute for cross-service reliability.
+A Spring application event is an in-process signal published within an application context; listeners are typically invoked synchronously unless configured otherwise. A broker message crosses a process boundary and can be retained, retried, and consumed independently according to broker configuration. Events are useful for local modularity, but they are not durable by default and can share the publisher's failure path. If a listener must survive a process crash, be consumed by another service, or support independent replay, use durable messaging—often with an outbox when the event corresponds to a database commit.
 
 ### Official references
 - [Spring application events](https://docs.spring.io/spring-framework/reference/core/beans/context-introduction.html)
@@ -1303,7 +1303,7 @@ Before a rolling deployment, confirm that old and new application versions can c
 
 ### Q244. How do you investigate a slow Spring REST endpoint?
 
-Break latency into server queueing, application processing, database calls, serialization, and downstream HTTP calls. Use request metrics, traces, SQL timings, thread dumps, and load tests. Avoid attributing the issue to Spring before identifying where time is spent.
+Start by measuring where the time is spent rather than assuming the framework is slow. Break the request into ingress/queueing, controller/service processing, database acquisition and query time, downstream HTTP calls, serialization, and response writing. Compare latency percentiles with error rate and saturation; use distributed traces, SQL timings, pool metrics, thread dumps, and a representative load test. Look for N+1 queries, lock waits, connection-pool starvation, blocking calls, oversized payloads, or retry amplification. Change one major factor at a time and verify that latency improves without damaging correctness or increasing downstream load.
 
 ### Q245. What does a thread dump reveal?
 
@@ -1311,7 +1311,7 @@ It shows thread states and stack traces at a point in time, helping identify blo
 
 ### Q246. How do you diagnose connection pool exhaustion?
 
-Correlate active/pending connection metrics with transaction duration, slow queries, request concurrency, and thread stacks. Check for connections held while doing remote calls or waiting on locks. Increasing the pool without checking database capacity may make the incident worse.
+Correlate active, idle, pending, and connection-acquisition latency metrics with transaction duration, slow SQL, lock waits, request concurrency, and thread dumps. Determine whether connections are genuinely leaked, held by long transactions, blocked on the database, or simply insufficient for the arrival rate. Check whether application code makes remote calls while holding a transaction open. Increasing the pool can worsen database overload, and in a cluster the aggregate connection count across replicas matters. Fix the root cause first, then load-test any pool-size adjustment against the database's sustainable capacity.
 
 ### Q247. How should memory growth be investigated?
 
@@ -1319,7 +1319,7 @@ Compare heap usage after garbage collection, allocation rate, object histograms,
 
 ### Q248. What causes excessive Spring application startup time?
 
-Expensive bean initialization, broad classpath scanning, remote calls during startup, migrations, large dependency graphs, and eager singleton creation can contribute. Measure before optimizing, and verify that lazy initialization does not simply move failures and latency into production requests.
+Startup delays can come from broad classpath scanning, auto-configuration condition evaluation, expensive eager singleton construction, database migrations, remote calls during initialization, and large dependency graphs. Capture startup timing and logs, then identify the slow phase or bean before optimizing. Moving everything to lazy initialization may improve the startup number while deferring failures and latency to the first production request. Keep remote initialization bounded, review migration cost separately, and verify that readiness becomes true only when the service can safely receive traffic. Compare measurements after each change.
 
 ### Q249. How do you distinguish JVM, database, framework, and downstream bottlenecks?
 
@@ -1344,7 +1344,7 @@ A BeanDefinition is container metadata describing how a bean should be created a
 
 ### Q252. Why does Spring use bean post-processors?
 
-Bean post-processors provide lifecycle extension points for inspecting or wrapping bean instances. Auto-proxy creators use this infrastructure to apply aspects such as transactions or caching. Infrastructure ordering matters; a bean created too early may miss processing that would normally apply.
+Bean post-processors are extension points that inspect or wrap bean instances before and after initialization. Spring uses them for behaviors such as annotation processing and auto-proxy creation, which is how transaction, caching, and other advice can be applied to eligible beans. They run at a specific point in the container lifecycle, so a bean instantiated too early may miss post-processors that have not yet been registered. Keep BeanFactoryPostProcessor work focused on definitions, avoid eager application-bean access during infrastructure setup, and inspect startup warnings if a bean unexpectedly lacks its proxy.
 
 ### Q253. Why might an MVC interceptor not run even though a servlet filter logs the request?
 
@@ -1352,7 +1352,7 @@ A filter can run before MVC selects a handler, while an interceptor runs only af
 
 ### Q254. Why can final methods complicate proxying?
 
-Subclass-based proxies cannot override final methods, and final classes cannot be subclass-proxied. Interface-based proxies have different constraints but only intercept calls made through the proxy contract. Verify the proxy type and method visibility when advice unexpectedly does not execute.
+Subclass-based proxies work by overriding eligible methods, so a final class cannot be subclassed and a final method cannot be overridden for interception. JDK dynamic proxies work through interfaces and intercept calls made through the proxy interface, but calls that bypass the proxy are not advised. This matters for transactions, caching, async execution, and method security. When an annotation appears ignored, check the actual runtime proxy type, method visibility, final modifiers, and invocation path. Prefer clear service boundaries and test through the injected Spring bean rather than calling the target directly.
 
 ### Q255. What is an ApplicationContext hierarchy?
 
@@ -1377,7 +1377,7 @@ Missing or incompatible dependencies can cause class-not-found, method-not-found
 
 ### Q258. What is the major Jakarta migration concern in Spring 6 and Boot 3?
 
-The ecosystem moved from Java EE-era javax.* APIs to Jakarta EE jakarta.* APIs for specifications that changed namespace. Application source, servlet containers, validation providers, and third-party libraries must align. Not every javax.* package moved; Java SE packages such as javax.sql remain.
+Spring Framework 6 and Boot 3 moved many Java EE/Jakarta EE APIs from the javax.* namespace to jakarta.*. The change affects imports, dependencies, servlet containers, validation, persistence APIs, and third-party libraries that must be compiled against compatible generations. It is not a blanket rename of every javax package: Java SE APIs such as javax.sql remain under javax. Inspect transitive dependencies and upgrade the framework stack coherently, then compile and run focused integration tests for web, validation, persistence, and security. A mixed old/new dependency graph often fails with missing classes or incompatible method signatures.
 
 ### Q259. What are the important Spring Framework 7 and Boot 4 baselines?
 
@@ -1385,7 +1385,7 @@ Framework 7 retains a Java 17 baseline and adopts Jakarta EE 11 APIs, including 
 
 ### Q260. What changed for HTTP clients in Framework 7?
 
-Framework 7 deprecates RestTemplate in favor of RestClient. RestClient was introduced in Framework 6.1. For reactive non-blocking and streaming use cases, WebClient remains relevant. Follow the official migration guidance and check custom request factories, interceptors, converters, and error handling.
+RestClient was introduced in Spring Framework 6.1 as a fluent synchronous HTTP client. Framework 7 deprecates RestTemplate in favor of RestClient, while WebClient remains the reactive client for non-blocking I/O and streaming. A migration should account for request factories/connectors, interceptors, message converters, error handling, authentication, metrics, and timeout configuration—not just method syntax. Check the Framework version managed by the target Boot release before using RestClient, and migrate incrementally with contract tests for error responses and timeouts.
 
 ### Q261. Why is a major Boot upgrade more than a dependency version change?
 
@@ -1393,11 +1393,11 @@ A major Boot upgrade can change the Java baseline, managed dependency graph, con
 
 ### Q262. How should Spring Cloud compatibility be managed?
 
-Use the official compatibility guidance and corresponding BOM rather than independently pinning arbitrary Cloud components. The current official matrix maps Spring Cloud 2025.1.x to Boot 4.0.x and, starting with 2025.1.2, Boot 4.1.x; Spring Cloud 2025.0.x maps to Boot 3.5.x. Verify the matrix again before upgrading.
+Spring Cloud release trains align with specific Spring Boot generations and dependency-management sets. Use the official compatibility table and the matching Cloud BOM rather than selecting each Cloud library's version independently. Compatibility changes across trains, so do not memorize one matrix as permanent. Before upgrading, verify the exact train and Boot patch, inspect the resolved dependency graph, read release notes for removed or changed integrations, and run tests for gateway routing, load balancing, configuration, resilience, and tracing. Binary linkage errors are often a version-alignment problem, not an application-code bug.
 
 ### Q263. How do you plan a safe migration?
 
-Inventory runtime and dependencies, identify deprecated APIs, update one major boundary at a time where practical, compile and run focused tests, validate configuration and startup conditions, and exercise security, persistence, and downstream calls. Roll out progressively with metrics and a rollback plan.
+Plan a migration as a controlled compatibility change. Inventory the Java runtime, Boot/Framework versions, Cloud train, plugins, transitive dependencies, custom starters, configuration properties, and deprecated APIs. Update to a supported dependency set, compile early, and fix namespace/API incompatibilities before investigating runtime behavior. Then test startup, security, persistence and migrations, messaging, outbound clients, actuator exposure, graceful shutdown, and rolling deployment compatibility. Deploy progressively with latency/error monitoring and a rollback path. Avoid changing the framework, database schema, and architecture all at once because failures become harder to attribute.
 
 ### Q264. How should deprecated APIs be handled?
 
@@ -1409,7 +1409,7 @@ A Bill of Materials (BOM) centralizes a tested set of dependency versions so rel
 
 ### Q266. What are notable Spring Framework 7 additions worth checking during migration?
 
-Framework 7 introduces new capabilities including programmatic bean registration, core resilience features, API versioning support, HTTP Service Client configuration improvements, and RestTestClient. Availability and exact APIs should be verified against the 7.0 reference and the Boot line managing it; do not backport assumptions to Framework 6.x.
+Framework 7 adds capabilities that may matter to a migration or new design, including programmatic bean registration, core resilience support, API versioning, improvements around HTTP Service Clients, and RestTestClient. The important interview point is not to memorize a release-note list: explain which problem a feature solves, what version introduced it, and what constraints it has. Verify each API against the stable Framework 7.0 reference and the Boot line managing it; prerelease documentation for 7.1 must not be described as stable 7.0 behavior. For an existing service, prefer a measured migration case over adopting every new feature.
 
 ### Q267. Which dependency compatibility checks are most important during the Jakarta namespace migration?
 
