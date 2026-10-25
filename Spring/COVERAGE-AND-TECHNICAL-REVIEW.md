@@ -339,3 +339,12 @@ The generic Boot system-requirements page currently renders Boot 4.1.0 (Java 17 
 - Latest structural checks: 307 sequential questions; no duplicate question numbers or exact duplicate titles; 27 topic areas; 28 TOC links with no missing targets; balanced code fences; README and review log agree on the count; no stale reference to the removed duplicate handbook filename in the primary handbook or README.
 - Latest primary handbook blob SHA: `dc4d759e0c92f0c01e8653aab767dbde87a88778`.
 - Remaining tasks are a final manual correctness pass on version-sensitive claims and snippets plus link validation. No full line-by-line certification or code compilation/runtime test has been performed; the handbook is an interview-preparation artifact with short illustrative snippets, not a runnable sample project.
+
+
+### Official-link spot-check and client guidance — 2026-10-25
+
+- Opened the official documentation URLs for Spring AMQP, Spring Data JDBC, Spring Data R2DBC, Spring Cloud Gateway, Spring Cloud OpenFeign, Spring Cloud Config, Spring Vault, Spring Batch, Spring Modulith, Spring GraphQL, Spring Session, Spring Authorization Server, Spring Integration, and Spring Cloud Contract. These links resolved to relevant official reference pages at the time of review.
+- Updated Q297 to reflect the current official OpenFeign guidance: the project is treated as feature-complete, and the documentation recommends Spring HTTP Service Clients for new development. Existing OpenFeign usage can remain appropriate when compatibility and platform integration justify it.
+- Rechecked the official Framework/Boot stable version listings, Boot 4.1.2 system requirements, and Spring Cloud release-train compatibility page. The guide states the current version snapshot with an explicit date and directs readers to the exact target BOM/compatibility matrix.
+- Latest primary handbook SHA: `799247e682adf65a460bcdb10169c43ee336ce64`. Final structural check still reports 307 sequential Q&As, no duplicate titles/numbers, 27 topic areas, 28 valid TOC anchors, balanced code fences, minimum 50 words per answer body under the current parser, and average approximately 89 words.
+- Link checking remains a spot-check, not a crawl of all 76 unique external URLs in the primary handbook. The snippets have not been compiled or run.
