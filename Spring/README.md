@@ -1,6 +1,6 @@
 # Spring Framework, Spring Boot, and Ecosystem Interview Preparation
 
-This directory contains a comprehensive interview-preparation handbook for Java backend engineers with 5–6 years of experience targeting experienced and senior backend roles.
+This directory's **single primary study source** is the consolidated handbook linked below, built for Java backend engineers with 5–6 years of experience targeting experienced and senior backend roles. The other directories are optional practice/reference material; they are not separate competing handbooks.
 
 ## Start here
 
@@ -24,7 +24,7 @@ Answers are intended for interview preparation rather than API memorization: exp
 - [Real-world production scenarios](27-Real-World-Scenarios/README.md) — incident-style reasoning practice.
 - [Mock interviews](28-Mock-Interviews/README.md) — structured practice at different experience levels.
 - [Coding and integration exercises](26-Coding-Exercises/README.md) — focused implementation practice.
-- [Coverage and technical review log](COVERAGE-AND-TECHNICAL-REVIEW.md) — records the scope and limitations of prior audits.
+- [Coverage and technical review log](COVERAGE-AND-TECHNICAL-REVIEW.md) — current acceptance snapshot, audit trail, and explicit validation limitations.
 
 ## Official references
 
