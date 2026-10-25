@@ -2,7 +2,7 @@
 
 > **Audience:** Senior Software Engineer / Senior Java Backend Engineer  
 > **Focus:** Kafka fundamentals, Java/Spring Kafka, delivery guarantees, performance, production troubleshooting, internals, and distributed-system design.  
-> **Total:** 100 interview questions and answers.
+> **Total:** 130 interview questions and answers, including 40 real-world scenarios.
 
 ## Table of contents
 
@@ -22,7 +22,7 @@
   - [Section I — Streams, Connect, CDC and schemas (Q76–Q85)](#section-i--streams-connect-cdc-and-schemas-q76q85)
   - [Section J — Security and operational awareness (Q86–Q90)](#section-j--security-and-operational-awareness-q86q90)
 - [Phase 6 — Mock interviews (Q91–Q100)](#phase-6--mock-interviews-q91q100)
-- [Senior-level revision checklist](#senior-level-revision-checklist)
+- [Phase 7 — Real-world scenario-based interview questions (Q101–Q130)](#phase-7--real-world-scenario-based-interview-questions-q101q130)
 - [References](#references)
 
 ## How to use this guide
@@ -872,97 +872,150 @@ Before resetting offsets, capture the consumer group's current committed offsets
 Start by stating customer/business impact, affected topics and groups, time window, and whether data may be lost, duplicated, or delayed. Assign an incident lead, a technical investigator, and a communication owner; preserve logs and metrics before making changes. Stabilize with reversible actions—such as pausing a problematic consumer or rolling back a bad release—while protecting data integrity. Form hypotheses and validate them against broker health, ISR/offline partitions, producer errors, consumer lag/rebalances, and downstream dependencies. After service recovers, reconcile business records and offsets, document root cause and contributing factors, and create measurable follow-ups: tests, alerts, capacity changes, and a runbook update.
 
 
-## Senior-level revision checklist
+## Phase 7 — Real-world scenario-based interview questions (Q101–Q130)
 
-Use this as a **readiness test**, not another list to memorize. For each item, mark:
+These questions are framed as production situations, not definitions. A strong answer clarifies the business invariant, identifies evidence, proposes a safe mitigation, explains the root cause, and covers recovery and prevention.
 
-- **Ready** — I can explain it clearly without notes, including a realistic example.
-- **Review** — I understand it but need prompts or mix up important details.
-- **Weak** — I cannot explain it yet or cannot reason through a failure scenario.
+### Q101. A payment event is processed, but the consumer crashes before committing its offset. How do you prevent a second charge?
 
-Do not mark an item Ready just because you recognize the terminology. Practise answering aloud as if an interviewer has asked you the question.
+Assume redelivery is possible and make the business operation idempotent. Give each payment intent a stable idempotency key and enforce it in the payment service or provider. Store the result durably and use a unique constraint or state transition so a replay cannot capture the same payment twice. If the first attempt succeeded, the replay should detect the existing result and finish safely. Commit the Kafka offset only after the business result is durable. Producer idempotence does not solve this consumer-side failure window.
 
-### 1. Core model and ordering
+### Q102. Consumer lag grows from thousands to millions of records in 20 minutes. What is your investigation sequence?
 
-- [ ] Can I explain how topics, partitions, offsets, leaders, followers, ISR, retention, and compaction fit together?
-- [ ] Can I explain why ordering is per partition, how keys affect partition selection, and what can change when the partition count changes?
-- [ ] Can I explain consumer groups, partition assignment, rebalances, committed offsets, and why a consumer group cannot actively process one partition with multiple consumers at the same time?
-- [ ] Can I distinguish broker health from partition health, including offline and under-replicated partitions?
-- [ ] Can I explain KRaft's controller quorum and how it differs from ZooKeeper-based coordination?
+Establish customer impact and whether the backlog is still growing. Compare lag per partition, produce and consume rates, processing latency, commit rate, rebalance frequency, and age of the oldest unprocessed event. Uniform lag suggests a group-wide capacity or downstream problem; a few lagging partitions suggest skew, a stuck record, or an unhealthy member. Check recent releases, database/API latency, JVM pauses, thread pools, and retry behavior. Scale only if partitions and downstream capacity allow it. Stabilize with rollback, bounded concurrency, backpressure, or a controlled pause, then verify the backlog is draining and retention is sufficient.
 
-### 2. Delivery guarantees and data correctness
+### Q103. Only one partition has huge lag while the others are caught up. What could cause it?
 
-- [ ] Can I compare at-most-once, at-least-once, and exactly-once processing, including the failure window for each?
-- [ ] Can I explain how `acks`, `min.insync.replicas`, producer idempotence, transactions, and `read_committed` work together—and what each does **not** guarantee?
-- [ ] Can I explain why producer idempotence does not deduplicate the same business event sent independently by two producers?
-- [ ] Can I handle the case where a database write succeeds but the consumer offset commit fails, without applying the business effect twice?
-- [ ] Can I explain why Kafka transactions do not automatically make a Kafka write and an arbitrary database transaction atomic?
+Compare key distribution, record size, processing time, consumer assignment, and leader-broker health. A high-volume customer key may route most events to one partition; adding consumers will not split that partition in a classic consumer group. If a poison record is blocking progress, identify its exact topic, partition, and offset, then use bounded retry or a controlled dead-letter path. For a hot key, consider rate-limiting the tenant, isolating its traffic, or changing partitioning. Bucketing a key increases parallelism but weakens strict per-key ordering unless the application restores order with sequence numbers or state.
 
-### 3. Java and Spring Kafka implementation
+### Q104. After a deployment, a consumer group rebalances every few seconds and throughput collapses. How do you debug it?
 
-- [ ] Can I configure a producer with appropriate serializers, acknowledgments, idempotence, security, and error handling?
-- [ ] Can I explain why `KafkaProducer` is thread-safe but `KafkaConsumer` is not, and how that affects application design?
-- [ ] Can I explain `poll()`, auto-commit versus manual commits, poll-interval limits, and safe handling of records processed asynchronously?
-- [ ] Can I explain Spring Kafka listener concurrency, acknowledgment modes, container-managed commits, and transaction configuration?
-- [ ] Can I design bounded retries and dead-letter handling, classify retryable versus non-retryable errors, and explain when retry topics can affect ordering?
-- [ ] Can I describe how I would test a listener's success, duplicate delivery, retry, and dead-letter paths?
+Correlate rebalance events with deployment timestamps, consumer restarts, processing duration, garbage-collection pauses, and max.poll.interval.ms warnings. A listener that takes too long to process a batch may fail to poll within the allowed interval; crashes, readiness failures, and network instability can also repeatedly remove members. Check whether downstream calls or retries block the poll thread. Stabilize by rolling back the release or reducing batch pressure, then fix the slow path and keep work per poll bounded. Tune timeouts only after measuring the cause; blindly increasing them can hide a stuck consumer.
 
-### 4. Performance and capacity
+### Q105. The database is slow, Kafka is healthy, and lag is rising. The team proposes doubling consumer concurrency. Would you agree?
 
-- [ ] Can I explain how batching, `linger.ms`, compression, request sizes, and acknowledgments affect throughput, latency, CPU, and network use?
-- [ ] Can I estimate partition needs using throughput and consumer parallelism, while accounting for key skew and the limits of increasing partition count later?
-- [ ] Can I estimate storage from ingress rate, retention, replication factor, and overhead, while stating assumptions and units?
-- [ ] Can I interpret consumer lag per partition and distinguish a growing backlog from a temporarily high but draining backlog?
-- [ ] Can I explain backpressure when a downstream database is slower than Kafka, without unbounded in-memory buffering or unsafe offset commits?
+Not before checking database capacity. More consumers can exhaust the connection pool, increase lock contention, and make the database slower. Inspect database p95/p99 latency, pool wait time, saturation, query plans, and lock waits. Apply bounded concurrency, backoff with jitter for transient failures, and pause consumption when appropriate; avoid unbounded in-memory queues. If the database is unavailable, do not send every valid event to a dead-letter topic just because a shared dependency is down. Resume gradually after recovery and verify idempotency because records may be redelivered.
 
-### 5. Production diagnosis and recovery
+### Q106. A producer times out and retries. How do you know whether an event was published twice or not at all?
 
-- [ ] Given a broker-unreachable error, can I separate DNS/network/listener/TLS/authentication issues from broker or metadata problems?
-- [ ] Given repeated rebalances, can I investigate slow processing, poll interval violations, membership changes, assignment behavior, and downstream stalls?
-- [ ] Given under-replicated partitions or a nearly full disk, can I prioritize safe diagnosis and recovery without casually risking data loss?
-- [ ] Can I identify the metrics and logs I would inspect: producer errors/retries/latency, consumer lag and lag age, rebalance rate, ISR/offline partitions, request latency, disk, and network?
-- [ ] Can I lead an incident through impact assessment, stabilization, evidence gathering, data reconciliation, root cause, and preventive actions?
+A timeout means the client did not receive confirmation in time; it does not prove the broker failed to append the record. Inspect producer errors and retry metrics. Idempotent producer settings reduce duplicates from supported retries within a producer session, but a new application-level send or a second producer can still publish the same business event again. Give each event a stable event ID and make downstream processing idempotent. For critical workflows, reconcile business records with the event log or use an outbox so the database change and event intent are durably linked.
 
-### 6. Architecture and advanced capabilities
+### Q107. A broker fails during a traffic spike. The service must avoid losing acknowledged payment events. What do you check?
 
-- [ ] Can I explain the transactional outbox, CDC, idempotent consumers, sagas, and reconciliation—and say when each solves a different problem?
-- [ ] Can I design an order/inventory or payment flow with explicit state transitions, duplicate handling, timeouts, and compensating actions?
-- [ ] Can I explain schema compatibility, safe event evolution, tombstones, retention/compaction, and controlled replay?
-- [ ] Can I distinguish a plain consumer from Kafka Streams, and explain KStream/KTable, state stores, and event-time windows at an interview level?
-- [ ] Can I explain Kafka Connect source/sink connectors, connector offsets, and how CDC tools such as Debezium fit into a data pipeline?
-- [ ] Can I explain TLS, SASL, ACLs, secret rotation, sensitive event data, and disaster-recovery trade-offs?
+Review replication factor, acks, min.insync.replicas, producer idempotence, and the health of the in-sync replica set. For example, three replicas with acks=all and min.insync.replicas=2 can reject writes when too few replicas are in sync rather than silently weakening the durability requirement. That may reduce availability during a failure, an intentional trade-off for stronger acknowledged-write durability. Inspect offline and under-replicated partitions, ISR changes, disk/network health, and producer errors. Do not enable unclean leader election casually for payment data because a stale replica may lose acknowledged records.
 
-### 7. Senior-level answer quality
+### Q108. One malformed record repeatedly fails deserialization and blocks progress. Should you retry it or send it to a dead-letter topic?
 
-For at least five questions, including two production scenarios, practise a concise answer using this structure:
+Classify the failure first. A transient dependency error may deserve bounded retry with backoff; malformed data may never succeed without a code or data fix. Infinite in-place retry blocks later records in that partition and can trigger rebalances. Preserve original topic, partition, offset, key, timestamp, relevant headers, and error category in the dead-letter record, while avoiding sensitive payloads in logs. Alert on dead-letter volume, define ownership and replay procedures, and make replay idempotent. If strict ordering matters, explain that skipping or retrying asynchronously changes the ordering contract and needs a business decision.
 
-1. **State the guarantee or problem** in plain language.
-2. **Explain the mechanism**—what Kafka or the application actually does.
-3. **Walk through a failure case** and identify the risk of loss, duplication, delay, or reordering.
-4. **Choose a design** and explain the trade-off, including what the design does not guarantee.
-5. **Describe verification**: metrics, logs, tests, alerts, reconciliation, or a safe recovery procedure.
+### Q109. Retry topics fix poison messages, but updates for the same order now arrive out of order. How do you handle it?
 
-A strong senior-level answer should go beyond naming a configuration property. It should explain why that setting is appropriate, what failure it addresses, what new trade-off it introduces, and how you would verify the behavior in production.
+A later event can overtake an earlier event while the earlier one waits on a retry topic. First confirm whether strict per-order ordering is required. If it is, consider blocking later events for that key, using a key-affine retry design with compatible partitioning, or maintaining an application-level sequence/state machine that rejects or buffers out-of-sequence transitions. If order is not required, document that contract. The trade-off is real: preserving order can reduce throughput and let one failing entity delay its own later events.
 
-### Final readiness gate
+### Q110. An order service commits to its database and then publishes OrderCreated. It crashes between those operations. How do you close the gap?
 
-You are ready to use this guide for last-minute revision when you can:
+This is the dual-write problem: the database commit can succeed while publication never happens. Write the order and an outbox row in the same local database transaction. A relay or CDC tool publishes committed outbox records to Kafka, and consumers use stable event IDs and idempotent handling because the relay may publish more than once. Monitor publication delay and outbox backlog. Do not claim that a database transaction and a Kafka transaction automatically make arbitrary cross-system writes atomic.
 
-- Explain the core delivery and ordering guarantees without contradicting yourself.
-- Work through a database/Kafka failure scenario without claiming that Kafka provides automatic end-to-end exactly-once business effects.
-- Diagnose a lag or rebalance incident in a sensible order and name the evidence you would check.
-- Defend a practical design with explicit trade-offs, idempotency, monitoring, and recovery.
-- Answer the questions in your own words rather than reciting the handbook.
+### Q111. A new consumer release fails on a schema change, but other consumers are healthy. How do you recover safely?
 
-If an item is still Weak, revisit the matching question above, then answer it again without looking at the text.
+Identify the exact schema and payload version, affected consumer version, and whether the change is compatible under the actual serialization and registry rules. If impact is high, roll back the producer/schema change or deploy a compatible consumer. Prefer additive changes and a staged rollout where old and new consumers coexist. Validate compatibility in CI with representative historical payloads, not only the newest sample. Do not blindly reset offsets: replaying old records through the new code may expose more incompatibilities or repeat business side effects.
+
+### Q112. You must replay the last 48 hours to rebuild a read model without disturbing live processing. What approach do you use?
+
+Create a separate consumer group so the rebuild has independent offsets and does not compete with the live group. Confirm retention contains the required history and estimate replay throughput, target write capacity, and catch-up time. Make writes idempotent or build into a separate table/index and switch over only after validation. Throttle replay if it threatens production databases. Compare counts, aggregates, and business invariants before cutover. If retention does not cover the full history, use a consistent snapshot plus retained events.
+
+### Q113. The team wants to reset offsets to the beginning to “fix missing data.” What do you ask first?
+
+Establish whether data is missing or merely delayed, filtered, committed incorrectly, or already expired. Capture current offsets and intended target offsets per partition; confirm the required records still exist. Decide whether replaying side effects is safe, coordinate active consumers, and test the reset procedure before production. Resetting backward can duplicate emails, payments, or database mutations; resetting forward can skip events. Prefer replay into an isolated group or rebuild target where possible. Reconcile business-level counts afterward and monitor duplicate suppression, lag, and errors.
+
+### Q114. Lag is 500,000 records, but the business says the service is only 30 seconds behind. How do you interpret it?
+
+Record count alone is insufficient; significance depends on arrival rate, record size, processing cost, and business latency objectives. Examine the age of the oldest unprocessed event, lag per partition, produce/consume rates, and whether the backlog is growing or draining. A high but rapidly shrinking backlog may be healthy after a burst, while a small backlog containing a critical event stuck for an hour may be urgent. Alert on both count and time lag, with thresholds based on service objectives and retention.
+
+### Q115. Partition count is increased for throughput, but some customer events now appear out of order. Why?
+
+Changing the partition count can change key-to-partition mapping, so new records for a key may land on a different partition from older records. Kafka orders records within a partition, not across partitions. For entities requiring strict ordering, plan expansion carefully. Depending on the use case, use a versioned topic and controlled migration, maintain sequence numbers and validate transitions in the consumer, or choose a stable partitioning approach. Do not assume the same key guarantees one permanent partition after topology changes.
+
+### Q116. One customer generates half of all events and overloads a partition, but the product requires ordering. What options do you present?
+
+Explain the conflict between one-key ordering and parallel throughput: routing all of that customer's events to one partition preserves order but caps parallelism for that key. Options include rate limits, isolating high-volume customers, optimizing the consumer, or using a dedicated topic/partition for the heavy tenant. Hashing the customer with a bucket distributes load but breaks automatic total order. If the domain allows it, sequence numbers and application-level ordering can restore required constraints; otherwise, the business must decide which event types truly need serialization.
+
+### Q117. A consumer commits offsets before writing to the database. A crash causes missing database updates. What is the correction?
+
+The commit advanced Kafka's resume position before the business effect was durable. On restart, Kafka will not normally redeliver those committed records, so the update can be lost. For at-least-once processing, durably complete the database operation before committing the corresponding offset. This creates the opposite failure window: the database can succeed and the offset commit can fail, causing redelivery. Pair commit-after-processing with idempotent database writes, often enforced by a unique event ID or inbox table. With concurrent processing, never commit past unfinished earlier work in the same partition.
+
+### Q118. Your consumer uses a thread pool to process records asynchronously. What correctness bugs can appear?
+
+KafkaConsumer is not thread-safe, and asynchronous processing complicates offset safety. If offset 12 finishes before offset 11, committing past 11 may cause a crash to skip unfinished work. Rebalances can revoke partitions while tasks are still running, allowing old and new owners to overlap on side effects. Keep consumer API calls on the consumer thread, bound the work queue, track completion per partition and offset, and commit only the highest contiguous completed offset. On partition revocation, stop dispatching new work and safely finish or cancel in-flight tasks; make writes idempotent.
+
+### Q119. Producer p99 latency jumps from 20 ms to 2 seconds, but application CPU is normal. Where do you look?
+
+Check producer request latency, retry/error rates, queue time, buffer availability, batch size, compression cost, and broker throttling. On brokers, inspect request handler saturation, disk latency, network errors, ISR health, and leader distribution. With acks=all, writes can wait longer when replicas are slow; that may be a durability symptom rather than a client tuning problem. Check recent configuration or traffic changes, payload size, and quotas. Do not reduce acknowledgments simply to improve latency until the durability impact is understood and accepted.
+
+### Q120. Broker disks are at 90% and rising quickly. What do you do without risking data loss?
+
+Estimate time to exhaustion, then inspect topic ingress, retention settings, replica placement, oversized records, and unexpected producer volume. Create headroom by expanding storage or adding brokers and carefully reassigning replicas. Reduce retention only after confirming the business retention contract and obtaining approval. Avoid manually deleting Kafka log files or deleting topics as an emergency shortcut. Alert on projected time to full, not just a fixed percentage, and ensure replica movement will not overload disks or networks.
+
+### Q121. Clients can reach the bootstrap server after a network change but fail to produce to some partitions. What is likely wrong?
+
+Bootstrap connectivity only provides initial cluster metadata. Clients then connect to advertised broker addresses for partition leaders, so unreachable or incorrect advertised.listeners addresses can cause this symptom. Inspect client errors and metadata, test DNS and network access to every advertised endpoint from the client environment, and verify listener/security protocol mappings. Distinguish network reachability from TLS trust, SASL authentication, and authorization failures. Fix broker listener configuration and routing rather than treating a different bootstrap list as a lasting workaround.
+
+### Q122. A broker restart causes under-replicated partitions to remain unhealthy for hours. How do you investigate?
+
+Check whether replicas are catching up from disk, whether reassignment is happening concurrently, and whether disk, network, CPU, or throttling limits constrain replication. Inspect ISR shrink/expand rates, replica lag, per-broker load, and recurring restarts. Confirm cluster capacity and reassignment throttles. Avoid repeatedly restarting a slow but recovering broker without evidence, since that can reset progress. Restore replica health while maintaining service and avoiding a second wave of overload.
+
+### Q123. Two services consume the same topic: one needs every event independently, while the other distributes work among its instances. How do you configure groups?
+
+Use different consumer group IDs for independent subscribers. Each group has its own offsets and receives the stream independently, so analytics does not compete with billing. Within one group, instances share partition assignments and each partition is assigned to one member at a time in the classic group model. Check partition count because extra members beyond the number of partitions do not increase active partition-level parallelism. Accidentally sharing a group ID can make independent services split the events and appear to miss messages.
+
+### Q124. A payment provider times out, but may have completed the charge. Should the consumer immediately retry the API call?
+
+Not blindly. A timeout creates an ambiguous outcome: the provider may have completed the charge even though the response was lost. Use the provider's idempotency key and reconciliation/query API before issuing another charge. Represent payment states explicitly, such as PENDING, SUCCEEDED, FAILED, and RECONCILIATION_REQUIRED, rather than treating timeout as failure. Retry according to provider semantics with bounded backoff and observability. Kafka retries do not resolve ambiguity in an external API; the business workflow must make repeated commands safe.
+
+### Q125. Inventory reservation fails permanently after payment authorization. How would you model the workflow?
+
+Do not let the order silently remain successful. Model explicit states such as PAYMENT_AUTHORIZED, INVENTORY_FAILED, and COMPENSATION_PENDING. Depending on whether payment was authorized or captured, compensation may void the authorization, refund the capture, or trigger manual review. Emit events with stable IDs and correlate them with the order/saga ID. Make transitions idempotent and observable, and use timeouts and reconciliation for missing responses. A Kafka dead-letter topic records a failed technical message; it does not decide the business compensation policy.
+
+### Q126. A disaster-recovery drill fails because the secondary cluster is missing recent events. What must the DR plan define?
+
+Define replication method and measured RPO/RTO, including whether replication is asynchronous and how much lag is acceptable. Document topic/config/schema replication, consumer offset strategy, ACLs/secrets, endpoint cutover, and which region is authoritative during failover. Prevent both regions from independently applying the same side effects unless active-active behavior is explicitly designed. Drill producer cutover, consumer restart, duplicate/replay behavior, and reconciliation—not just whether secondary brokers are running. Mirroring data does not automatically provide a globally atomic, exactly-once cross-region transaction.
+
+### Q127. A Kafka Connect source connector restarts and appears to publish database changes twice. How do you investigate?
+
+Inspect connector/task logs, source-offset progress, database log position or snapshot phase, delivery guarantees, and target consumer deduplication. A restart can replay a range if source offsets were not advanced as expected; behavior depends on the connector and configuration. Confirm duplicates by comparing primary keys, source coordinates, transaction metadata, and event IDs. Do not delete offsets or repeatedly restart tasks without evidence. Make downstream writes idempotent, verify connector-specific guarantees, and test restart/recovery in a representative environment.
+
+### Q128. A Kafka Streams application restarts and reprocesses records while restoring local state. Is that necessarily a bug?
+
+Not necessarily. Kafka Streams can restore state stores from changelog topics and replay input after failures or task movement. Inspect application ID, state-store restoration, offsets, task assignment, and processing guarantees. Check whether external side effects are being executed outside the transactional Kafka processing boundary. Kafka Streams exactly-once does not automatically make external database writes or emails exactly once. Make external effects idempotent or publish derived events for a separate idempotent consumer, and monitor restoration duration.
+
+### Q129. A service is deployed with a different consumer group ID by mistake. It starts replaying history and sends duplicate notifications. What went wrong?
+
+A new group ID has independent offsets, so Kafka initializes its position according to auto.offset.reset when no committed offset exists. With earliest, it can replay retained history; any choice should be deliberate and documented. Manage group IDs as deployment configuration and review changes. For side-effecting consumers, add idempotency and explicitly define bootstrap behavior: rebuild history, start from now, or perform a controlled cutover. Monitor unexpected group creation and require approval for group-ID changes.
+
+### Q130. You inherit a Kafka cluster with no reliable runbooks. What do you inspect in your first 30 minutes?
+
+Start with customer impact and the cluster's safety posture: offline and under-replicated partitions, ISR changes, controller/quorum health, disk utilization and growth, broker request latency, leader/partition imbalance, producer errors, and highest-lag consumer groups. Review replication factor, min.insync.replicas, unclean leader-election policy, retention, ACLs, and schema/connector dependencies. Check whether monitoring distinguishes record lag from event-age lag and whether alerts have owners. Capture a baseline before broad configuration changes. Finish by identifying immediate risks and the missing runbooks for recovery, replay, capacity, and disaster recovery.
+
+## Scenario-answering framework
+
+For production scenarios, structure your answer around the decision rather than reciting Kafka terminology:
+
+1. **Impact and invariant:** What must not happen—lost payments, duplicate effects, broken ordering, or delayed events?
+2. **Evidence:** Which metrics, logs, offsets, partitions, dependencies, and recent changes confirm the failure mode?
+3. **Stabilization:** What reversible action reduces customer impact without making data correctness worse?
+4. **Root cause and fix:** What mechanism failed, and what code, design, or configuration change addresses it?
+5. **Recovery and prevention:** How will you replay or reconcile safely, test the failure path, and alert before recurrence?
 
 ## References
 
 - [Apache Kafka documentation](https://kafka.apache.org/documentation/)
+- [Apache Kafka monitoring reference](https://kafka.apache.org/43/operations/monitoring/)
 - [Spring for Apache Kafka reference](https://docs.spring.io/spring-kafka/reference/)
 - [Kafka Streams documentation](https://kafka.apache.org/documentation/streams/)
 - [Kafka Connect documentation](https://kafka.apache.org/documentation/#connect)
 - [Debezium documentation](https://debezium.io/documentation/)
 - [Kafka Improvement Proposals (KIPs)](https://cwiki.apache.org/confluence/display/KAFKA/Kafka+Improvement+Proposals)
+- [Kafka scenario-based interview drills](https://vibhuagwl.github.io/vibhu-tech-blog/kafka-interview/kafka-scenario-drills-staff-plus/)
+- [Scenario-based Kafka interview questions](https://ankurm.com/top-40-kafka-interview-questions-and-answers-scenario-based/)
 
-> **Accuracy reminder:** Kafka and Spring Kafka behavior can vary by version and configuration. Validate production settings against the documentation for the exact version in use. Treat “exactly once” claims as scoped guarantees; they do not automatically encompass arbitrary external systems.
+> **Accuracy reminder:** Kafka and Spring Kafka behavior can vary by version and configuration. Validate production settings against the documentation for the exact version in use. “Exactly once” is a scoped guarantee; it does not automatically cover arbitrary external systems.
