@@ -1694,77 +1694,182 @@ When answering an interview question, state the status in the specific release b
 
 ## 13. Code-reading and output questions
 
-### Q321. What is printed when a method is overloaded with primitive, boxed, and varargs parameters?
+These questions are best practiced by predicting the result before reading the explanation. For each snippet, first decide whether it compiles, then work out the output or exception. Snippets are independent; assume each is placed in a suitable class and that required imports are present.
 
-Overload selection is performed at compile time. Java generally prefers a more specific applicable fixed-arity overload before considering variable-arity invocation, and primitive widening, boxing, and reference widening can affect which overload is selected. The exact choice depends on the available signatures and the compile-time types of the arguments.
+### Q289. What is printed when a method is overloaded with primitive, boxed, and varargs parameters?
 
-In an interview, work through the overload-resolution phases rather than guessing from runtime values. If the argument is a reference typed as a superclass or interface, overload resolution uses that declared compile-time type; overriding, by contrast, is dynamically dispatched at runtime.
+```java
+static void pick(long value)    { System.out.println("long"); }
+static void pick(Integer value) { System.out.println("Integer"); }
+static void pick(int... values) { System.out.println("varargs"); }
 
-### Q322. Why can string concatenation and numeric promotion produce surprising output?
+pick(5);
+pick(Integer.valueOf(5));
+pick();
+```
 
-The `+` operator can mean numeric addition or string concatenation depending on operand types and evaluation order. Numeric operands may undergo binary numeric promotion, and concatenation converts non-string operands to string representations. Parentheses and the type of the left operand can therefore change the result.
+Output:
 
-For output questions, annotate each intermediate expression with its type and evaluate left to right according to operator precedence and associativity. Do not rely on visual intuition, especially when strings, chars, boxed values, and arithmetic are mixed.
+```text
+long
+Integer
+varargs
+```
 
-### Q323. What is the difference between compile-time errors and runtime exceptions in code-output questions?
+Overload resolution is performed at compile time. For `pick(5)`, primitive widening to `long` is considered before boxing to `Integer`; for an `Integer` argument, the `Integer` overload is an exact match. The varargs overload is used when no arguments are supplied. Resolve overloads from compile-time argument types and applicable conversion rules, not from a guess about runtime values.
 
-Compile-time errors occur when source code violates language or type rules, so the program does not compile. Runtime exceptions occur after compilation, when execution reaches an operation that fails. Some examples depend on whether a value is a compile-time constant, the declared type, overload resolution, or generic type erasure.
+### Q290. Why can string concatenation and numeric promotion produce surprising output?
 
-When asked what a snippet does, first determine whether it compiles. If it does, then evaluate initialization, overload selection, dispatch, and runtime control flow. This sequence prevents wasting time tracing code that is invalid before execution begins.
+```java
+System.out.println(1 + 2 + "3");
+System.out.println("1" + 2 + 3);
+System.out.println('A' + 1);
+```
 
-### Q324. What is printed when an overloaded method accepts int, long, and Integer?
+Output:
 
-Overload resolution happens at compile time and uses the compile-time types of arguments, considering applicable conversions and overload-resolution phases. It does not simply select the method whose parameter type matches the runtime wrapper value. Work through the declared argument type and applicable overloads systematically; add a small runnable snippet when the exact signatures matter.
+```text
+33
+123
+66
+```
 
-### Q325. What is the difference between compile-time constant and runtime value in switch or overload questions?
+The first expression performs numeric addition before concatenating with the string. The second begins with a string, so the remaining operands are concatenated. A `char` participates in numeric arithmetic using its numeric value, so `'A' + 1` evaluates to the integer `66`.
 
-Compile-time constants can affect constant-expression rules and narrowing conversions, while ordinary runtime values follow general type and conversion rules. Overload resolution is based on compile-time types and method signatures, not on the eventual runtime contents of a variable. Distinguish compilation errors from runtime behavior before tracing output.
+### Q291. What is the difference between compile-time errors and runtime exceptions in code-output questions?
 
-### Q326. Why can switch expressions be safer than traditional switch statements?
+This code does not compile:
 
-Switch expressions produce a value and arrow-style cases avoid accidental fall-through. Exhaustiveness checks can help when switching over enums or sealed hierarchies. However, supported pattern syntax and null handling depend on the Java release, so use the target release's rules rather than assuming all modern syntax exists in Java 8.
+```java
+int count = "5";
+```
 
-### Q327. How do you approach an unfamiliar Java output question?
+This code compiles, but throws a `NullPointerException` when executed:
 
-First check whether the code compiles. Then identify compile-time types, overload selection, initialization order, operator precedence, and runtime dispatch. Finally, trace exceptions and control flow. This method is more reliable than mentally executing the code from top to bottom without considering the language rules.
+```java
+Integer count = null;
+System.out.println(count + 1);
+```
 
----
+The first example violates Java's type rules. In the second, unboxing the null `Integer` to an `int` triggers the exception. Always determine whether the code compiles before tracing runtime behavior.
+
+### Q292. What is printed when an overloaded method accepts int, long, and Integer?
+
+```java
+static void show(int value)     { System.out.println("int"); }
+static void show(long value)    { System.out.println("long"); }
+static void show(Integer value) { System.out.println("Integer"); }
+
+show(7);
+show(7L);
+show(Integer.valueOf(7));
+```
+
+Output:
+
+```text
+int
+long
+Integer
+```
+
+Each argument has a different best match: an `int` literal selects `int`, a `long` literal selects `long`, and an `Integer` reference selects `Integer`. Overload resolution uses compile-time types and conversion rules; it does not inspect a wrapper's runtime value to choose a method.
+
+### Q293. How can compile-time constants affect switch labels and output questions?
+
+```java
+static final int LIMIT = 10;
+
+switch (value) {
+    case LIMIT -> System.out.println("limit");
+    default -> System.out.println("other");
+}
+```
+
+A constant variable such as `LIMIT` can be used as a case constant. Replacing it with an ordinary variable assigned at runtime would make the label invalid. This example uses arrow-style switch labels, available from Java 14; account for the target release when analyzing syntax.
+
+### Q294. Why can switch expressions be safer than traditional switch statements?
+
+```java
+enum Status { NEW, DONE }
+
+Status status = Status.DONE;
+String label = switch (status) {
+    case NEW -> "new";
+    case DONE -> "done";
+};
+System.out.println(label);
+```
+
+Output:
+
+```text
+done
+```
+
+A switch expression produces a value, and arrow cases do not fall through into the next case. For an enum, the compiler can check that all enum constants are covered. Switch expressions became final in Java 14; pattern matching for switch became final in Java 21, so do not confuse the release histories.
+
+### Q295. How do you approach an unfamiliar Java output question?
+
+Use a repeatable sequence: first check compilation; then identify compile-time types and overload resolution; trace initialization and operator precedence; distinguish overloading from runtime overriding; and finally follow control flow and exceptions.
+
+For example, overloading is selected using compile-time types, while an overridden instance method is dispatched according to the runtime class:
+
+```java
+class Parent {
+    void show() { System.out.println("Parent"); }
+}
+class Child extends Parent {
+    @Override void show() { System.out.println("Child"); }
+}
+
+Parent value = new Child();
+value.show();
+```
+
+Output:
+
+```text
+Child
+```
+
+The declared type `Parent` controls which members are available at compile time, but the overridden implementation is selected at runtime.
 
 ---
 
 ## 14. Production, senior-level scenarios, and engineering judgement
 
-### Q328. A HashMap lookup unexpectedly returns null even though the key was inserted. What would you investigate?
+### Q296. A HashMap lookup unexpectedly returns null even though the key was inserted. What would you investigate?
 
 First confirm that the same map instance is being queried and that the insertion succeeded. Then inspect the key's `equals()` and `hashCode()` implementations, whether fields used by them changed after insertion, whether a different but logically equivalent key is being used, and whether null is being confused with an absent mapping. `containsKey` can distinguish a present mapping to null from no mapping, though the larger issue may be key design.
 
 Also check concurrency: unsynchronized writes to a shared HashMap are not safe. Reproduce with a minimal example and inspect the key's hash and equality behavior before replacing the data structure. The long-term fix is usually stable key semantics and correct synchronization, not retries.
 
-### Q329. An API becomes slow under load, but CPU usage is low. How would you investigate?
+### Q297. An API becomes slow under load, but CPU usage is low. How would you investigate?
 
 Low CPU with high latency often suggests waiting rather than computation: thread pool exhaustion, blocked I/O, database connection-pool saturation, slow downstream services, lock contention, or requests queued behind a constrained resource. Compare request traces, active/queued threads, pool metrics, downstream latency, timeout counts, and thread dumps.
 
 Check whether the service accepts work faster than it can complete it. Increasing the thread pool can worsen the problem if all tasks wait for the same limited database connections. Identify the bottleneck, apply backpressure or capacity limits, and tune the constrained resource based on measurements.
 
-### Q330. A service experiences repeated garbage-collection pressure. What steps would you take?
+### Q298. A service experiences repeated garbage-collection pressure. What steps would you take?
 
 Determine whether the issue is high allocation rate, a growing retained live set, an undersized heap, or pauses caused by the selected collector and workload. Review GC logs, allocation profiling, post-collection occupancy, request throughput, object lifetime, and container memory limits. JFR and heap dumps can provide complementary evidence.
 
 Look for avoidable temporary allocations, unbounded caches, large buffers, and retained request data. Change one variable at a time and compare the same workload before and after. Collector or heap tuning can help, but should not conceal a leak or a capacity problem.
 
-### Q331. How do you choose between synchronization, atomics, and concurrent collections?
+### Q299. How do you choose between synchronization, atomics, and concurrent collections?
 
 Start with the invariant being protected. Use `synchronized` or a lock when multiple fields or operations must change as one consistent unit. Use atomic variables for small state transitions such as counters or compare-and-set updates. Use concurrent collections when the shared data structure's concurrency contract matches the workload.
 
 Avoid choosing solely by benchmark claims. Atomics can suffer contention and are not a replacement for multi-field invariants; concurrent maps do not make their values thread-safe; locks can be simpler and more correct for compound updates. Make the correctness requirement explicit, then measure if performance is a concern.
 
-### Q332. A task submitted to an executor never appears to finish. What would you check?
+### Q300. A task submitted to an executor never appears to finish. What would you check?
 
 Inspect thread dumps and executor metrics to determine whether the task is running, blocked, queued, deadlocked, or waiting on a future that cannot complete. Check pool size, queue growth, rejection policy, nested task submission, and whether all pool threads are waiting for work submitted to the same saturated pool—a form of thread-starvation deadlock.
 
 Observe task exceptions and completion paths; a task may have failed while the caller waits elsewhere. Set realistic timeouts, avoid blocking a pool's workers on tasks that require the same exhausted pool, and ensure cancellation and shutdown are handled. Increasing pool size without identifying the wait cycle can hide the symptom or make resource pressure worse.
 
-### Q333. How should retries be designed when a remote call times out?
+### Q301. How should retries be designed when a remote call times out?
 
 A timeout means the caller did not receive a result within the allowed time; it does not prove the remote operation failed. The remote side may have completed the operation while the response was delayed or lost. Blind retries can duplicate payments, orders, or other side effects.
 
@@ -1772,31 +1877,31 @@ Use bounded retries with backoff and jitter only when the operation is safe to r
 
 ---
 
-### Q334. A production service has rising latency but normal CPU utilization. What do you check first?
+### Q302. A production service has rising latency but normal CPU utilization. What do you check first?
 
 Look for waiting rather than computation: thread-pool queue depth, blocked or parked threads, connection-pool saturation, slow database queries, downstream latency, lock contention, rate limits, and timeout/retry amplification. Compare request latency percentiles with dependency timings and resource metrics. A thread dump taken during the incident can reveal where request threads are waiting.
 
 Avoid increasing thread counts blindly. If the database pool is exhausted, adding application threads can increase queueing and contention without increasing throughput. Find the constrained resource, bound waiting, and align deadlines across service and dependency calls.
 
-### Q335. A service has high allocation rates but no obvious memory leak. How do you investigate?
+### Q303. A service has high allocation rates but no obvious memory leak. How do you investigate?
 
 High allocation and a memory leak are different problems. Frequent short-lived allocation can increase GC work even if objects are eventually reclaimed; a leak involves objects remaining reachable longer than intended. Use allocation profiling or JFR to identify allocation sites, correlate allocation rate with request volume and latency, and inspect GC behavior.
 
 Optimize only after identifying the dominant allocation source. Reuse can help in selected hot paths, but unnecessary object pools often add complexity and contention. First consider algorithmic improvements, avoid repeated parsing or copying, and verify any change under a representative workload.
 
-### Q336. A request times out, but the client retries and duplicate work occurs. How do you prevent it?
+### Q304. A request times out, but the client retries and duplicate work occurs. How do you prevent it?
 
 A timeout does not prove that the original operation failed; the server may have completed it while the response was lost. For operations that must not be duplicated, design idempotency into the boundary—for example, use an idempotency key stored with the operation result, unique constraints, or a durable state transition that makes repeated requests safe.
 
 Retries should be bounded, use backoff and jitter, respect an overall deadline, and be applied only when repeating the operation is safe. Exactly-once effects across distributed systems are not achieved merely by retrying or using a message broker; they require careful coordination of durable state and side effects.
 
-### Q337. A CompletableFuture chain hangs under load. What would you investigate?
+### Q305. A CompletableFuture chain hangs under load. What would you investigate?
 
 Inspect which executor each stage uses, whether blocking calls occupy a limited pool, whether a stage waits on work scheduled to the same saturated executor, and whether a future is never completed on an error path. Look at thread dumps, executor metrics, queue depth, timeout behavior, and the chain's exception-handling stages.
 
 Avoid calling blocking joins inside a constrained worker pool when dependent work needs that same pool to make progress. Make timeout and cancellation behavior explicit, and ensure exceptional completion cannot silently leave the request waiting forever.
 
-### Q338. How would you choose between a concurrent collection and external synchronization?
+### Q306. How would you choose between a concurrent collection and external synchronization?
 
 Start with the shared invariant. If threads only need independent thread-safe map or queue operations, a concurrent collection may be sufficient. If correctness depends on a sequence of operations being atomic—for example, check-then-act across multiple map calls—use an atomic collection method, a suitable lock, or redesign the state transition so it is indivisible.
 
@@ -1804,69 +1909,69 @@ Thread-safe individual methods do not automatically make a multi-step workflow t
 
 ---
 
-### Q339. What are p95 and p99 latency, and why are averages insufficient?
+### Q307. What are p95 and p99 latency, and why are averages insufficient?
 
 p95 latency is the value at or below which 95% of observed requests complete; p99 similarly describes the 99th percentile. Averages can hide a small fraction of extremely slow requests, even though those tail requests often dominate user experience and timeouts in distributed call chains.
 
 Track percentiles alongside throughput, error rates, saturation, and dependency timings. Compare them over a meaningful window and sufficient request volume, and avoid treating one percentile as the whole story. Tail latency often points to queueing, contention, retries, garbage collection, or a slow dependency.
 
-### Q340. A service starts slowly after a JDK upgrade. How do you investigate?
+### Q308. A service starts slowly after a JDK upgrade. How do you investigate?
 
 Compare cold-start timing and logs against a baseline, then inspect class loading, JIT warm-up, dependency initialization, configuration, network calls, and runtime flags. Use JFR or startup diagnostics where available. Separate application initialization from JDK/runtime changes and validate the cause before adding AOT or caching options.
 
-### Q341. A service has many blocked threads. What do you investigate?
+### Q309. A service has many blocked threads. What do you investigate?
 
 Capture thread dumps during the incident and group stacks by state and blocking location. Check connection pools, synchronized monitors, downstream waits, queue saturation, and lock contention. Correlate with request latency and resource metrics; increasing the thread count may worsen the issue if the true bottleneck is a database or remote dependency.
 
-### Q342. How do you diagnose connection-pool exhaustion?
+### Q310. How do you diagnose connection-pool exhaustion?
 
 Inspect active, idle, pending, and timed-out connection metrics, then look for long-running queries, unclosed resources, long transactions, and slow remote work inside transaction boundaries. Confirm whether the pool size matches database capacity. Raising the pool size without understanding the database limit can make contention worse.
 
-### Q343. How should retries be designed for transient failures?
+### Q311. How should retries be designed for transient failures?
 
 Use bounded retries with backoff and jitter, honor a request deadline, and retry only failures that are plausibly transient. Writes need idempotency or deduplication so a timeout does not create duplicate effects. Avoid retry storms and align retry budgets across service layers so every layer does not independently multiply attempts.
 
-### Q344. What is bulkheading in a Java backend?
+### Q312. What is bulkheading in a Java backend?
 
 Bulkheading isolates resource pools or concurrency limits so failure or saturation in one dependency does not consume all capacity for unrelated work. Separate executors, semaphores, connection pools, or bounded queues can provide isolation. Too many isolated pools increase operational complexity, so boundaries should follow real failure domains.
 
-### Q345. What is graceful shutdown for a Java service?
+### Q313. What is graceful shutdown for a Java service?
 
 Graceful shutdown stops accepting new work, allows in-flight work to complete within a deadline, closes executors and clients, and releases resources. It should also define what happens to queued tasks and interrupted work. Kubernetes termination grace periods and application shutdown hooks need to be configured consistently.
 
-### Q346. How do you prevent duplicate processing of a Kafka or queue message in Java?
+### Q314. How do you prevent duplicate processing of a Kafka or queue message in Java?
 
 Design the handler to be idempotent where possible, use stable message or business identifiers, and coordinate durable state changes with acknowledgment or offset commits. A crash can occur between processing and acknowledgment, so delivery semantics alone do not guarantee exactly-once external side effects. Use transactions, deduplication records, or an outbox/inbox pattern where the domain requires it.
 
-### Q347. What is the transactional outbox pattern, and why might a Java service use it?
+### Q315. What is the transactional outbox pattern, and why might a Java service use it?
 
 The service writes its business change and an outgoing event record in the same database transaction. A separate publisher delivers the event and marks it processed, allowing retries after failures. This avoids the dual-write problem of committing a database change and publishing a message as unrelated operations, although duplicates still need handling.
 
-### Q348. How do you make a scheduled Java job safe to retry?
+### Q316. How do you make a scheduled Java job safe to retry?
 
 Make the operation idempotent, persist progress or a stable execution identifier where necessary, define what happens after partial failure, and use bounded retry/backoff. In distributed deployments, ensure only the intended number of instances run the job or make concurrent runs safe. Log and measure each execution without exposing sensitive payloads.
 
-### Q349. What is the difference between throughput and latency?
+### Q317. What is the difference between throughput and latency?
 
 Throughput measures how much work completes per unit of time; latency measures how long an individual operation takes. Improving throughput can increase queueing and worsen tail latency if the system is saturated. Evaluate both alongside error rate and resource saturation rather than optimizing a single metric.
 
-### Q350. Why are p95 and p99 latency important in distributed systems?
+### Q318. Why are p95 and p99 latency important in distributed systems?
 
 Percentiles reveal the tail of the latency distribution, which averages can hide. Slow requests can consume connection pools, trigger retries, and amplify delays across a call chain. Track percentiles with sufficient volume and correlate them with dependency timings, queueing, GC, and resource saturation.
 
-### Q351. How do you choose between caching and recomputing a result?
+### Q319. How do you choose between caching and recomputing a result?
 
 Consider computation cost, access frequency, freshness requirements, memory use, invalidation complexity, and consistency. A cache can reduce latency but introduces stale-data and stampede risks. Start with measurement, define TTL or invalidation rules, and make cache misses and backend overload safe.
 
-### Q352. What is a cache stampede and how can it be reduced?
+### Q320. What is a cache stampede and how can it be reduced?
 
 A cache stampede occurs when many requests miss the same key and simultaneously recompute or fetch the value. Use single-flight coordination, bounded refresh concurrency, jittered expiration, stale-while-revalidate where appropriate, or prewarming. Ensure the coordination itself does not become a bottleneck or deadlock.
 
-### Q353. How should a Java service manage configuration across environments?
+### Q321. How should a Java service manage configuration across environments?
 
 Separate configuration from code, validate required settings at startup, keep secrets in a secret manager, and document units and timeout semantics. Avoid silent fallback values for critical security or reliability settings. Configuration changes should be observable, tested, and rolled out with the same care as code changes.
 
-### Q354. How should you handle a third-party library upgrade?
+### Q322. How should you handle a third-party library upgrade?
 
 Read release notes and compatibility guidance, review transitive dependency changes, compile and run unit/integration/contract tests, and test security-sensitive paths. Run representative performance tests if the library is on a hot path. Upgrade in a controlled change with a rollback option rather than bundling unrelated refactors.
 ---
@@ -1888,7 +1993,7 @@ Use these links to revisit a single canonical question instead of repeating its 
 11. Java-version milestones and migration — [Section 12](#12-java-version-evolution-and-migration-java-8-25).
 12. Finish with [code-reading questions](#13-code-reading-and-output-questions) and [production/senior scenarios](#14-production-senior-level-scenarios-and-engineering-judgement).
 
-### Q355. What should a final Java interview revision checklist include?
+### Q323. What should a final Java interview revision checklist include?
 
 Revise language contracts, OOP and equality, strings and wrappers, exceptions, collections, generics, streams and coding exercises, date/time, concurrency and the Java Memory Model, executors and virtual threads, JVM and GC diagnostics, I/O/JDBC/security, testing, performance, and version changes. For each topic, practise one concise explanation, one edge case, one code example, and one production trade-off.
 
