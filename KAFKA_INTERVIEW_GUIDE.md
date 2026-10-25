@@ -50,12 +50,12 @@ A topic is a logical name for a stream of records, such as `orders-created` or `
 
 ### Q4. What is a partition, and why does Kafka use partitions?
 
-A partition is an ordered log that enables parallel reads and writes across brokers. Each record in a partition has an offset. Partitioning is Kafka's primary scaling unit, but ordering is guaranteed only within a single partition, not across all partitions of a topic.
+A partition is an append-only ordered log, identified within a topic, whose records have monotonically increasing offsets. Partitions can be placed on different brokers, allowing Kafka to spread storage and throughput across a cluster and let consumer groups process different partitions in parallel. A partition has one leader for normal reads and writes and may have follower replicas. Ordering is guaranteed within a partition, not across a topic's partitions. Partition count is therefore both a capacity decision and a semantic decision: it affects parallelism, key-to-partition mapping, and the ability to preserve per-entity order.
 
 
 ### Q5. What is a Kafka record?
 
-A record can contain a key, value, timestamp, headers, and partition/offset metadata assigned by Kafka. The key can influence partition selection, while the value contains the event payload. Headers commonly carry tracing, schema, or routing metadata; avoid placing secrets or sensitive data there without protection.
+A Kafka record consists primarily of a key, value, timestamp, and headers; the broker/client also associates it with a topic, partition, and offset. The key is often used for partition selection and grouping related events, while the value carries the event payload. Headers are useful for trace IDs, correlation IDs, schema metadata, and other cross-cutting context, but consumers should not treat them as a secure storage location. Decide whether timestamps represent event creation time or broker append time, and document that contract. A good event payload has a stable schema, explicit event identity, clear semantics, and only the data consumers actually need.
 
 
 ### Q6. What is an offset?
@@ -87,7 +87,7 @@ KRaft uses Kafka's own quorum-based metadata management rather than external Zoo
 
 ### Q11. What happens when a producer sends a record with a key?
 
-The producer's partitioner selects a partition. With typical keyed partitioning, records with the same key map to the same partition for a given partitioning configuration, preserving their partition order. Custom partitioners and partition-count changes can alter this mapping.
+The producer's partitioner chooses the destination partition. With the default keyed strategy, a key is serialized and hashed to select a partition, so records with the same key normally go to the same partition while the partition count and partitioning configuration remain stable. This is useful for entities such as an order or customer because the partition provides a single ordered stream for that key. A custom partitioner, changed key serialization, or increased partition count can change the mapping, so do not assume old and new records for one key always remain in the same partition across configuration changes. If strict per-key order is a business requirement, plan partition changes as a migration and consider version/sequence checks in consumers.
 
 
 ### Q12. What happens when a record has no key?
@@ -102,7 +102,7 @@ Kafka preserves order within a partition, meaning a consumer reads that partitio
 
 ### Q14. What is a consumer group?
 
-A consumer group is a set of consumers that cooperate to consume a topic's partitions. Each partition is assigned to at most one active consumer within the group at a time, while separate groups independently consume the topic. Group membership and partition assignment can change during rebalances.
+A consumer group is identified by `group.id`; its members share the work of consuming subscribed topics. For each partition, at most one consumer in a group owns it at a time, while different groups have independent offsets and can each read the full topic. The group coordinator manages membership and committed offsets, and a partition assignor determines how partitions are distributed. When a member joins, leaves, fails, or a subscription changes, Kafka may rebalance assignments; during that transition processing can pause and in-flight work may be redelivered. Adding consumers helps only while there are unassigned partitions and downstream capacity. A consumer group with more active consumers than available partitions cannot increase partition-level parallelism.
 
 
 ### Q15. What happens when a consumer commits an offset?
@@ -112,7 +112,7 @@ The consumer group stores a position indicating where it should resume. If it co
 
 ### Q16. How does Kafka retention work?
 
-Retention policies delete old log segments based on time and/or size, subject to cleanup behavior. Reading a record does not normally delete it. Retention determines how far consumers can replay data and contributes directly to storage cost and recovery capability.
+Kafka retention is independent of whether a consumer has read a record. With `cleanup.policy=delete`, old log segments become eligible for deletion according to time- and/or size-based retention settings; deletion is segment-oriented, so it is not always exact to the millisecond or byte. With `cleanup.policy=compact`, Kafka retains the latest value for each key over time, subject to compaction and tombstone cleanup. A topic can also use `compact,delete` when both policies are needed. Choose retention based on replay/recovery requirements, legal obligations, storage budget, and maximum expected consumer outage. A consumer that falls behind beyond retained data may no longer be able to replay the missing history from that topic.
 
 
 ### Q17. What is log compaction?
@@ -122,12 +122,12 @@ Compaction preserves the latest known value per key over time, while older value
 
 ### Q18. What is a replication factor?
 
-The replication factor is the number of replicas configured for each partition, including one leader and follower replicas. Higher replication increases resilience but also storage and network cost. Replica placement matters: copies should not all share the same failure domain.
+Replication factor is the number of copies of each partition, including its leader. With replication factor 3, a partition normally has one leader and two followers, ideally placed across different brokers and failure domains. Replication improves tolerance of broker failure but consumes extra disk, network bandwidth, and replication I/O; it does not protect against every operator error, logical corruption, or region-wide outage. Durability depends on the replication factor together with ISR health, producer `acks`, `min.insync.replicas`, and leader-election policy. Monitor under-replicated and offline partitions so a cluster does not silently operate with reduced redundancy.
 
 
 ### Q19. What are partition leaders and followers?
 
-The leader handles normal reads and writes for a partition under the standard model. Followers replicate the leader's log and can become leaders if eligible. A follower that falls too far behind may leave the ISR until it catches up again.
+Each partition has one leader replica responsible for handling normal producer writes and serving reads under the usual leader-based protocol. Follower replicas fetch data from the leader and maintain their own logs; eligible followers may become leader after a failure or controlled election. Kafka tracks replicas in the ISR based on replication progress. If a follower falls behind beyond configured thresholds, it may leave the ISR; when it catches up, it can rejoin. A leader election from an in-sync replica generally preserves acknowledged data better than electing a stale replica, which is why unclean leader election is a deliberate data-loss-versus-availability trade-off.
 
 
 ### Q20. What is the ISR, and why does it matter?
@@ -171,7 +171,7 @@ Duplicates may come from consumer redelivery after a crash, independent producer
 
 ### Q27. Auto commit or manual offset commit: how do you choose?
 
-Auto commit is simpler but can commit positions independently of completion of business work, depending on poll and processing timing. Manual/container-managed commit gives more control over when work is considered done, but error and rebalance handling become important. Spring Kafka offers acknowledgment modes at the listener-container layer.
+With `enable.auto.commit=true`, the client periodically commits offsets for records returned by `poll()`, which can be unsafe if application processing has not completed when the commit occurs. With manual commits, the application commits only after the work it considers complete; this usually supports at-least-once processing but can redeliver records if the process crashes after the side effect and before commit. In Spring Kafka, container acknowledgment modes (`RECORD`, `BATCH`, `MANUAL`, `MANUAL_IMMEDIATE`, and others depending on version) determine when the container commits offsets. The correct choice depends on processing granularity, transaction usage, and failure handling. Always pair offset strategy with idempotent business effects and test crashes, listener exceptions, and partition revocation.
 
 
 ### Q28. How do you maintain consistency between a database and Kafka?
@@ -388,12 +388,12 @@ Adopt compatibility rules appropriate for Avro, Protobuf, JSON Schema, or the ch
 
 ### Q68. How do you support replay without repeating harmful side effects?
 
-Use stable event IDs, idempotent consumers, replay-specific controls, and separate state-rebuild paths from external side effects where possible. Record replay source and maintain auditability. Define whether replay rebuilds a projection, reissues notifications, or repeats a business command.
+Start by defining what replay is supposed to accomplish: rebuild a read model, recover missed processing, re-run a calculation, or intentionally repeat a business action. Rebuild projections into a fresh or versioned target when possible, rather than replaying historical events through code that sends emails, charges cards, or triggers other irreversible side effects. Use stable event IDs and idempotency keys, persist deduplication state with business changes, throttle replay to protect dependencies, and track replay batches and offsets. If business logic has changed, test the new version against representative historical data and plan how corrected outputs will be reconciled. A replay is a controlled operational procedure, not just resetting offsets.
 
 
 ### Q69. How would you plan multi-region Kafka disaster recovery?
 
-Define recovery-point objective and recovery-time objective, then choose replication, backup/restore, or active/passive patterns supported by the platform. Specify topic/config replication, schema/ACL restoration, offset and consumer-state strategy, failover ownership, and split-brain prevention. Test failover and failback regularly.
+Begin with explicit RPO (how much data loss is acceptable) and RTO (how long recovery may take), then choose a supported replication or backup/restore design. Document how topics, configs, ACLs, schemas, connector state, consumer offsets, and application state are recovered; replicating topic data alone may not reproduce a working service. Decide which region is authoritative, how producers switch, how duplicate or delayed events are handled, and how split-brain writes are prevented. Cross-cluster replication may not preserve all semantics such as offsets, transactions, or ordering in the same way as a single cluster. Run regular failover and failback exercises and measure actual recovery time rather than treating the runbook as proof.
 
 
 ### Q70. How do you build a reliable audit/event history?
@@ -434,7 +434,7 @@ Partition reassignment moves replicas to different brokers to balance load or re
 
 ### Q76. How does Kafka Streams differ from a plain consumer?
 
-Kafka Streams provides a library for transformations, joins, aggregations, windows, local state stores, and Kafka-backed changelogs. A plain consumer gives lower-level control but requires you to implement much of the state and recovery logic yourself.
+Kafka Streams is a client library for building stream-processing applications using Kafka topics as inputs and outputs. It provides operations such as stateless transformations, joins, aggregations, windowing, repartitioning, local state stores, changelog-based recovery, and configurable processing guarantees. A plain `KafkaConsumer` gives more direct control over polling and side effects, but the application must implement state management, partition/task coordination, recovery, and much of the processing topology itself. Choose Streams when the problem is naturally a Kafka-to-Kafka processing topology; choose a lower-level consumer or another processing engine when integration requirements or operational constraints justify it. Processing guarantees still have defined boundaries and depend on topology and configuration.
 
 
 ### Q77. What is the difference between KStream and KTable?
@@ -454,12 +454,12 @@ Stateful operations use local state stores and Kafka changelog topics to restore
 
 ### Q80. What is Kafka Connect?
 
-Kafka Connect is a framework for moving data between Kafka and external systems using source and sink connectors. It manages tasks, configurations, offsets, and connector lifecycle. Connector delivery guarantees depend on the connector and target-system semantics.
+Kafka Connect is a framework for integrating Kafka with external systems through source connectors (external system to Kafka) and sink connectors (Kafka to external system). Connect manages connector configuration, task execution, offsets, worker coordination, and operational status, so teams do not need to build a custom integration service for every data source. In distributed mode, worker configuration and internal config/offset/status topics must be durable and correctly replicated. Delivery guarantees depend on the connector, source offset semantics, sink transaction/idempotency support, and configuration; do not assume every connector provides exactly-once delivery. Monitor task failures, offset progress, connector lag, and target-system errors.
 
 
 ### Q81. What is CDC, and how does Debezium fit?
 
-Change data capture streams database changes from transaction logs or other supported mechanisms. Debezium provides connectors that capture changes and publish change events, often to Kafka. CDC can support outbox publication and data integration, but schema, snapshot, ordering, and recovery behaviors need configuration.
+Change data capture (CDC) detects inserts, updates, and deletes from a database, often by reading its transaction log rather than repeatedly querying whole tables. Debezium provides source connectors for supported databases and emits change events to Kafka, including metadata useful for identifying the source and operation. Initial snapshots, log positions, schema changes, deletes/tombstones, transaction boundaries, and connector restarts all affect the event stream and must be understood. CDC is useful for data integration and for publishing an outbox reliably, but it does not remove the need for consumer idempotency or a schema-evolution plan. Validate connector-specific guarantees and monitor source lag and snapshot/recovery behavior.
 
 
 ### Q82. How does Kafka Connect manage source offsets?
@@ -469,7 +469,7 @@ Source connectors store progress according to connector behavior and worker conf
 
 ### Q83. What is a schema registry used for?
 
-A schema registry stores versioned schema definitions and can enforce compatibility policies, often using a schema ID in serialized payloads. It helps producers and consumers agree on serialization formats and schema evolution. The exact mechanism depends on registry and serializer implementation.
+A schema registry centralizes versioned schema definitions and compatibility checks for formats such as Avro, Protobuf, or JSON Schema. A serializer typically registers or looks up a schema and writes a schema identifier with the encoded payload according to that registry's wire format; the consumer uses the identifier to retrieve the matching schema. Compatibility modes (for example, backward, forward, or full, with transitive variants in some registries) define which schema changes are allowed relative to previous versions. Registry compatibility is a guardrail, not a substitute for clear event semantics or consumer contract tests. Schema IDs and wire formats are implementation-specific, so producers and consumers must use compatible serializers/deserializers.
 
 
 ### Q84. What is a tombstone record?
@@ -516,7 +516,7 @@ Define RPO/RTO, backups or replication strategy, cluster provisioning, topic con
 On restart or reassignment, Kafka may deliver the record again because the committed position did not advance. Use a stable event ID and atomically persist a deduplication marker with the business mutation. Commit only after the DB transaction succeeds.
 
 
-### Q92. Scenario: Lag starts right after a release. How do you triage?
+### Q92. Scenario: Compare release timestamps with lag, processing latency, errors, rebalance rate, CPU/GC, DB/API latency, and per-partition metrics. Roll back if the release is the likely cause and rollback is safe. Avoid scaling consumers until you know whether the bottleneck is partition parallelism or downstream saturation.
 
 Compare release timestamps with lag, processing latency, errors, rebalance rate, CPU/GC, DB/API latency, and per-partition metrics. Roll back if the release is the likely cause and rollback is safe. Avoid scaling consumers until you know whether the bottleneck is partition parallelism or downstream saturation.
 
