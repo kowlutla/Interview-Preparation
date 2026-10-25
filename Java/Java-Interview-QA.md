@@ -20,15 +20,17 @@ A focused, version-aware handbook for Java backend engineers preparing for exper
 8. [Stream API fundamentals and coding questions](#8-stream-api-fundamentals-and-coding-questions)
 9. [Concurrency, Java Memory Model, executors, and asynchronous programming](#9-concurrency-java-memory-model-executors-and-asynchronous-programming)
 10. [JVM internals, garbage collection, and diagnostics](#10-jvm-internals-garbage-collection-and-diagnostics)
-11. [I/O, networking, JDBC, modules, security, testing, and performance](#11-io-networking-jdbc-modules-security-testing-and-performance)
+11. [I/O, networking, JDBC, security, testing, and performance](#11-io-networking-jdbc-security-testing-and-performance)
 12. [Java version evolution and migration: Java 8–25](#12-java-version-evolution-and-migration-java-825)
 13. [Code-reading and output questions](#13-code-reading-and-output-questions)
 14. [Production, senior-level scenarios, and engineering judgement](#14-production-senior-level-scenarios-and-engineering-judgement)
-
 15. [Last-minute revision](#15-last-minute-revision)
 16. [Java version feature matrix](#16-java-version-feature-matrix)
 17. [Official references](#17-official-references)
 18. [Editorial and validation notes](#18-editorial-and-validation-notes)
+
+**Reading order:** Java execution and language foundations → OOP and contracts → strings/exceptions/generics → Collections → functional APIs and Streams → concurrency → JVM → I/O, networking and engineering practices → Java 8–25 evolution → code reading → production/senior scenarios.
+
 
 ## Visual roadmap
 
@@ -67,6 +69,7 @@ timeline
             : New LTS migration baseline
 ```
 
+---
 ---
 
 ## 1. Java foundations and execution
@@ -129,6 +132,8 @@ Enums provide a closed set of typed values, can hold methods and fields, and wor
 
 ---
 
+---
+
 ## 2. Object-oriented programming, contracts, and design
 
 ### Q7. What is the difference between an interface and an abstract class?
@@ -168,6 +173,12 @@ An immutable object cannot be changed after construction, so its invariants are 
 A class must protect its internal state, not merely declare fields `final`. A final reference can still point to a mutable list. Copy mutable inputs on the way in and avoid returning mutable internal objects directly; expose immutable views or copies where appropriate. Deep immutability may require copying nested mutable values too, so understand ownership rather than relying on a shallow copy.
 
 ---
+
+### Q59. Which design patterns are especially useful in Java backend development?
+
+Patterns are reusable ways to structure recurring design problems, not a checklist to apply everywhere. **Strategy** makes an algorithm replaceable behind a common contract; **Factory** centralizes object creation when construction choices vary; **Decorator** adds behavior around an object while preserving its interface; **Builder** simplifies construction when an object has many optional parameters; and **Adapter** translates one interface into another.
+
+Spring itself uses familiar patterns such as proxies, factories, templates, and dependency injection. The interview answer should connect a pattern to the problem it solves and its trade-off. For example, Strategy can remove a large conditional by selecting an implementation, but it can also create unnecessary classes if the variation is trivial and unlikely to grow.
 
 ### Q118. How should you reason about Java API design for nullability?
 
@@ -227,6 +238,10 @@ Inheritance models an is-a relationship and couples a subclass to superclass beh
 
 A subtype should be usable wherever its base type is expected without violating the base contract. A subtype that strengthens preconditions, weakens postconditions, or changes promised invariants can break callers even if it compiles. Design contracts before inheritance and use composition when behavior does not fit the parent abstraction.
 
+### Q329. How should a Java API handle null arguments?
+
+Define nullability explicitly, validate at public boundaries, and fail early with a meaningful exception when null is invalid. If absence is part of the normal result, represent it consistently, for example with Optional return values where appropriate. Do not let a null propagate through several layers and fail at an unrelated dereference.
+
 ### Q351. How do you review a Java pull request for correctness?
 
 Review behavior and invariants, error handling, concurrency, nullability, resource lifecycle, security boundaries, observability, tests, and compatibility with the target Java release. Look for duplicated logic and unnecessary abstraction, but prioritize correctness and maintainability over stylistic preference. Ask what happens under empty input, duplicates, timeout, partial failure, and concurrent requests.
@@ -234,6 +249,8 @@ Review behavior and invariants, error handling, concurrency, nullability, resour
 ### Q352. How do you decide whether to introduce an interface?
 
 Introduce an interface when it represents a meaningful contract, enables multiple implementations, separates a boundary, or improves testing without obscuring the design. Avoid creating one interface per class mechanically when no substitution or boundary exists. The right abstraction should clarify dependencies rather than add layers for their own sake.
+
+---
 
 ---
 
@@ -323,17 +340,11 @@ Array equality with == compares whether both references point to the same array 
 
 Constructing BigDecimal from a double captures the double's binary approximation; use a string or an appropriate exact constructor when decimal intent matters. equals considers both numerical value and scale, while compareTo compares numerical magnitude. Choose a consistent representation and rounding policy, particularly for monetary calculations.
 
-### Q329. How should a Java API handle null arguments?
-
-Define nullability explicitly, validate at public boundaries, and fail early with a meaningful exception when null is invalid. If absence is part of the normal result, represent it consistently, for example with Optional return values where appropriate. Do not let a null propagate through several layers and fail at an unrelated dereference.
-
-### Q330. What is the difference between an unmodifiable view and a snapshot?
-
-An unmodifiable view prevents changes through that reference but can reflect changes made through another reference to the backing collection. A snapshot is a separate copy of the state at a point in time. Use a defensive copy when the API promises stable state rather than merely preventing mutation through one handle.
-
 ### Q332. Why can == behave unexpectedly with boxed numbers?
 
 When both operands are wrapper references, == compares object identity. Some wrapper values are cached, so certain comparisons may appear true while other values are false. Use value equality or unbox safely, and guard against null before unboxing to avoid NullPointerException.
+
+---
 
 ---
 
@@ -396,6 +407,8 @@ Try-with-resources automatically closes AutoCloseable resources when the scope e
 ### Q334. What happens when a finally block returns a value?
 
 A return or throw from finally can override a return or exception from the try or catch block, hiding the original outcome. Avoid returning or throwing from finally. Use finally for cleanup, or try-with-resources for AutoCloseable resources so the primary exception is preserved and close failures are suppressed.
+
+---
 
 ---
 
@@ -478,6 +491,8 @@ Reflection inspects runtime classes and members while the program is running. An
 ### Q239. What is a dynamic proxy, and where is it used?
 
 A dynamic proxy can create an object that implements specified interfaces and forwards method calls to an invocation handler. Frameworks use proxies for cross-cutting behavior such as transactions, security, and interception. Proxy-based mechanisms have limitations around concrete classes, final methods, self-invocation, and method visibility depending on the proxy technology.
+
+---
 
 ---
 
@@ -611,6 +626,12 @@ Prefer one atomic collection method, such as putIfAbsent or computeIfAbsent, whe
 
 ---
 
+### Q330. What is the difference between an unmodifiable view and a snapshot?
+
+An unmodifiable view prevents changes through that reference but can reflect changes made through another reference to the backing collection. A snapshot is a separate copy of the state at a point in time. Use a defensive copy when the API promises stable state rather than merely preventing mutation through one handle.
+
+---
+
 ## 7. Functional programming, Optional, date/time, and everyday APIs
 
 ### Q24. What are Optional's intended uses and limitations?
@@ -668,6 +689,8 @@ Period represents date-based amounts such as years, months, and days. Duration r
 ### Q320. How should date/time parsing and formatting be handled?
 
 Use DateTimeFormatter with an explicit format when the external contract defines one, and choose a locale and zone intentionally. Prefer immutable java.time types for modern code. Validate malformed external input at the boundary and avoid silently interpreting a local time in the server's default zone.
+
+---
 
 ---
 
@@ -1018,6 +1041,8 @@ map transforms each input into another reference value and produces a Stream of 
 
 ---
 
+---
+
 ## 9. Concurrency, Java Memory Model, executors, and asynchronous programming
 
 ### Q26. What is the difference between a process and a thread?
@@ -1254,6 +1279,8 @@ ThreadLocal associates a value with a thread and can be useful for thread-specif
 
 ---
 
+---
+
 ## 10. JVM internals, garbage collection, and diagnostics
 
 ### Q37. What are heap and stack memory, and what causes StackOverflowError versus OutOfMemoryError?
@@ -1410,7 +1437,9 @@ Runtime type identity includes the defining class loader. Two classes with the s
 
 ---
 
-## 11. I/O, networking, JDBC, modules, security, testing, and performance
+---
+
+## 11. I/O, networking, JDBC, security, testing, and performance
 
 ### Q55. How should Java I/O, NIO, and resource management be handled?
 
@@ -1429,12 +1458,6 @@ Avoid native Java deserialization for untrusted data where possible. Prefer an e
 JDBC provides lower-level database access through connections, prepared statements, and result sets. A connection's transaction behavior depends on autocommit and explicit commit/rollback; resource cleanup is essential, and prepared statements should be used for parameter binding rather than concatenating untrusted values into SQL.
 
 In a pooled application, the pool manages physical connections while application code borrows and returns them. Do not close a shared pool itself from request code, hold connections while waiting on remote services, or assume a timed-out client request means the database statement stopped. Align connection, query, and transaction timeouts, and ensure rollback/cleanup occurs when failures happen.
-
-### Q59. Which design patterns are especially useful in Java backend development?
-
-Patterns are reusable ways to structure recurring design problems, not a checklist to apply everywhere. **Strategy** makes an algorithm replaceable behind a common contract; **Factory** centralizes object creation when construction choices vary; **Decorator** adds behavior around an object while preserving its interface; **Builder** simplifies construction when an object has many optional parameters; and **Adapter** translates one interface into another.
-
-Spring itself uses familiar patterns such as proxies, factories, templates, and dependency injection. The interview answer should connect a pattern to the problem it solves and its trade-off. For example, Strategy can remove a large conditional by selecting an implementation, but it can also create unnecessary classes if the variation is trivial and unlikely to grow.
 
 ### Q60. How should Java code be benchmarked and performance-tuned?
 
@@ -1644,6 +1667,8 @@ JMH is a harness designed for JVM microbenchmarking. Naive timing loops can be d
 
 ---
 
+---
+
 ## 12. Java version evolution and migration: Java 8–25
 
 ### Q44. Which Java 8 language and library additions changed everyday Java development?
@@ -1845,6 +1870,8 @@ Confirm the project's minimum JDK and compiler configuration, ensure the feature
 
 ---
 
+---
+
 ## 13. Code-reading and output questions
 
 ### Q119. What is printed when a method is overloaded with primitive, boxed, and varargs parameters?
@@ -1880,6 +1907,8 @@ Switch expressions produce a value and arrow-style cases avoid accidental fall-t
 ### Q336. How do you approach an unfamiliar Java output question?
 
 First check whether the code compiles. Then identify compile-time types, overload selection, initialization order, operator precedence, and runtime dispatch. Finally, trace exceptions and control flow. This method is more reliable than mentally executing the code from top to bottom without considering the language rules.
+
+---
 
 ---
 
@@ -2035,7 +2064,7 @@ Use these links to revisit a single canonical question instead of repeating its 
 7. Stream fundamentals and coding exercises — [Section 8](#8-stream-api-fundamentals-and-coding-questions), Q139–Q170.
 8. Concurrency, the Java Memory Model, executors, and virtual threads — [Section 9](#9-concurrency-java-memory-model-executors-and-asynchronous-programming).
 9. JVM, garbage collection, and diagnostics — [Section 10](#10-jvm-internals-garbage-collection-and-diagnostics).
-10. I/O, JDBC, security, tests, and performance — [Section 11](#11-io-networking-jdbc-modules-security-testing-and-performance).
+10. I/O, JDBC, security, tests, and performance — [Section 11](#11-io-networking-jdbc-security-testing-and-performance).
 11. Java-version milestones and migration — [Section 12](#12-java-version-evolution-and-migration-java-8-25).
 12. Finish with [code-reading questions](#13-code-reading-and-output-questions) and [production/senior scenarios](#14-production-senior-level-scenarios-and-engineering-judgement).
 
