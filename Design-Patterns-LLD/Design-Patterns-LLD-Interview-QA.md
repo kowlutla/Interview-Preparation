@@ -1192,7 +1192,35 @@ DI supplies an object's collaborators from outside rather than letting it constr
 
 ### Q54. What is the Repository pattern, and what problem does it solve?
 
-A Repository presents a domain-oriented collection-like interface for loading and saving aggregates while hiding persistence details. It should express useful operations such as `findById` or `save`, not expose every database concern to domain objects. In data-heavy CRUD applications, a direct DAO or query service can be simpler; do not create a repository abstraction that only forwards every ORM method unchanged.
+A Repository provides a domain-oriented interface for loading and saving aggregates while hiding persistence details. It should express operations the use case needs rather than exposing SQL, ORM sessions, or every low-level database operation to the domain.
+
+```java
+interface OrderRepository {
+    Optional<Order> findById(OrderId id);
+    void save(Order order);
+}
+
+final class PayOrder {
+    private final OrderRepository orders;
+    private final PaymentGateway payments;
+
+    PayOrder(OrderRepository orders, PaymentGateway payments) {
+        this.orders = orders;
+        this.payments = payments;
+    }
+
+    void execute(OrderId id) {
+        Order order = orders.findById(id)
+                .orElseThrow(() -> new OrderNotFoundException(id));
+        order.markPaid(payments.authorize(order.total()));
+        orders.save(order);
+    }
+}
+```
+
+The domain types and provider behavior are illustrative. The example shows that the use case depends on an abstraction, not a concrete database implementation. In production, the transaction boundary and payment failure/uncertain-outcome behavior must be designed explicitly; a database transaction cannot roll back a remote payment.
+
+A Repository is particularly useful when it protects aggregate boundaries or separates business logic from persistence technology. In straightforward CRUD code, a DAO or framework repository may be enough. Avoid creating an interface that only forwards every ORM method unchanged if it adds no meaningful boundary.
 
 ### Q55. What is the Service Layer pattern, and when is it useful?
 
@@ -1204,7 +1232,23 @@ Unit of Work tracks changes made during a business transaction and coordinates p
 
 ### Q57. What is the Specification pattern?
 
-Specification encapsulates a business predicate so it can be composed, reused, and tested. For example, `EligibleForDiscount` may express customer status, order value, and date constraints. Simple specifications can compose with `and`, `or`, and `not`. Keep executable predicates and database-translatable query specifications conceptually distinct; not every Java predicate can be translated into SQL.
+Specification encapsulates a business predicate so it can be named, tested, reused, and sometimes combined. For example, a discount may apply only to active customers whose order total crosses a threshold.
+
+```java
+@FunctionalInterface
+interface Specification<T> {
+    boolean isSatisfiedBy(T candidate);
+
+    default Specification<T> and(Specification<T> other) {
+        return candidate -> isSatisfiedBy(candidate)
+                && other.isSatisfiedBy(candidate);
+    }
+}
+```
+
+A concrete specification can then express a meaningful business rule, such as `ActiveCustomer` or `MinimumOrderValue`, and callers can compose them. For small one-off conditions, a plain conditional is clearer; Specification is valuable when the rule has a domain name or is reused across use cases.
+
+Keep in-memory predicates distinct from database-translatable specifications. An arbitrary Java lambda generally cannot be converted to SQL by a persistence provider. If the predicate must run in the database, define an explicit query representation or criteria-building mechanism and test that it matches the business semantics.
 
 ### Q58. What are DTOs and mappers, and why separate them from domain objects?
 
@@ -1254,11 +1298,27 @@ Command Query Responsibility Segregation separates operations that change state 
 
 ### Q66. What are the Outbox pattern and anti-corruption layer?
 
-The **Outbox pattern** stores a business change and an event record in the same local database transaction, then publishes the record asynchronously. It addresses the gap between committing data and sending a message; it does not by itself guarantee exactly-once end-to-end effects. See the Distributed Systems and Kafka handbooks for retries, deduplication, and delivery semantics.
+The **Transactional Outbox** solves a common dual-write problem: a service must commit a database change and publish an event, but those operations cannot normally be made atomic together without stronger coordination. Store the business change and an outgoing-event record in the **same local database transaction**, then let a publisher deliver pending records.
 
-An **anti-corruption layer** translates an external or legacy model into the application's own domain vocabulary. It prevents vendor-specific fields, error codes, and lifecycle assumptions from spreading through the core. An adapter is one implementation technique; the broader layer may include mapping, validation, policy, and error translation.
+```mermaid
+sequenceDiagram
+    participant App as Application Service
+    participant DB as Database
+    participant Pub as Outbox Publisher
+    participant Broker as Message Broker
+    App->>DB: Update business row + insert outbox row
+    DB-->>App: Commit transaction
+    Pub->>DB: Read pending outbox rows
+    Pub->>Broker: Publish event
+    Broker-->>Pub: Acknowledge
+    Pub->>DB: Mark row delivered
+```
 
----
+The atomic part is the database update plus outbox insert—not the later broker publication. A crash after publishing but before marking the row delivered can cause a duplicate publication, so consumers should be idempotent and the publisher should support retries and observability. Outbox does not provide exactly-once business effects end to end.
+
+An **anti-corruption layer** protects the domain model from an external or legacy system's vocabulary and assumptions. It can translate DTOs, identifiers, statuses, errors, and lifecycle semantics into the application's own model. An Adapter may implement part of this layer, but the layer can include richer mapping and validation logic. Keep the translation at the boundary rather than spreading vendor-specific concepts throughout the domain.
+
+See the Distributed Systems and Kafka handbooks for deeper treatment of retries, deduplication, delivery guarantees, and consumer behavior.
 
 ### Q67. How do backend architecture patterns fit together in a Java service?
 
