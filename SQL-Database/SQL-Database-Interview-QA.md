@@ -305,16 +305,57 @@ GROUP BY email
 HAVING COUNT(*) > 1;
 ```
 
-To remove duplicates while keeping one row, rank rows within each duplicate key and delete only rows with rank greater than one. The exact deletion syntax differs by database, so first inspect the ranked rows, take a backup or use a recoverable transaction where possible, and verify foreign keys and dependent records. A typical ranking expression is:
+Before deleting anything, preview the rows and decide which record should survive. The following examples assume `user_id` is a unique, non-NULL key and that only repeated, non-NULL email addresses count as duplicates. Change the survivor rule if the business requirement differs.
+
+**Preview the rows that would be removed:**
 
 ```sql
-ROW_NUMBER() OVER (
-  PARTITION BY email
-  ORDER BY created_at, user_id
+WITH ranked AS (
+  SELECT user_id, email, created_at,
+         ROW_NUMBER() OVER (
+           PARTITION BY email
+           ORDER BY created_at, user_id
+         ) AS rn
+  FROM users
+  WHERE email IS NOT NULL
 )
+SELECT user_id, email, created_at
+FROM ranked
+WHERE rn > 1
+ORDER BY email, rn;
 ```
 
-Keep rank one only if that is the intended survivor rule. Handle NULL duplicate keys explicitly; SQL grouping and unique constraints can treat NULLs differently. After cleanup, add an appropriate unique constraint if the business rule truly prohibits future duplicates. Never run a destructive delete based solely on a copied example.
+**Oracle — delete by `ROWID` after reviewing the preview:**
+
+```sql
+DELETE FROM users
+WHERE ROWID IN (
+  SELECT rid
+  FROM (
+    SELECT ROWID AS rid,
+           ROW_NUMBER() OVER (
+             PARTITION BY email
+             ORDER BY created_at, user_id
+           ) AS rn
+    FROM users
+    WHERE email IS NOT NULL
+  )
+  WHERE rn > 1
+);
+```
+
+**MySQL — keep the row with the smallest `user_id`:**
+
+```sql
+DELETE u1
+FROM users u1
+JOIN users u2
+  ON u1.email = u2.email
+ AND u1.user_id > u2.user_id
+WHERE u1.email IS NOT NULL;
+```
+
+The MySQL self-join is appropriate only when keeping the smallest key is the intended rule. Review the affected-row count and verify the result before committing; use a transaction where supported and appropriate, and ensure backups and dependent records are handled. A unique constraint can prevent recurrence, but confirm the intended NULL and collation/case-sensitivity rules first. Never run a destructive delete from an example without adapting and validating it for the actual schema.
 
 ### Q20. How do you find employees earning more than their department's average salary?
 
@@ -377,7 +418,27 @@ Prefer `created_at >= :start AND created_at < :end` over converting every timest
 
 Start with evidence: identify the exact SQL, bind values, frequency, latency, rows returned, and whether time is spent in the database, network, or application. Compare the slow query with a known-good baseline and inspect the execution plan. Look for estimated-versus-actual row mismatches where available, full scans over large selective workloads, expensive sorts, repeated lookups, poor join order, and unexpectedly large intermediate results.
 
-A practical sequence is:
+A quick syntax reminder:
+
+```sql
+-- MySQL: estimated plan
+EXPLAIN
+SELECT order_id
+FROM orders
+WHERE customer_id = ?;
+
+-- Oracle: estimated plan
+EXPLAIN PLAN FOR
+SELECT order_id
+FROM orders
+WHERE customer_id = :customer_id;
+
+SELECT *
+FROM TABLE(DBMS_XPLAN.DISPLAY);
+```
+
+The placeholder syntax shown is illustrative: the actual bind syntax depends on the database client or framework. A practical sequence is:
+
 1. Reproduce with representative data and parameter values.
 2. Inspect the plan and database metrics; check table/index statistics.
 3. Verify join cardinality and filtering logic before changing indexes.
@@ -461,7 +522,7 @@ Always use a deterministic `ORDER BY`; pagination without stable ordering can re
 SELECT order_id, created_at
 FROM orders
 ORDER BY created_at DESC, order_id DESC
-LIMIT :page_size OFFSET :offset;
+LIMIT ? OFFSET ?;
 ```
 
 **Oracle 12c and later:**
@@ -473,7 +534,21 @@ ORDER BY created_at DESC, order_id DESC
 OFFSET :offset ROWS FETCH NEXT :page_size ROWS ONLY;
 ```
 
-For deep pagination, consider keyset (seek) pagination. Pass the last row's sort keys and request rows after that position, using a predicate consistent with the ordering. For descending `(created_at, order_id)`, the next-page predicate is conceptually `created_at < :last_created_at OR (created_at = :last_created_at AND order_id < :last_order_id)`. Handle nullable sort keys explicitly. Keyset pagination is efficient with a matching index and avoids large offsets, but it does not provide arbitrary page-number jumps.
+Bind-marker syntax depends on the client or framework; `?` and `:name` are examples, not interchangeable raw-SQL syntax across all drivers.
+
+For deep pagination, consider keyset (seek) pagination. Pass the last row's sort keys and request rows after that position, using a predicate consistent with the ordering. Assuming `created_at` is non-NULL, the next-page predicate for descending `(created_at, order_id)` is:
+
+```sql
+-- MySQL 8.x; use the bind syntax supported by your driver
+SELECT order_id, created_at
+FROM orders
+WHERE created_at < ?
+   OR (created_at = ? AND order_id < ?)
+ORDER BY created_at DESC, order_id DESC
+LIMIT ?;
+```
+
+For Oracle 12c and later, use the same predicate and ordering with `FETCH NEXT :page_size ROWS ONLY` instead of `LIMIT ?`. Bind the last row's timestamp twice and its `order_id` once. The `order_id` tie-breaker is essential when timestamps match. If the sort column can be NULL, define explicit NULL ordering and build a predicate that matches it. Keyset pagination works best with a compatible index and avoids scanning/discarding a large offset, but does not provide arbitrary page-number jumps.
 
 ### Q34. What is the difference between Oracle ROWNUM and ROW_NUMBER()?
 
@@ -523,9 +598,18 @@ Add a unique tie-breaker to the sort order. For feeds or large datasets, keyset 
 
 ### Q40. Concurrent requests update the same record and one update is lost. How do you fix it?
 
-Choose a concurrency-control strategy based on the invariant. Optimistic locking adds a version predicate and checks the affected-row count; pessimistic locking locks the row during the critical transaction. For a simple counter, an atomic database update such as `SET quantity = quantity - 1 WHERE quantity > 0` can enforce the condition without a read-then-write race, provided the affected-row count is checked.
+Choose a concurrency-control strategy based on the invariant. Optimistic locking adds a version predicate and checks the affected-row count; pessimistic locking locks the row during the critical transaction. For inventory, an atomic conditional update can prevent a negative quantity without a read-then-write race:
 
-Do not read a value into Java, calculate a new value, and overwrite it without protecting against concurrent updates. Use a transaction for related changes, enforce invariants with constraints where possible, and make retries bounded and safe. Verify that the isolation level and ORM behavior match the chosen approach.
+```sql
+UPDATE inventory
+SET quantity = quantity - 1
+WHERE item_id = :item_id
+  AND quantity > 0;
+```
+
+Check the affected-row count: one means the reservation succeeded; zero means the item was missing or insufficient stock remained. If the application must distinguish those cases, perform a follow-up read or use a workflow designed for that distinction. Keep the update inside the transaction that includes any other database changes required for the reservation. Use the bind syntax supported by the database client.
+
+Do not read a value into Java, calculate a new value, and overwrite it without protecting against concurrent updates. Use constraints where possible and make retries bounded and safe. Verify that the isolation level and ORM behavior match the chosen approach.
 
 ### Q41. The connection pool is exhausted, but the database CPU is not high. What might be wrong?
 
@@ -570,6 +654,22 @@ The question selection reflects recurring themes across multiple interview-prepa
 
 ---
 
+## Final self-check
+
+Before considering this handbook mastered, make sure you can do each of the following without looking at the answers:
+
+- [ ] Explain `WHERE` versus `HAVING`, NULL logic, and why `NOT EXISTS` can be safer than `NOT IN`.
+- [ ] Write a join and explain how one-to-many relationships can inflate aggregates.
+- [ ] Solve second-highest salary, top-N-per-group, latest-row-per-customer, and customers-with-no-orders problems.
+- [ ] Explain index trade-offs and walk through a measured slow-query investigation.
+- [ ] Describe a lost update, a deadlock, and how optimistic locking or an atomic update addresses them.
+- [ ] Explain why pagination needs a deterministic order and when keyset pagination is preferable.
+- [ ] Name at least two Oracle/MySQL differences that could affect correctness.
+
 ## Revision strategy
+
+For each question, practise explaining the core idea aloud, writing the SQL without looking, and then naming one edge case. For performance and concurrency questions, explain the investigation steps and trade-offs before jumping to a fix. Prefer understanding query behavior and data cardinality over memorizing a single syntax pattern. Treat all destructive SQL examples as patterns to adapt: preview affected rows, verify keys and constraints, and test in a safe environment before production use.
+
+
 
 For each question, practise explaining the core idea aloud, writing the SQL without looking, and then naming one edge case. For performance and concurrency questions, explain the investigation steps and trade-offs before jumping to a fix. Prefer understanding query behavior and data cardinality over memorizing a single syntax pattern.
