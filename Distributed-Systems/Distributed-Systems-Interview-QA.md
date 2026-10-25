@@ -3,7 +3,7 @@
 **Audience:** Java backend engineers with 4–6 years of experience preparing for Senior Software Engineer and Backend Engineer interviews.  
 **Purpose:** A practical, interview-first guide to distributed correctness, failure handling, consistency, coordination, asynchronous messaging, and production operations.
 
-The answers are written to support both understanding and spoken interview responses. Examples are illustrative pseudocode unless explicitly stated otherwise. Prefer the simplest design that meets the business invariant; distributed patterns add costs and are not goals in themselves.
+The answers are written to support both understanding and spoken interview responses. Examples are illustrative pseudocode unless explicitly stated otherwise. Prefer the simplest design that meets the business invariant; distributed patterns add costs and are not goals in themselves. For scenarios, structure your response around the invariant and impact, evidence and failure window, correction/recovery, prevention and observability, and trade-offs.
 
 ## Contents
 
@@ -307,6 +307,22 @@ In the prepare phase, a coordinator asks each participant to prepare and promise
 
 A saga is a sequence of local transactions across services, with a compensating action for steps that need to be semantically undone if a later step fails. For example, an order workflow may reserve stock, authorize payment, and arrange shipment. If shipment creation fails, the workflow may release stock and void the authorization.
 
+A simplified flow makes the compensation boundary explicit:
+
+```mermaid
+flowchart TD
+    A[Create pending order] --> B[Reserve inventory]
+    B -->|Reserved| C[Authorize payment]
+    B -->|Unavailable| X[Reject order]
+    C -->|Authorized| D[Confirm order]
+    C -->|Declined| E[Release inventory]
+    C -->|Unknown outcome| F[Query payment status]
+    F -->|Authorized| D
+    F -->|Not authorized| E
+```
+
+The exact sequence depends on the business rules. Resolve an unknown external outcome before choosing a potentially conflicting compensation.
+
 A saga is not a global ACID transaction. Other requests can observe intermediate states, compensation can fail, and some external actions cannot be reversed perfectly. Design durable state transitions, retry and timeout policy, idempotent commands, manual intervention paths, and reconciliation for stuck workflows.
 
 ### Q45. Compare saga orchestration and choreography.
@@ -336,6 +352,18 @@ Outbox relay / CDC -> broker -> idempotent consumer
 A consumer can store a processed message identifier in an inbox/deduplication table and apply the business update in the same local transaction. If the same message is redelivered, the unique identifier prevents the business effect from being applied twice.
 
 The deduplication record and business effect must share an atomic transaction, or another crash window remains. Choose an identifier with stable uniqueness and define its retention period based on replay and redelivery horizons. Deduplication protects repeated delivery of the same logical message; it does not automatically detect two different messages that represent the same business request.
+
+For a Java/Spring consumer, keep the inbox insert and domain update inside the same database transaction. Enforce message-ID uniqueness in the database; a separate `exists` check alone is vulnerable to concurrent duplicate deliveries.
+
+```java
+@Transactional
+public void handle(OrderEvent event) {
+    inboxRepository.save(new InboxRecord(event.id())); // unique message ID
+    orderRepository.apply(event.orderId(), event.version(), event.status());
+}
+```
+
+If the insert violates the unique constraint, handle that duplicate as already processed and acknowledge it only after confirming the original transaction committed. This example assumes the inbox and business tables share the same transactional database; it does not make an external HTTP side effect atomic.
 
 ### Q48. How should a payment/order/inventory workflow be designed?
 
@@ -501,6 +529,18 @@ Command Query Responsibility Segregation separates the model used to change stat
 
 CQRS can help when read and write needs differ substantially, but it creates projection lag, duplicated models, rebuilding and schema-evolution work, and more operational complexity. CQRS does not require event sourcing: the write side can use a conventional database and publish changes to build read models.
 
+```mermaid
+flowchart LR
+    C[Command API] --> W[Write model + transaction]
+    W --> O[Outbox / events]
+    O --> B[(Broker)]
+    B --> P[Projection consumer]
+    P --> R[(Read model / search index)]
+    Q[Query API] --> R
+```
+
+The read model is derived and may lag. If the product requires read-your-writes, define whether the command response returns committed state, whether the client waits for a projection version, or whether the follow-up read uses the authoritative store.
+
 ### Q74. How is event sourcing different from audit logging?
 
 Audit logging records actions or changes for accountability and investigation, often alongside a conventional current-state database. Event sourcing treats the event log as the authoritative state history and derives current state from it. The audit log may be incomplete for reconstruction, while an event store must contain the events needed to rebuild domain state.
@@ -581,11 +621,15 @@ Contain it by bounding concurrency and queues, propagating deadlines, limiting r
 
 **Prevention and trade-off:** Define deadlines and operation semantics in the API. Idempotency records require retention and conflict rules, but are safer than guessing whether a timed-out mutation happened.
 
+**Likely follow-ups:** What if the same key arrives with a different request body? Reject it using a request fingerprint. What if the service restarts? The durable idempotency record remains authoritative; an in-memory cache is only an optimization.
+
 ### Q86. A payment is processed twice after retries. How would you fix it?
 
 Inspect whether the caller generated a new operation ID on each retry, whether the provider supports idempotency keys, and whether the local service commits deduplication separately from payment state. Determine if there are two provider charges or only duplicate local records.
 
 Use a stable payment-attempt ID across retries, enforce uniqueness in the authoritative store, and send the same provider idempotency key on each attempt. Reconcile provider settlement records against local state and refund duplicates through an auditable business process. Never assume a retry library alone provides exactly-once charging.
+
+**Likely follow-ups:** What if the provider does not support idempotency? Query by a stable merchant reference where possible; otherwise treat the outcome as unknown and reconcile before retrying. A local uniqueness constraint cannot prevent a second external charge by itself.
 
 ### Q87. An order is created, but inventory reservation fails. What architecture would you use?
 
@@ -593,11 +637,15 @@ Represent the order as pending rather than confirmed. Run a saga: request a rese
 
 Publish state changes reliably with an outbox, make participant operations idempotent, and track saga age and stuck states. The user experience should explain that the order is pending when that is the truth, rather than falsely promising confirmation.
 
+**Likely follow-ups:** What if inventory release fails? Retry the compensation idempotently, alert on workflow age, and provide an audited manual-recovery path. What if payment times out? Query payment status before deciding to release inventory or retry.
+
 ### Q88. A database commits, but event publication fails. What do you change?
 
 This is the dual-write problem. Check whether the service performs a database commit and a separate broker publish, and inspect whether committed records lack corresponding events.
 
 Write an outbox record in the same database transaction as the business update, then publish from the outbox using a relay or CDC. The relay must resume after crashes and tolerate duplicate publication; consumers deduplicate and process idempotently. Monitor oldest unpublished outbox age and backlog, and define cleanup only after safe publication is established.
+
+**Likely follow-ups:** What if the relay publishes and crashes before recording success? It may publish again, so preserve the event ID and make consumers idempotent. Monitor the age of the oldest unpublished outbox row, not just relay process health.
 
 ### Q89. Consumers process events out of order. How do you diagnose and remediate it?
 
@@ -605,11 +653,15 @@ Determine the ordering contract: global, per key, per aggregate, or none. Inspec
 
 If per-order order is required, route all events for an order through a stable partition and include aggregate version/sequence. Consumers can reject stale versions, detect gaps, or buffer and retry missing events. Do not use wall-clock timestamps as the sole ordering mechanism. If strict sequencing lowers throughput, explain why the business invariant justifies it.
 
+**Likely follow-ups:** How do you detect a missing event? Include per-aggregate sequence/version numbers and alert on persistent gaps. How do you avoid blocking unrelated keys? Keep ordering scoped to the smallest business entity that actually needs it.
+
 ### Q90. A consumer crashes after updating the database but before acknowledging the message. What happens?
 
 The broker may redeliver the message because it did not observe acknowledgment. Without deduplication, the consumer can apply the database change twice. Acknowledge-after-processing avoids losing unprocessed work but intentionally permits duplicates after this crash window.
 
 Store the message ID and apply the business update in one local database transaction. On redelivery, the inbox uniqueness constraint indicates the message was already committed; the consumer can acknowledge it without repeating the effect. Test crash points around commit and acknowledgment.
+
+**Likely follow-ups:** What if a duplicate-key insert races? Let the database uniqueness constraint arbitrate and handle the duplicate-key result safely. What if the handler calls an external provider? Use provider idempotency and reconciliation because the local transaction cannot include that provider.
 
 ### Q91. A network partition separates two parts of a cluster. What should happen?
 
@@ -617,11 +669,15 @@ Start with the invariant. If conflicting writes would be harmful, allow only the
 
 Do not let both sides silently believe they are the authoritative leader. Use quorum protocols, epochs, and fencing. When connectivity returns, reconcile only according to the defined consistency model. The trade-off should be a deliberate product decision, not an accidental consequence of timeout settings.
 
+**Likely follow-ups:** Does adding replicas eliminate the partition trade-off? No; communication uncertainty remains. Which side may write must follow a stated consistency and business-invariant policy, not simply whichever side responds fastest.
+
 ### Q92. A leader fails while writes are in progress. How do you reason about lost or uncertain writes?
 
 Check the write acknowledgment semantics, replication protocol, commit index/position, and replica eligibility for promotion. A client that timed out may not know whether its write was committed. A new leader should follow the storage protocol's rules rather than selecting a replica simply because it is reachable.
 
 Clients should retry mutations with stable idempotency keys or query the outcome. After failover, monitor replication recovery and reconcile business operations that may have an ambiguous result. The acceptable loss window must align with the system's RPO and durability contract.
+
+**Likely follow-ups:** What durability does an acknowledgment promise? State whether it means local persistence, quorum replication, or protocol-level commit. After failover, reconcile ambiguous business operations rather than treating every timed-out request as failed.
 
 ### Q93. Replication lag makes a user see stale data. What are your options?
 
@@ -629,11 +685,15 @@ Confirm the lag and whether the request was routed to a read replica immediately
 
 Avoid routing every read to the primary without evaluating load. Define which endpoints require freshness and measure both lag and user-visible stale reads. A “read replica” is a capacity choice, not a promise that reads reflect the latest write.
 
+**Likely follow-ups:** Why not add a fixed sleep after writes? Replica/projection lag varies, so a sleep cannot guarantee freshness. Use a version/position signal when available or explicitly provide a weaker consistency contract.
+
 ### Q94. Two regions accept conflicting updates. How should the system resolve them?
 
 First determine whether concurrent writes should have been accepted at all. For a bank balance or unique inventory reservation, use a single authoritative coordination path or a conflict-safe operation rather than blindly merging. For user preferences, concurrent updates may be resolved using explicit domain rules or surfaced to the user.
 
 Timestamps and last-write-wins are simple but can discard valid updates under clock skew. Consider versions, causal metadata, append-only operations, or a domain-specific merge. State the latency and availability cost of stronger cross-region coordination.
+
+**Likely follow-ups:** How do you prevent lost updates in an API? Use version checks or ETags/If-Match and reject stale writes. A merge policy is appropriate only when it preserves the domain invariant.
 
 ### Q95. A hot partition becomes the throughput bottleneck. What do you inspect?
 
@@ -641,11 +701,15 @@ Break down traffic, storage, latency, and consumer lag per partition or key, and
 
 Potential mitigations include splitting heavy tenants, adding a sub-key, salting write keys, isolating high-volume customers, or changing the access model. Rebalancing alone may not help if the hot key remains indivisible. Each mitigation can complicate ordering and aggregation, so validate with representative load tests.
 
+**Likely follow-ups:** Why may adding consumers not help? A single partition or downstream database can be the serial bottleneck. How do you test it? Include realistic tenant/key skew rather than only uniform random traffic.
+
 ### Q96. A distributed lock expires while its original holder is still working. What prevents stale writes?
 
 The original holder may pause, lose its lease, and resume after another holder has acquired the lock. If the protected resource accepts the old holder's write, the lock did not preserve correctness.
 
 Issue a monotonically increasing fencing token on each ownership grant and require the storage resource to reject stale tokens. Where possible, use conditional writes or version checks enforced by the authoritative database. Test long pauses and network partitions; a lock service's “lock acquired” response alone is not enough.
+
+**Likely follow-ups:** Is a random lock token the same as a fencing token? No; a random token can help verify ownership, but a monotonically increasing fencing token lets the resource reject stale owners. The resource must enforce the token.
 
 ### Q97. A retry storm overwhelms a recovering dependency. How do you stop it?
 
@@ -653,11 +717,15 @@ Reduce incoming and retry traffic first: cap attempts, apply exponential backoff
 
 After stabilizing, restore traffic gradually and watch queue depth, saturation, error rate, and latency. Add capacity only after understanding the bottleneck. Prevent recurrence with load tests, bounded concurrency, and a policy that distinguishes transient errors from permanent failures.
 
+**Likely follow-ups:** Why not retry every exception? Permanent validation failures will not recover, and nested retries multiply traffic. Watch saturation, latency, queue depth, and error rate as traffic is restored.
+
 ### Q98. An event-driven workflow is stuck halfway through. How do you investigate?
 
 Find the workflow/saga ID and reconstruct its state transitions using correlation IDs, event IDs, command outcomes, retry history, and timestamps. Identify whether a message is unpublished, queued, repeatedly failing, acknowledged prematurely, or waiting on an external system.
 
 Make workflow state durable and expose age-of-state alerts. Retry only idempotent steps; query external status when outcomes are uncertain. Provide an audited repair or compensation path for operators rather than editing database rows manually without recording the business decision.
+
+**Likely follow-ups:** What if the provider result is unknown? Query status or reconcile before repeating the side effect. What if compensation is impossible? Move to an explicit business resolution state and record the operator decision.
 
 ### Q99. A downstream consumer cannot keep up with events. What do you do?
 
@@ -665,11 +733,15 @@ Compare arrival rate with sustainable processing throughput and find the limitin
 
 Use backpressure, bounded concurrency, batching, and priority policies where valid. Decide whether lag is acceptable based on the business freshness objective, and alert on oldest event age as well as count. Have a retention and replay plan in case lag exceeds the broker's retention window.
 
+**Likely follow-ups:** How long will backlog take to drain? Divide backlog by net catch-up rate (processing throughput minus incoming throughput), assuming rates remain stable. What if retention expires? Recover from a durable source or rebuild the projection.
+
 ### Q100. A replay causes duplicate side effects. How do you prevent it?
 
 Separate projection rebuilding from external actions. Replaying historical events to reconstruct a read model should not send new emails, charge cards, or create duplicate shipments by default. Use replay modes or separate projection handlers that do not execute live side effects.
 
 Where a side effect must be reissued, require an explicit business operation with its own idempotency key and audit trail. Track replay identity and offsets/checkpoints, and verify the target state before resuming. Event history is valuable only if replay semantics are safe and understood.
+
+**Likely follow-ups:** How do you avoid replay/live races? Define a starting position, checkpoint progress, catch up to a known boundary, and cut over without gaps or double application. Validate projections against known totals before switching traffic.
 
 ### Q101. A multi-service operation must support cancellation and compensation. How would you model it?
 
@@ -677,11 +749,15 @@ Define durable workflow states such as `PENDING`, `RESERVING`, `AUTHORIZED`, `CO
 
 Use a saga coordinator or clear event choreography, idempotent participant commands, outbox/inbox patterns, and explicit compensation. Some steps may be irreversible or require a refund rather than rollback. Define terminal states, timeout policy, operator recovery, and customer-visible status.
 
+**Likely follow-ups:** What if shipment already happened? Cancellation may become a return/refund flow, not a rollback. Use guarded state transitions so cancellation and dispatch cannot both independently claim success.
+
 ### Q102. The system must remain available during a regional outage. What trade-offs matter?
 
 Clarify which capabilities must remain available, what data loss is acceptable, and which operations require global uniqueness or strong consistency. Multi-region deployment needs more than duplicated servers: routing, data replication, identity, secrets, dependencies, failover automation, and recovery procedures must also work.
 
 Active-active writes can create conflicts and require coordination or domain-specific merge rules. A single-writer design simplifies correctness but may pause writes during failover or increase cross-region latency. Test regional failover, stale DNS/client routing, and return-to-service reconciliation against explicit RTO/RPO objectives.
+
+**Likely follow-ups:** How do you prove RTO/RPO? Run controlled failover and restore exercises and measure actual recovery and data loss. A standby region is not useful if credentials, routing, brokers, or recovery runbooks fail.
 
 ### Q103. Should two services communicate using synchronous REST or asynchronous messaging?
 
@@ -689,17 +765,23 @@ Use synchronous REST when the caller needs an immediate answer, the operation is
 
 A hybrid is common: an API accepts a command and returns an operation ID or pending status, then events drive the workflow. Messaging introduces eventual consistency, replay, deduplication, and operational lag; REST introduces runtime dependency and timeout/ retry concerns. Choose based on user experience and business invariants, not fashion.
 
+**Likely follow-ups:** How does the client know asynchronous work completed? Return an operation ID and expose status, callback, or notification. Messaging changes the coupling; it does not remove event-contract and operations coupling.
+
 ### Q104. A read model is behind the source-of-truth database. How should the API behave?
 
 First quantify lag and identify whether the projection is blocked, failing, or simply processing a burst. If the endpoint promises immediate read-your-writes, use a write response that returns the committed state, route the follow-up read to the authoritative store, or wait for a projection version to catch up.
 
 For analytics or search, eventual consistency may be acceptable if the contract says so and lag is observable. Avoid claiming a command succeeded in the read model before it has applied. Provide repair/rebuild procedures and alert on the age of the oldest unprocessed event.
 
+**Likely follow-ups:** Why not synchronously wait for all projections? A noncritical read model would then become part of the write path and increase latency/availability coupling. Expose a version/status mechanism when a client needs to wait for one projection.
+
 ### Q105. How do you decide whether to introduce a distributed pattern or keep the design simple?
 
 Start with the business invariant, scale and failure requirements, and current evidence. A single database transaction may be simpler and safer than a saga if the data naturally belongs together. A direct REST call may be clearer than a broker for an immediate validation. Event sourcing may be excessive if audit history alone is required.
 
 Adopt the least complex design that meets explicit requirements, then validate it with failure tests and operational metrics. Explain the cost you accept: coordination latency, eventual consistency, duplicated data, recovery tooling, or reduced availability. Complexity should buy a specific guarantee or capability.
+
+**Likely follow-ups:** What evidence justifies adding a pattern? Name the invariant or operational requirement it protects, and the failure test/metric that will verify it. If the requirement can be met with one local transaction, prefer that simpler boundary.
 
 ## 15. References
 
