@@ -24,6 +24,7 @@
 - [Phase 6 — Mock interviews (Q91–Q100)](#phase-6--mock-interviews-q91q100)
 - [Phase 7 — Real-world scenario-based interview questions (Q101–Q130)](#phase-7--real-world-scenario-based-interview-questions-q101q130)
 - [References](#references)
+- [Commonly Used Kafka CLI Commands](#commonly-used-kafka-cli-commands)
 
 ## How to use this guide
 
@@ -1034,3 +1035,174 @@ For production scenarios, structure your answer around the decision rather than 
 - [Scenario-based Kafka interview questions](https://ankurm.com/top-40-kafka-interview-questions-and-answers-scenario-based/)
 
 > **Accuracy reminder:** Kafka and Spring Kafka behavior can vary by version and configuration. Validate production settings against the documentation for the exact version in use. “Exactly once” is a scoped guarantee; it does not automatically cover arbitrary external systems.
+
+## Commonly Used Kafka CLI Commands
+
+These are the Kafka commands worth knowing for daily development, interview discussions, and first-line production troubleshooting. Examples assume a Kafka distribution is extracted locally and the broker is reachable at `localhost:9092`. Run scripts from the Kafka installation directory; on Windows, use the corresponding `.bat` scripts where provided.
+
+Set the broker address mentally as a reusable value in the examples below:
+
+```bash
+# Common connection target used in the examples
+--bootstrap-server localhost:9092
+```
+
+For secured clusters, add `--command-config client.properties` to supported admin commands. The properties file contains the required client security settings; never put credentials directly into shell history or commit secrets to a repository.
+
+### 1. Topic management
+
+**List topics**
+
+```bash
+bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
+```
+
+**Create a topic**
+
+```bash
+bin/kafka-topics.sh --bootstrap-server localhost:9092 \
+  --create --topic orders --partitions 6 --replication-factor 3
+```
+
+The replication factor cannot exceed the number of available brokers. Choose partition count based on expected throughput, consumer parallelism, and ordering requirements.
+
+**Describe a topic and inspect leaders/replicas/ISR**
+
+```bash
+bin/kafka-topics.sh --bootstrap-server localhost:9092 --describe --topic orders
+```
+
+Use this when checking partition count, replication factor, partition leaders, replica placement, and the in-sync replica set (ISR).
+
+**Increase a topic's partition count**
+
+```bash
+bin/kafka-topics.sh --bootstrap-server localhost:9092 \
+  --alter --topic orders --partitions 12
+```
+
+Partition count can be increased, not decreased with this command. Increasing partitions can change key-to-partition mapping for future records, so do not do it casually when per-key ordering matters.
+
+**Inspect topic configuration**
+
+```bash
+bin/kafka-configs.sh --bootstrap-server localhost:9092 \
+  --entity-type topics --entity-name orders --describe
+```
+
+**Delete a topic (destructive)**
+
+```bash
+bin/kafka-topics.sh --bootstrap-server localhost:9092 --delete --topic orders
+```
+
+Only run this after confirming the environment, topic name, retention/recovery implications, and authorization. Deletion behavior also depends on broker configuration and cluster state.
+
+### 2. Produce and consume test records
+
+**Start a console producer**
+
+```bash
+bin/kafka-console-producer.sh --bootstrap-server localhost:9092 --topic orders
+```
+
+Type one record per line and press Enter to send it. Stop with `Ctrl+C`.
+
+**Read new records from the end**
+
+```bash
+bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 \
+  --topic orders
+```
+
+**Read retained records from the beginning**
+
+```bash
+bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 \
+  --topic orders --from-beginning
+```
+
+**Consume using a dedicated test group**
+
+```bash
+bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 \
+  --topic orders --group orders-debug
+```
+
+Use a separate test group when debugging. `--from-beginning` reads from the earliest retained position only when the group has no committed offset (or its position is otherwise reset); it does not automatically rewind an existing group's committed offsets.
+
+### 3. Consumer groups and lag
+
+**List consumer groups**
+
+```bash
+bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 --list
+```
+
+**Inspect offsets and lag**
+
+```bash
+bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 \
+  --describe --group orders-service
+```
+
+Check `CURRENT-OFFSET`, `LOG-END-OFFSET`, and `LAG` per partition. Lag is an offset-distance indicator, not necessarily a direct measure of seconds behind; correlate it with event timestamps and processing rate.
+
+**Inspect group state and active members**
+
+```bash
+bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 \
+  --describe --group orders-service --state
+
+bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 \
+  --describe --group orders-service --members
+```
+
+These help investigate unexpected group states, membership changes, and partition assignment.
+
+**Preview an offset reset before executing it**
+
+```bash
+bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 \
+  --group orders-service --topic orders --reset-offsets \
+  --to-earliest --dry-run
+```
+
+**Execute the reset only after validating the preview**
+
+```bash
+bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 \
+  --group orders-service --topic orders --reset-offsets \
+  --to-earliest --execute
+```
+
+Stop all consumers in the target group before resetting offsets. Review the dry-run output, topic scope, and expected replay/duplicate side effects first. Offset resets are operationally significant and can cause large replays; they are not a routine lag-fix command.
+
+### 4. Cluster and performance checks
+
+**Check KRaft metadata quorum status** (for KRaft-based clusters; command availability and options depend on Kafka version)
+
+```bash
+bin/kafka-metadata-quorum.sh --bootstrap-server localhost:9092 describe --status
+```
+
+**Run a basic producer throughput test** (use a non-production test topic)
+
+```bash
+bin/kafka-producer-perf-test.sh \
+  --topic kafka-perf-test --num-records 100000 \
+  --record-size 256 --throughput 1000 \
+  --producer-props bootstrap.servers=localhost:9092
+```
+
+Treat performance-test results as workload-specific. Use an isolated test environment and coordinate before generating load on a shared cluster.
+
+### Quick operational reminders
+
+- **Most-used first checks:** `kafka-topics.sh --list`, `kafka-topics.sh --describe`, and `kafka-consumer-groups.sh --describe`.
+- **Bootstrap server:** it is an initial contact point; Kafka clients discover partition leaders and other brokers from metadata. Ensure advertised broker addresses are reachable from the client.
+- **Version differences:** command names, flags, and output can vary by Kafka release. Run a tool with `--help` and use documentation matching the deployed version. Older ZooKeeper-based examples using `--zookeeper` are not appropriate for modern Kafka 4.x.
+- **Production safety:** inspect before changing; use a dedicated test group for debugging; preview offset resets; and do not delete topics, reset offsets, or run load tests without understanding the impact.
+
+Reference: [Apache Kafka — Basic Operations](https://kafka.apache.org/41/operations/basic-kafka-operations/) and [Apache Kafka Quickstart](https://kafka.apache.org/quickstart/).
+
