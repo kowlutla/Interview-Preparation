@@ -19,9 +19,10 @@ A focused interview guide for Java backend engineers. It emphasizes the Spring c
 7. [Testing, observability, and production readiness](#7-testing-observability-and-production-readiness)
 8. [Caching, asynchronous work, and messaging](#8-caching-asynchronous-work-and-messaging)
 9. [Reactive programming and version evolution](#9-reactive-programming-and-version-evolution)
-10. [Senior-level production troubleshooting](#10-senior-level-production-troubleshooting)
-11. [Last-minute revision](#11-last-minute-revision)
-12. [Official references](#12-official-references)
+10. [Resilience, microservices, and migration](#10-resilience-microservices-and-migration)
+11. [Senior-level production troubleshooting](#11-senior-level-production-troubleshooting)
+12. [Last-minute revision](#12-last-minute-revision)
+13. [Official references](#13-official-references)
 
 ---
 
@@ -301,7 +302,7 @@ Use the official migration guides and release notes, upgrade in controlled steps
 
 ---
 
-## 9A. Resilience, microservices, and migration
+## 10. Resilience, microservices, and migration
 
 ### Q41. How should resilience be designed for calls to downstream services?
 
@@ -323,7 +324,7 @@ Review the Java version, dependency management, Spring Security configuration, H
 
 ---
 
-## 10. Senior-level production troubleshooting
+## 11. Senior-level production troubleshooting
 
 ### Q44. When should you use `@Bean` instead of `@Component`, and what does `@Configuration` change?
 
@@ -390,7 +391,7 @@ If a behavior such as rollback, caching, or authorization disappears, check how 
 
 ---
 
-## 11. Last-minute revision
+## 12. Last-minute revision
 
 Prioritize these questions when time is limited:
 
@@ -411,7 +412,7 @@ For each answer, be ready to explain the mechanism, one common failure mode, and
 
 ---
 
-## 12. Official references
+## 13. Official references
 
 - [Spring Framework Reference](https://docs.spring.io/spring-framework/reference/)
 - [Spring Boot Reference](https://docs.spring.io/spring-boot/reference/)
