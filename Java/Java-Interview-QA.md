@@ -1222,6 +1222,22 @@ Use this release-by-release section to revise when a feature appeared and when i
 | Java 22–24 | Feature | Foreign Function & Memory API final in 22, unnamed variables/patterns, evolving stream and language APIs |
 | Java 25 | LTS | Module import declarations; compact source files and instance main methods; flexible constructor bodies; Scoped Values; Key Derivation Function API; compact object headers and runtime/JFR improvements. Primitive type patterns remained preview, structured concurrency preview, Vector API incubating |
 
+
+```mermaid
+timeline
+    title Java LTS releases to prioritize for interviews
+    Java 8 : Lambdas and Streams
+           : Optional and java.time
+    Java 11 : Standard HttpClient
+            : String and Files API improvements
+    Java 17 : Records and sealed classes
+            : Stronger encapsulation
+    Java 21 : Virtual threads
+            : Pattern matching and sequenced collections
+    Java 25 : Scoped Values and language/runtime improvements
+            : New LTS migration baseline
+```
+
 ### Q171. Which Java 8 features are most important for backend interviews?
 
 Prioritize lambdas, method references, functional interfaces, streams, Optional, default interface methods, and java.time. Be able to explain laziness, map versus flatMap, collector behavior, effectively final captured variables, and when a loop is clearer than a stream. These concepts remain common even in codebases running newer JDKs.
@@ -1724,7 +1740,7 @@ A heap dump captures objects and references for retained-memory analysis. A thre
 
 ## 27. I/O, networking, JDBC, security, and testing
 
-### Q276. What is the difference between byte streams and character streams?
+### Q276. When should Java code use byte-oriented versus character-oriented I/O?
 
 InputStream and OutputStream operate on bytes and suit binary data. Reader and Writer operate on characters through an encoding. Text is stored or transmitted as bytes, so the encoding must be explicit at the boundary. Do not decode arbitrary binary data as text or rely on a machine's default charset for a file format.
 
