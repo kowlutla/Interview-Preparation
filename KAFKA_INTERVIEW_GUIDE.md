@@ -912,6 +912,8 @@ A later event can overtake an earlier event while the earlier one waits on a ret
 ### Q110. An order service commits to its database and then publishes OrderCreated. It crashes between those operations. How do you close the gap?
 This is the dual-write problem: the database commit can succeed while publication never happens. Write the order and an outbox row in the same local database transaction. A relay or CDC tool publishes committed outbox records to Kafka, and consumers use stable event IDs and idempotent handling because the relay may publish more than once. Monitor publication delay and outbox backlog. Do not claim that a database transaction and a Kafka transaction automatically make arbitrary cross-system writes atomic.
 
+I would monitor the oldest unpublished outbox row, backlog size, publication failures, and time from database commit to Kafka availability. Cleanup should happen only after successful publication is established, and replay should be safe if the relay restarts or an acknowledgment is lost.
+
 
 ### Q111. A new consumer release fails on a schema change, but other consumers are healthy. How do you recover safely?
 Identify the exact schema and payload version, affected consumer version, and whether the change is compatible under the actual serialization and registry rules. If impact is high, roll back the producer/schema change or deploy a compatible consumer. Prefer additive changes and a staged rollout where old and new consumers coexist. Validate compatibility in CI with representative historical payloads, not only the newest sample. Do not blindly reset offsets: replaying old records through the new code may expose more incompatibilities or repeat business side effects.
@@ -1036,7 +1038,7 @@ For production scenarios, structure your answer around the decision rather than 
 ## References
 
 - [Apache Kafka documentation](https://kafka.apache.org/documentation/)
-- [Apache Kafka monitoring reference](https://kafka.apache.org/43/operations/monitoring/)
+- [Apache Kafka monitoring reference](https://kafka.apache.org/documentation/#monitoring)
 - [Spring for Apache Kafka reference](https://docs.spring.io/spring-kafka/reference/)
 - [Kafka Streams documentation](https://kafka.apache.org/documentation/streams/)
 - [Kafka Connect documentation](https://kafka.apache.org/documentation/#connect)
