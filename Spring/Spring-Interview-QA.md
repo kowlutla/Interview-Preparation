@@ -1605,7 +1605,7 @@ An OAuth2 client obtains or uses access tokens to call a protected remote servic
 
 ## Senior-level production troubleshooting
 
-### Q307. When should you use `@Bean` instead of `@Component`, and what does `@Configuration` change?
+### Q300. When should you use `@Bean` instead of `@Component`, and what does `@Configuration` change?
 
 Use `@Component` when you own a class that should be discovered through component scanning. Use `@Bean` when you want to declare explicitly how an object is created, especially for a third-party class you cannot annotate or when construction requires configuration. A `@Bean` method's return value becomes a container-managed bean, so it can participate in dependency injection and lifecycle processing.
 
@@ -1626,37 +1626,37 @@ class ClientConfig {
 }
 ```
 
-### Q307. How do you resolve ambiguous bean injection, and when are conditional beans useful?
+### Q301. How do you resolve ambiguous bean injection, and when are conditional beans useful?
 
 If multiple beans match a required type, Spring needs an unambiguous candidate. Use `@Qualifier` when the injection point specifically needs a named role or implementation; use `@Primary` when one candidate should be the default for ordinary type-based injection. Qualifiers are not merely a fallback name lookup—they express which candidate fits that dependency. If the implementations represent different business behaviors, consider whether a strategy map or explicit selection is clearer than making one globally primary.
 
 Conditional registration is useful when a bean should exist only if a class is on the classpath, a property is enabled, or the application has not supplied its own implementation. Spring Boot auto-configuration relies heavily on these conditions. When a bean is missing or unexpectedly duplicated, inspect the condition evaluation report, active profiles, properties, classpath, and user configuration before adding another bean. Avoid conditions that silently disable a critical capability without a clear startup failure or diagnostic message. A related extension point is `FactoryBean`: it lets a factory object create the bean exposed to consumers, which is useful for complex or framework-specific object construction. Normally, looking up the bean name returns the product; prefixing the name with `&` retrieves the `FactoryBean` itself. Use it when the factory abstraction adds real value, not as a replacement for an ordinary `@Bean` method.
 
-### Q307. What is the difference between a servlet filter, a Spring MVC interceptor, and controller advice?
+### Q302. What is the difference between a servlet filter, a Spring MVC interceptor, and controller advice?
 
 A servlet filter runs in the servlet chain before or after the servlet, so it can act before Spring MVC chooses a controller. Filters are suitable for cross-cutting servlet concerns such as request wrapping, low-level logging, and integrations that must apply beyond controller methods. Spring Security itself integrates through a filter chain.
 
 A Spring MVC `HandlerInterceptor` operates around handler execution after Spring MVC has mapped a request to a handler. It can inspect handler-related information, but it is not a replacement for security controls in the filter chain. `@ControllerAdvice` is different again: it centralizes controller exception handling, binding behavior, or model-related concerns. Choose based on the lifecycle stage you need. If a controller is never reached, inspect filters and handler mapping first; controller advice cannot handle every failure that occurs before MVC invokes a controller.
 
-### Q307. How would you diagnose a request that is unexpectedly allowed or rejected by Spring Security?
+### Q303. How would you diagnose a request that is unexpectedly allowed or rejected by Spring Security?
 
 Start by confirming which `SecurityFilterChain` matches the request. With multiple chains, ordering and request matchers determine which configuration applies; rules in a chain that never matches cannot protect the request. Then inspect authentication, the resulting principal and authorities, URL authorization rules, method-level security, and any custom filters or authority converters. Enable appropriate security debug logging temporarily in a safe environment, and reproduce with the exact HTTP method, path, headers, cookies, and token.
 
 Also distinguish CORS from authorization. CORS is a browser-enforced cross-origin policy, not an authentication mechanism; a failed browser preflight can prevent the browser from sending the actual request, while a non-browser client may behave differently. CSRF is a separate protection against forged requests that exploit automatically attached browser credentials. Do not disable CSRF or broadly allow origins just to make a failing request pass. Spring Security's [servlet configuration](https://docs.spring.io/spring-security/reference/servlet/configuration/java.html), [CORS guidance](https://docs.spring.io/spring-security/reference/servlet/integrations/cors.html), and [CSRF reference](https://docs.spring.io/spring-security/reference/servlet/exploits/csrf.html) should be checked for the version in use.
 
-### Q307. A `@Cacheable` method always executes, or an `@Async` method runs on the caller thread. How would you investigate?
+### Q304. A `@Cacheable` method always executes, or an `@Async` method runs on the caller thread. How would you investigate?
 
 First verify that the method is called on a Spring-managed bean through the proxy. Self-invocation, manual construction with `new`, or a call path that bypasses the proxy can prevent both cache and async advice from running. Then check whether the relevant annotation processing is enabled, whether the method is eligible for interception, and whether the selected cache/executor configuration is actually active.
 
 For caching, inspect the cache name, generated key, arguments, condition/unless expressions, provider statistics, and eviction behavior. A key that includes a changing argument—or a condition that skips caching—can make every call a miss. For async work, inspect the configured executor, thread names, task rejection and queue metrics, and exception handling. If a custom executor has a direct or caller-runs policy, work may execute on the caller under some conditions. Confirm behavior with a focused test that asserts the cache interaction or records the executing thread; do not infer success from the annotation being present.
 
-### Q307. A connection pool is exhausted under load. What evidence would you collect before changing pool size?
+### Q305. A connection pool is exhausted under load. What evidence would you collect before changing pool size?
 
 Treat pool exhaustion as a symptom, not proof that the pool is simply too small. Compare active, idle, and pending connection metrics with request concurrency and latency. Check connection-acquisition timeouts, slow SQL, lock waits, transaction duration, leaked connections, and whether code performs remote calls while holding a database transaction open. A thread dump can reveal many request threads waiting for a connection; database-side session and query diagnostics help distinguish slow queries from application-side connection retention.
 
 Increasing the pool can help if the database has capacity and the workload legitimately needs more concurrent connections, but it can also overload the database and worsen latency. Bound request concurrency, set appropriate acquisition/query/transaction timeouts, shorten transaction scope, and fix slow queries or leaks first. Validate the change under representative load and observe both application pool metrics and database saturation. Pool sizing is a coordinated application-and-database decision, not an isolated tuning knob.
 
-### Q307. A configuration property has the wrong value only after deployment. How do you trace it?
+### Q306. A configuration property has the wrong value only after deployment. How do you trace it?
 
 Do not assume the YAML file is the effective source. Identify the exact property key and the value expected by the running version, then inspect active profiles and the ordered property sources that can override it—such as command-line arguments, environment variables, external configuration, and packaged files. Check spelling, relaxed binding, profile activation, deployment manifests, and whether the application is reading a similarly named property from a different configuration namespace.
 
