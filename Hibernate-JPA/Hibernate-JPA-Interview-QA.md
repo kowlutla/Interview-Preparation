@@ -115,6 +115,19 @@ The owning side is the side whose mapping controls the relationship update in th
 
 Keep both sides of a bidirectional relationship consistent in application code through helper methods where appropriate. The exact owner depends on the mapping, not on which side is called “parent” in the business domain.
 
+```java
+// On Order: the collection is inverse; OrderLine.order owns the foreign key.
+@OneToMany(mappedBy = "order")
+private List<OrderLine> lines = new ArrayList<>();
+
+// On OrderLine:
+@ManyToOne(fetch = FetchType.LAZY)
+@JoinColumn(name = "order_id")
+private Order order;
+```
+
+The helper that adds a line should update both `order.lines` and `line.order`; the owning-side field is what determines the foreign-key update.
+
 ### Q8. What is the difference between cascade and orphanRemoval?
 
 Cascade propagates selected persistence operations—such as persist, merge, or remove—from one entity to related entities. `orphanRemoval = true` expresses that a privately owned child should be deleted when it is removed from the relationship, subject to the mapping's semantics.
@@ -132,6 +145,14 @@ Choose a deliberate policy that fits the entity model and provider. A stable nat
 Fetch strategy controls when related data is loaded. Jakarta Persistence defaults `@ManyToOne` and `@OneToOne` to `EAGER`, while `@OneToMany` and `@ManyToMany` default to `LAZY`. Lazy fetching defers loading until the relationship is accessed; eager fetching requires the association to be fetched eagerly, but does not guarantee one SQL join—the provider may issue additional queries. Because eager to-one associations can cause extra selects or over-fetching, many teams explicitly request lazy associations where the mapping and provider support it, then choose the required fetch plan per use case.
 
 Lazy loading can reduce unnecessary work but may trigger extra SQL or fail when accessed after the persistence context is closed. Eager loading can load more data than a use case needs. Prefer defining the required fetch plan for the specific use case—through fetch joins, entity graphs, projections, or queries—rather than making every relationship eager to hide a symptom.
+
+```java
+@ManyToOne(fetch = FetchType.LAZY)
+@JoinColumn(name = "customer_id", nullable = false)
+private Customer customer;
+```
+
+This explicitly overrides the JPA default of eager fetching for `@ManyToOne`. Lazy to-one behavior depends on provider support and mapping details; verify it with the actual Hibernate version and bytecode/proxy configuration.
 
 ### Q11. What causes LazyInitializationException?
 
@@ -199,6 +220,14 @@ This illustrates one database unit of work, not a distributed transaction. By de
 Optimistic locking assumes conflicts are relatively uncommon and detects competing updates, commonly with a version field annotated `@Version`. An update includes the expected version; if another transaction has already changed the row, the update affects no matching version and the provider reports a concurrency conflict.
 
 Pessimistic locking asks the database to acquire a lock to restrict conflicting access for a period. It can be appropriate when conflicts are frequent and waiting is acceptable, but it can reduce concurrency and cause lock waits or deadlocks. Choose based on contention, transaction duration, database semantics, and the business response to conflicts; neither strategy eliminates the need for retry or conflict handling.
+
+```java
+@Lock(LockModeType.PESSIMISTIC_WRITE)
+@Query("select i from Inventory i where i.sku = :sku")
+Optional<Inventory> findForUpdate(@Param("sku") String sku);
+```
+
+Call this within a transaction and keep the critical section short. The actual database lock and timeout behavior are provider- and database-dependent.
 
 ### Q19. How does @Version prevent lost updates?
 
@@ -344,6 +373,13 @@ These `EntityManager` operations express different intentions. `find()` loads an
 
 The key interview point is to reason about entity state and the persistence context, not treat these methods as interchangeable CRUD shortcuts. Refreshing an entity with unsaved edits discards those edits; detaching it means later field changes are not automatically persisted. Exact SQL timing depends on provider behavior, identifier strategy, flush mode, and transaction state.
 
+```java
+Customer reference = entityManager.getReference(Customer.class, customerId);
+order.setCustomer(reference); // may avoid loading Customer state
+```
+
+This is useful when only the association identity is needed, but do not treat `getReference()` as a guarantee of zero SQL or guaranteed existence; provider behavior and later access matter.
+
 ### Q35. How do identifier generation, embedded values, and composite keys affect mapping?
 
 `@GeneratedValue` delegates identifier generation to a strategy chosen explicitly or through `AUTO`. `IDENTITY` commonly requires the insert to obtain the generated key and can limit insert batching. `SEQUENCE` can allocate identifiers before inserts and may benefit from allocation pooling when supported by the database and provider. `TABLE` uses a table-based generator and can add coordination overhead. The physical behavior of `AUTO` is provider- and database-dependent, so inspect the generated schema and SQL rather than assuming it selects the same strategy everywhere.
@@ -391,6 +427,7 @@ A JPQL bulk update changes matching database rows directly and does not synchron
 In Spring Data JPA, a modifying query is commonly declared with `@Modifying` alongside `@Query`, and it must execute within a transaction. Declared query methods do not automatically receive transaction configuration in every case, so put the transaction boundary on the service or configure the repository method explicitly. Decide whether pending changes must be flushed first and whether the context should be cleared afterward; `clearAutomatically = true` can clear it after execution, while `flushAutomatically = true` can flush pending changes before it. These flags are not universal defaults and clearing detaches all managed entities in that context, so use them only when callers understand the consequence.
 
 ```java
+@Transactional
 @Modifying(flushAutomatically = true, clearAutomatically = true)
 @Query("update Order o set o.status = :status where o.id = :id")
 int updateStatus(@Param("id") long id, @Param("status") OrderStatus status);
@@ -665,6 +702,8 @@ JPQL queries the entity model rather than raw table names, but it supports joins
     """)
 List<Object[]> findActiveCustomers(Instant since, long minimum);
 ```
+
+This text-block syntax requires Java 15 or later. For Java 8–14 codebases, use a regular quoted string or concatenate string literals. In production, use a typed DTO projection instead of `Object[]` when practical.
 
 For production code, prefer a typed DTO constructor projection over `Object[]` when practical, because array positions are easy to misread. Verify aggregate semantics, join multiplication, null handling, and the database execution plan. JPQL portability does not guarantee identical performance across providers or databases.
 
