@@ -14,13 +14,14 @@ A focused guide for Java backend engineers who need to explain ORM behavior, que
 4. [Transactions and concurrency](#4-transactions-and-concurrency)
 5. [Queries and Spring Data JPA](#5-queries-and-spring-data-jpa)
 6. [Caching and production troubleshooting](#6-caching-and-production-troubleshooting)
-7. [Mapping details and persistence operations](#7-mapping-details-and-persistence-operations)
-8. [Repository design, dynamic queries, and batching](#8-repository-design-dynamic-queries-and-batching)
-9. [Testing and production diagnosis](#9-testing-and-production-diagnosis)
-10. [Senior-level production scenarios](#10-senior-level-production-scenarios)
-11. [Last-minute revision](#11-last-minute-revision)
-12. [Official references and version notes](#12-official-references-and-version-notes)
-13. [Editorial and validation notes](#13-editorial-and-validation-notes)
+7. [Mapping and write performance](#6a-mapping-and-write-performance)
+8. [Mapping details and persistence operations](#7-mapping-details-and-persistence-operations)
+9. [Repository design, dynamic queries, and batching](#8-repository-design-dynamic-queries-and-batching)
+10. [Testing and production diagnosis](#9-testing-and-production-diagnosis)
+11. [Senior-level production scenarios](#10-senior-level-production-scenarios)
+12. [Last-minute revision](#11-last-minute-revision)
+13. [Official references and version notes](#12-official-references-and-version-notes)
+14. [Editorial and validation notes](#13-editorial-and-validation-notes)
 
 ---
 
