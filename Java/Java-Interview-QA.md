@@ -452,6 +452,7 @@ If only a short time remains, prioritize these questions and make sure the expla
 13. Heap vs stack, GC, memory leaks, JIT (Q37–Q42)
 14. Java 8, records/sealed classes, Java 21 virtual threads, Java 25 migration awareness (Q44–Q48)
 15. Diagnose latency, GC pressure, executor starvation, and safe retries (Q49–Q54)
+16. Revise I/O/resource management, serialization risks, JDBC transactions, reflection/JPMS, design patterns, benchmarking, and test/build compatibility (Q55–Q61)
 
 **Revision method:** For each question, first give a concise explanation, then explain the mechanism, one important limitation or trade-off, and a practical example. If an answer takes several minutes, identify the core answer and keep the deeper detail ready for follow-up questions.
 
@@ -467,6 +468,7 @@ Use official specifications and API documentation as the final authority for lan
 - [Java Virtual Machine Specification, Java SE 21](https://docs.oracle.com/javase/specs/jvms/se21/html/index.html)
 - [Java SE 21 API documentation](https://docs.oracle.com/en/java/javase/21/docs/api/)
 - [Virtual Threads adoption guide](https://docs.oracle.com/en/java/javase/21/core/virtual-threads.html)
+- [Java Microbenchmark Harness (JMH)](https://openjdk.org/projects/code-tools/jmh/)
 - [JEP 444 — Virtual Threads](https://openjdk.org/jeps/444)
 - [JEP 440 — Record Patterns](https://openjdk.org/jeps/440)
 - [JEP 441 — Pattern Matching for switch](https://openjdk.org/jeps/441)
