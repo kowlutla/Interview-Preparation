@@ -1976,6 +1976,7 @@ Separate configuration from code, validate required settings at startup, keep se
 ### Q322. How should you handle a third-party library upgrade?
 
 Read release notes and compatibility guidance, review transitive dependency changes, compile and run unit/integration/contract tests, and test security-sensitive paths. Run representative performance tests if the library is on a hot path. Upgrade in a controlled change with a rollback option rather than bundling unrelated refactors.
+
 ---
 
 ## 15. Last-minute revision
