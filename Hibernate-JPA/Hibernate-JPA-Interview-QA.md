@@ -223,6 +223,28 @@ For example, if latency increases after a release, compare query count and execu
 
 ---
 
+## 6A. Mapping and write performance
+
+### Q31. What are the common JPA inheritance mapping strategies?
+
+JPA supports several ways to map entity inheritance. With **single-table** mapping, a hierarchy shares one table and a discriminator identifies the concrete type; reads can be simple, but many subtype-specific columns may be nullable. With **joined** mapping, base and subtype data live in separate related tables, which normalizes the schema but can require joins. With **table-per-class** mapping, each concrete class has its own table containing inherited state, which can complicate polymorphic queries and may require unions.
+
+No strategy is best for every model. Consider query patterns, hierarchy size, schema constraints, write/read balance, and generated SQL. Verify provider behavior and database plans for the actual mapping rather than choosing based only on annotation count.
+
+### Q32. How can JDBC batching improve Hibernate write performance?
+
+Without batching, a large number of inserts or updates can cause many database round trips. JDBC batching groups compatible statements so the driver can send multiple operations together, reducing network overhead. Hibernate batching must be configured and the SQL/identifier strategy must allow statements to be batched; statement ordering and flush boundaries can affect results.
+
+Validate batching by inspecting SQL logs, JDBC metrics, and database round trips under realistic volume. Some identifier-generation strategies can inhibit insert batching, and mixing different statement shapes may reduce batching effectiveness. Large batch operations also need a persistence-context strategy—periodic flush/clear may control memory growth—while preserving transaction and error semantics.
+
+### Q33. How do entity identifier-generation strategies affect persistence behavior?
+
+Identifier strategies determine how primary keys are allocated. With identity generation, the database typically generates the key during insertion, which can constrain when the INSERT must occur and may limit insert batching. Sequence-based strategies can allocate identifiers before inserting rows and can support allocation optimizations when the database/provider supports them. Table-based or custom strategies have their own concurrency and performance trade-offs.
+
+The right choice depends on the database, portability requirements, write volume, schema, and provider behavior. Do not assume `GenerationType.AUTO` means the same physical strategy on every database. Check the generated DDL and SQL for the target provider and understand how identifier generation interacts with batching and transaction timing.
+
+---
+
 ## 7. Last-minute revision
 
 Prioritize these questions first:
