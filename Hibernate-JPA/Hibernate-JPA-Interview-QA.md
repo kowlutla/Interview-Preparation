@@ -771,7 +771,7 @@ The Jakarta Persistence specification is the authority for portable persistence 
 ### Version and compatibility notes
 
 - The namespace changed from `javax.persistence.*` to `jakarta.persistence.*` with Jakarta Persistence 3.0. This is a source and binary compatibility boundary; update imports and compatible dependencies together.
-- Hibernate ORM 5.x is associated with the older Java Persistence namespace in common deployments; Hibernate ORM 6.x moved to Jakarta Persistence 3.x and made significant SQL, query, and type-system changes. Hibernate ORM 7.x continues the Jakarta Persistence 3.2 generation with a newer Java baseline. Check the official release compatibility matrix and migration guide for the exact minor version.
+- Hibernate ORM 5.x is associated with the older Java Persistence namespace in common deployments; Hibernate ORM 6.x moved to Jakarta Persistence 3.x and made significant SQL, query, and type-system changes. Hibernate ORM 7.x continues the Jakarta Persistence 3.2 generation. The Hibernate 7.4 compatibility page lists Java 17, 21, 25, or 26 and Spring Boot 4.1 compatibility; exact requirements vary by minor release. Check the official compatibility matrix and migration guide for your version.
 - Spring Boot manages a tested dependency set. Prefer its dependency management rather than independently overriding Hibernate, Spring Data JPA, Jakarta Persistence APIs, and the JDBC driver without a compatibility reason.
 - Hibernate's supported series and compatibility matrix change over time. Use the official matrix and version-pinned migration guides as the source of truth for supported series, Java baselines, Jakarta Persistence levels, and Spring Boot compatibility. Treat `current` documentation as a moving target.
 
