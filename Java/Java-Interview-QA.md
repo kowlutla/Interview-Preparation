@@ -357,7 +357,7 @@ Capture the relevant heap dump or diagnostic evidence when safe and configured, 
 
 ## 7. Modern Java
 
-### Q44. Which Java 8 features are most important for backend interviews?
+### Q44. Which Java 8 language and library additions changed everyday Java development?
 
 The most important topics are lambda expressions, functional interfaces, method references, the Stream API, `Optional`, the `java.time` date/time API, default methods in interfaces, and CompletableFuture. These features changed how Java code expresses data transformations, optional results, dates/times, and asynchronous composition.
 
