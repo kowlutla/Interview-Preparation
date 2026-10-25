@@ -185,14 +185,18 @@ Use status codes to communicate the result class and next action, not as arbitra
 - **201 Created:** a resource was created; a Location header is useful for identifying it.
 - **202 Accepted:** processing was accepted but is not complete; explain how to check status if appropriate.
 - **204 No Content:** success with no response body.
-- **400 Bad Request:** malformed or otherwise invalid request syntax/semantics.
-- **401 Unauthorized:** valid authentication credentials are absent or unacceptable; despite the name, it means authentication is required or failed.
-- **403 Forbidden:** the server understood the request but refuses it.
+- **400 Bad Request:** the server cannot or will not process the request because of a client-side problem such as malformed syntax or invalid request data, according to the API contract.
+- **401 Unauthorized:** valid authentication credentials are absent or unacceptable; despite the name, it means authentication is required or failed. A server generating 401 must send an applicable `WWW-Authenticate` challenge.
+- **403 Forbidden:** the server understood the request but refuses it; re-authenticating as the same identity usually does not solve the authorization problem.
+- **405 Method Not Allowed:** the method is known but not supported for this resource; the response must include an `Allow` header listing supported methods.
+- **406 Not Acceptable:** the server cannot provide a representation matching the request's proactive content-negotiation preferences, when it chooses to honor them strictly.
+- **415 Unsupported Media Type:** the request content format is unsupported, for example an unsupported `Content-Type`.
 - **404 Not Found:** no current representation is found, or the server is unwilling to disclose that it exists.
 - **409 Conflict:** the request conflicts with current resource state.
 - **412 Precondition Failed:** a conditional request precondition failed.
 - **422 Unprocessable Content:** content type and syntax are understood, but the instructions cannot be processed semantically.
-- **429 Too Many Requests:** rate limit exceeded; Retry-After may help.
+- **408 Request Timeout:** the server did not receive a complete request within the time it was prepared to wait.
+- **429 Too Many Requests:** rate limit exceeded; `Retry-After` may help, but clients should still use bounded backoff and honor the overall deadline.
 - **500 Internal Server Error:** unexpected server failure.
 - **502 Bad Gateway / 503 Service Unavailable / 504 Gateway Timeout:** commonly used to describe gateway upstream failure, temporary unavailability, and upstream timeout respectively.
 
