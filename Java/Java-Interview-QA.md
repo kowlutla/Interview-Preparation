@@ -1822,7 +1822,7 @@ Java 25 includes performance and runtime improvements such as compact object hea
 
 ### Q309. Which Java 25 features are finalized versus preview or incubating?
 
-Among the language-facing finalized features are module import declarations, compact source files and instance main methods, and flexible constructor bodies. Scoped values and the Key Derivation Function API are also final. Primitive types in patterns/instanceof/switch remained a preview feature in Java 25; structured concurrency was still preview and the Vector API remained incubating. Check the official release documentation for the full feature and status list.
+Among the language-facing finalized features are module import declarations, compact source files and instance main methods, and flexible constructor bodies. Scoped values are final in Java 25. The Key Derivation Function API is preview in Java 25. Primitive types in patterns/instanceof/switch remained a preview feature in Java 25; structured concurrency was still preview and the Vector API remained incubating. Check the official release documentation for the full feature and status list.
 
 ### Q310. What is the difference between source, binary, and behavioral compatibility?
 
@@ -1838,7 +1838,7 @@ The classpath loads classes in the traditional unnamed-module model. The module 
 
 ### Q313. What are the main Java 25 language features finalized in that release?
 
-Java 25 finalized module import declarations, compact source files and instance main methods, and flexible constructor bodies. It also finalized Scoped Values and the Key Derivation Function API. Primitive types in patterns, instanceof, and switch remained preview in Java 25; structured concurrency remained preview and the Vector API remained incubating. Check official release notes for the full status list.
+Java 25 finalized module import declarations, compact source files and instance main methods, and flexible constructor bodies. It finalized Scoped Values; the Key Derivation Function API remained preview. Primitive types in patterns, instanceof, and switch remained preview in Java 25; structured concurrency remained preview and the Vector API remained incubating. Check official release notes for the full status list.
 
 ### Q314. What does Java 25's compact source file feature change?
 
@@ -1850,7 +1850,7 @@ They allow certain statements before an explicit superclass constructor invocati
 
 ### Q316. What is the Key Derivation Function API in Java 25?
 
-The Key Derivation Function API provides a standard cryptographic API for deriving keys from input keying material using a specified derivation function. Cryptographic use requires careful parameter selection and domain-specific security review; developers should use established protocols and security guidance rather than inventing a scheme. Its presence in Java 25 does not make every use case automatically secure.
+The Key Derivation Function (KDF) API was introduced as a preview API in Java 25 for deriving keys from input keying material and optional additional data. It requires preview enablement and may change before finalization. Cryptographic use requires careful parameter selection and domain-specific security review; follow established protocols and security guidance rather than inventing a scheme.
 
 ### Q317. What is JEP 519, compact object headers, about?
 
@@ -2111,7 +2111,7 @@ Method references are a compact form for lambdas that simply call an existing me
 names.forEach(System.out::println);
 List<String> normalized = names.stream()
         .map(String::toLowerCase)
-        .toList(); // toList() itself requires Java 16; use Collectors.toList() on Java 8
+        .collect(Collectors.toList());
 ```
 
 For Java 8, the compatible terminal line is `collect(Collectors.toList())`. Method references can target static methods, instance methods, or constructors.
@@ -2425,8 +2425,8 @@ Sealed types restrict which classes or interfaces may extend or implement them. 
 public sealed interface PaymentResult
         permits Approved, Declined {}
 
-public record Approved(String transactionId) implements PaymentResult {}
-public record Declined(String reason) implements PaymentResult {}
+record Approved(String transactionId) implements PaymentResult {}
+record Declined(String reason) implements PaymentResult {}
 ```
 
 Sealed hierarchies model a controlled set of alternatives. Combined with records and pattern matching, they can make domain modeling and exhaustive handling clearer.
@@ -2587,7 +2587,7 @@ Java 23 continued work on newer language features and tooling APIs.
 
 - **Module import declarations (preview):** proposed a concise way to import exported packages from a module; finalized in Java 25.
 - **Primitive types in patterns, instanceof, and switch (preview):** explored matching primitive values using pattern constructs; still preview in Java 25.
-- **Markdown documentation comments (preview):** explored Markdown as a documentation-comment format.
+- **Markdown documentation comments (final):** Java 23 finalized Markdown-style `///` documentation comments for Javadoc.
 - **Stream Gatherers (preview iteration):** custom intermediate stream transformations continued to evolve before Java 24 finalization.
 
 For interview answers, explain the goal and status accurately rather than presenting a preview API as a stable production contract.
@@ -2649,15 +2649,18 @@ ScopedValue.where(REQUEST_ID, requestId)
 
 Scoped values are not a universal replacement for every `ThreadLocal`. They are designed for scoped, typically immutable context propagation and should be evaluated against the framework's request-context mechanisms.
 
-#### Key Derivation Function API (final)
+#### Key Derivation Function API (preview)
 
-The KDF API provides a standard interface for key-derivation operations. It is a security-oriented API; use established cryptographic guidance and approved algorithms rather than inventing a custom key derivation scheme.
+Java 25 introduced the KDF API as a preview API for deriving keys from input keying material and optional additional data. It requires preview-feature enablement and may change in a later release. Use established cryptographic guidance and approved algorithms rather than inventing a custom key derivation scheme.
 
 #### Features that remain preview or incubating in Java 25
 
 - **Primitive types in patterns, `instanceof`, and `switch`:** still a preview feature in Java 25; do not present it as finalized.
 - **Structured concurrency:** preview API, still evolving.
 - **Vector API:** incubating API, still evolving.
+- **Key Derivation Function API:** preview in Java 25; it is not a finalized Java SE API in that release.
+- **Stable Values:** preview in Java 25.
+- **PEM Encodings of Cryptographic Objects:** preview in Java 25.
 - **Other preview features:** check the exact JDK release documentation and build/runtime flags before experimenting.
 
 ### LTS migration checklist: Java 8 → 11 → 17 → 21 → 25
@@ -2740,4 +2743,4 @@ Use official specifications and API documentation as the final authority for lan
 - The section order follows one learning path: language/OOP, strings and exceptions, generics, Collections, functional APIs and Streams, concurrency, JVM, engineering APIs and practices, Java-version evolution, code reading, then production/senior scenarios.
 - The Java release matrix highlights LTS milestones and preview/incubator caveats. It is a revision map, not a replacement for release notes.
 - Structural checks cover question inventory, topic assignment, section organization, TOC anchors, and Markdown fences. They do not establish that every code snippet was compiled or every technical claim was independently audited line by line.
-- Legacy chapter material has not been deleted. Unique useful content must be mapped before consolidation or cleanup.
+- The Java directory was consolidated to this single handbook; the former chapter-wise Markdown files and folders were removed as part of the requested cleanup. Other technology guides outside the Java directory were left untouched.
