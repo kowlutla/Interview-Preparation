@@ -35,7 +35,7 @@ This is a single-file revision handbook. Examples are intentionally small enough
   - [12.14 Meeting room scheduler](#1214-meeting-room-scheduler)
   - [12.15 Inventory management](#1215-inventory-management)
   - [12.16 Task scheduler](#1216-task-scheduler)
-  - [12.17 File metadata service](#1217-file-metadata-service)
+  - [12.17 File storage and metadata management](#1217-file-storage-and-metadata-management)
   - [12.18 ATM](#1218-atm)
   - [12.19 Pub/sub event dispatcher](#1219-pubsub-event-dispatcher)
   - [12.20 Pluggable rule engine](#1220-pluggable-rule-engine)
@@ -835,72 +835,87 @@ This snippet assumes the enum order represents fit hierarchy, which is a simplif
 
 ### 12.2 Elevator controller
 
-**Requirements.** Accept hall and cabin requests, choose a car, assign direction, and stop at requested floors. Clarify number of elevators, service floors, emergency behavior, and whether this is a simulation or real safety-critical control.
+**Assumptions and scope.** Model multiple elevator cars, hall calls (floor + direction), in-car destination requests, and a dispatcher that chooses a car. This is an LLD scheduling exercise—not safety-certified motor-control software. Certified hardware/controller interlocks must enforce door, movement, overload, and emergency safety regardless of application logic.
 
-**Model.** `ElevatorController` assigns requests; each `ElevatorCar` owns current floor, direction, and pending stops; `SchedulingStrategy` chooses a car and stop order. State transitions must prevent impossible movement and conflicting direction assumptions.
+**Requirements and invariants.** Reject invalid floors; never schedule a car outside service; do not lose a request; keep each car's stop queue consistent with its direction policy; and define what happens when a car fails. A request being assigned is not the same as a passenger being picked up or a floor being served.
+
+**Responsibilities.** `ElevatorRequest` is an immutable request; `ElevatorCar` owns its current floor, direction, and stops; `ElevatorSchedulingPolicy` chooses a candidate; `ElevatorController` accepts requests and coordinates assignments; `DoorController` isolates hardware/sensor operations. Keep scheduling separate from the car state machine so the policy can be tested without hardware.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Idle
-    Idle --> MovingUp: request above
-    Idle --> MovingDown: request below
-    MovingUp --> DoorOpen: requested floor reached
-    MovingDown --> DoorOpen: requested floor reached
-    DoorOpen --> Idle: no pending stops
-    DoorOpen --> MovingUp: pending upward stops
-    DoorOpen --> MovingDown: pending downward stops
+    [*] --> IDLE
+    IDLE --> MOVING_UP: request above
+    IDLE --> MOVING_DOWN: request below
+    MOVING_UP --> DOOR_OPEN: target reached and safe
+    MOVING_DOWN --> DOOR_OPEN: target reached and safe
+    DOOR_OPEN --> MOVING_UP: upward stops pending
+    DOOR_OPEN --> MOVING_DOWN: downward stops pending
+    DOOR_OPEN --> IDLE: no pending stops
 ```
 
-A simple strategy can prioritize requests along the current direction before reversing, but fairness and waiting-time optimization may require a more advanced scheduler. Keep physical motor control and safety interlocks outside an interview-level business model. Discuss duplicate requests, overload, emergency mode, maintenance, starvation, and concurrent requests. This design is a software scheduling model, not safety-certified elevator firmware.
+A simple dispatcher may score cars by direction compatibility, distance, and number of pending stops. Nearest-car alone is easy but may increase waiting time or starve requests under load. A car should own and serialize its state transitions—through a lock or single-threaded event loop—while the dispatcher must avoid assigning a request to a car that became unavailable after scoring it.
 
+**Interaction flow:** validate hall call → collect eligible cars → choose a car → atomically enqueue the stop → acknowledge assignment → car reports arrival/door-safe event → mark the request served. If assignment and enqueue are separate operations, define how a failed enqueue is retried or reassigned.
+
+**Testing and follow-ups.** Test invalid floors, unavailable cars, duplicate button events, simultaneous requests, no lost stops, and eventual service under explicit fairness assumptions. Follow-ups include destination dispatch, emergency modes, out-of-service cars, accessibility priorities, overload, and starvation. A scheduling algorithm should be evaluated with simulated workloads rather than declared optimal from a few examples.
 ### 12.3 Library management
 
-**Requirements.** Search titles, distinguish a book title from individual physical copies, borrow and return copies, and track due dates/fines. Clarify reservations and renewals.
+**Assumptions.** A library owns physical copies, supports catalogue search, checkout, return, renewal, reservations, and overdue fees. Online catalogue search may be eventually consistent; lending decisions must use authoritative transactional state.
 
-**Model.** `Book` describes bibliographic metadata; `BookCopy` represents a lendable item with a barcode and status; `Member` represents a borrower; `Loan` records checkout/due/return times; `FinePolicy` calculates fees. Availability is about copies, not titles.
+**Model and responsibilities.** `BookTitle` stores bibliographic metadata; `BookCopy` represents an individually lendable copy with barcode, branch, and condition; `Loan` records borrower, checkout, due date, and return; `Reservation` records a hold and queue position; `FinePolicy` calculates fees; `LoanService` coordinates use cases. This separation prevents a title with five copies from being treated as one physical inventory item.
+
+**Checkout flow:** identify borrower → validate borrowing limits and outstanding restrictions → choose an available copy or promote a reservation → atomically claim the copy and create a loan → return due date and receipt. The claim and loan creation should share a database transaction. If two requests race for the same copy, one must fail cleanly. A process-local lock is not enough when multiple service instances exist.
 
 ```java
 enum CopyStatus { AVAILABLE, ON_LOAN, LOST, REPAIR }
 final class BookCopy {
     private final String barcode;
     private CopyStatus status = CopyStatus.AVAILABLE;
-    BookCopy(String barcode) { this.barcode = barcode; }
-
-    void checkout() {
-        if (status != CopyStatus.AVAILABLE)
-            throw new IllegalStateException("Copy is not available");
+    BookCopy(String barcode) { this.barcode = Objects.requireNonNull(barcode); }
+    void markLoaned() {
+        if (status != CopyStatus.AVAILABLE) throw new IllegalStateException("Copy is not available");
         status = CopyStatus.ON_LOAN;
     }
-    void returnCopy() {
-        if (status != CopyStatus.ON_LOAN)
-            throw new IllegalStateException("Copy is not on loan");
+    void markReturned() {
+        if (status != CopyStatus.ON_LOAN) throw new IllegalStateException("Copy is not on loan");
         status = CopyStatus.AVAILABLE;
     }
 }
 ```
 
-In production, a transaction must protect copy status and loan creation together. Consider reservation queues, overdue reminders, lost copies, renewals, and member borrowing limits. Repository and service-layer patterns are natural; a State pattern is optional unless lifecycle behavior becomes substantial.
+This snippet expresses local state transitions; a persistent implementation must enforce concurrency at the repository/database boundary, for example with a conditional update or optimistic version. Return handling should record the return and determine whether the copy is damaged or reserved by another borrower before making it generally available.
 
+**Trade-offs and tests.** A reservation queue is simple for one branch; multi-branch fulfilment adds transfer logistics and availability search. Test checkout limits, simultaneous checkout, duplicate return, renewal restrictions, overdue calculation, lost copies, and reservation promotion. Follow-ups include grace periods, calendar vs elapsed-day rules, fine waivers, and audit history.
 ### 12.4 Vending machine
 
-**Requirements.** Select a product, accept payment, dispense, and return change or refund. Handle empty inventory, insufficient funds, jammed dispenser, and cancellation.
+**Requirements.** Select a product, check stock, accept coins/notes or external payment, dispense exactly one item, return change, cancel, and handle sold-out products or hardware failure. The key invariant is that the machine must not dispense unless payment is sufficient and a unit of stock has been reserved.
 
-**Model.** `VendingMachine` coordinates the operation; `Inventory` reserves stock; `PaymentAcceptor` handles money; `Dispenser` is a hardware port; machine state restricts valid actions.
+**Responsibilities.** `VendingMachine` owns the session and allowed transitions; `Inventory` atomically reserves/releases stock; `PaymentAcceptor` records accepted value; `Dispenser` represents the hardware port; `ChangeCalculator` computes return value. Keep hardware calls behind interfaces so the state machine can be tested with fakes. Use `Money` with explicit currency and exact arithmetic, never binary floating point for currency.
 
-```mermaid
-stateDiagram-v2
-    [*] --> Idle
-    Idle --> Selecting: start
-    Selecting --> PaymentPending: select available item
-    PaymentPending --> Dispensing: payment accepted
-    PaymentPending --> Refunding: cancelled / payment failed
-    Dispensing --> Idle: item dispensed
-    Dispensing --> OutOfService: dispenser failure
-    Refunding --> Idle: refund completed
+```java
+enum MachineState { IDLE, SELECTED, PAID, DISPENSING }
+final class VendingSession {
+    private MachineState state = MachineState.IDLE;
+    private Product selected;
+    private Money inserted = Money.zero("USD");
+
+    void select(Product product) {
+        if (state != MachineState.IDLE) throw new IllegalStateException("Session active");
+        selected = Objects.requireNonNull(product);
+        state = MachineState.SELECTED;
+    }
+    void addPayment(Money amount) {
+        if (state != MachineState.SELECTED) throw new IllegalStateException("Select first");
+        if (!amount.currency().equals(inserted.currency())) throw new IllegalArgumentException("Currency mismatch");
+        inserted = inserted.plus(amount);
+        if (inserted.compareTo(selected.price()) >= 0) state = MachineState.PAID;
+    }
+}
 ```
 
-Use State when it prevents invalid transitions; for a tiny exercise, an enum and transition method may be enough. The hardest issue is the boundary between payment accepted and physical dispensing: a dispenser failure must trigger a refund or recovery workflow, and repeated commands must not dispense twice. Money should use integer minor units or a well-defined Money type, not floating point.
+This snippet covers only session state; it does not reserve inventory, compute change, or operate hardware. A full flow reserves stock before dispensing, records the outcome, and returns change only after the item is confirmed dispensed. If the dispenser jams or power fails after payment, the system needs a recoverable transaction record and refund/reconciliation policy. Never hold a Java monitor while waiting on slow hardware or a payment network.
 
+**Tests and follow-ups.** Test invalid transitions, currency mismatch, insufficient payment, sold-out selection, exact change, cancellation, jammed dispenser, duplicate hardware events, and power-loss recovery. An enum and transition methods are sufficient until state-specific behavior becomes complex enough to justify State objects.
 ### 12.5 Rate limiter
 
 **Requirements.** Limit requests per client or key, define the time window and rejection response, and decide whether state is local or shared. Algorithms include fixed window, sliding log, sliding window counter, and token bucket.
@@ -1063,12 +1078,17 @@ Availability search is not a lock. Enforce conflicts in a transaction at reserva
 
 **Model.** `TaskDefinition`, `ScheduledExecution`, `TaskHandler`, `TriggerPolicy`, and `ExecutionStore`. Strategy can represent scheduling policies; Command can represent executable work. In a single process, a priority queue ordered by next-run time is a reasonable starting point. Production scheduling requires durable claiming/leases, crash recovery, misfire policy, time-zone handling, bounded retries, and idempotent handlers. Multiple workers need atomic claiming or another coordination mechanism.
 
-### 12.17 File metadata service
+### 12.17 File storage and metadata management
 
-**Requirements.** Register a file, track owner/name/size/content type/checksum, manage metadata and permissions, and reference content stored elsewhere. Clarify versioning, deletion, retention, and whether bytes are stored by this service.
+**Requirements and assumptions.** Support upload, metadata lookup, download authorization, delete, and optionally versioning. Store file bytes in an object/blob store and metadata in a relational database; do not put large binary payloads into the metadata entity by default. Clarify maximum size, retention, versioning, access model, and whether uploads are direct-to-storage or proxied through the application.
 
-**Model.** `FileMetadata`, `FileVersion`, `AccessPolicy`, `MetadataRepository`, and a `BlobStoragePort`. Keep file metadata separate from binary storage. An adapter translates a cloud storage API; an anti-corruption layer prevents provider-specific object identifiers and error codes from spreading. Define consistency between metadata and uploaded blobs, malware scanning, authorization, checksum validation, and orphan cleanup. A database row alone does not guarantee that the underlying blob exists.
+**Core model.** `FileMetadata` holds file ID, owner, object key, size, checksum, media type, timestamps, and status; `UploadSession` tracks a multi-part or in-progress upload; `StorageProvider` is a port; a provider-specific Adapter maps vendor APIs; `AccessPolicy` authorizes operations. The application service coordinates the use case but should not become the blob-storage implementation.
 
+**Upload flow:** authorize → create upload session and unique object key → upload bytes (or issue a short-lived signed upload URL) → verify completion/checksum/size → mark metadata `AVAILABLE`. Do not expose a file as downloadable while upload verification is incomplete. If object upload succeeds but the database update fails, the blob can become orphaned; use an explicit state machine plus retry/reconciliation cleanup rather than pretending the database and object store share one atomic transaction.
+
+**Download flow:** authenticate → authorize against metadata → resolve a safe object key → stream or issue a short-lived signed URL. Never trust a client-supplied object key as an authorization decision. Avoid logging signed URLs or sensitive metadata. Apply encryption, content-type validation, malware scanning, retention, and access audit according to the threat model.
+
+**Concurrency and trade-offs.** Use immutable/versioned object keys or conditional writes to avoid overwriting the wrong version during concurrent uploads. Deletes should be idempotent and recoverable if metadata and blob deletion happen at different times. Direct signed uploads reduce application bandwidth but move validation and lifecycle concerns to completion callbacks. Test unauthorized access, duplicate completion, checksum mismatch, interrupted multipart uploads, orphan cleanup, and delete retries.
 ### 12.18 ATM
 
 **Requirements.** Authenticate a card/PIN, check balance, withdraw or deposit if supported, dispense cash, print a receipt, and handle hardware failure. Clarify whether banking ledger and ATM cash inventory are in scope.
