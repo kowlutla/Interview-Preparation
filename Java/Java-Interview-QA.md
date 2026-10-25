@@ -31,47 +31,6 @@ A focused, version-aware handbook for Java backend engineers preparing for exper
 
 **Reading order:** Java execution and language foundations → OOP and contracts → strings/exceptions/generics → Collections → functional APIs and Streams → concurrency → JVM → I/O, networking and engineering practices → Java 8–25 evolution → code reading → production/senior scenarios.
 
-
-## Visual roadmap
-
-The diagrams below are rendered by GitHub from Mermaid source and provide a quick overview of Java execution, stream processing, and the LTS release timeline.
-
-```mermaid
-flowchart TD
-    A[Java source] --> B[javac compiler]
-    B --> C[Bytecode class files]
-    C --> D[Class loading and linking]
-    D --> E[JVM execution]
-    E --> F[Interpreter and JIT]
-    E --> G[Runtime libraries and GC]
-```
-
-```mermaid
-flowchart LR
-    A[Source collection] --> B[Intermediate operations]
-    B --> C[Terminal operation]
-    B --- D[filter / map / flatMap]
-    C --- E[collect / reduce / count / find]
-```
-
-```mermaid
-timeline
-    title Java LTS releases to prioritize
-    Java 8 : Lambdas and Streams
-           : Optional and java.time
-    Java 11 : Standard HttpClient
-            : String and Files API improvements
-    Java 17 : Records and sealed classes
-            : Stronger encapsulation
-    Java 21 : Virtual threads
-            : Pattern matching and sequenced collections
-    Java 25 : Scoped Values and language/runtime improvements
-            : New LTS migration baseline
-```
-
----
----
-
 ## 1. Java foundations and execution
 
 ### Q1. What are the JDK, JVM, and JRE, and how does a Java program run?
