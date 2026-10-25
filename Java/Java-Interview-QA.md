@@ -2122,13 +2122,13 @@ Streams express data transformations as a pipeline of intermediate operations an
 
 ```java
 List<String> result = names.stream()
-        .filter(name -> name != null && !name.isBlank()) // isBlank() requires Java 11
+        .filter(name -> name != null && !name.trim().isEmpty())
         .map(String::trim)
         .map(String::toUpperCase)
         .collect(Collectors.toList());
 ```
 
-For a Java 8-compatible pipeline, replace `isBlank()` with an appropriate Java 8 check, such as `!name.trim().isEmpty()`. Avoid side effects in stream lambdas, and do not assume parallel streams are automatically faster.
+This pipeline is compatible with Java 8. Avoid side effects in stream lambdas, and do not assume parallel streams are automatically faster.
 
 #### Optional
 
@@ -2299,10 +2299,6 @@ String banner = "-".repeat(20);
 #### Switch expressions (preview in Java 12)
 
 The initial switch-expression preview allowed a `switch` to produce a value. The syntax and details evolved in later previews before becoming final in Java 14. Do not treat the Java 12 preview as the final specification.
-
-```java
-// Illustrative early-preview-era feature; use the finalized syntax shown under Java 14.
-```
 
 #### `Collectors.teeing`
 
@@ -2638,7 +2634,7 @@ Java 25 finalizes a simplified source-file form intended to make small programs 
 
 #### Flexible constructor bodies (final)
 
-This feature permits certain statements before an explicit superclass constructor invocation, while preserving restrictions that protect object initialization. It helps validate or prepare constructor arguments before calling `super(...) `, but it does not permit arbitrary access to an incompletely initialized instance.
+This feature permits certain statements before an explicit superclass constructor invocation, while preserving restrictions that protect object initialization. It helps validate or prepare constructor arguments before calling `super(...)`, but it does not permit arbitrary access to an incompletely initialized instance.
 
 #### Scoped Values (final)
 
