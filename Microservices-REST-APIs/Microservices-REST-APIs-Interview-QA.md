@@ -334,7 +334,7 @@ Set budgets from the user-facing deadline and the call graph. If the overall req
 
 Retry only failures that are plausibly transient, and only when the operation is safe to repeat or protected by idempotency. Exponential backoff increases the delay after each failure; jitter randomizes that delay so many clients do not retry simultaneously. Honor server guidance such as Retry-After where appropriate.
 
-For example, delays might grow from 100 ms to 200 ms to 400 ms, with a random component and a small attempt limit. This is illustrative, not a universal configuration. The total retry time must fit within the caller's deadline.
+For example, delays might grow from 100 ms to 200 ms to 400 ms, with a random component and a small attempt limit. This is illustrative, not a universal configuration. The total retry time must fit within the caller's deadline. Retry classification should be explicit: connection failures, selected 5xx responses, and 429/408 may be retryable depending on the operation and contract; most other 4xx responses indicate a request or authorization problem and should not be retried unchanged.
 
 Retries at multiple layers multiply. If a gateway, client library, and service each make three attempts, one user request can produce many downstream attempts. Pick a clear retry owner, cap attempts and concurrency, and observe retry rates separately from original traffic.
 
@@ -410,13 +410,13 @@ OAuth 2.0 is an authorization framework that allows a client to obtain limited a
 
 OpenID Connect (OIDC) adds an identity layer on top of OAuth 2.0, including an ID token and standardized user identity claims. A browser or mobile application commonly uses Authorization Code flow with PKCE; a service acting on its own behalf commonly uses Client Credentials where appropriate. Choose flows based on client type and trust model.
 
-Follow current OAuth security guidance, including RFC 9700. Do not use the Resource Owner Password Credentials grant for new designs, and do not treat an access token as proof of a user's identity unless the protocol and token type explicitly support that use.
+Follow current OAuth security guidance, including RFC 9700. Do not use the Resource Owner Password Credentials grant or the implicit grant for new designs; use Authorization Code with PKCE for interactive clients where applicable. Do not treat an access token as proof of a user's identity unless the protocol and token type explicitly support that use.
 
 ### Q47. What is a JWT, and how should a resource server validate it?
 
 A JSON Web Token is a compact claims format that may be signed or otherwise protected. A common signed JWT has three Base64URL-encoded parts: header, payload, and signature. Encoding is not encryption; claims may be readable by anyone who obtains the token.
 
-Validation includes verifying the signature with a trusted key, allowing only expected algorithms, checking issuer and audience, validating expiration and not-before claims, and enforcing required scopes or claims. The service must not trust a token merely because it can decode it. Key discovery and rotation should use trusted issuer metadata or configured keys, with safe caching and refresh behavior.
+Validation includes verifying the signature with a trusted key, allow-listing acceptable algorithms, checking issuer and audience, validating expiration and not-before claims, and enforcing required scopes or claims. Reject unexpected algorithm/key combinations and never accept an unsigned token where a signed access token is required. The service must not trust a token merely because it can decode it. Key discovery and rotation should use trusted issuer metadata or configured keys, with safe caching and refresh behavior. Follow JWT Best Current Practices in RFC 8725.
 
 Keep access tokens short-lived enough to limit exposure, avoid sensitive claims, and plan revocation or session invalidation requirements. A signed token can remain valid until expiry unless the architecture adds revocation checks or other controls.
 
@@ -863,7 +863,8 @@ These sources support protocol semantics and implementation practices. Interview
 - [RFC 9700 — OAuth 2.0 Security Best Current Practice](https://www.rfc-editor.org/rfc/rfc9700.html): current OAuth security recommendations.
 - [OpenID Connect Core](https://openid.net/specs/openid-connect-core-1_0.html): identity layer on OAuth 2.0.
 - [RFC 7519 — JSON Web Token](https://www.rfc-editor.org/rfc/rfc7519.html): JWT claims format.
-- [OpenAPI Specification](https://spec.openapis.org/oas/latest.html): API description format.
+- [RFC 8725 — JSON Web Token Best Current Practices](https://www.rfc-editor.org/rfc/rfc8725.html): secure JWT implementation and validation guidance.
+- [OpenAPI Specification](https://spec.openapis.org/oas/v3.2.1.html): API description format (version 3.2.1, published September 2026).
 - [Spring Cloud CircuitBreaker reference](https://docs.spring.io/spring-cloud-circuitbreaker/reference/): Spring integration options for circuit breakers.
 - [Spring Boot Actuator reference](https://docs.spring.io/spring-boot/reference/actuator/index.html): application health and observability endpoints.
 - [Testcontainers documentation](https://testcontainers.com/): disposable dependencies for integration testing.
