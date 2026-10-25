@@ -207,8 +207,8 @@ The transaction annotation does not make every operation atomic across databases
 ```java
 @Transactional
 public void transferOwnership(long orderId, long customerId) {
-    Order order = orderRepository.findById(orderId).orElseThrow();
-    Customer customer = customerRepository.findById(customerId).orElseThrow();
+    Order order = orderRepository.findById(orderId).orElseThrow(() -> new IllegalArgumentException("Order not found"));
+    Customer customer = customerRepository.findById(customerId).orElseThrow(() -> new IllegalArgumentException("Customer not found"));
     order.setCustomer(customer); // owning-side change
 }
 ```
@@ -700,7 +700,7 @@ JPQL queries the entity model rather than raw table names, but it supports joins
     group by o.customer.id
     having count(o) >= :minimum
     """)
-List<Object[]> findActiveCustomers(Instant since, long minimum);
+List<Object[]> findActiveCustomers(@Param("since") Instant since, @Param("minimum") long minimum);
 ```
 
 This text-block syntax requires Java 15 or later. For Java 8–14 codebases, use a regular quoted string or concatenate string literals. In production, use a typed DTO projection instead of `Object[]` when practical.
