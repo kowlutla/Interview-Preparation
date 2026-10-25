@@ -27,9 +27,10 @@ A focused, version-aware guide for Java backend engineers. It prioritizes questi
 18. [Concurrency, executors, and asynchronous execution](#18-concurrency-executors-and-asynchronous-execution)
 19. [JVM, garbage collection, and diagnostics](#19-jvm-garbage-collection-and-diagnostics)
 20. [I/O, networking, JDBC, security, and testing](#20-io-networking-jdbc-security-and-testing)
-25. [Last-minute revision](#25-last-minute-revision)
-26. [Official references](#26-official-references)
-27. [Editorial and validation notes](#27-editorial-and-validation-notes)
+21. [Date/time, design patterns, code reading, and senior scenarios](#21-datetime-design-patterns-code-reading-and-senior-scenarios)
+28. [Last-minute revision](#28-last-minute-revision)
+29. [Official references](#29-official-references)
+30. [Editorial and validation notes](#30-editorial-and-validation-notes)
 
 ---
 
@@ -1854,7 +1855,170 @@ Java 25 includes work to simplify ahead-of-time cache configuration and capture 
 
 Reasons can include a newer LTS support baseline, language/API improvements, runtime and garbage-collection enhancements, security updates, and tooling improvements. The migration also has costs: framework compatibility, dependency upgrades, reflection/module access, changed defaults, and operational validation. Make the decision with a compatibility matrix, tests, performance baseline, and rollback plan rather than adopting new syntax alone.
 
-## 25. Last-minute revision
+
+## 21. Date/time, design patterns, code reading, and senior scenarios
+
+### Q316. What is the difference between Instant, LocalDate, LocalDateTime, and ZonedDateTime?
+
+Instant represents a point on the UTC timeline. LocalDate represents a calendar date without a time or zone. LocalDateTime represents local wall-clock date and time without identifying a unique instant. ZonedDateTime combines date-time information with a time zone's rules. Select the type that matches the domain instead of converting everything to LocalDateTime.
+
+### Q317. Why is LocalDateTime not enough to represent an event timestamp?
+
+LocalDateTime contains no zone or offset, so it may correspond to different instants in different zones and can be ambiguous or invalid around daylight-saving transitions. For an audit event or globally ordered timestamp, use Instant; for a user appointment, preserve the intended zone where it matters.
+
+### Q318. Why should you avoid hard-coding time zones and offsets?
+
+Time-zone rules change due to government decisions and daylight-saving policies. A fixed offset does not capture the historical and future rules of a region. Use ZoneId for region-based rules and test around transitions; use UTC/Instant for storing globally comparable event times where appropriate.
+
+### Q319. What is the difference between Period and Duration?
+
+Period represents date-based amounts such as years, months, and days. Duration represents time-based amounts in seconds and nanoseconds. A month does not have a fixed number of seconds, so choose the abstraction that matches the business meaning instead of treating every temporal difference as a fixed duration.
+
+### Q320. How should date/time parsing and formatting be handled?
+
+Use DateTimeFormatter with an explicit format when the external contract defines one, and choose a locale and zone intentionally. Prefer immutable java.time types for modern code. Validate malformed external input at the boundary and avoid silently interpreting a local time in the server's default zone.
+
+### Q321. What is the Factory pattern and when is it useful?
+
+A factory encapsulates object creation when the caller should not know the concrete implementation or construction rules. It is useful when selection depends on configuration, input type, or a family of implementations. A factory adds indirection, so it is not necessary for every simple constructor call.
+
+### Q322. What is the Strategy pattern?
+
+Strategy represents interchangeable behavior behind a common contract and selects an implementation at runtime. It can replace a large conditional when behaviors vary independently, such as choosing a pricing or retry policy. It is less useful when there is only one trivial behavior and no realistic variation.
+
+### Q323. What is the Builder pattern and when should it be used?
+
+Builder separates complex object construction from the final representation, especially when many optional parameters or validation rules exist. It can make call sites readable and reduce telescoping constructors. For a small value object with two required fields, a builder may add unnecessary ceremony.
+
+### Q324. What is the Decorator pattern?
+
+Decorator wraps an object with the same interface and adds behavior without modifying the original implementation. It is useful for composing concerns such as metrics, caching, compression, or additional validation. Many layers of decorators can complicate debugging, so make composition visible and test the order of behavior.
+
+### Q325. What is the Adapter pattern?
+
+Adapter translates one interface into another so components with incompatible contracts can work together. It is useful when integrating a legacy library or external provider without spreading its model across the application. Keep the adapter at the boundary and translate errors and data into the application's own contract.
+
+### Q326. What is Dependency Injection, and how is it related to design patterns?
+
+Dependency injection supplies an object with its collaborators rather than having it construct them internally. It improves testability and separates object creation from business behavior. DI is a technique, not a guarantee of good architecture; excessive interfaces or a service locator can still create hidden dependencies.
+
+### Q327. What is the difference between composition and inheritance?
+
+Inheritance models an is-a relationship and couples a subclass to superclass behavior and lifecycle. Composition builds behavior by holding collaborators and delegating to them, often making change and testing easier. Prefer composition when behavior should vary independently or the relationship is not a true subtype.
+
+### Q328. What is the Liskov Substitution Principle in practical terms?
+
+A subtype should be usable wherever its base type is expected without violating the base contract. A subtype that strengthens preconditions, weakens postconditions, or changes promised invariants can break callers even if it compiles. Design contracts before inheritance and use composition when behavior does not fit the parent abstraction.
+
+### Q329. How should a Java API handle null arguments?
+
+Define nullability explicitly, validate at public boundaries, and fail early with a meaningful exception when null is invalid. If absence is part of the normal result, represent it consistently, for example with Optional return values where appropriate. Do not let a null propagate through several layers and fail at an unrelated dereference.
+
+### Q330. What is the difference between an unmodifiable view and a snapshot?
+
+An unmodifiable view prevents changes through that reference but can reflect changes made through another reference to the backing collection. A snapshot is a separate copy of the state at a point in time. Use a defensive copy when the API promises stable state rather than merely preventing mutation through one handle.
+
+### Q331. What is printed when an overloaded method accepts int, long, and Integer?
+
+Overload resolution happens at compile time and uses the compile-time types of arguments, considering applicable conversions and overload-resolution phases. It does not simply select the method whose parameter type matches the runtime wrapper value. Work through the declared argument type and applicable overloads systematically; add a small runnable snippet when the exact signatures matter.
+
+### Q332. Why can == behave unexpectedly with boxed numbers?
+
+When both operands are wrapper references, == compares object identity. Some wrapper values are cached, so certain comparisons may appear true while other values are false. Use value equality or unbox safely, and guard against null before unboxing to avoid NullPointerException.
+
+### Q333. What is the difference between compile-time constant and runtime value in switch or overload questions?
+
+Compile-time constants can affect constant-expression rules and narrowing conversions, while ordinary runtime values follow general type and conversion rules. Overload resolution is based on compile-time types and method signatures, not on the eventual runtime contents of a variable. Distinguish compilation errors from runtime behavior before tracing output.
+
+### Q334. What happens when a finally block returns a value?
+
+A return or throw from finally can override a return or exception from the try or catch block, hiding the original outcome. Avoid returning or throwing from finally. Use finally for cleanup, or try-with-resources for AutoCloseable resources so the primary exception is preserved and close failures are suppressed.
+
+### Q335. Why can switch expressions be safer than traditional switch statements?
+
+Switch expressions produce a value and arrow-style cases avoid accidental fall-through. Exhaustiveness checks can help when switching over enums or sealed hierarchies. However, supported pattern syntax and null handling depend on the Java release, so use the target release's rules rather than assuming all modern syntax exists in Java 8.
+
+### Q336. How do you approach an unfamiliar Java output question?
+
+First check whether the code compiles. Then identify compile-time types, overload selection, initialization order, operator precedence, and runtime dispatch. Finally, trace exceptions and control flow. This method is more reliable than mentally executing the code from top to bottom without considering the language rules.
+
+### Q337. A service starts slowly after a JDK upgrade. How do you investigate?
+
+Compare cold-start timing and logs against a baseline, then inspect class loading, JIT warm-up, dependency initialization, configuration, network calls, and runtime flags. Use JFR or startup diagnostics where available. Separate application initialization from JDK/runtime changes and validate the cause before adding AOT or caching options.
+
+### Q338. A service has many blocked threads. What do you investigate?
+
+Capture thread dumps during the incident and group stacks by state and blocking location. Check connection pools, synchronized monitors, downstream waits, queue saturation, and lock contention. Correlate with request latency and resource metrics; increasing the thread count may worsen the issue if the true bottleneck is a database or remote dependency.
+
+### Q339. How do you diagnose connection-pool exhaustion?
+
+Inspect active, idle, pending, and timed-out connection metrics, then look for long-running queries, unclosed resources, long transactions, and slow remote work inside transaction boundaries. Confirm whether the pool size matches database capacity. Raising the pool size without understanding the database limit can make contention worse.
+
+### Q340. How should retries be designed for transient failures?
+
+Use bounded retries with backoff and jitter, honor a request deadline, and retry only failures that are plausibly transient. Writes need idempotency or deduplication so a timeout does not create duplicate effects. Avoid retry storms and align retry budgets across service layers so every layer does not independently multiply attempts.
+
+### Q341. What is bulkheading in a Java backend?
+
+Bulkheading isolates resource pools or concurrency limits so failure or saturation in one dependency does not consume all capacity for unrelated work. Separate executors, semaphores, connection pools, or bounded queues can provide isolation. Too many isolated pools increase operational complexity, so boundaries should follow real failure domains.
+
+### Q342. What is graceful shutdown for a Java service?
+
+Graceful shutdown stops accepting new work, allows in-flight work to complete within a deadline, closes executors and clients, and releases resources. It should also define what happens to queued tasks and interrupted work. Kubernetes termination grace periods and application shutdown hooks need to be configured consistently.
+
+### Q343. How do you prevent duplicate processing of a Kafka or queue message in Java?
+
+Design the handler to be idempotent where possible, use stable message or business identifiers, and coordinate durable state changes with acknowledgment or offset commits. A crash can occur between processing and acknowledgment, so delivery semantics alone do not guarantee exactly-once external side effects. Use transactions, deduplication records, or an outbox/inbox pattern where the domain requires it.
+
+### Q344. What is the transactional outbox pattern, and why might a Java service use it?
+
+The service writes its business change and an outgoing event record in the same database transaction. A separate publisher delivers the event and marks it processed, allowing retries after failures. This avoids the dual-write problem of committing a database change and publishing a message as unrelated operations, although duplicates still need handling.
+
+### Q345. How do you make a scheduled Java job safe to retry?
+
+Make the operation idempotent, persist progress or a stable execution identifier where necessary, define what happens after partial failure, and use bounded retry/backoff. In distributed deployments, ensure only the intended number of instances run the job or make concurrent runs safe. Log and measure each execution without exposing sensitive payloads.
+
+### Q346. What is the difference between throughput and latency?
+
+Throughput measures how much work completes per unit of time; latency measures how long an individual operation takes. Improving throughput can increase queueing and worsen tail latency if the system is saturated. Evaluate both alongside error rate and resource saturation rather than optimizing a single metric.
+
+### Q347. Why are p95 and p99 latency important in distributed systems?
+
+Percentiles reveal the tail of the latency distribution, which averages can hide. Slow requests can consume connection pools, trigger retries, and amplify delays across a call chain. Track percentiles with sufficient volume and correlate them with dependency timings, queueing, GC, and resource saturation.
+
+### Q348. How do you choose between caching and recomputing a result?
+
+Consider computation cost, access frequency, freshness requirements, memory use, invalidation complexity, and consistency. A cache can reduce latency but introduces stale-data and stampede risks. Start with measurement, define TTL or invalidation rules, and make cache misses and backend overload safe.
+
+### Q349. What is a cache stampede and how can it be reduced?
+
+A cache stampede occurs when many requests miss the same key and simultaneously recompute or fetch the value. Use single-flight coordination, bounded refresh concurrency, jittered expiration, stale-while-revalidate where appropriate, or prewarming. Ensure the coordination itself does not become a bottleneck or deadlock.
+
+### Q350. How should a Java service manage configuration across environments?
+
+Separate configuration from code, validate required settings at startup, keep secrets in a secret manager, and document units and timeout semantics. Avoid silent fallback values for critical security or reliability settings. Configuration changes should be observable, tested, and rolled out with the same care as code changes.
+
+### Q351. How do you review a Java pull request for correctness?
+
+Review behavior and invariants, error handling, concurrency, nullability, resource lifecycle, security boundaries, observability, tests, and compatibility with the target Java release. Look for duplicated logic and unnecessary abstraction, but prioritize correctness and maintainability over stylistic preference. Ask what happens under empty input, duplicates, timeout, partial failure, and concurrent requests.
+
+### Q352. How do you decide whether to introduce an interface?
+
+Introduce an interface when it represents a meaningful contract, enables multiple implementations, separates a boundary, or improves testing without obscuring the design. Avoid creating one interface per class mechanically when no substitution or boundary exists. The right abstraction should clarify dependencies rather than add layers for their own sake.
+
+### Q353. How should you handle a third-party library upgrade?
+
+Read release notes and compatibility guidance, review transitive dependency changes, compile and run unit/integration/contract tests, and test security-sensitive paths. Run representative performance tests if the library is on a hot path. Upgrade in a controlled change with a rollback option rather than bundling unrelated refactors.
+
+### Q354. What is a safe approach to introducing a new Java language feature?
+
+Confirm the project's minimum JDK and compiler configuration, ensure the feature is final in that release, check code-style and team familiarity, and evaluate whether it improves clarity. Do not use preview syntax in a stable codebase without explicit policy and build support. Small, consistent adoption is usually easier to review than a sweeping stylistic rewrite.
+
+### Q355. What should a final Java interview revision checklist include?
+
+Revise language contracts, OOP and equality, strings and wrappers, exceptions, collections, generics, streams and coding exercises, date/time, concurrency and the Java Memory Model, executors and virtual threads, JVM and GC diagnostics, I/O/JDBC/security, testing, performance, and version changes. For each topic, practise one concise explanation, one edge case, one code example, and one production trade-off.
+
+## 28. Last-minute revision
 
 If only a short time remains, prioritize these questions and make sure the explanations are clear enough to say aloud:
 
@@ -1879,7 +2043,7 @@ If only a short time remains, prioritize these questions and make sure the expla
 
 ---
 
-## 26. Official references
+## 29. Official references
 
 Use official specifications and API documentation as the final authority for language and runtime contracts. Secondary interview guides are useful for discovering recurring themes, not for proving technical behavior or guaranteeing company-specific frequency.
 
@@ -1900,7 +2064,7 @@ Use official specifications and API documentation as the final authority for lan
 
 ---
 
-## 27. Editorial and validation notes
+## 30. Editorial and validation notes
 
 - This is the **curated primary interview guide**, not a claim that every advanced Java API can be covered in 54 questions.
 - It deliberately favors common concepts and senior-level reasoning over obscure trivia and repetitive question variants.
