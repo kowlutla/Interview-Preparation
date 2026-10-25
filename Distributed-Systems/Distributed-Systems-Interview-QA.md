@@ -337,14 +337,13 @@ The dual-write problem occurs when a service commits a database change and separ
 
 With an outbox, the service writes its business data and an event record to an outbox table in the same local database transaction. A relay or change-data-capture process publishes committed outbox records. Publication may happen more than once, so consumers must be idempotent. The outbox closes the atomic gap between the business write and recording the intent to publish; it does not make downstream processing globally atomic.
 
-```text
-Local transaction:
-  UPDATE orders ...
-  INSERT INTO outbox(event_id, aggregate_id, type, payload, status) ...
-Commit
-        |
-        v
-Outbox relay / CDC -> broker -> idempotent consumer
+```mermaid
+flowchart LR
+    A[Local DB transaction] --> B[(Business tables)]
+    A --> C[(Outbox table)]
+    C --> D[Relay or CDC]
+    D --> E[(Message broker)]
+    E --> F[Idempotent consumer]
 ```
 
 ### Q47. What are inbox and deduplication patterns?
@@ -632,6 +631,18 @@ Use a stable payment-attempt ID across retries, enforce uniqueness in the author
 **Likely follow-ups:** What if the provider does not support idempotency? Query by a stable merchant reference where possible; otherwise treat the outcome as unknown and reconcile before retrying. A local uniqueness constraint cannot prevent a second external charge by itself.
 
 ### Q87. An order is created, but inventory reservation fails. What architecture would you use?
+
+```mermaid
+flowchart TD
+    A[Create pending order] --> B[Reserve inventory]
+    B -->|Reserved| C[Authorize payment]
+    B -->|Unavailable| X[Reject order]
+    C -->|Authorized| D[Confirm order]
+    C -->|Declined| E[Release inventory]
+    C -->|Unknown outcome| F[Query payment status]
+    F -->|Authorized| D
+    F -->|Not authorized| E
+```
 
 Represent the order as pending rather than confirmed. Run a saga: request a reservation, transition the order when reservation succeeds, then continue payment/fulfillment according to the business sequence. If reservation definitively fails, cancel or reject the order. If the result is uncertain, query reservation status using a stable workflow ID before issuing another command.
 
