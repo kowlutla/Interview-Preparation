@@ -174,7 +174,7 @@ Singleton means one bean instance per bean definition per Spring IoC container. 
 
 ### Q29. Does singleton scope make a bean thread-safe?
 
-No. A singleton service can be called concurrently by many request threads. Prefer stateless services and keep request-specific data in method-local variables or explicit request-scoped collaborators. Mutable shared fields require a sound concurrency design.
+No. Singleton scope controls how many instances the container creates; it does not synchronize method calls or protect mutable state. A singleton service may process many requests concurrently, so prefer stateless services and keep per-request values in method-local variables or explicit request-scoped collaborators. If shared mutable state is necessary, protect it with an appropriate concurrency mechanism and consider whether it belongs in the service at all. Also verify that collaborators such as formatters, clients, and caches are safe for concurrent use.
 
 ### Q30. What is prototype scope?
 
@@ -329,7 +329,7 @@ No. Boot supports non-web applications as well as servlet and reactive web appli
 
 ### Q61. What is the difference between a starter and auto-configuration?
 
-A starter declares a curated dependency set. Auto-configuration is conditional configuration that registers infrastructure when prerequisites match. Adding a starter often brings libraries that allow auto-configuration to activate, but the two concepts are distinct.
+A starter is a dependency descriptor: it brings together libraries commonly needed for a capability and usually relies on Boot's dependency management for compatible versions. Auto-configuration is runtime configuration logic that conditionally registers beans based on the classpath, properties, application type, and existing bean definitions. A starter can make the classes needed for an auto-configuration available, but it does not guarantee that the conditions match or that the feature is production-ready. When debugging, inspect both the resolved dependency tree and the condition evaluation report.
 
 ### Q62. What is the condition evaluation report used for?
 
@@ -416,7 +416,7 @@ Both express external configuration. YAML can represent nested structures compac
 
 ### Q78. How are profile-specific files selected?
 
-Boot supports profile-specific configuration files and profile activation through supported configuration sources. Active profiles influence both property loading and beans annotated with `@Profile`. Avoid embedding production secrets in profile files committed to source control.
+Spring Boot can load profile-specific configuration such as `application-dev.yaml` when the corresponding profile is active, and profile activation can come from supported configuration sources such as environment variables or command-line arguments. Profiles influence property resolution and the registration of beans guarded by `@Profile`; they are not simply file names. Confirm the effective active-profile list and property-source precedence when an environment behaves unexpectedly. Keep production secrets in an appropriate secret-management mechanism rather than committing them to profile files.
 
 ### Q79. What are configuration imports used for?
 
@@ -690,7 +690,7 @@ Specifications compose predicates in a type-aware way for supported Spring Data 
 
 ### Q137. Why can @Modifying queries leave managed entities stale?
 
-Bulk JPQL/native updates can bypass ordinary entity-by-entity state tracking. The persistence context may still hold old values. Clear or refresh state when appropriate and understand flush/clear options; test subsequent reads in the same transaction.
+Bulk JPQL updates and native modifying queries operate directly against database rows rather than updating each already-managed entity through normal dirty checking. As a result, an entity loaded earlier in the same persistence context may still expose stale field values even though the database has changed. Depending on the use case, flush pending changes before the bulk operation and clear or refresh affected state afterward; Spring Data JPA exposes options such as `flushAutomatically` and `clearAutomatically` for relevant modifying queries. These options have side effects, so test the whole transaction and avoid clearing state that still contains unflushed work.
 
 ### Q138. What is the risk of using native queries everywhere?
 
@@ -831,7 +831,7 @@ Common causes include excessive full-context startup, shared mutable test state,
 
 ### Q167. How should security tests be designed?
 
-Test anonymous access, authenticated-but-forbidden access, authorized access, malformed credentials, and relevant claim/authority combinations. Verify the actual filter chain and endpoint rules, not only service-level authorization annotations. Include negative tests to prevent accidental exposure.
+Security tests should prove both that legitimate requests succeed and that unauthorized requests fail for the right reason. Cover anonymous callers, authenticated users without the required authority, authorized users, malformed or expired credentials, and relevant JWT claims or tenant boundaries. Test through the actual filter chain with MockMvc or the appropriate integration setup; a service-level test alone cannot prove that request matchers, CSRF, CORS, or authentication entry points are configured correctly. Include negative tests for sensitive endpoints because accidental access is often more damaging than a missing happy-path assertion.
 
 ### Q168. When should a test use a real HTTP server instead of MockMvc?
 
@@ -887,7 +887,7 @@ Choose an explicit trust model: separate service credentials, token exchange, or
 
 ### Q178. How should client errors be observed?
 
-Capture latency, outcome, timeout/retry counts, and dependency identity with low-cardinality metric labels. Add distributed tracing when supported and avoid logging sensitive request bodies. Separate caller-side timeouts from server-side error responses during diagnosis.
+Observe outbound clients using latency distributions, success/failure counts, timeout and retry metrics, connection-pool saturation, and a bounded set of dependency labels. Use distributed traces to connect the caller's span with the downstream request when tracing is available, and log a correlation identifier rather than full sensitive payloads. During an incident, distinguish a caller-side timeout from an HTTP error returned by the dependency: the remote service may have completed the operation even when the caller stopped waiting. Keep metric labels low-cardinality so observability does not itself overload the metrics system.
 
 ### Q179. What are HTTP Service Clients?
 
@@ -1464,6 +1464,58 @@ Use focused unit tests for transformation logic, framework-level tests for job/s
 ### Q290. How do you decide whether to adopt an additional Spring project?
 
 Start from a concrete requirement and compare the project's capabilities against simpler alternatives. Evaluate compatibility with the selected Boot/Framework release train, maintenance and support status, operational footprint, learning cost, testing support, security posture, and migration path. Avoid adding a project because it is part of the Spring ecosystem; every dependency adds upgrade and runtime considerations. Record the decision and revisit it when requirements or support status change.
+
+
+## Last-minute revision checklist
+
+Use this as the final pass before an interview. If you cannot explain a topic without reciting an annotation name, revisit the mechanism and a real failure scenario.
+
+### Core Spring and container
+
+- Explain IoC versus DI, constructor injection, bean definitions versus instances, singleton scope versus thread safety, and how profiles/conditions affect bean registration.
+- Walk through bean lifecycle callbacks, BeanFactoryPostProcessor versus BeanPostProcessor, configuration classes, component scanning, and parent-child contexts.
+- Explain proxy-based AOP, JDK versus class proxies, self-invocation, final/private method limitations, advisor ordering, and how to debug a proxy that does not intercept a call.
+
+### Spring Boot
+
+- Distinguish starters, auto-configuration, component scanning, conditional beans, and externalized configuration.
+- Diagnose a missing or unexpected bean using the condition evaluation report, classpath, active profiles, property-source precedence, and the first causal exception.
+- Explain startup/readiness, runners, graceful shutdown, configuration validation, Actuator exposure, and the difference between a successful startup and a production-ready service.
+
+### Web, APIs, and clients
+
+- Trace a request through the servlet container, filters, Spring Security, DispatcherServlet, handler mapping, argument resolution, validation, controller execution, exception mapping, and message conversion.
+- Explain status codes, stable error contracts, idempotency keys, pagination trade-offs, CORS versus CSRF, and controller authorization versus service/domain authorization.
+- For outbound clients, discuss connection pools, connect/read/response timeouts, retries with backoff and jitter, circuit breakers, bulkheads, tracing, and duplicate side effects after timeouts.
+
+### Transactions and persistence
+
+- Explain transaction propagation, isolation, rollback rules, checked versus unchecked exceptions, rollback-only outcomes, and the limits of proxy interception.
+- Distinguish a database transaction from a distributed transaction; describe why remote calls inside a database transaction can be risky and where the outbox/saga patterns fit.
+- Cover persistence-context identity, dirty checking, flush versus commit, lazy loading, N+1 queries, bulk updates, optimistic/pessimistic locking, pagination, and database-specific integration testing.
+
+### Security
+
+- Explain authentication versus authorization, SecurityFilterChain matching and ordering, JWT signature/issuer/audience/expiry validation, password hashing, CSRF, CORS, session fixation, and method-security proxy boundaries.
+- Include object-level and tenant-level authorization, secret handling, least privilege, denied-path tests, and safe error responses.
+
+### Testing and operations
+
+- Know when to use unit tests, MVC/WebFlux slices, SpringBootTest, Testcontainers, contract tests, and end-to-end tests—and what each layer cannot prove.
+- Cover mocking Spring beans with version-appropriate test annotations, context caching, test isolation, migration testing, and deterministic asynchronous tests.
+- Explain health versus readiness versus liveness, metrics versus logs versus traces, low-cardinality labels, pool saturation, thread/heap diagnostics, graceful termination, and production-safe configuration.
+
+### Async, messaging, caching, and reactive systems
+
+- Discuss executor sizing and queue saturation, Async proxy boundaries, scheduler time zones, duplicate scheduled execution across replicas, and graceful cancellation.
+- Explain event publication versus durable messaging, retries and dead-letter handling, idempotent consumers, outbox consistency, cache key design, invalidation, TTLs, and stampede protection.
+- For WebFlux, explain the reactive execution model, backpressure, context propagation, cancellation, and why blocking JDBC/JPA calls can undermine the benefit of a reactive stack.
+
+### Versioning and senior-level judgment
+
+- Verify Framework, Boot, Java, Spring Cloud, and ecosystem compatibility instead of mixing examples from unrelated release trains.
+- For migrations, identify removed/deprecated APIs, dependency alignment, configuration changes, security behavior, test updates, observability, rollback strategy, and a staged smoke-test plan.
+- Structure senior answers as: **direct answer → mechanism → concrete example → failure mode/trade-off → how to verify or operate it**. Be precise about defaults and version boundaries; say what you would measure or test rather than guessing.
 
 
 ## Official documentation
