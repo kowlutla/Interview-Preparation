@@ -1528,9 +1528,60 @@ Start from a concrete requirement and compare the project's capabilities against
 
 
 
+### Q291. What does Spring for Apache Kafka add beyond the Kafka client?
+
+Spring for Apache Kafka integrates Kafka producers and consumers with Spring configuration, dependency injection, listener containers, message conversion, transactions, error handlers, retry topics, and testing support. It reduces consumer-loop and producer setup code, but the underlying Kafka model still matters: partitions determine parallelism and ordering, consumer groups determine assignment, and offsets determine progress. Configure serializers/deserializers, group identity, acknowledgement mode, concurrency, error handling, and observability explicitly rather than assuming the framework makes delivery exactly once.
+
+```java
+@KafkaListener(topics = "order-created", groupId = "billing")
+public void handle(OrderCreated event) {
+    billingService.process(event);
+}
+```
+
+This fragment assumes the listener container, deserializer, topic, and error policy are configured. The handler should be idempotent because redelivery can occur.
+
+### Q292. How should Spring Kafka listener errors, retries, and dead-letter topics be designed?
+
+Classify failures before retrying. A temporary database timeout may justify bounded retry with backoff; invalid payloads or permanent business-rule failures often should not be retried indefinitely. Configure the listener error handler and recovery/dead-letter strategy supported by the selected Spring Kafka version, preserve the original topic/partition/offset and exception context, and monitor retry volume and dead-letter growth. Define who investigates and how a message is replayed. A dead-letter topic is not a fix by itself: replay must be controlled, idempotent, and safe with respect to message ordering and already-applied side effects.
+
+### Q293. When would you choose Spring AMQP/RabbitMQ instead of Kafka?
+
+Choose based on delivery and consumption semantics, not simply familiarity. RabbitMQ and Spring AMQP are often a good fit for queue-based work distribution, routing patterns, acknowledgements, and request/task messaging. Kafka is commonly chosen for durable partitioned logs, replay, consumer groups, and high-throughput event streams where retention and independent consumers matter. Either system can support multiple patterns, so compare ordering, retention, routing, throughput, replay, delivery guarantees, operational expertise, and failure recovery. Spring AMQP does not remove the need to design acknowledgement, retry, dead-lettering, idempotency, and publisher-confirm behavior.
+
+### Q294. How does Spring Data JDBC differ from Spring Data JPA?
+
+Spring Data JDBC targets a simpler aggregate-oriented persistence model and avoids many ORM behaviors such as a first-level persistence context, lazy relationship proxies, and automatic dirty checking. Spring Data JPA builds on JPA and an ORM provider, which is powerful for rich object graphs but introduces entity lifecycle, flush timing, fetch plans, and N+1 risks. JDBC can be easier to reason about when explicit SQL-like persistence and aggregate boundaries fit the domain; JPA can be productive when its mapping and unit-of-work model are understood. Choose from domain complexity, query requirements, transaction semantics, and team expertise rather than assuming one is universally faster.
+
+### Q295. What is Spring Data R2DBC, and when should it be used?
+
+Spring Data R2DBC provides reactive relational database access for drivers that support the R2DBC SPI. It can fit a reactive WebFlux application when database I/O must remain non-blocking through the request path. It is not simply JPA but reactive: it does not use the JPA persistence context or Hibernate's ORM model, and transaction/context handling follows reactive semantics. Do not call blocking JDBC/JPA code from a reactive event loop and describe the application as non-blocking. Use R2DBC when the database/driver, query model, and team are a good fit, and compare operational maturity and required ORM capabilities before migrating.
+
+### Q296. What responsibilities belong in Spring Cloud Gateway?
+
+Spring Cloud Gateway routes requests and can apply edge concerns such as filters, authentication integration, rate limiting, header transformation, and traffic shaping. It is a useful policy boundary for ingress, but it should not be the only authorization layer: direct service calls, internal callers, or alternate paths can bypass the gateway. Keep route predicates and filter order understandable, avoid embedding domain workflows in gateway filters, and define timeouts, retry budgets, request-size limits, and observability. Test that sensitive routes cannot be reached through a broader fallback route and that gateway retries do not duplicate non-idempotent operations.
+
+### Q297. When would you use Spring Cloud OpenFeign instead of RestClient or HTTP Service Clients?
+
+OpenFeign provides a declarative interface style for calling remote services and integrates with Spring Cloud features in compatible release trains. RestClient and Spring Framework HTTP Service Clients provide alternatives within the Framework's own client ecosystem. The best choice depends on existing platform conventions, compatibility, load-balancing/resilience integrations, and team familiarity—not on syntax alone. All of them still require explicit timeouts, authentication, error mapping, observability, and retry/idempotency decisions. Check the current Spring Cloud support status and compatibility matrix before adopting OpenFeign in a new application.
+
+### Q298. How do Spring Cloud Config and Spring Vault differ?
+
+Spring Cloud Config centralizes application configuration and supports serving configuration from a managed source such as a Git repository. Spring Vault integrates with HashiCorp Vault for secret and credential access, including supported authentication and secret lifecycle patterns. They solve related but different problems: not every configuration value is a secret, and storing a password in a configuration repository does not make it safely managed. Restrict access, audit changes, plan rotation and renewal, avoid logging resolved secrets, and define startup behavior when the configuration or secret backend is unavailable. Prefer platform/identity-based access over long-lived credentials where supported, and verify compatibility for the selected Boot/Cloud/Vault versions.
+
+### Official references
+- [Spring for Apache Kafka](https://docs.spring.io/spring-kafka/reference/)
+- [Spring AMQP](https://docs.spring.io/spring-amqp/reference/)
+- [Spring Data JDBC](https://docs.spring.io/spring-data/relational/reference/jdbc.html)
+- [Spring Data R2DBC](https://docs.spring.io/spring-data/relational/reference/r2dbc.html)
+- [Spring Cloud Gateway](https://docs.spring.io/spring-cloud-gateway/reference/)
+- [Spring Cloud OpenFeign](https://docs.spring.io/spring-cloud-openfeign/reference/)
+- [Spring Cloud Config](https://docs.spring.io/spring-cloud-config/reference/)
+- [Spring Vault](https://docs.spring.io/spring-vault/reference/)
+
 ## Senior-level production troubleshooting
 
-### Q291. When should you use `@Bean` instead of `@Component`, and what does `@Configuration` change?
+### Q299. When should you use `@Bean` instead of `@Component`, and what does `@Configuration` change?
 
 Use `@Component` when you own a class that should be discovered through component scanning. Use `@Bean` when you want to declare explicitly how an object is created, especially for a third-party class you cannot annotate or when construction requires configuration. A `@Bean` method's return value becomes a container-managed bean, so it can participate in dependency injection and lifecycle processing.
 
@@ -1551,43 +1602,43 @@ class ClientConfig {
 }
 ```
 
-### Q292. How do you resolve ambiguous bean injection, and when are conditional beans useful?
+### Q300. How do you resolve ambiguous bean injection, and when are conditional beans useful?
 
 If multiple beans match a required type, Spring needs an unambiguous candidate. Use `@Qualifier` when the injection point specifically needs a named role or implementation; use `@Primary` when one candidate should be the default for ordinary type-based injection. Qualifiers are not merely a fallback name lookup—they express which candidate fits that dependency. If the implementations represent different business behaviors, consider whether a strategy map or explicit selection is clearer than making one globally primary.
 
 Conditional registration is useful when a bean should exist only if a class is on the classpath, a property is enabled, or the application has not supplied its own implementation. Spring Boot auto-configuration relies heavily on these conditions. When a bean is missing or unexpectedly duplicated, inspect the condition evaluation report, active profiles, properties, classpath, and user configuration before adding another bean. Avoid conditions that silently disable a critical capability without a clear startup failure or diagnostic message. A related extension point is `FactoryBean`: it lets a factory object create the bean exposed to consumers, which is useful for complex or framework-specific object construction. Normally, looking up the bean name returns the product; prefixing the name with `&` retrieves the `FactoryBean` itself. Use it when the factory abstraction adds real value, not as a replacement for an ordinary `@Bean` method.
 
-### Q293. What is the difference between a servlet filter, a Spring MVC interceptor, and controller advice?
+### Q301. What is the difference between a servlet filter, a Spring MVC interceptor, and controller advice?
 
 A servlet filter runs in the servlet chain before or after the servlet, so it can act before Spring MVC chooses a controller. Filters are suitable for cross-cutting servlet concerns such as request wrapping, low-level logging, and integrations that must apply beyond controller methods. Spring Security itself integrates through a filter chain.
 
 A Spring MVC `HandlerInterceptor` operates around handler execution after Spring MVC has mapped a request to a handler. It can inspect handler-related information, but it is not a replacement for security controls in the filter chain. `@ControllerAdvice` is different again: it centralizes controller exception handling, binding behavior, or model-related concerns. Choose based on the lifecycle stage you need. If a controller is never reached, inspect filters and handler mapping first; controller advice cannot handle every failure that occurs before MVC invokes a controller.
 
-### Q294. How would you diagnose a request that is unexpectedly allowed or rejected by Spring Security?
+### Q302. How would you diagnose a request that is unexpectedly allowed or rejected by Spring Security?
 
 Start by confirming which `SecurityFilterChain` matches the request. With multiple chains, ordering and request matchers determine which configuration applies; rules in a chain that never matches cannot protect the request. Then inspect authentication, the resulting principal and authorities, URL authorization rules, method-level security, and any custom filters or authority converters. Enable appropriate security debug logging temporarily in a safe environment, and reproduce with the exact HTTP method, path, headers, cookies, and token.
 
 Also distinguish CORS from authorization. CORS is a browser-enforced cross-origin policy, not an authentication mechanism; a failed browser preflight can prevent the browser from sending the actual request, while a non-browser client may behave differently. CSRF is a separate protection against forged requests that exploit automatically attached browser credentials. Do not disable CSRF or broadly allow origins just to make a failing request pass. Spring Security's [servlet configuration](https://docs.spring.io/spring-security/reference/servlet/configuration/java.html), [CORS guidance](https://docs.spring.io/spring-security/reference/servlet/integrations/cors.html), and [CSRF reference](https://docs.spring.io/spring-security/reference/servlet/exploits/csrf.html) should be checked for the version in use.
 
-### Q295. A `@Cacheable` method always executes, or an `@Async` method runs on the caller thread. How would you investigate?
+### Q303. A `@Cacheable` method always executes, or an `@Async` method runs on the caller thread. How would you investigate?
 
 First verify that the method is called on a Spring-managed bean through the proxy. Self-invocation, manual construction with `new`, or a call path that bypasses the proxy can prevent both cache and async advice from running. Then check whether the relevant annotation processing is enabled, whether the method is eligible for interception, and whether the selected cache/executor configuration is actually active.
 
 For caching, inspect the cache name, generated key, arguments, condition/unless expressions, provider statistics, and eviction behavior. A key that includes a changing argument—or a condition that skips caching—can make every call a miss. For async work, inspect the configured executor, thread names, task rejection and queue metrics, and exception handling. If a custom executor has a direct or caller-runs policy, work may execute on the caller under some conditions. Confirm behavior with a focused test that asserts the cache interaction or records the executing thread; do not infer success from the annotation being present.
 
-### Q296. A connection pool is exhausted under load. What evidence would you collect before changing pool size?
+### Q304. A connection pool is exhausted under load. What evidence would you collect before changing pool size?
 
 Treat pool exhaustion as a symptom, not proof that the pool is simply too small. Compare active, idle, and pending connection metrics with request concurrency and latency. Check connection-acquisition timeouts, slow SQL, lock waits, transaction duration, leaked connections, and whether code performs remote calls while holding a database transaction open. A thread dump can reveal many request threads waiting for a connection; database-side session and query diagnostics help distinguish slow queries from application-side connection retention.
 
 Increasing the pool can help if the database has capacity and the workload legitimately needs more concurrent connections, but it can also overload the database and worsen latency. Bound request concurrency, set appropriate acquisition/query/transaction timeouts, shorten transaction scope, and fix slow queries or leaks first. Validate the change under representative load and observe both application pool metrics and database saturation. Pool sizing is a coordinated application-and-database decision, not an isolated tuning knob.
 
-### Q297. A configuration property has the wrong value only after deployment. How do you trace it?
+### Q305. A configuration property has the wrong value only after deployment. How do you trace it?
 
 Do not assume the YAML file is the effective source. Identify the exact property key and the value expected by the running version, then inspect active profiles and the ordered property sources that can override it—such as command-line arguments, environment variables, external configuration, and packaged files. Check spelling, relaxed binding, profile activation, deployment manifests, and whether the application is reading a similarly named property from a different configuration namespace.
 
 For grouped application settings, prefer validated `@ConfigurationProperties` over scattered string-based injections. Add startup validation for required values and invalid ranges, but never dump secrets or the full environment into logs. A safe diagnostic should reveal the source and effective non-sensitive value, not expose credentials. Reproduce with the same packaged artifact and deployment configuration; “works locally” often means the local property sources differ, not that Spring resolves the same configuration differently.
 
-### Q298. Why might a Spring-managed bean work while a manually instantiated object does not?
+### Q306. Why might a Spring-managed bean work while a manually instantiated object does not?
 
 Spring-managed beans can receive dependency injection, lifecycle callbacks, post-processing, and proxy wrappers for features such as transactions, caching, method security, and asynchronous execution. An object created with `new` receives none of that container behavior unless your code supplies it explicitly. Its annotations are metadata; they do not independently activate framework infrastructure on an arbitrary Java object.
 
