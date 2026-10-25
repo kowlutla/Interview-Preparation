@@ -152,9 +152,7 @@ public record Money(BigDecimal amount, Currency currency) {
     public Money {
         Objects.requireNonNull(amount);
         Objects.requireNonNull(currency);
-        if (amount.scale() > currency.getDefaultFractionDigits()) {
-            // Real monetary rules should define rounding explicitly.
-        }
+        // Scale and rounding policy are domain-specific; define them explicitly.
     }
 }
 ```
