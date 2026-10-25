@@ -6,7 +6,7 @@ A focused interview guide for Java backend engineers preparing for experienced a
 
 **[Spring Interview Handbook — Core Concepts to Senior-Level Discussion](Spring-Interview-QA.md)**
 
-This is the primary reading path. It contains 40 curated questions with complete, readable answers across dependency injection, bean lifecycle, AOP/proxies, Spring Boot, REST APIs, transactions, security, testing, observability, caching, asynchronous work, messaging, reactive programming, and upgrades.
+This is the primary reading path. It contains 43 curated questions with complete, readable answers across dependency injection, bean lifecycle, AOP/proxies, Spring Boot, REST APIs, transactions, security, testing, observability, caching, asynchronous work, messaging, reactive programming, and upgrades.
 
 ## Recommended study path
 
