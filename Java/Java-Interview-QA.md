@@ -385,6 +385,52 @@ Use bounded retries with backoff and jitter only when the operation is safe to r
 
 ---
 
+## 8A. Additional specialist topics
+
+### Q55. How should Java I/O, NIO, and resource management be handled?
+
+Classic `java.io` APIs provide stream- and reader/writer-oriented access, while `java.nio` adds buffers, channels, paths, and facilities for more flexible file and network I/O. NIO does not mean every operation is non-blocking: channels and APIs have different blocking and asynchronous contracts, so the chosen abstraction must match the workload.
+
+Use try-with-resources for resources implementing `AutoCloseable`, such as streams, readers, channels, and JDBC objects. This ensures cleanup on normal and exceptional paths and preserves suppressed exceptions when close itself fails. Choose explicit charsets such as UTF-8 instead of relying on the platform default, and distinguish bytes, UTF-16 code units, Unicode code points, and user-perceived characters when processing text.
+
+### Q56. What are the risks of Java native serialization?
+
+Java's built-in object serialization can reconstruct object graphs from a byte stream, but deserializing untrusted input is dangerous because the stream can cause classes to be instantiated and methods such as deserialization hooks to execute in surprising ways. It also couples the data format to class structure and versioning details.
+
+Avoid native Java deserialization for untrusted data where possible. Prefer an explicit, schema-oriented format such as JSON, Protocol Buffers, or another format appropriate to the system, and apply authentication, size limits, validation, and versioning. If native serialization must be used, apply strict deserialization filters and treat the input as a security boundary. Serialization is not encryption and does not establish trust.
+
+### Q57. What should a Java backend engineer understand about JDBC transactions and connection pools?
+
+JDBC provides lower-level database access through connections, prepared statements, and result sets. A connection's transaction behavior depends on autocommit and explicit commit/rollback; resource cleanup is essential, and prepared statements should be used for parameter binding rather than concatenating untrusted values into SQL.
+
+In a pooled application, the pool manages physical connections while application code borrows and returns them. Do not close a shared pool itself from request code, hold connections while waiting on remote services, or assume a timed-out client request means the database statement stopped. Align connection, query, and transaction timeouts, and ensure rollback/cleanup occurs when failures happen.
+
+### Q58. What are reflection, annotations, and the Java module system used for?
+
+Annotations attach metadata to program elements; reflection can inspect classes, methods, fields, and annotations at runtime. Frameworks use these mechanisms for dependency injection, mapping, serialization, and test discovery. Annotation processing can also inspect source-level metadata at compile time and generate code before runtime.
+
+The Java Platform Module System (JPMS), introduced in Java 9, adds explicit module dependencies and package exports/opens. Strong encapsulation means reflective access to non-open packages can be restricted, even when code previously relied on deep reflection. Use reflection deliberately, account for module boundaries, and prefer public APIs or compile-time processing when that is simpler and safer.
+
+### Q59. Which design patterns are especially useful in Java backend development?
+
+Patterns are reusable ways to structure recurring design problems, not a checklist to apply everywhere. **Strategy** makes an algorithm replaceable behind a common contract; **Factory** centralizes object creation when construction choices vary; **Decorator** adds behavior around an object while preserving its interface; **Builder** simplifies construction when an object has many optional parameters; and **Adapter** translates one interface into another.
+
+Spring itself uses familiar patterns such as proxies, factories, templates, and dependency injection. The interview answer should connect a pattern to the problem it solves and its trade-off. For example, Strategy can remove a large conditional by selecting an implementation, but it can also create unnecessary classes if the variation is trivial and unlikely to grow.
+
+### Q60. How should Java code be benchmarked and performance-tuned?
+
+Start by defining the observed problem and a measurable target, then profile a representative workload to find the dominant cost. Use JMH for JVM microbenchmarks because warm-up, JIT compilation, dead-code elimination, constant folding, allocation, and measurement noise can invalidate naive timing loops. For application-level performance, use production-like load tests and observability rather than extrapolating from one microbenchmark.
+
+Change one variable at a time and compare results against a baseline. Do not tune GC flags, object allocation, synchronization, or data structures based on intuition alone. Include latency percentiles, throughput, CPU, allocation rate, memory, and contention in the evaluation; an optimization that improves average throughput may still worsen tail latency or resource use.
+
+### Q61. What should Java testing and build-tool compatibility cover?
+
+Tests should cover behavior and contracts at appropriate levels: unit tests for isolated logic, integration tests for interactions, and concurrency tests designed around synchronization rather than arbitrary sleeps. JUnit and Mockito are common tools, but mocks should not replace tests of important framework wiring, database constraints, or real serialization behavior. Use deterministic coordination primitives and bounded timeouts when testing concurrent code.
+
+Build configuration is also part of compatibility. Understand Maven/Gradle toolchains, the compiler's `--release` option, test plugins, dependency versions, and the difference between the JDK used to run the build and the bytecode/API level targeted by compilation. A project that compiles on a developer's newest JDK may still fail on the production runtime if its source/target/API compatibility is not configured and tested correctly.
+
+---
+
 ## 9. Last-minute revision
 
 If only a short time remains, prioritize these questions and make sure the explanations are clear enough to say aloud:
