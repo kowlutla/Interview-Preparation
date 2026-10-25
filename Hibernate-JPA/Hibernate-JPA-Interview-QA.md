@@ -6,8 +6,31 @@ A focused guide for Java backend engineers who need to explain ORM behavior, que
 **Version scope:** Modern Jakarta Persistence, Hibernate ORM, and Spring Data JPA; check the exact provider, Spring Boot, JDBC driver, and database versions before relying on version-sensitive behavior.  
 **Study approach:** Learn the lifecycle and SQL implications behind each feature, not just the annotation name.
 
+**How to use this handbook:** Practise answering each question aloud in this order: direct answer, mechanism, a short example, the trade-off, and how you would verify the behavior in production. For performance questions, describe the evidence you would collect before proposing a fix.
+
+## Top 15 Questions to Master First
+
+1. [JPA vs Hibernate vs Spring Data JPA](#q1-what-is-the-difference-between-jpa-hibernate-and-spring-data-jpa)
+2. [Persistence context and entity states](#q2-what-is-a-persistence-context)
+3. [Dirty checking and flush vs commit](#q4-what-is-dirty-checking-and-does-every-update-require-save)
+4. [persist() vs merge()](#q6-what-is-the-difference-between-persist-and-merge)
+5. [Owning side, mappedBy, and relationship consistency](#q7-what-is-the-owning-side-of-a-bidirectional-relationship-and-what-does-mappedby-mean)
+6. [Cascade vs orphanRemoval](#q8-what-is-the-difference-between-cascade-and-orphanremoval)
+7. [Lazy loading and N+1](#q12-what-is-the-n1-query-problem)
+8. [Fetch joins and pagination](#q14-why-can-collection-fetch-joins-be-problematic-with-pagination)
+9. [Spring transactions and rollback](#q17-how-does-spring-transactional-interact-with-jpa)
+10. [Optimistic locking and @Version](#q19-how-does-version-prevent-lost-updates)
+11. [Bulk updates and stale persistence-context state](#q20-what-are-the-risks-of-bulk-jpql-update-and-delete-operations)
+12. [save() and merge semantics](#q22-how-does-spring-data-jpa-decide-whether-save-should-insert-or-update)
+13. [Page vs Slice and safe pagination](#q24-what-is-the-difference-between-page-and-slice)
+14. [JDBC batching vs saveAll()](#q39-does-saveall-perform-one-bulk-sql-insert-and-what-is-the-difference-between-jparepository-and-other-repository-interfaces)
+15. [Diagnosing production persistence problems](#q46-an-endpoint-slows-down-as-the-number-of-returned-entities-grows-how-do-you-prove-or-rule-out-n1)
+
+
 ## Contents
 
+- [Top 15 Questions to Master First](#top-15-questions-to-master-first)
+- [How to use this handbook](#how-to-use-this-handbook)
 1. [Foundations and persistence context](#1-foundations-and-persistence-context)
 2. [Entity mapping and lifecycle](#2-entity-mapping-and-lifecycle)
 3. [Fetching and query performance](#3-fetching-and-query-performance)
@@ -19,6 +42,7 @@ A focused guide for Java backend engineers who need to explain ORM behavior, que
 8. [Repository design, dynamic queries, and batching](#8-repository-design-dynamic-queries-and-batching)
 9. [Testing and production diagnosis](#9-testing-and-production-diagnosis)
 10. [Senior-level production scenarios](#10-senior-level-production-scenarios)
+10A. [Additional interview topics](#10a-additional-interview-topics)
 11. [Last-minute revision](#11-last-minute-revision)
 12. [Official references and version notes](#12-official-references-and-version-notes)
 13. [Editorial and validation notes](#13-editorial-and-validation-notes)
@@ -62,6 +86,12 @@ The provider may flush before transaction commit and, depending on flush mode an
 `persist()` makes a new entity instance managed and schedules its insertion according to persistence-context and transaction behavior. `merge()` copies state from a new or detached object into a managed instance and returns that managed instance; the original object does not become managed merely because merge was called.
 
 A common mistake is to ignore the value returned by `merge()` and continue changing the original detached object, expecting those changes to be tracked. In Spring Data JPA, `save()` typically chooses between persist and merge based on its entity-new detection strategy, which can depend on identifiers, version properties, and custom entity information. Do not assume every save means a simple INSERT.
+
+```java
+Order managed = entityManager.merge(detachedOrder);
+managed.setStatus(OrderStatus.CONFIRMED); // tracked instance
+// detachedOrder is still detached
+```
 
 ---
 
@@ -152,6 +182,13 @@ Pessimistic locking asks the database to acquire a lock to restrict conflicting 
 A version property lets the provider include the expected version in an update or delete. If another transaction modifies the same row first, the version no longer matches, so the second update fails rather than silently overwriting the first update. The application can then report a conflict, reload and re-evaluate, or retry if the operation is safe.
 
 Optimistic locking detects a conflict; it does not automatically merge two users' business changes. The transaction boundary and retry policy matter. A retry should not blindly reapply a non-idempotent operation or ignore the user's intent.
+
+```java
+@Version
+private long version;
+```
+
+The provider includes the expected version in the update/delete check; application code should not manually increment this field.
 
 ### Q20. What are the risks of bulk JPQL update and delete operations?
 
@@ -378,6 +415,181 @@ Inspect the mapping for `CascadeType.REMOVE`, `CascadeType.ALL`, `orphanRemoval 
 
 Correct the aggregate/lifecycle model rather than merely removing all cascades. Prefer explicit association entities for relationships with independent attributes or lifecycle, and enforce important integrity rules in database constraints. Add integration tests for removal and reassignment paths so future mapping changes cannot silently broaden deletion behavior.
 
+## 10A. Additional interview topics
+
+### Q51. What is the difference between the owning side and inverse side across common relationship mappings?
+
+In a `@ManyToOne`/`@OneToMany` pair, the many-to-one side normally owns the foreign key, and the one-to-many collection uses `mappedBy`. In a bidirectional one-to-one mapping, the side with the foreign key is the owner. A many-to-many mapping uses a join table, and one side owns that join-table mapping while the other uses `mappedBy`. A unidirectional mapping can be simpler when navigation in both directions is not needed.
+
+The owning side is a persistence-mapping rule, not a business hierarchy rule. Keep both Java sides synchronized when the relationship is bidirectional, but ensure the owning side is changed before flush. One-to-one mappings deserve particular care because uniqueness and optionality must agree with the actual database schema; annotations alone do not repair a mismatched production schema.
+
+### Q52. How do named parameters, positional parameters, and query binding prevent injection?
+
+Bind values as query parameters rather than concatenating user input into JPQL or SQL. Parameters represent values, not identifiers such as a table name or sort-column expression, so dynamic sorting and identifiers need an allowlist or controlled query construction. Named parameters are generally easier to read and maintain when a query has several values; positional parameters can be compact but are more fragile when edited.
+
+```java
+@Query("select o from Order o where o.status = :status and o.createdAt >= :since")
+List<Order> findRecent(@Param("status") OrderStatus status,
+                       @Param("since") Instant since);
+```
+
+Parameterization addresses injection risk for values, but it does not make a query efficient or correct. Still validate input ranges, use appropriate indexes, and inspect generated SQL when performance matters.
+
+### Q53. When does a Spring Data JPA Page need a custom count query?
+
+A `Page<T>` provides total-count metadata, which may require a count query in addition to the content query. For simple derived queries Spring Data can often derive the count query. For complex JPQL, native SQL, grouping, distinct roots, or joins that multiply rows, the derived count may be expensive or semantically wrong; define `countQuery` explicitly when needed and ensure it counts the logical result entities, not joined rows.
+
+```java
+@Query(value = "select o from Order o join o.customer c where c.region = :region",
+       countQuery = "select count(o) from Order o join o.customer c where c.region = :region")
+Page<Order> findByRegion(@Param("region") String region, Pageable pageable);
+```
+
+If the client only needs to know whether another page exists, consider `Slice<T>` to avoid requiring a total count. Verify both content and count plans against representative data.
+
+### Q54. What are batch fetching and subselect fetching, and how are they different from JDBC batching?
+
+Hibernate batch fetching and subselect fetching optimize reads of associations. Batch fetching initializes several proxies or collections using a bounded `IN` query instead of one query per association. Subselect fetching can initialize collections for a group of parent entities using a secondary query based on the original parent query. They can reduce N+1 round trips, but may fetch more rows than a particular request needs and are provider-specific tuning options.
+
+JDBC batching is different: it groups compatible INSERT or UPDATE executions to reduce write overhead. Do not confuse association batch fetching, JDBC write batching, JDBC fetch size, or bulk JPQL updates. Each solves a different problem; choose based on measured query counts, row counts, and memory use.
+
+### Q55. What is Open Session in View, and should it be used to solve lazy-loading errors?
+
+Open Session in View (OSIV) keeps a persistence context/session available beyond the service transaction, commonly through the web request, so lazy associations may still load while a response is being rendered. It can prevent some lazy-initialization failures, but it also permits database queries during serialization or view rendering, where query count and transaction boundaries are less visible. A slow client or serializer can extend resource usage, and N+1 queries may remain hidden until production traffic grows.
+
+Prefer an explicit use-case fetch plan—DTO projection, fetch join, entity graph, or a deliberate service-layer load—when the response contract is known. OSIV can be a conscious application choice, but it should not substitute for understanding which data the endpoint needs. Check the Spring Boot configuration and actual request lifecycle rather than assuming the feature is enabled or disabled in every version.
+
+### Q56. How do second-level cache, query cache, and cache concurrency strategies differ?
+
+The first-level cache is the persistence context and is mandatory for a normal EntityManager/Session. The second-level cache is optional and shared across persistence contexts for cached entity or collection data. Hibernate's query cache stores query-result information, typically identifiers and scalar results, and depends on cache invalidation/timestamps; it is not simply a cached copy of every returned entity. Query caching is most useful for repeated queries against data whose invalidation behavior is understood.
+
+Cache concurrency strategies express how cached state is coordinated with database changes. The right strategy depends on mutability, access patterns, and the cache provider; frequently changing data is often a poor candidate. Cache entries can become stale or create invalidation overhead, so measure hit rates and verify update consistency. A cache is not a replacement for database constraints or transaction isolation.
+
+### Q57. How should pessimistic lock modes, timeouts, deadlocks, and lock failures be handled?
+
+JPA exposes lock modes such as `PESSIMISTIC_READ` and `PESSIMISTIC_WRITE`, but the exact database locks, timeout support, and failure modes depend on the provider and database. A pessimistic lock can be useful when a business operation must serialize competing changes, but it may increase waiting and deadlock risk. Keep the locked transaction short, acquire resources in a consistent order where possible, and avoid remote calls while holding locks.
+
+Treat lock timeouts and deadlocks as concurrency outcomes to diagnose, not as reasons to retry indefinitely. Capture SQL, transaction duration, lock-wait diagnostics, and competing code paths. Retry the whole operation in a new transaction only when the operation is safe to repeat and a bounded retry policy makes business sense.
+
+### Q58. How should database constraints, Bean Validation, and schema migrations work together?
+
+Bean Validation annotations such as `@NotNull`, `@Size`, or `@Positive` provide useful application-level validation and may be integrated with persistence lifecycle validation. Database constraints such as `NOT NULL`, `UNIQUE`, and foreign keys are the final integrity boundary because writes can come from multiple services, scripts, or concurrent transactions. Mapping metadata such as `nullable = false` may influence generated DDL, but production integrity depends on the schema that is actually deployed.
+
+Use a migration tool and review migration scripts as versioned production changes; do not rely on automatic schema generation to evolve a production database safely. Test migrations against the target database engine and realistic existing data. Handle constraint violations at the service/API boundary without exposing SQL details, and distinguish validation failures from database integrity failures.
+
+### Q59. How do you diagnose common JPA and Hibernate exceptions instead of randomly changing annotations?
+
+Start with the exception type, root cause, failing SQL, transaction state, and the entity/query involved. `LazyInitializationException` usually points to an uninitialized association accessed without a usable session. `OptimisticLockException` signals a version conflict or stale update. `EntityNotFoundException` can indicate a missing row or a reference whose target cannot be resolved. `TransactionRequiredException` often means an operation requiring a transaction ran outside one. Spring may translate provider exceptions into the `DataAccessException` hierarchy, so inspect both the wrapper and root cause.
+
+For integrity failures, inspect the violated constraint and input; for query failures, inspect JPQL/native SQL and parameter types; for unexpected rollbacks, check whether the transaction was marked rollback-only earlier. Preserve the original cause in logs, use safe correlation identifiers, and avoid logging secrets or full sensitive bind values.
+
+### Q60. How do you test and detect N+1 queries before production?
+
+A repository test should assert the returned data, but performance-sensitive tests should also exercise the access path that triggers lazy associations—for example, mapping entities to response DTOs. Clear the persistence context before the measured operation so first-level cache state does not hide queries. Use Hibernate statistics, a SQL statement counter, or test instrumentation to assert a reasonable query-count budget for representative data sizes.
+
+Avoid tests that assert a brittle exact SQL string across provider versions unless the SQL shape itself is the contract. Prefer checking query counts, result correctness, and behavior with realistic cardinality. Test against the production database engine when locking, dialect behavior, or query planning matters; an in-memory database is not a reliable performance substitute.
+
+### Q61. What is the difference between schema generation and database migration tools?
+
+JPA schema-generation settings can create or validate schema for development and tests, depending on configuration. They are not a complete change-management strategy for a production database with existing data, multiple application versions, indexes, constraints, and rollback requirements. Migration tools such as Flyway or Liquibase version explicit schema changes and apply them in a controlled deployment sequence.
+
+A safe migration plan considers backward compatibility during rolling deployments: a new application version may run while old instances are still active. Prefer additive changes first, deploy code that tolerates both shapes, backfill if needed, then remove obsolete columns or constraints in a later step. Validate the actual migration against the target database and realistic data.
+
+### Q62. What is the difference between a managed entity update and a bulk update for versioning and callbacks?
+
+Changing a managed entity lets the provider perform dirty checking and normally participate in entity lifecycle processing. A bulk JPQL update instead modifies matching rows directly; it does not load every entity, call per-entity callbacks, or synchronize already managed instances. Bulk statements also need deliberate consideration of optimistic version fields and second-level cache effects because the normal per-entity update path is bypassed.
+
+Use entity-by-entity updates when domain invariants, callbacks, cascades, or per-row conflict detection are required. Use bulk DML when the operation is truly set-based and you can manage stale context state and cache effects. If a bulk operation must increment a version, encode that behavior explicitly where appropriate and test it against the chosen provider and database.
+
+### Q63. How do you configure and verify Hibernate JDBC batching?
+
+Hibernate JDBC batching is configured separately from association fetching. A common setting is `hibernate.jdbc.batch_size`; supported settings can also order inserts or updates to group compatible statements, but the benefit depends on SQL shape, driver behavior, identifier strategy, and workload. Identity-generated identifiers may prevent insert batching in common Hibernate configurations because the row must be inserted to obtain its key.
+
+```properties
+spring.jpa.properties.hibernate.jdbc.batch_size=50
+spring.jpa.properties.hibernate.order_inserts=true
+spring.jpa.properties.hibernate.order_updates=true
+```
+
+Treat these as starting points, not universal production values. Measure actual JDBC batches, round trips, rows per second, memory, and lock duration. Keep JDBC batch size, flush/clear interval, and transaction chunk size as separate controls; they do not have to be equal.
+
+### Q64. What does the persistence context guarantee when the same entity is loaded more than once?
+
+Within one persistence context, an entity identity is represented by one managed instance for a given entity type and primary key. So repeated identity lookups in the same context normally return the same Java object reference, which lets the provider maintain a coherent managed object graph and perform dirty checking consistently. This identity guarantee is local to the persistence context; it does not mean two requests or two EntityManagers share the same Java object.
+
+```java
+Order first = entityManager.find(Order.class, id);
+Order again = entityManager.find(Order.class, id);
+assert first == again; // same persistence context and identity
+```
+
+This also explains why a second-level cache is a different concept: the second-level cache may supply state across contexts, but each context still maintains its own managed instance.
+
+### Q65. When does JPA/Hibernate flush automatically, and why can a query trigger SQL unexpectedly?
+
+With the usual `AUTO` flush mode, the provider must ensure query results reflect relevant pending changes, so it may flush before executing a query whose result could be affected by those changes. SQL can therefore appear at a query call even when the code did not explicitly call `flush()`. A commit also normally synchronizes pending changes, but the exact timing depends on flush mode, query type, transaction integration, and provider.
+
+An explicit flush is useful when the application needs database constraints to be checked before continuing or needs pending writes visible to subsequent statements in the same transaction. It is not a commit. Changing flush mode to suppress SQL without understanding query consistency can produce confusing results and should not be used as a blanket performance fix.
+
+### Q66. How should native query results and DTO projections be mapped?
+
+JPQL DTO constructor expressions and Spring Data projections can keep read models narrow and typed. Native SQL gives database-specific control, but result mapping needs attention: column aliases, scalar types, joins, pagination, and count queries may behave differently across database drivers and providers. Returning managed entities from a native query also does not make every custom SQL shape equivalent to a normal entity query.
+
+Prefer a DTO projection for read endpoints that need a subset of fields. Use explicit result-set mappings or interface projections where supported, and test native queries against the actual target database. Parameterize values and document vendor-specific functions so a later database migration does not silently break the query.
+
+### Q67. What are common traps when using Lombok with JPA entities?
+
+Generating `equals()`, `hashCode()`, or `toString()` over every field is risky for entities. Associations may be lazy, bidirectional, and cyclic; including them can trigger database queries, recurse indefinitely, or make hash codes change when relationships change. Generated identifiers also create problems if equality changes after an entity is inserted into a hash-based collection.
+
+Use an intentional equality policy and explicitly exclude associations and mutable state from generated methods. Avoid using `@Data` blindly on JPA entities because it generates several methods with semantics that may not fit managed objects. Review generated code, proxy behavior, and unsaved-entity behavior rather than assuming a convenience annotation is persistence-safe.
+
+### Q68. How do you choose between entity-by-entity persistence, bulk JPQL, and plain JDBC?
+
+Use managed entities when business rules, cascades, lifecycle callbacks, and optimistic locking for each row are important. Use bulk JPQL for set-based changes that can be expressed against mapped entities without needing every entity loaded. Use JDBC or database-native bulk loading when throughput is the primary goal and ORM lifecycle semantics are unnecessary or too expensive.
+
+Compare the total cost: database round trips, rows and columns transferred, object allocation, persistence-context memory, lock duration, transaction rollback cost, and correctness requirements. The fastest option in a microbenchmark may not be safest for a business workflow. Measure with representative data and define how constraints, audit fields, versioning, retries, and partial failure are handled.
+
+### Q69. What should you know about immutable entities and read-only queries?
+
+Immutable or effectively read-only entities can reduce accidental mutation and make intent clearer, but the mechanism varies by layer. Hibernate offers provider-specific read-only and immutable mapping options; Spring Data read-only transaction hints can influence provider/connection behavior but are not a universal guarantee that writes are impossible. A read-only transaction should not be treated as a security boundary or a substitute for database permissions.
+
+For read APIs, DTO projections are often a clearer choice than loading full managed entities that will never be updated. If you use provider-specific immutability or read-only hints, document the portability trade-off and verify whether dirty checking, flush behavior, and cache behavior change in the deployed version.
+
+### Q70. How should repository transaction defaults influence service-layer design?
+
+Spring Data repository methods have transaction configuration, but service methods should usually define the business transaction when multiple repository operations must succeed or fail together. A service-level `@Transactional` boundary lets repository calls participate in the same transaction when they use the same compatible transaction manager. Without that boundary, several repository calls may each run in separate transactions, leaving partial business updates possible.
+
+```java
+@Transactional
+public void confirmOrder(long id) {
+    Order order = orderRepository.findById(id).orElseThrow();
+    order.confirm();
+    inventoryRepository.reserveFor(order);
+}
+```
+
+This is an illustration of the boundary, not a complete transaction policy: verify rollback rules, proxy interception, transaction manager selection, and whether any remote call is being made while the database transaction is open. Spring proxy self-invocation can also mean an internal method call does not pass through the transactional interceptor.
+
+### Q71. What are Spring Data JPA Specifications, and when do they help?
+
+A `Specification<T>` represents a composable predicate for a JPA Criteria query. It is useful when a search endpoint has optional filters—status, date range, owner, region—because each condition can be added only when the input is present. This keeps query composition more maintainable than a large family of derived method names. Specifications are not automatically the best choice for every query; complex projections, fetch plans, and aggregation may be clearer in explicit queries.
+
+```java
+static Specification<Order> hasStatus(OrderStatus status) {
+    return (root, query, cb) -> status == null
+        ? cb.conjunction()
+        : cb.equal(root.get("status"), status);
+}
+```
+
+When combining Specifications with pagination, review generated count queries and joins, especially if a to-many join can duplicate root rows. Keep dynamic input parameterized and verify the generated SQL.
+
+### Q72. What is the difference between JPA portability and Hibernate-specific features?
+
+JPA is now Jakarta Persistence: it defines a portable API and semantics that compliant providers should implement. Hibernate implements that contract and adds provider-specific capabilities, annotations, configuration options, fetching controls, query functions, and optimizations. Spring Data JPA is another layer that provides repository abstractions and conventions on top of JPA; it does not define the ORM provider's SQL behavior.
+
+Use portable APIs when portability is a real requirement. A Hibernate extension can be a reasonable engineering choice when it solves a measured problem, but label it clearly, pin compatible versions, and test it during upgrades. Never assume that a Hibernate-specific annotation, hint, query function, or configuration property will work identically with another provider or across major Hibernate versions.
+
 ## 11. Last-minute revision
 
 Prioritize these questions first:
@@ -424,7 +636,7 @@ The Jakarta Persistence specification is the authority for portable persistence 
 
 ## 13. Editorial and validation notes
 
-- This guide contains 50 curated questions; regenerate the count from actual question headings after future edits.
+- This guide contains 72 curated questions; regenerate the count from actual question headings after future edits.
 - Portable Jakarta Persistence behavior, Hibernate-specific behavior, and Spring Data behavior are distinguished where the difference matters.
 - Code is intentionally limited to small illustrative snippets; the focus is interview understanding and production reasoning.
 - Exact SQL and performance depend on mappings, provider version, database, driver, and query plan; verify with logs and representative workloads.
