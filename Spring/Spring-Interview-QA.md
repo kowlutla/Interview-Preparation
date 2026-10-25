@@ -59,7 +59,7 @@ Spring Framework supplies core infrastructure such as the IoC container, AOP, tr
 
 ### Q3. What is Inversion of Control (IoC)?
 
-IoC means a component does not control every detail of creating and locating its collaborators. Responsibility is delegated to an external mechanism, such as Spring's container. Dependency Injection is a common way to implement IoC: the container supplies dependencies to an object.
+Inversion of Control means an object does not take responsibility for controlling the creation and lookup of all its collaborators. Instead, that responsibility is handled by an external mechanism—in Spring, usually the IoC container. Dependency Injection is the most common form: a service declares what it needs, and Spring supplies those dependencies when it creates the bean. This reduces direct construction and makes implementations easier to replace or test. IoC is broader than DI; the key idea is that control of wiring and lifecycle moves out of application classes.
 
 ### Q4. What is Dependency Injection (DI), and why is constructor injection usually preferred?
 
@@ -92,7 +92,7 @@ A POJO is an ordinary Java object not forced to inherit from a framework-specifi
 
 ### Q8. What is the Spring ecosystem?
 
-The ecosystem includes Spring Framework, Spring Boot, Spring Security, Spring Data, Spring Cloud, Spring Batch, and Spring for Apache Kafka. These projects have distinct responsibilities and release compatibility rules; choosing one does not imply every other project is automatically configured or compatible.
+The Spring ecosystem is a set of related projects with different responsibilities. Spring Framework provides core container, AOP, transactions, web, and integration infrastructure; Spring Boot simplifies setup, dependency management, packaging, and operations; Spring Security handles authentication and authorization; Spring Data provides data-access abstractions; Spring Cloud adds distributed-system integrations; Spring Batch supports restartable batch jobs; and Spring for Apache Kafka integrates Kafka with Spring applications. Each project has its own release cadence and compatibility constraints. In an interview, explain which layer solves the problem and avoid implying that every Spring project is part of the core Framework or automatically enabled by Boot.
 
 ### Q9. What is tight coupling, and how does Spring help reduce it?
 
@@ -100,7 +100,7 @@ Tight coupling occurs when a class directly constructs or depends on a concrete 
 
 ### Q10. Does using Spring automatically make an application loosely coupled or testable?
 
-No. Spring provides tools that can support loose coupling, but design quality still depends on boundaries, interfaces, dependency direction, and side effects. A service with dozens of unrelated injected dependencies can remain highly coupled even though every dependency comes from the container.
+No. Spring can make dependencies explicit and provide test support, but architecture still depends on how classes are designed. A service that depends on many unrelated collaborators, performs remote calls inside domain logic, or exposes mutable global state can remain tightly coupled. Use cohesive responsibilities, stable interfaces at meaningful boundaries, constructor injection, and tests that isolate business rules. The container is an enabler, not a substitute for design. Senior engineers should be able to explain where Spring helps and where an abstraction or additional framework would add unnecessary complexity.
 
 ### Q11. What happens at a high level when a Spring application starts?
 
@@ -122,7 +122,7 @@ Use Spring when dependency management, configuration, integration, or operationa
 
 ### Q13. How does Spring resolve a constructor dependency?
 
-Spring inspects registered bean definitions and the target constructor's parameter types, then resolves candidates using type, qualifiers, primary designation, and other metadata. If a required dependency has no candidate or multiple unresolved candidates, context creation normally fails with a dependency-resolution exception.
+Spring resolves a constructor parameter by finding beans assignable to the required type, then applying qualifier metadata, primary/default-candidate rules, and other registration details. If no eligible bean exists, context creation normally fails with a missing-bean error; if several candidates remain ambiguous, Spring reports a non-unique dependency. These failures are often wiring/configuration problems rather than runtime business failures. Diagnose them by checking component-scan roots, active profiles, conditional configuration, imported configurations, and the resolved classpath before adding another bean just to make startup pass.
 
 ### Q14. What is the difference between @Component, @Service, @Repository, and @Controller?
 
@@ -142,7 +142,7 @@ All are stereotype annotations used to identify components for scanning. @Servic
 
 ### Q18. Is field injection always invalid?
 
-No, but constructor injection is usually preferable for mandatory dependencies because it makes requirements visible and enables final fields. Field injection can be convenient in some framework-managed test fixtures, but it complicates plain unit tests and can hide dependency growth.
+Field injection is not categorically impossible or always broken, but constructor injection is usually better for mandatory dependencies. A constructor makes the class's required collaborators visible, allows fields to be final, and supports plain unit tests without starting a Spring context. Field injection can hide an expanding dependency list and makes manually constructing the class awkward. Setter injection remains useful for optional or reconfigurable dependencies in appropriate designs. Choose the injection style based on the dependency's lifecycle and necessity rather than personal preference alone.
 
 ### Q19. What is a circular dependency?
 
@@ -150,7 +150,7 @@ A circular dependency exists when bean A requires bean B and bean B requires bea
 
 ### Q20. What is the difference between BeanFactoryPostProcessor and BeanPostProcessor?
 
-A BeanFactoryPostProcessor works with bean definitions and container metadata before ordinary bean instantiation is complete. A BeanPostProcessor can inspect or wrap bean instances before and after initialization; infrastructure such as proxy creation uses post-processing. Confusing these phases can lead to early-instantiation bugs.
+A BeanFactoryPostProcessor operates on bean-definition metadata before ordinary application beans are instantiated; it is appropriate for changing definitions or container configuration. A BeanPostProcessor operates on bean instances around initialization and can wrap them with proxies. Auto-proxy creators use the latter lifecycle stage to apply advice such as transactions or caching. The distinction matters because eagerly creating application beans inside a factory post-processor can instantiate them before all bean post-processors are registered, causing those beans to miss expected proxying. Keep definition-level and instance-level work in the correct lifecycle phase.
 
 ### Q21. When would you use ObjectProvider<T>?
 
@@ -162,7 +162,7 @@ Use ObjectProvider<T> when a dependency is intentionally optional, lazily resolv
 
 ### Q23. How can you register a bean conditionally?
 
-Use an appropriate condition such as Boot's @ConditionalOnClass, @ConditionalOnProperty, or @ConditionalOnMissingBean for Boot auto-configuration, or profile/conditional configuration suited to the application. Conditions should be explicit and testable. The exact condition annotations available depend on the framework and Boot modules in use.
+For application configuration, Boot conditions such as @ConditionalOnProperty, @ConditionalOnClass, and @ConditionalOnMissingBean let a bean be registered only when its prerequisites hold. @Profile is useful when a bean belongs to a particular environment. Conditions are especially valuable in reusable starters because they make defaults opt-in by classpath/property and allow applications to override them. Make the condition and its expected behavior testable; if a bean is missing, inspect the condition evaluation report and active profiles rather than guessing from the annotation name.
 
 ### Q24. Why should dependencies generally point toward abstractions?
 
@@ -178,7 +178,7 @@ Identify all candidates of the requested type, then decide whether the consumer 
 
 ### Q27. What is @Import useful for?
 
-@Import brings additional configuration classes or supported import selectors/registrars into a context. It is useful for modular configuration and libraries that provide explicit opt-in setup. It does not mean all classes in an arbitrary package are scanned.
+@Import explicitly registers configuration classes and can also work with supported import selectors or registrars to build modular configuration. It is useful when a library wants to provide an opt-in configuration bundle without asking consumers to component-scan a broad package. Unlike @ComponentScan, it does not automatically discover every eligible class in a package. For reusable configuration, combine imports with conditions and test both the enabled and disabled cases so optional dependencies do not unexpectedly break application startup.
 
 ### Official references
 - [Container overview](https://docs.spring.io/spring-framework/reference/core/beans/basics.html)
@@ -193,7 +193,7 @@ Identify all candidates of the requested type, then decide whether the consumer 
 
 ### Q28. What does singleton scope mean in Spring?
 
-Singleton means one bean instance per bean definition per Spring IoC container. It is not the same as enforcing the GoF Singleton pattern across the entire JVM. Two application contexts can each create their own instance.
+Singleton scope means Spring maintains one instance for a given bean definition in a given IoC container. It is not a process-wide GoF Singleton: another application context can create another instance, and separate application replicas each have their own object. Because a singleton service can be called concurrently by many request threads, keep it stateless where possible and do not store request-specific values in mutable fields. Singleton scope controls lifecycle and reuse; it does not provide synchronization or thread safety.
 
 ### Q29. Does singleton scope make a bean thread-safe?
 
@@ -205,7 +205,7 @@ Prototype scope asks Spring to create a new instance each time that bean is requ
 
 ### Q31. What happens when a prototype bean is injected into a singleton?
 
-The prototype is normally resolved when the singleton is created, so the singleton retains that one instance. To obtain a fresh instance on demand, use ObjectProvider, a suitable provider/factory, or a scoped proxy when appropriate.
+When Spring creates a singleton, an injected prototype dependency is usually resolved at that time, so the singleton retains that one prototype instance for its own lifetime. The prototype is not recreated every time the singleton calls a method. If each operation needs a fresh object, inject ObjectProvider<T> or a factory and request an instance at the point of use. A scoped proxy is appropriate for certain shorter-lived web scopes. Pick the mechanism that expresses the required lifecycle clearly, and ensure the object does not retain resources that the container will not automatically destroy for prototype instances.
 
 ### Q32. When are request and session scopes available?
 
@@ -225,7 +225,7 @@ A scoped proxy provides a stable proxy object that resolves the underlying targe
 
 ### Q36. What are common bean lifecycle pitfalls?
 
-Common issues include performing slow network calls during initialization, triggering premature bean creation from post-processors, relying on destruction callbacks during forced termination, and assuming proxies are present inside initialization callbacks. Keep startup work bounded and make lifecycle assumptions explicit.
+Common lifecycle mistakes include performing slow network calls in constructors or @PostConstruct methods, relying on proxies before post-processing has completed, triggering premature bean creation from infrastructure callbacks, and assuming destruction callbacks run after forced termination. Expensive startup work can also prevent readiness and cause deployment timeouts. Keep constructors focused on valid object state, make startup dependencies explicit and bounded, and use lifecycle hooks only when their timing is understood. If initialization fails, inspect the earliest nested exception; later bean-creation errors may only be consequences.
 
 ### Q37. Can Spring override a bean definition with another bean of the same name?
 
@@ -270,7 +270,7 @@ Usually not. Boot's externalized configuration supports application.properties/a
 
 ### Q45. How should secrets be supplied to production applications?
 
-Use an approved secret-management system or platform-provided secret mechanism, restrict access, rotate credentials, and avoid committing secrets or logging resolved values. Environment variables can be convenient but are not inherently a complete secrets-management strategy.
+Use a managed secret store or the deployment platform's approved secret mechanism, restrict access by service identity, rotate credentials, and audit access. Do not commit passwords or tokens to source control, bake them into container images, or print resolved configuration objects that may contain secrets. Environment variables are often convenient for injecting values but are not by themselves a complete secret lifecycle solution; process inspection, crash reports, and diagnostic logs can expose them. Prefer short-lived or dynamically issued credentials where supported, and define what happens when the secret backend is unavailable or a credential expires.
 
 ### Official references
 - [Spring Boot externalized configuration](https://docs.spring.io/spring-boot/reference/features/external-config.html)
@@ -348,7 +348,7 @@ Use Boot's condition evaluation report, enable the relevant debug diagnostics, a
 
 ### Q60. Does Boot require an embedded web server?
 
-No. Boot supports non-web applications as well as servlet and reactive web applications. The application type and dependencies influence which infrastructure is configured. Avoid adding web starters to background jobs that do not need HTTP endpoints.
+No. Boot can create servlet web applications, reactive web applications, and non-web applications such as command-line jobs or workers. The application type is influenced by dependencies and configuration, so adding a web starter can cause Boot to configure a server even when the workload does not need one. Keep dependencies aligned with the service's actual responsibilities; unnecessary web infrastructure increases attack surface and operational complexity. For a non-web job, verify the selected application type and ensure that health/metrics needs are handled deliberately without exposing an unintended HTTP server.
 
 ### Q61. What is the difference between a starter and auto-configuration?
 
@@ -360,7 +360,7 @@ It lists auto-configuration conditions and explains why each configuration match
 
 ### Q63. What is the purpose of SpringApplication events?
 
-They expose lifecycle milestones such as environment preparation, context initialization, and readiness. Use the appropriate phase for a listener; an event's existence does not imply every dependency is healthy or every startup task has completed.
+SpringApplication publishes lifecycle events at different startup phases, allowing infrastructure to react when the environment is prepared, the context is refreshed, or the application becomes ready. The phase matters: a listener that needs fully initialized beans should not run during an earlier environment event. Likewise, an event indicating startup progress does not prove every downstream dependency is healthy. Use the readiness lifecycle deliberately, keep listeners fast, and make remote checks bounded. For critical startup tasks, define whether failure should prevent readiness, fail the process, or mark the service degraded.
 
 ### Q64. Why should application startup avoid remote calls in bean constructors?
 
@@ -1217,7 +1217,7 @@ Spring Cloud provides integrations and abstractions for common distributed-syste
 
 ### Q227. Why must Spring Cloud and Boot versions be compatible?
 
-Cloud release trains are tested against specific Boot generations and managed dependency combinations. Arbitrarily mixing versions can cause linkage errors, missing classes, or subtle runtime failures. Use the official compatibility guidance and its dependency-management BOM.
+Spring Cloud release trains are tested against specific Spring Boot generations and dependency combinations. Mixing an arbitrary Cloud component version with a different Boot BOM can cause binary linkage errors, missing classes, or subtle runtime incompatibilities that may only appear under certain configurations. Use the official compatibility matrix and the matching dependency-management BOM, and avoid pinning individual Cloud artifacts unless the documentation explicitly supports it. When troubleshooting, inspect the resolved dependency tree and identify the first incompatible dependency instead of upgrading random transitive jars until startup succeeds.
 
 ### Q228. What is the role of an API gateway?
 
@@ -1290,7 +1290,7 @@ Bound waits with timeouts, limit retries, use circuit breaking when appropriate,
 
 ### Q243. What should be checked before a rolling deployment?
 
-Verify readiness semantics, backward-compatible API and schema changes, graceful termination, consumer rebalance behavior, startup time, and capacity while old and new replicas coexist. Use expand-and-contract database migrations when multiple versions may run simultaneously.
+Before a rolling deployment, confirm that old and new application versions can coexist safely. Check backward-compatible API changes, expand-and-contract database migrations, message/schema compatibility, readiness and liveness behavior, graceful shutdown, consumer rebalance or checkpoint behavior, startup time, and capacity while replicas overlap. Verify that new configuration and secrets are present before rollout and that monitoring can detect increased errors or latency. Define a rollback path that remains compatible with any schema or data changes already applied. A successful container start alone does not prove the rollout is safe.
 
 ### Official references
 - [Spring Boot production-ready features](https://docs.spring.io/spring-boot/reference/actuator/)
@@ -1417,11 +1417,11 @@ Do not perform a blind global replacement of `javax.` with `jakarta.`. Identify 
 
 ### Q268. Why should API versioning support be treated as a contract design choice?
 
-Framework-level versioning mechanisms can help route or negotiate API versions, but they do not decide compatibility policy, deprecation windows, or client migration. Define the contract and test how versions are selected before adopting the mechanism.
+Framework-level API versioning can help select a handler or representation, but it does not define the contract policy. The team still must decide what counts as a breaking change, how long old versions remain supported, how clients discover deprecation, and how migrations are measured. Header-, query-, media-type-, or path-based versioning each has discoverability and operational trade-offs. Choose a consistent policy and test routing, documentation, error behavior, and compatibility across versions. Do not add versioning infrastructure before deciding which compatibility guarantees the API needs.
 
 ### Q269. What should be checked when moving tests to newer Spring test APIs?
 
-Framework and Boot lines may introduce or deprecate test utilities, mock-bean annotations, and client test support. Verify the exact API and dependency baseline, then test context wiring and the actual request/response path rather than only updating imports.
+When upgrading Spring test support, inspect the migration guide for removed/deprecated annotations, changed mock-bean overrides, test-client APIs, context-caching behavior, and required test dependencies. A source-level import replacement may change how a mock is registered or which configuration is overridden. Update a representative slice and full-context test first, then run the suite to catch context failures and behavior changes. Keep tests focused on observable contracts instead of rewriting assertions to match a new framework default without understanding the reason.
 
 ### Q270. How should you treat Spring Framework 7.1 prerelease documentation?
 
