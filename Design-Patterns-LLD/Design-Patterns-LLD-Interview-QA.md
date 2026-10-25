@@ -778,377 +778,262 @@ Add tests around current behavior, change one responsibility at a time, and keep
 
 ## 12. LLD case studies
 
-The following exercises show how to reason from requirements to a core design. Their snippets demonstrate central rules, not complete production implementations. For each problem, start by clarifying scope with the interviewer; assumptions below are a useful default, not universal requirements. The parking lot, elevator controller, library, vending machine, rate limiter, notification service, payment processing, and file-storage sections are expanded walkthroughs; the remaining cases are deliberately concise blueprints for practising requirement clarification, class responsibilities, invariants, and follow-up trade-offs rather than pretending a production design fits into a few lines.
+This section contains **problem statements only**. Treat each as a fresh interview prompt: clarify assumptions, identify functional requirements and constraints, and then design the solution yourself. No reference class diagrams, solution walkthroughs, pseudocode, or implementation snippets are included here because a meaningful LLD solution deserves its own focused coding exercise.
+
+The separate LLD coding/use-cases work should contain the complete implementation and discussion for each selected problem, including class responsibilities, relationships, state transitions, concurrency, failure handling, tests, and design trade-offs where relevant.
 
 ### 12.1 Parking lot
 
-**Requirements and assumptions.** One facility has floors and parking spots of different sizes. Vehicles enter, receive a ticket, and pay before exit. A spot must not be allocated twice. Pricing and payment may vary.
+Design a parking-lot system for a facility with multiple floors and different types of parking spots. Vehicles should receive a ticket on entry and complete payment before exiting.
 
-**Core model.** `ParkingLot` coordinates floors and allocation; `ParkingSpot` owns occupancy; `Ticket` records entry and spot; `ParkingStrategy` chooses a compatible spot; `FeePolicy` calculates cost. Vehicle compatibility is a domain rule, not a controller conditional.
+The system should support:
+- Different vehicle and spot types, with explicit compatibility rules.
+- Finding and allocating an available spot.
+- Tracking entry time, exit time, and parking fees.
+- Handling a full facility, lost tickets, payment failures, and repeated exit attempts.
 
-```mermaid
-classDiagram
-    class ParkingLot
-    class ParkingFloor
-    class ParkingSpot
-    class Ticket
-    class Vehicle
-    class SpotAllocationStrategy
-    ParkingLot --> ParkingFloor
-    ParkingFloor "1" o-- "*" ParkingSpot
-    Ticket --> Vehicle
-    Ticket --> ParkingSpot
-    ParkingLot --> SpotAllocationStrategy
-```
-
-```java
-enum SpotSize { MOTORCYCLE, COMPACT, LARGE }
-record Vehicle(String plate, SpotSize requiredSize) {}
-
-final class ParkingSpot {
-    private final String id;
-    private final SpotSize size;
-    private boolean occupied;
-
-    ParkingSpot(String id, SpotSize size) {
-        this.id = id;
-        this.size = size;
-    }
-    boolean fits(Vehicle v) {
-        return size.ordinal() >= v.requiredSize().ordinal();
-    }
-    synchronized boolean tryOccupy(Vehicle v) {
-        if (occupied || !fits(v)) return false;
-        occupied = true;
-        return true;
-    }
-    synchronized void release() { occupied = false; }
-    String id() { return id; }
-}
-```
-
-This snippet assumes the enum order represents fit hierarchy, which is a simplification; a capability/compatibility table is clearer when vehicle classes have non-linear rules. In-memory synchronization protects only one JVM. A multi-instance deployment needs durable allocation/locking. A real ticket should make release idempotent and record status; payment and exit must not free the spot twice.
-
-**Patterns and trade-offs.** Strategy supports different allocation policies (nearest, EV charging, reserved spots); a Fee Policy can be Strategy as well. Avoid a deep subclass hierarchy for every vehicle/spot combination. Consider lost tickets, full capacity, payment failure, accessibility, EV charging, and spot reservation as follow-ups.
+Clarify whether reservations, electric-vehicle charging, accessible spots, and multiple entrances are in scope.
 
 ### 12.2 Elevator controller
 
-**Assumptions and scope.** Model multiple elevator cars, hall calls (floor + direction), in-car destination requests, and a dispatcher that chooses a car. This is an LLD scheduling exercise—not safety-certified motor-control software. Certified hardware/controller interlocks must enforce door, movement, overload, and emergency safety regardless of application logic.
+Design a controller for a building with multiple elevator cars and multiple floors. Users can request an elevator from a floor and choose a destination once inside.
 
-**Requirements and invariants.** Reject invalid floors; never schedule a car outside service; do not lose a request; keep each car's stop queue consistent with its direction policy; and define what happens when a car fails. A request being assigned is not the same as a passenger being picked up or a floor being served.
+The system should support:
+- Hall calls and in-car destination requests.
+- Assigning requests to suitable elevator cars.
+- Tracking direction, current floor, pending stops, and car availability.
+- Handling simultaneous requests, out-of-service cars, and duplicate button events.
 
-**Responsibilities.** `ElevatorRequest` is an immutable request; `ElevatorCar` owns its current floor, direction, and stops; `ElevatorSchedulingPolicy` chooses a candidate; `ElevatorController` accepts requests and coordinates assignments; `DoorController` isolates hardware/sensor operations. Keep scheduling separate from the car state machine so the policy can be tested without hardware.
+Clarify the scheduling objective, such as reducing average waiting time, avoiding starvation, or prioritizing certain requests. Safety-critical door and movement interlocks are outside the scope of an ordinary application-level LLD exercise.
 
-```mermaid
-stateDiagram-v2
-    [*] --> IDLE
-    IDLE --> MOVING_UP: request above
-    IDLE --> MOVING_DOWN: request below
-    MOVING_UP --> DOOR_OPEN: target reached and safe
-    MOVING_DOWN --> DOOR_OPEN: target reached and safe
-    DOOR_OPEN --> MOVING_UP: upward stops pending
-    DOOR_OPEN --> MOVING_DOWN: downward stops pending
-    DOOR_OPEN --> IDLE: no pending stops
-```
-
-A simple dispatcher may score cars by direction compatibility, distance, and number of pending stops. Nearest-car alone is easy but may increase waiting time or starve requests under load. A car should own and serialize its state transitions—through a lock or single-threaded event loop—while the dispatcher must avoid assigning a request to a car that became unavailable after scoring it.
-
-**Interaction flow:** validate hall call → collect eligible cars → choose a car → atomically enqueue the stop → acknowledge assignment → car reports arrival/door-safe event → mark the request served. If assignment and enqueue are separate operations, define how a failed enqueue is retried or reassigned.
-
-**Testing and follow-ups.** Test invalid floors, unavailable cars, duplicate button events, simultaneous requests, no lost stops, and eventual service under explicit fairness assumptions. Follow-ups include destination dispatch, emergency modes, out-of-service cars, accessibility priorities, overload, and starvation. A scheduling algorithm should be evaluated with simulated workloads rather than declared optimal from a few examples.
 ### 12.3 Library management
 
-**Assumptions.** A library owns physical copies, supports catalogue search, checkout, return, renewal, reservations, and overdue fees. Online catalogue search may be eventually consistent; lending decisions must use authoritative transactional state.
+Design a library management system for a library that maintains a catalogue and lends physical book copies to members.
 
-**Model and responsibilities.** `BookTitle` stores bibliographic metadata; `BookCopy` represents an individually lendable copy with barcode, branch, and condition; `Loan` records borrower, checkout, due date, and return; `Reservation` records a hold and queue position; `FinePolicy` calculates fees; `LoanService` coordinates use cases. This separation prevents a title with five copies from being treated as one physical inventory item.
+The system should support:
+- Searching the catalogue and checking copy availability.
+- Checkout, return, and renewal.
+- Reserving unavailable books and managing a reservation queue.
+- Borrowing limits, due dates, overdue fees, lost copies, and member restrictions.
 
-**Checkout flow:** identify borrower → validate borrowing limits and outstanding restrictions → choose an available copy or promote a reservation → atomically claim the copy and create a loan → return due date and receipt. The claim and loan creation should share a database transaction. If two requests race for the same copy, one must fail cleanly. A process-local lock is not enough when multiple service instances exist.
+Clarify whether multiple branches, inter-branch transfers, fee waivers, and digital books are in scope. Distinguish a book title from each individually lendable copy.
 
-```java
-enum CopyStatus { AVAILABLE, ON_LOAN, LOST, REPAIR }
-final class BookCopy {
-    private final String barcode;
-    private CopyStatus status = CopyStatus.AVAILABLE;
-    BookCopy(String barcode) { this.barcode = Objects.requireNonNull(barcode); }
-    void markLoaned() {
-        if (status != CopyStatus.AVAILABLE) throw new IllegalStateException("Copy is not available");
-        status = CopyStatus.ON_LOAN;
-    }
-    void markReturned() {
-        if (status != CopyStatus.ON_LOAN) throw new IllegalStateException("Copy is not on loan");
-        status = CopyStatus.AVAILABLE;
-    }
-}
-```
-
-This snippet expresses local state transitions; a persistent implementation must enforce concurrency at the repository/database boundary, for example with a conditional update or optimistic version. Return handling should record the return and determine whether the copy is damaged or reserved by another borrower before making it generally available.
-
-**Trade-offs and tests.** A reservation queue is simple for one branch; multi-branch fulfilment adds transfer logistics and availability search. Test checkout limits, simultaneous checkout, duplicate return, renewal restrictions, overdue calculation, lost copies, and reservation promotion. Follow-ups include grace periods, calendar vs elapsed-day rules, fine waivers, and audit history.
 ### 12.4 Vending machine
 
-**Requirements.** Select a product, check stock, accept coins/notes or external payment, dispense exactly one item, return change, cancel, and handle sold-out products or hardware failure. The key invariant is that the machine must not dispense unless payment is sufficient and a unit of stock has been reserved.
+Design a vending machine that sells products from stocked compartments and accepts cash or an external payment method.
 
-**Responsibilities.** `VendingMachine` owns the session and allowed transitions; `Inventory` atomically reserves/releases stock; `PaymentAcceptor` records accepted value; `Dispenser` represents the hardware port; `ChangeCalculator` computes return value. Keep hardware calls behind interfaces so the state machine can be tested with fakes. Use `Money` with explicit currency and exact arithmetic, never binary floating point for currency.
+The system should support:
+- Product selection and price display.
+- Stock checking and reservation.
+- Accepting payment, dispensing exactly one item, and returning change where applicable.
+- Cancellation, sold-out products, insufficient payment, and hardware failures.
 
-```java
-enum MachineState { IDLE, SELECTED, PAID, DISPENSING }
-final class VendingSession {
-    private MachineState state = MachineState.IDLE;
-    private Product selected;
-    private Money inserted = Money.zero("USD");
+Specify what should happen when payment succeeds but dispensing fails, when the machine cannot return exact change, or when a request is repeated after a power interruption.
 
-    void select(Product product) {
-        if (state != MachineState.IDLE) throw new IllegalStateException("Session active");
-        selected = Objects.requireNonNull(product);
-        state = MachineState.SELECTED;
-    }
-    void addPayment(Money amount) {
-        if (state != MachineState.SELECTED) throw new IllegalStateException("Select first");
-        if (!amount.currency().equals(inserted.currency())) throw new IllegalArgumentException("Currency mismatch");
-        inserted = inserted.plus(amount);
-        if (inserted.compareTo(selected.price()) >= 0) state = MachineState.PAID;
-    }
-}
-```
-
-This snippet covers only session state; it does not reserve inventory, compute change, or operate hardware. A full flow reserves stock before dispensing, records the outcome, and returns change only after the item is confirmed dispensed. If the dispenser jams or power fails after payment, the system needs a recoverable transaction record and refund/reconciliation policy. Never hold a Java monitor while waiting on slow hardware or a payment network.
-
-**Tests and follow-ups.** Test invalid transitions, currency mismatch, insufficient payment, sold-out selection, exact change, cancellation, jammed dispenser, duplicate hardware events, and power-loss recovery. An enum and transition methods are sufficient until state-specific behavior becomes complex enough to justify State objects.
 ### 12.5 Rate limiter
 
-**Requirements.** Limit requests per client or key, define the time window and rejection response, and decide whether state is local or shared. Algorithms include fixed window, sliding log, sliding window counter, and token bucket.
+Design a rate limiter that controls how frequently a client or user can call an API.
 
-**Token bucket intuition.** Tokens refill at a configured rate up to a capacity. A request consumes a token; if none is available, reject or delay it. Capacity allows bursts while the refill rate controls sustained traffic.
+The system should support:
+- Configurable limits and a clearly defined limiting key.
+- Choosing a policy such as fixed window, sliding window, or token bucket.
+- Allowing or rejecting each request and communicating the result.
+- Handling concurrent requests and reclaiming state for inactive keys.
 
-```java
-final class TokenBucket {
-    private final long capacity;
-    private final double tokensPerNano;
-    private double tokens;
-    private long lastRefillNanos;
-
-    TokenBucket(long capacity, double tokensPerSecond, long nowNanos) {
-        if (capacity <= 0 || tokensPerSecond <= 0)
-            throw new IllegalArgumentException();
-        this.capacity = capacity;
-        this.tokensPerNano = tokensPerSecond / 1_000_000_000d;
-        this.tokens = capacity;
-        this.lastRefillNanos = nowNanos;
-    }
-
-    synchronized boolean tryAcquire(long nowNanos) {
-        long elapsed = Math.max(0, nowNanos - lastRefillNanos);
-        tokens = Math.min(capacity, tokens + elapsed * tokensPerNano);
-        lastRefillNanos = Math.max(lastRefillNanos, nowNanos);
-        if (tokens < 1) return false;
-        tokens -= 1;
-        return true;
-    }
-}
-```
-
-The synchronized block protects one bucket in one process. Inject a monotonic time source for deterministic tests. Production concerns include per-key bucket eviction, memory bounds, distributed quotas, clock assumptions, fairness, and atomic shared storage. Discuss what happens during a backing-store outage and whether the system fails open or closed.
+Clarify whether limits are per process or shared across multiple application instances, whether bursts are allowed, and what the system should do when shared storage is unavailable.
 
 ### 12.6 Notification service
 
-**Requirements.** Send a message over email, SMS, or push; validate recipients; support templates and provider failures; optionally record status. Clarify synchronous vs asynchronous behavior and delivery guarantees.
+Design a notification service that can send notifications through channels such as email, SMS, and push notifications.
 
-**Model.** `NotificationService` orchestrates the use case; `NotificationChannel` is a Strategy; channel-specific adapters integrate with providers; `TemplateRenderer` renders content. Retry and delivery status belong at an explicit boundary, not hidden in every channel implementation.
+The system should support:
+- Selecting a channel and rendering message templates.
+- Validating recipients and respecting user preferences or opt-outs.
+- Recording notification status and handling provider failures.
+- Retries, duplicate requests, provider rate limits, and adding new channels.
 
-```java
-interface NotificationChannel {
-    DeliveryResult send(Notification notification);
-}
-final class NotificationService {
-    private final Map<ChannelType, NotificationChannel> channels;
-    NotificationService(Map<ChannelType, NotificationChannel> channels) {
-        this.channels = Map.copyOf(channels);
-    }
-    DeliveryResult send(Notification n) {
-        NotificationChannel channel = channels.get(n.channel());
-        if (channel == null) throw new IllegalArgumentException("Unsupported channel");
-        return channel.send(n);
-    }
-}
-```
-
-Production design should handle provider timeouts, rate limits, retries with backoff, deduplication, opt-outs, sensitive data, template versioning, and observability. A successful provider API response often means accepted for delivery, not delivered to the recipient. Use a durable queue/outbox if losing notifications on process failure is unacceptable.
+Clarify whether sending is synchronous or asynchronous, what delivery guarantees are expected, and whether a provider acceptance response should be considered successful delivery.
 
 ### 12.7 Payment processing system
 
-**Requirements.** Authorize/capture or charge, support multiple providers, track payment lifecycle, handle duplicate client requests and uncertain outcomes, and reconcile provider callbacks. Clarify whether refunds and partial captures are in scope.
+Design a payment component that supports one or more payment providers and exposes a consistent API to the application.
 
-**Model.** `PaymentService` coordinates a use case; `PaymentGateway` abstracts providers; `Payment` owns valid state transitions; `PaymentRepository` persists state; `IdempotencyStore` protects repeated requests. Never treat a network timeout as proof that a payment failed—the provider may have completed the charge while the response was lost.
+The system should support:
+- Creating a payment and authorizing, capturing, or charging it according to the chosen flow.
+- Tracking payment states and mapping provider responses to internal outcomes.
+- Handling duplicate client requests and idempotency keys.
+- Processing provider callbacks and recovering from timeouts or uncertain outcomes.
+- Supporting refunds or voids if they are in scope.
 
-```mermaid
-stateDiagram-v2
-    [*] --> CREATED
-    CREATED --> AUTHORIZED: authorization accepted
-    CREATED --> DECLINED: definitive decline
-    AUTHORIZED --> CAPTURED: capture accepted
-    AUTHORIZED --> VOIDED: void accepted
-    CAPTURED --> REFUNDED: refund completed
-```
-
-A core interface might be `PaymentResult charge(PaymentRequest request, String idempotencyKey)`. Persist the request key and state, send a provider-supported idempotency key, and reconcile webhooks/polling for uncertain results. Provider adapters map external statuses into internal states. A database transaction cannot atomically commit a remote payment; recovery and reconciliation are part of correctness. Security-sensitive card data handling is intentionally out of scope for the snippet.
+Clarify which payment lifecycle operations are required and how the application should resolve a timeout when the provider may have completed the operation but its response was lost. Do not treat a network timeout as definitive proof of payment failure.
 
 ### 12.8 Logging framework
 
-**Requirements.** Support levels, named loggers, structured messages, multiple appenders, and configurable filtering. Clarify asynchronous behavior, ordering, and loss tolerance.
+Design a reusable logging framework for application code.
 
-**Model.** `Logger` is the API; `LogLevel` filters; `Appender` outputs; `Formatter` structures records. A composite appender can fan out to console and file outputs; a decorator can add buffering or metrics. Avoid a mutable global logger that makes configuration and tests unpredictable.
+The system should support:
+- Named loggers and configurable severity levels.
+- Structured log events with timestamps and contextual fields.
+- Multiple outputs, such as console and file appenders.
+- Filtering, formatting, and runtime configuration changes if required.
+- Handling slow or failing appenders and safely shutting down buffered logging.
 
-```java
-interface Appender { void append(LogEvent event); }
-final class Logger {
-    private final String name;
-    private final LogLevel threshold;
-    private final List<Appender> appenders;
-
-    Logger(String name, LogLevel threshold, List<Appender> appenders) {
-        this.name = name;
-        this.threshold = threshold;
-        this.appenders = List.copyOf(appenders);
-    }
-    void log(LogLevel level, String message) {
-        if (level.ordinal() < threshold.ordinal()) return;
-        LogEvent event = new LogEvent(name, level, message, Instant.now());
-        appenders.forEach(a -> a.append(event));
-    }
-}
-```
-
-The enum ordering is illustrative and must be defined intentionally; real frameworks often include OFF/ALL and custom level semantics. Production concerns include exception isolation per appender, queue backpressure, structured context, redaction, rollover, shutdown flushing, and asynchronous loss policies.
+Clarify whether logging is synchronous or asynchronous, whether event ordering matters, and what level of log loss is acceptable during overload or process shutdown.
 
 ### 12.9 In-memory cache
 
-**Requirements.** Get/put values, bound memory, define eviction and expiration, and decide behavior during concurrent loads. Common policies include LRU, LFU, and time-to-live. Clarify whether stale values are allowed and how invalidation works.
+Design a thread-safe in-memory cache that supports storing and retrieving key-value entries under a configured memory or entry limit.
 
-**Model.** Separate the cache API from eviction and expiration policy. Use immutable values where possible. A `ConcurrentHashMap` alone does not implement capacity or expiration. For an interview, discuss the data structures and invariants before coding a complete LRU list/map combination.
+The system should support:
+- Get, put, update, and remove operations.
+- An eviction policy such as LRU or LFU.
+- Expiration, such as time-to-live, if required.
+- Concurrent access and predictable behavior when entries expire or capacity is exceeded.
 
-A basic LRU usually combines a hash map for O(1) lookup with a doubly linked list for recency; access moves a node to the front and eviction removes the tail. Synchronize map and list mutations as one invariant, or use a well-tested library in production. Discuss cache stampedes, per-key load coordination, TTL jitter, negative caching, and whether invalidation is local or distributed.
+Clarify how cache values are loaded, whether stale values are acceptable, how invalidation works, and whether the cache is local to one process. Consider cache stampedes, bounded memory usage, and per-key load coordination as follow-ups.
 
-### 12.10 Splitwise and expense sharing
+### 12.10 Splitwise / expense sharing
 
-**Requirements.** Create groups, add expenses with equal/exact/percentage splits, calculate balances, and optionally simplify debts. Clarify rounding, currency, edits, and settlement records.
+Design an expense-sharing application in which a group of people can record shared expenses and understand who owes whom.
 
-**Model.** `Expense` records payer, amount, and shares; `Money` avoids floating-point errors; `BalanceLedger` computes net positions; `SplitStrategy` handles split modes. Store amounts in minor units or decimal values with explicit currency and rounding policy.
+The system should support:
+- Creating groups and managing group members.
+- Recording an expense with a payer, total amount, and participants.
+- Equal, exact-amount, and percentage-based splits.
+- Viewing each participant's net balance and recording settlements.
+- Editing or deleting expenses under clearly defined rules.
 
-For a 90-unit expense shared equally by three people where A paid, A's net is +60 and each other member's net is -30. The ledger should derive balances from recorded expenses rather than mutate a balance in multiple places without an audit trail. Debt simplification is an optimization problem over net balances and does not change the original expense history. Consider fractional minor-unit allocation and deterministic remainder handling.
+Clarify currency handling, rounding and remainder allocation, audit history, and whether debt simplification is required. Use exact monetary arithmetic rather than binary floating-point values.
 
 ### 12.11 Food ordering
 
-**Requirements.** Browse menus, place an order, reserve inventory if required, pay, prepare, and deliver. Clarify restaurant acceptance, cancellation windows, substitutions, and refunds.
+Design a food-ordering system that allows customers to place orders with restaurants and follow them through fulfilment.
 
-**Model.** `Order` owns lifecycle and line items; `PricingPolicy` computes totals; `Restaurant` owns menu availability; `PaymentPort` handles external payment; `OrderRepository` persists. Separate order status from payment status and delivery status when they can evolve independently.
+The system should support:
+- Browsing menus and item availability.
+- Creating an order with prices and quantities.
+- Restaurant acceptance or rejection and order status tracking.
+- Payment, preparation, delivery, cancellation, and refunds as applicable.
+- Handling unavailable items, price changes, and duplicate order requests.
 
-A sequence can be: validate cart and current prices → create pending order → authorize payment → confirm restaurant/inventory → capture or finalize according to business policy → publish notifications. The exact order matters: payment capture before restaurant acceptance may require refunds; inventory reservation may expire. In production, use explicit states, idempotent commands, and a saga/outbox where cross-system coordination is needed. See the distributed systems handbook for saga design.
+Clarify when inventory is reserved and payment is authorized or captured, which actors can change each status, and which cancellation rules apply.
 
 ### 12.12 Hotel booking
 
-**Requirements.** Search rooms for a date range, reserve a room, confirm payment, cancel under policy, and prevent overlapping confirmed reservations. Clarify room types, room inventory, time zones, check-in/out boundaries, and overbooking policy.
+Design a hotel booking system that lets users search for accommodation and reserve rooms for a date range.
 
-**Model.** `Room`, `Booking`, `BookingInterval`, `AvailabilityService`, and `CancellationPolicy`. An interval is typically half-open `[checkIn, checkOut)`, so one guest checking out on a date does not overlap a new guest checking in that date.
+The system should support:
+- Searching by location, dates, room type, and relevant availability criteria.
+- Creating and confirming a reservation.
+- Preventing conflicting reservations beyond the property's inventory.
+- Cancellation, refunds or fees, and expiring temporary holds if used.
 
-Availability search is not a lock. Enforce conflicts in a transaction at reservation time using a database-appropriate strategy, constraint, or lock. Use a reservation hold with expiry if payment takes time, and define how expired holds release inventory. Consider cancellation fees, payment uncertainty, daylight-saving transitions, duplicate booking commands, and concurrent requests.
+Clarify check-in and check-out boundary rules, time zones, room inventory, overbooking policy, and how concurrent attempts to book the final available room should be handled.
 
 ### 12.13 Ride booking
 
-**Requirements.** Request a ride, find a suitable driver, accept/reject offers, track trip state, calculate fare, and cancel. Clarify dispatch radius, matching criteria, timeout, surge pricing, and driver location freshness.
+Design a ride-booking system that connects a rider with a suitable driver and tracks a trip from request to completion.
 
-**Model.** `RideRequest`, `Driver`, `DispatchStrategy`, `FarePolicy`, and a trip lifecycle model. Matching can be a Strategy; ride state should constrain legal transitions such as REQUESTED → MATCHED → DRIVER_ARRIVED → IN_PROGRESS → COMPLETED. Driver assignment must be atomic so two concurrent requests cannot claim the same driver. Location search and large-scale geospatial matching belong to HLD; at LLD level define the boundary and contract.
+The system should support:
+- Creating and cancelling ride requests.
+- Matching drivers and managing offer acceptance or rejection.
+- Tracking driver and trip states.
+- Calculating fares and recording payment outcomes.
+- Handling driver unavailability, timeouts, repeated commands, and cancellation fees.
+
+Clarify driver-selection criteria, dispatch timeouts, location freshness, fare rules, and what happens if a driver becomes unavailable after accepting a request.
 
 ### 12.14 Meeting room scheduler
 
-**Requirements.** Create, update, and cancel room bookings; list availability; support attendees and recurring meetings if required. Define time zones and whether adjacent intervals overlap.
+Design a meeting-room booking system for an organization with multiple rooms and employees.
 
-**Model.** `Room`, `Booking`, `TimeInterval`, `BookingRepository`, and optional `ConflictPolicy`. For half-open intervals, two intervals overlap when `a.start < b.end && b.start < a.end`. Unit-test equal endpoints and invalid intervals. The repository must enforce conflict protection under concurrent requests; checking in application memory alone is insufficient. Follow-ups include recurring meetings, room capacity/equipment, time-zone changes, and distributed calendar synchronization.
+The system should support:
+- Searching for rooms available for a requested time interval.
+- Creating, updating, and cancelling bookings.
+- Checking room capacity and equipment requirements.
+- Supporting attendees and recurring meetings if required.
+- Preventing overlapping confirmed bookings, including under concurrent requests.
+
+Clarify time-zone handling, interval boundary semantics, recurrence rules, organizer permissions, and how conflicts are resolved when a booking is modified.
 
 ### 12.15 Inventory management
 
-**Requirements.** Track stock by SKU and location, reserve for orders, release reservations, and confirm shipment. Clarify whether stock is physical, available-to-promise, or reserved.
+Design an inventory system that tracks products and stock across one or more storage locations.
 
-**Model.** `InventoryItem`, `StockReservation`, `InventoryRepository`, and `ReservationPolicy`. Distinguish on-hand, reserved, and available quantities. Every reservation should have an identity and lifecycle so repeated release or confirmation cannot corrupt stock. Use conditional database updates or transaction isolation to preserve non-negative inventory. Discuss reservation expiry, partial fulfillment, multi-warehouse allocation, and reconciliation with physical counts.
+The system should support:
+- Tracking stock by product/SKU and location.
+- Reserving stock for an order, releasing reservations, and confirming fulfilment.
+- Handling concurrent reservations without allowing invalid stock quantities.
+- Supporting shipment, adjustment, and stock reconciliation.
+- Preventing duplicate commands from changing inventory twice.
+
+Clarify the meaning of on-hand, reserved, and available quantities; whether partial fulfilment and multi-warehouse allocation are required; and how reservation expiry or damaged stock is handled.
 
 ### 12.16 Task scheduler
 
-**Requirements.** Schedule one-time or recurring tasks, execute due work, retry failures, and avoid duplicate effects. Clarify durability, priority, cancellation, recurrence syntax, and at-least-once behavior.
+Design a task scheduler that lets applications schedule work to run once or repeatedly.
 
-**Model.** `TaskDefinition`, `ScheduledExecution`, `TaskHandler`, `TriggerPolicy`, and `ExecutionStore`. Strategy can represent scheduling policies; Command can represent executable work. In a single process, a priority queue ordered by next-run time is a reasonable starting point. Production scheduling requires durable claiming/leases, crash recovery, misfire policy, time-zone handling, bounded retries, and idempotent handlers. Multiple workers need atomic claiming or another coordination mechanism.
+The system should support:
+- Creating, updating, pausing, and cancelling scheduled tasks.
+- Supporting one-time and recurring schedules.
+- Dispatching due tasks to handlers.
+- Recording execution outcomes and retrying eligible failures.
+- Handling task timeouts, duplicate delivery, missed schedules, and process restarts.
+
+Clarify durability requirements, time-zone semantics, recurrence syntax, retry limits, execution ordering, and whether multiple worker instances must process tasks safely.
 
 ### 12.17 File storage and metadata management
 
-**Requirements and assumptions.** Support upload, metadata lookup, download authorization, delete, and optionally versioning. Store file bytes in an object/blob store and metadata in a relational database; do not put large binary payloads into the metadata entity by default. Clarify maximum size, retention, versioning, access model, and whether uploads are direct-to-storage or proxied through the application.
+Design a file storage service that stores file content and maintains searchable metadata about each file.
 
-**Core model.** `FileMetadata` holds file ID, owner, object key, size, checksum, media type, timestamps, and status; `UploadSession` tracks a multi-part or in-progress upload; `StorageProvider` is a port; a provider-specific Adapter maps vendor APIs; `AccessPolicy` authorizes operations. The application service coordinates the use case but should not become the blob-storage implementation.
+The system should support:
+- Uploading files and retrieving metadata.
+- Downloading files only when the caller is authorized.
+- Deleting files and optionally keeping versions.
+- Recording attributes such as owner, size, media type, checksum, and timestamps.
+- Handling large or multipart uploads, interrupted uploads, duplicate requests, and partial failures.
 
-**Upload flow:** authorize → create upload session and unique object key → upload bytes (or issue a short-lived signed upload URL) → verify completion/checksum/size → mark metadata `AVAILABLE`. Do not expose a file as downloadable while upload verification is incomplete. If object upload succeeds but the database update fails, the blob can become orphaned; use an explicit state machine plus retry/reconciliation cleanup rather than pretending the database and object store share one atomic transaction.
+Clarify size limits, retention policy, access-control model, versioning, content validation, and whether file bytes pass through the application or are uploaded directly to object storage.
 
-**Download flow:** authenticate → authorize against metadata → resolve a safe object key → stream or issue a short-lived signed URL. Never trust a client-supplied object key as an authorization decision. Avoid logging signed URLs or sensitive metadata. Apply encryption, content-type validation, malware scanning, retention, and access audit according to the threat model.
-
-**Concurrency and trade-offs.** Use immutable/versioned object keys or conditional writes to avoid overwriting the wrong version during concurrent uploads. Deletes should be idempotent and recoverable if metadata and blob deletion happen at different times. Direct signed uploads reduce application bandwidth but move validation and lifecycle concerns to completion callbacks. Test unauthorized access, duplicate completion, checksum mismatch, interrupted multipart uploads, orphan cleanup, and delete retries.
 ### 12.18 ATM
 
-**Requirements.** Authenticate a card/PIN, check balance, withdraw or deposit if supported, dispense cash, print a receipt, and handle hardware failure. Clarify whether banking ledger and ATM cash inventory are in scope.
+Design an ATM application that supports common banking operations using external banking services and physical cash-dispensing hardware.
 
-**Model.** `ATM` coordinates a session; `BankingPort` handles account authorization and ledger operations; `CashDispenser` represents hardware; `CashInventory` tracks denominations; `ATMState` restricts operations. Never let the ATM independently decide the authoritative account balance.
+The system should support:
+- Card and PIN authentication.
+- Balance inquiry and cash withdrawal; deposits may be included if required.
+- Cash inventory and denomination selection.
+- Transaction status, receipts, and session termination.
+- Handling insufficient balance, insufficient cash, hardware failure, and uncertain banking responses.
 
-The difficult boundary is debit vs cash dispense. A debit can succeed while the dispenser jams; the system needs a documented reversal/adjustment workflow and auditable transaction identifiers. Cash availability is a denomination allocation problem. Treat hardware commands and banking calls as unreliable, and do not retry a withdrawal blindly without idempotency and reconciliation.
+Clarify whether the bank ledger is part of the design and how the system should recover when an account is debited but the ATM fails to dispense the requested cash.
 
 ### 12.19 Pub/sub event dispatcher
 
-**Requirements.** Publishers emit typed events and subscribers register handlers. Clarify synchronous/asynchronous delivery, ordering, subscriber failure isolation, registration lifecycle, and whether events must be durable.
+Design an event dispatcher that allows publishers to publish typed events and subscribers to register handlers for those event types.
 
-```java
-interface EventHandler<E> {
-    void handle(E event);
-}
-final class EventDispatcher {
-    private final Map<Class<?>, List<EventHandler<?>>> handlers =
-            new ConcurrentHashMap<>();
+The system should support:
+- Registering and unregistering handlers.
+- Delivering events to the appropriate subscribers.
+- Defining synchronous or asynchronous execution.
+- Isolating handler failures according to an explicit policy.
+- Handling concurrent registration and publication.
 
-    <E> void subscribe(Class<E> type, EventHandler<E> handler) {
-        handlers.computeIfAbsent(type, ignored -> new CopyOnWriteArrayList<>())
-                .add(handler);
-    }
-
-    @SuppressWarnings("unchecked")
-    <E> void publish(Class<E> type, E event) {
-        for (EventHandler<?> raw : handlers.getOrDefault(type, List.of())) {
-            ((EventHandler<E>) raw).handle(event);
-        }
-    }
-}
-```
-
-This is a simplified in-process dispatcher. Type erasure means the event type must be supplied explicitly; generic casting should be kept behind a controlled registration API. Decide whether one handler failure prevents later handlers, whether handlers run inline, and how unsubscribe works. For durable cross-process delivery, use a broker and cover persistence, retries, dead-letter handling, schema evolution, and idempotency in the distributed systems guide.
+Clarify delivery ordering, retry behavior, duplicate handling, backpressure, and whether events need to survive process restarts. State explicitly whether this is an in-process component or a durable cross-process messaging system.
 
 ### 12.20 Pluggable rule engine
 
-**Requirements.** Evaluate business rules such as eligibility, pricing, or routing; define priority, short-circuit behavior, conflict resolution, and how rules are authored and versioned.
+Design a rule engine that evaluates configurable business rules, such as eligibility checks, pricing rules, or request routing.
 
-**Model.** `Rule` has a predicate and an action/result; `RuleEngine` applies an explicit evaluation policy; `RuleContext` contains validated input. Strategy can choose evaluation semantics; Specification can compose predicates; Chain of Responsibility fits ordered short-circuit processing.
+The system should support:
+- Defining rules and applying them to validated input.
+- Choosing evaluation order and short-circuit behavior.
+- Handling multiple matching rules and conflicts.
+- Versioning or replacing rules without rewriting the engine, if required.
+- Explaining which rule or rules produced a result.
 
-```java
-interface Rule<C, R> {
-    boolean matches(C context);
-    R apply(C context);
-}
-final class RuleEngine<C, R> {
-    private final List<Rule<C, R>> rules;
-    RuleEngine(List<Rule<C, R>> rules) {
-        this.rules = List.copyOf(rules);
-    }
-    Optional<R> firstMatch(C context) {
-        return rules.stream()
-                .filter(rule -> rule.matches(context))
-                .findFirst()
-                .map(rule -> rule.apply(context));
-    }
-}
-```
+Clarify who authors the rules, how they are validated, whether rule execution must be deterministic, and how rule versions and evaluation outcomes should be audited. Treat arbitrary user-supplied code execution as out of scope unless a safe execution model is explicitly part of the problem.
 
-Define rule ordering explicitly; relying on incidental collection order is dangerous. Production concerns include rule versioning, explainability, audit trails, validation, deterministic evaluation, performance, and safe deployment. Never execute arbitrary user-supplied code in-process. A dedicated DSL may be justified only when business users need controlled authoring and the complexity is real.
 
 ---
 
