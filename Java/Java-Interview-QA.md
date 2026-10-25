@@ -22,9 +22,10 @@ A focused, version-aware guide for Java backend engineers. It prioritizes questi
 10. [Expanded coverage: frequently tested Java topics](#10-expanded-coverage-frequently-tested-java-topics)
 14. [Java Streams — coding interview questions](#14-java-streams--coding-interview-questions)
 15. [Java version-wise features: Java 8 to Java 25](#15-java-version-wise-features-java-8-to-java-25)
-16. [Last-minute revision](#16-last-minute-revision)
-17. [Official references](#17-official-references)
-18. [Editorial and validation notes](#18-editorial-and-validation-notes)
+16. [Core Java language, object model, and API contracts](#16-core-java-language-object-model-and-api-contracts)
+19. [Last-minute revision](#19-last-minute-revision)
+20. [Official references](#20-official-references)
+21. [Editorial and validation notes](#21-editorial-and-validation-notes)
 
 ---
 
@@ -1408,7 +1409,138 @@ Java 25 includes performance and runtime improvements such as compact object hea
 
 Among the language-facing finalized features are module import declarations, compact source files and instance main methods, and flexible constructor bodies. Scoped values and the Key Derivation Function API are also final. Primitive types in patterns/instanceof/switch remained a preview feature in Java 25; structured concurrency was still preview and the Vector API remained incubating. Check the official release documentation for the full feature and status list.
 
-## 16. Last-minute revision
+
+## 16. Core Java language, object model, and API contracts
+
+### Q209. What is the difference between a primitive and a reference type?
+
+Primitive variables hold values from primitive types such as int, boolean, and double. Reference variables hold references to objects or null. Primitives do not have object identity or instance methods, while reference values participate in object-oriented behavior and can be null. Wrapper types bridge primitive values and APIs that require objects, such as generic collections.
+
+### Q210. What is numeric promotion in Java?
+
+In arithmetic expressions, smaller integral types are commonly promoted to int, and mixed numeric operands are promoted according to Java's binary numeric promotion rules. This is why adding two byte values produces an int expression and assigning it directly to a byte requires a cast. Be careful with overflow: integer overflow does not automatically throw an exception.
+
+### Q211. What is the difference between widening and narrowing conversions?
+
+Widening conversions generally move to a type with a broader range or precision, such as int to long, and are often implicit. Narrowing conversions can lose information, such as long to int or double to int, and usually require an explicit cast. An explicit cast does not guarantee the value fits; validate ranges when data loss is unacceptable.
+
+### Q212. What is the difference between final, finally, and finalize?
+
+final restricts reassignment, overriding, or inheritance depending on where it is applied. finally is a control-flow block commonly used for cleanup. finalize was an object cleanup mechanism that is deprecated and should not be relied on; it is unpredictable and unsuitable for resource management. Use try-with-resources for closeable resources.
+
+### Q213. What does static mean for fields, methods, and nested classes?
+
+A static field belongs to the class rather than each instance, and a static method is invoked with class-level context rather than an implicit this reference. A static nested class does not require an enclosing instance. Static members can be useful for constants and stateless utilities, but mutable global static state complicates testing, concurrency, and lifecycle management.
+
+### Q214. Can a static method be overridden?
+
+No. Static methods are hidden rather than overridden. The method selected depends on the compile-time type used to refer to the class, whereas overridden instance methods use dynamic dispatch based on the runtime object. This distinction matters in output questions and is a reason not to model polymorphic behavior with static methods.
+
+### Q215. What is the difference between this and super?
+
+this refers to the current instance and can invoke another constructor in the same class. super accesses superclass members or invokes a superclass constructor. A constructor delegation call using this(...) or super(...) has placement rules; modern Java has relaxed some constructor-body restrictions, but code must still follow the target release's rules.
+
+### Q216. Why are constructors not inherited or overridden?
+
+A constructor initializes an instance of the class in which it is declared; it is not an ordinary inherited method. A subclass constructor must arrange for superclass initialization, directly or through another constructor. Constructors can be overloaded, but not overridden, because constructor selection occurs as part of object creation rather than virtual method dispatch.
+
+### Q217. What is covariant return typing?
+
+An overriding method may return a subtype of the return type declared by the overridden method. This allows an override to return a more specific result without forcing callers to cast. Parameter types do not work the same way: changing parameter types creates an overload rather than a valid override.
+
+### Q218. What is the difference between an abstract class and an interface in modern Java?
+
+An abstract class can hold instance state, constructors, and a mix of abstract and concrete methods. An interface defines a type contract and can include abstract, default, static, and private methods, but it does not provide ordinary per-instance fields. Use an interface for capabilities and interchangeable implementations; use an abstract class when shared state or protected implementation is genuinely part of the design.
+
+### Q219. What are default-method conflicts in interfaces?
+
+If unrelated interfaces provide conflicting default implementations, a class may need to override the method and resolve the conflict explicitly. A class implementation takes precedence over an interface default, and a more specific interface can take precedence over a less specific one. Default methods support interface evolution but should not be used to hide ambiguous domain design.
+
+### Q220. What are the rules for equals() symmetry and transitivity?
+
+Equality must be reflexive, symmetric, transitive, consistent, and false for null. A common mistake is implementing equality in a superclass and then extending it with extra equality fields in a subclass, which can violate symmetry. Prefer well-defined value types and avoid inheritance structures that make equality semantics ambiguous.
+
+### Q221. Why should hashCode use the same logical fields as equals?
+
+If two objects are equal according to equals, they must return the same hash code. Hash collisions are allowed, so unequal objects can share a hash code. When equality-relevant fields change while an object is a map key, lookup can fail. Base both methods on stable identity fields and test them together.
+
+### Q222. What is the difference between shallow copy and deep copy?
+
+A shallow copy duplicates the outer object but may retain references to the same nested mutable objects. A deep copy duplicates the relevant nested state as well. Deep copying can be expensive and is domain-dependent; defensive copying of exposed mutable state is often a better targeted solution than indiscriminately copying an entire object graph.
+
+### Q223. What is defensive copying, and where is it needed?
+
+Defensive copying prevents callers from mutating internal state through references they supplied or received. Copy mutable constructor arguments before storing them and return a copy or unmodifiable representation when exposing mutable internal collections. An unmodifiable wrapper alone is not a snapshot if another reference can still mutate the backing collection.
+
+### Q224. Why are enums often better than string constants?
+
+Enums provide a closed set of typed values, can hold methods and fields, and work naturally with switch statements and collections. They reduce invalid values caused by typos and make the domain explicit. Do not persist enum ordinal values as a durable external contract because declaration order can change; use stable names or explicit codes when needed.
+
+### Q225. What is the difference between == and equals for arrays?
+
+Array equality with == compares whether both references point to the same array object. Arrays.equals compares elements for one-dimensional arrays, and Arrays.deepEquals supports nested arrays. Arrays also inherit Object's equals implementation, so two arrays with identical contents are not equal by default under ordinary equals calls.
+
+### Q226. What are common pitfalls with BigDecimal?
+
+Constructing BigDecimal from a double captures the double's binary approximation; use a string or an appropriate exact constructor when decimal intent matters. equals considers both numerical value and scale, while compareTo compares numerical magnitude. Choose a consistent representation and rounding policy, particularly for monetary calculations.
+
+### Q227. What is the difference between checked exceptions and unchecked exceptions in API design?
+
+Checked exceptions require callers to catch or declare them, making recoverable failure possibilities visible in a method signature. Unchecked exceptions are often used for programming errors or failures that callers cannot reasonably recover from locally. Choose based on the abstraction's contract, preserve causes when wrapping, and avoid catching exceptions only to log and rethrow unchanged.
+
+### Q228. Can a catch block catch an exception thrown by another catch block?
+
+No. A catch block handles exceptions from the associated try block; an exception thrown while executing a catch block is not handled by a sibling catch clause. It propagates outward unless another enclosing handler catches it. This is useful to remember when writing exception output questions and nested error-handling logic.
+
+### Q229. What is multi-catch, and what restrictions apply?
+
+Multi-catch allows one catch block to handle several unrelated exception types using a pipe-separated declaration. The alternatives cannot be related by subclassing, because one would be redundant. The multi-catch parameter is effectively final, which prevents reassignment and keeps the declared union type safe.
+
+### Q230. What is the difference between throw and throws?
+
+throw actually raises an exception object at a point in execution. throws declares exception types that a method may propagate as part of its signature. A declaration does not itself throw anything; it describes the method contract and affects compile-time checking for checked exceptions.
+
+### Q231. What is type erasure, and what limitations does it create?
+
+Java generics are largely implemented by erasing type parameters during compilation and inserting casts or bridge methods where required. This supports compatibility with older bytecode, but means some runtime operations cannot distinguish parameterized types such as List<String> and List<Integer>. It also explains restrictions such as generic array creation and many parameterized instanceof checks.
+
+### Q232. What are bridge methods?
+
+The compiler can generate synthetic bridge methods to preserve polymorphism after type erasure or covariant return changes. They help ensure that overriding behavior remains correct when generic source-level signatures erase to compatible JVM-level signatures. They are generally invisible in normal source code but may appear in reflection or bytecode inspection.
+
+### Q233. What is the difference between extends and super wildcards?
+
+Use ? extends T when a generic structure produces values of type T or a subtype and you primarily need to read them. Use ? super T when it consumes values of type T and you need to write them. The PECS mnemonic—Producer Extends, Consumer Super—is a useful starting point, but the actual API contract determines the correct type.
+
+### Q234. Why are generics invariant when arrays are covariant?
+
+A List<Integer> is not a subtype of List<Number>, because otherwise code could insert a Double into a list intended to contain Integer values. Arrays allow covariance but enforce component types at runtime, which can produce ArrayStoreException. Generic invariance catches unsafe assignments at compile time; wildcards express safe producer or consumer relationships.
+
+### Q235. What are raw types, and why should they be avoided?
+
+A raw type uses a generic class without its type argument, such as List rather than List<String>. It bypasses generic type checking and can introduce values that fail later with ClassCastException. Use parameterized types throughout modern code and isolate any unavoidable raw-type interaction behind a narrow, documented boundary.
+
+### Q236. What is the difference between a generic method and a generic class?
+
+A generic class declares type parameters that apply to its instance or class-level API. A generic method declares its own type parameters for one method invocation, even if its enclosing class is not generic. Use the narrowest type parameter scope that expresses the relationship between the method's inputs and outputs.
+
+### Q237. What is an annotation's retention policy?
+
+SOURCE retention means the annotation is discarded by the compiler, CLASS retention keeps it in the class file but does not require runtime reflection visibility, and RUNTIME retention makes it available to runtime reflection. Frameworks that inspect annotations at runtime need appropriate retention. Annotation metadata alone does not trigger behavior; a compiler, processor, or runtime component must interpret it.
+
+### Q238. What is the difference between reflection and annotation processing?
+
+Reflection inspects runtime classes and members while the program is running. Annotation processing operates during compilation and can inspect source-level declarations and generate source or resources. Compile-time processing can catch or generate things earlier, while reflection supports runtime discovery but adds runtime complexity and access constraints.
+
+### Q239. What is a dynamic proxy, and where is it used?
+
+A dynamic proxy can create an object that implements specified interfaces and forwards method calls to an invocation handler. Frameworks use proxies for cross-cutting behavior such as transactions, security, and interception. Proxy-based mechanisms have limitations around concrete classes, final methods, self-invocation, and method visibility depending on the proxy technology.
+
+### Q240. What is the difference between a checked exception and an Error?
+
+Exceptions generally represent conditions application code may handle or propagate. Error represents serious problems associated with the runtime or environment, such as linkage failures or resource exhaustion, and application code usually should not attempt to recover from arbitrary Errors. Cleanup in finally or try-with-resources still matters during abrupt termination, but do not swallow fatal conditions indiscriminately.
+
+## 19. Last-minute revision
 
 If only a short time remains, prioritize these questions and make sure the explanations are clear enough to say aloud:
 
@@ -1433,7 +1565,7 @@ If only a short time remains, prioritize these questions and make sure the expla
 
 ---
 
-## 17. Official references
+## 20. Official references
 
 Use official specifications and API documentation as the final authority for language and runtime contracts. Secondary interview guides are useful for discovering recurring themes, not for proving technical behavior or guaranteeing company-specific frequency.
 
@@ -1454,7 +1586,7 @@ Use official specifications and API documentation as the final authority for lan
 
 ---
 
-## 18. Editorial and validation notes
+## 21. Editorial and validation notes
 
 - This is the **curated primary interview guide**, not a claim that every advanced Java API can be covered in 54 questions.
 - It deliberately favors common concepts and senior-level reasoning over obscure trivia and repetitive question variants.
