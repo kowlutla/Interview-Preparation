@@ -3,62 +3,84 @@
 ## Q1. How does @Transactional interact with JPA?
 **Must Know**
 
-Spring transaction interception starts or joins a transaction and Spring's JPA integration associates a persistence context with it. Only entities loaded or persisted in that context are managed. Proxy-based interception can be bypassed by self-invocation. By default, Spring rolls back for unchecked exceptions and Errors, not every checked exception.
+In a typical Spring application, `@Transactional` tells Spring's transaction infrastructure to start or join a transaction around the method. Spring's JPA integration coordinates the EntityManager so persistence operations participate in that transaction. Managed changes are synchronized when the context flushes, and the transaction manager commits or rolls back the database transaction.
 
-## Q2. Optimistic versus pessimistic locking?
+I check how the method is invoked, because proxy-based transaction advice can be bypassed by self-invocation. I also remember that Spring's default rollback rules generally apply to unchecked exceptions and Errors, not every checked exception.
+
+## Q2. What is the difference between optimistic and pessimistic locking?
 **Must Know**
 
-Optimistic locking detects conflicting writes, often through a version column, and suits relatively low contention. Pessimistic locking asks the database to lock rows and can block or deadlock. Choose based on contention, transaction duration, database behavior, and retry requirements.
+I choose optimistic locking when conflicts are expected to be relatively rare. The application reads a row and later checks whether it has changed before writing. Pessimistic locking asks the database to lock the row or rows so conflicting work may have to wait.
+
+Optimistic locking avoids holding database locks for the entire business operation, but callers need a conflict strategy. Pessimistic locking can be useful under high contention, but it can increase blocking and deadlock risk. The right choice depends on the invariant, contention, transaction length, and database behavior.
 
 ## Q3. How does @Version prevent lost updates?
 **Must Know**
 
-The update checks the version observed when the entity was read and increments it on success. If another transaction updated the row first, the update affects no matching version and the provider raises an optimistic-lock failure. Retry only if the operation is safe to repeat and business rules still hold.
+With a versioned entity, Hibernate includes the version value it read in the update condition and increments the version when the update succeeds. If another transaction has already changed that row, the stored version no longer matches. Hibernate detects that the update did not affect the expected row and raises an optimistic-lock exception.
+
+For example, two users may open the same account settings page. If one saves first, the second user's stale version should not silently overwrite the first user's changes. I then decide whether the application should retry after reloading, ask the user to reconcile, or use a different update model.
 
 ## Q4. What is a lost update?
 **High Value**
 
-Two transactions read the same value and both write replacements; the later write can overwrite the earlier one. Use versioned locking, suitable database locks, atomic SQL updates, or redesign the invariant. Reproduce with concurrent tests, as sequential unit tests often miss it.
+A lost update happens when two transactions read the same starting value, calculate new values independently, and then overwrite one another. The later write can erase the earlier change even though both requests appeared successful.
+
+I prevent it using version-based optimistic locking, suitable pessimistic locking, an atomic database update, or a domain model that avoids the read-modify-write race. I choose based on the business invariant and test with genuinely concurrent transactions.
 
 ## Q5. Does flush commit a transaction?
 **Must Know**
 
-No. Flush executes pending SQL within the current transaction. Commit completes it; rollback can undo flushed changes. Flush can surface constraint or lock errors early.
+No. Flush sends pending SQL to the database within the current transaction. Commit completes the transaction, while rollback can undo the flushed changes. Flush is useful because it can reveal constraint violations or locking problems earlier, but it does not make the operation durable on its own.
 
-## Q6. What do isolation levels mean for JPA applications?
+## Q6. How do isolation levels affect JPA applications?
 **High Value**
 
-The database primarily enforces isolation, and exact anomaly behavior varies by engine. READ COMMITTED, REPEATABLE READ, and SERIALIZABLE are not identical across all databases. Test the actual invariant and use constraints/locking where correctness requires it.
+JPA applications inherit most isolation behavior from the database transaction. READ COMMITTED, REPEATABLE READ, and SERIALIZABLE can prevent different anomalies, and their precise behavior varies between database engines.
 
-## Q7. What does Spring Data JPA @Lock do?
+I don't assume that selecting an isolation name makes every database behave identically. I identify the business invariant, understand the actual database semantics, and use constraints or locking when correctness depends on preventing a specific race.
+
+## Q7. What does @Lock in Spring Data JPA do?
 **High Value**
 
-It declares a JPA lock mode for a repository query. Lock duration, blocking, and supported modes depend on provider and database. Use it within a suitable transaction and inspect real lock behavior.
+I can annotate a repository query with `@Lock` to request a JPA lock mode, such as a pessimistic write lock where supported. The annotation expresses the request; it doesn't guarantee identical blocking behavior on every database. The transaction boundary, provider, dialect, and database all matter.
 
-## Q8. Why can a transaction become rollback-only?
+For a concurrency issue, I verify the SQL and lock behavior on the actual database rather than relying only on the annotation in the code.
+
+## Q8. Why can a transaction be rollback-only after an exception was caught?
 **High Value**
 
-A persistence or runtime failure may mark the transaction rollback-only. Catching the exception does not necessarily restore commit eligibility, so the outer method can later get an unexpected rollback. Roll back and isolate independent work in a new transaction when that is the intended semantic.
+Catching an exception doesn't necessarily make a transaction healthy again. A persistence failure or participating transactional method may already have marked the transaction rollback-only. If the outer method continues and tries to commit, Spring can report an unexpected rollback.
 
-## Q9. What are risks of bulk JPQL updates/deletes?
+I don't continue writing in a transaction after a serious persistence failure. I let it roll back and, if the work is genuinely independent, run that work in a separately designed transaction.
+
+## Q9. What are the risks of bulk JPQL updates and deletes?
 **Must Know**
 
-Bulk operations act directly on database rows and bypass normal per-entity dirty checking and lifecycle callbacks. Managed entities can become stale. Flush pending changes when needed, execute the operation, then clear or refresh affected state deliberately.
+Bulk JPQL operations update database rows directly; they don't update every already-managed entity through normal dirty checking or lifecycle callbacks. That means the persistence context can contain stale values after the query.
 
-## Q10. How do long transactions hurt performance?
+I flush pending changes first when required, execute the bulk operation, and then clear or refresh affected entities when subsequent code needs current state. I also consider cache invalidation and transaction semantics. Bulk operations are efficient, but their behavior is different from changing entities one by one.
+
+## Q10. How can long transactions hurt performance?
 **High Value**
 
-They can hold connections and locks, increase contention, retain managed entities, and extend conflict windows. Avoid remote calls and lengthy computation inside a database transaction. Use transaction boundaries around the atomic database unit of work.
+Long transactions can hold connections and locks, increase contention, keep many entities managed, and extend the period in which concurrent updates can conflict. They become especially problematic when the code performs remote calls or lengthy calculations while the transaction is open.
 
-## Q11. Should an optimistic-lock exception always be retried?
+I keep the transaction around the database work that needs to be atomic. External side effects may need an outbox or another explicit coordination pattern rather than simply extending the database transaction across network calls.
+
+## Q11. Should every optimistic-lock exception be retried?
 **Advanced**
 
-No. Retrying can repeat non-idempotent side effects or collide again. Reload current state, re-evaluate business rules, and use bounded retries only when safe. For user-edited data, returning a conflict may be correct; atomic SQL may suit commutative updates.
+No. A retry is only useful if repeating the operation is safe and the business rules still hold after reloading current state. A retry that blindly repeats a payment or another non-idempotent side effect can create a more serious bug.
+
+For some operations, a bounded retry is reasonable. For user-edited records, returning a conflict may be the correct behavior. For simple increments, an atomic database update may be more appropriate than loading and rewriting the whole entity.
 
 ## Q12. How does transaction propagation affect persistence?
 **High Value**
 
-REQUIRED commonly joins or creates a transaction. REQUIRES_NEW suspends the outer transaction and uses an independent transaction that can commit even if the outer one later rolls back. Use it only when that behavior is intentional. Proxy interception and transaction-manager configuration matter.
+Propagation determines whether a method joins an existing transaction or uses a different one. REQUIRED commonly joins the current transaction or creates one if needed. REQUIRES_NEW suspends the outer transaction and creates an independent transaction, so its changes can commit even if the outer operation later rolls back.
+
+I use REQUIRES_NEW only when that independence is intentional. Otherwise, it can leave partial business outcomes that callers did not expect. Proxy interception and the configured transaction manager also affect the actual behavior.
 
 ## Official references
 - [Spring transaction management](https://docs.spring.io/spring-framework/reference/data-access/transaction.html)
