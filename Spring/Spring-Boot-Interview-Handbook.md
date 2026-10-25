@@ -1126,3 +1126,360 @@ An application event is an in-process communication mechanism within an applicat
 - [Spring for Apache Kafka](https://docs.spring.io/spring-kafka/reference/)
 
 ---
+
+## Spring Cloud and Microservices Integration
+
+
+### Q226. What is Spring Cloud responsible for?
+
+Spring Cloud provides integrations and abstractions for common distributed-system concerns such as configuration, service discovery, client-side load balancing, gateways, and resilience. Spring Framework provides core application infrastructure and Boot simplifies configuration and packaging; Cloud components have their own compatibility and maintenance considerations.
+
+### Q227. Why must Spring Cloud and Boot versions be compatible?
+
+Cloud release trains are tested against specific Boot generations and managed dependency combinations. Arbitrarily mixing versions can cause linkage errors, missing classes, or subtle runtime failures. Use the official compatibility guidance and its dependency-management BOM.
+
+### Q228. What is the role of an API gateway?
+
+A gateway provides a controlled edge for routing and cross-cutting policies such as authentication integration, rate limiting, and request transformation. It should not become the only place business authorization exists, and its failure characteristics and bypass paths must be considered.
+
+### Q229. How should timeouts, retries, and circuit breakers work together?
+
+Timeouts bound individual waits, retries attempt recovery from selected transient failures, and circuit breakers limit repeated calls to an unhealthy dependency. Poorly aligned policies can multiply latency and load. Budget the full call chain, avoid retry storms, and define fallback behavior that remains correct.
+
+### Q230. What is service discovery?
+
+Service discovery resolves logical service identities to available instances through a registry or platform mechanism. It introduces freshness, health, and propagation considerations. In orchestrated environments, platform-native DNS and service abstractions may be sufficient; do not add a registry without a need.
+
+### Q231. How should distributed tracing be propagated?
+
+Use supported Micrometer Tracing/OpenTelemetry instrumentation and propagate standard trace context across HTTP and messaging boundaries. Avoid manually inventing incompatible headers or logging full sensitive baggage. Keep trace/request identifiers out of high-cardinality metric labels; put them in traces or structured logs instead. Validate an end-to-end trace through asynchronous processing and verify context propagation across executor, broker, and consumer boundaries.
+
+### Q232. What does a load balancer not solve?
+
+It does not make a slow or failing service healthy, guarantee session consistency, or remove the need for timeouts and retries. Health checks, balancing algorithm, connection reuse, request distribution, and overload behavior all affect outcomes.
+
+### Q233. What is the difference between a retry and a circuit breaker?
+
+A retry repeats a selected operation after a failure; a circuit breaker suppresses calls when recent outcomes indicate a dependency is unhealthy. Retries can amplify load, while a breaker can reject calls that might have succeeded. Configure both around an explicit deadline and operation semantics.
+
+### Q234. Why can timeout values not be selected independently per service?
+
+A request may traverse a gateway and several nested services, so each hop's processing, connection wait, and retry budget must fit within the caller's remaining deadline. Independently generous timeouts can make end-to-end latency unpredictable and keep upstream threads occupied after the caller has given up. Propagate deadlines where supported, reserve time for response handling, and avoid retries that can outlive the original request's useful lifetime.
+
+### Q235. What is a service mesh's relationship to Spring Cloud?
+
+A service mesh can provide infrastructure-level traffic, identity, and telemetry policies, while Spring Cloud provides application-library integrations. They may overlap; avoid implementing the same retry/security policy at multiple layers without understanding precedence and compounded behavior.
+
+### Q236. How should service discovery and readiness interact?
+
+Discovery should ideally expose instances that are eligible to receive traffic, but propagation and caching mean stale instances can still be observed. Clients need bounded timeouts and failure handling even when health registration is configured correctly.
+
+### Q237. How do you avoid duplicate resilience policies across gateway and service clients?
+
+Assign clear ownership for connection/response timeouts, retries, and rate limits at each hop. A gateway may protect ingress while a service client handles a narrowly defined transient failure, but their combined budgets must be documented. Nested retries multiply attempts and can amplify an outage; use bounded retries with backoff/jitter and test the full call path under latency, throttling, and dependency failure.
+
+### Official references
+- [Spring Cloud project and compatibility](https://spring.io/projects/spring-cloud)
+- [Spring Cloud release-train reference documentation](https://spring.io/projects/spring-cloud#overview)
+
+---
+
+## Deployment and Production Readiness
+
+
+### Q238. What should a production-ready Spring Boot service include?
+
+At minimum, it needs secure external configuration, bounded resource pools, meaningful readiness/liveness semantics, timeouts for remote dependencies, observable errors and latency, graceful shutdown, tested data migrations, and a rollback strategy. Exact requirements depend on the service's risk and workload.
+
+### Q239. How should a deployment drain requests and background work before termination?
+
+Coordinate readiness removal, server graceful shutdown, consumer pause/stop, in-flight request deadlines, and the platform termination grace period. Consumers should acknowledge only after their work is safely committed, and durable jobs need checkpoints or retries if the process is terminated. Test the full sequence under load; a server's graceful-shutdown setting alone does not protect every background task.
+
+### Q240. How should database pool size be selected?
+
+Estimate concurrent database demand and compare it with database connection limits and query duration. More connections can increase contention and overwhelm the database. Monitor active, idle, pending, acquisition latency, and query timings, then load-test realistic concurrency.
+
+### Q241. Why should container memory limits include more than heap?
+
+The process uses native memory for thread stacks, metaspace, direct buffers, libraries, and other runtime structures in addition to Java heap. Set JVM/container sizing based on measurements and leave headroom for non-heap usage; a heap below the container limit does not guarantee the process will avoid an OOM kill.
+
+### Q242. How should a service handle a dependency outage?
+
+Bound waits with timeouts, limit retries, use circuit breaking when appropriate, shed or queue work within explicit bounds, and return a meaningful failure or degraded response. Decide which functions can operate without the dependency and how recovery is detected.
+
+### Q243. What should be checked before a rolling deployment?
+
+Verify readiness semantics, backward-compatible API and schema changes, graceful termination, consumer rebalance behavior, startup time, and capacity while old and new replicas coexist. Use expand-and-contract database migrations when multiple versions may run simultaneously.
+
+### Official references
+- [Spring Boot production-ready features](https://docs.spring.io/spring-boot/reference/actuator/)
+- [Spring Boot container images](https://docs.spring.io/spring-boot/reference/packaging/container-images/)
+
+---
+
+## Performance and Troubleshooting
+
+
+### Q244. How do you investigate a slow Spring REST endpoint?
+
+Break latency into server queueing, application processing, database calls, serialization, and downstream HTTP calls. Use request metrics, traces, SQL timings, thread dumps, and load tests. Avoid attributing the issue to Spring before identifying where time is spent.
+
+### Q245. What does a thread dump reveal?
+
+It shows thread states and stack traces at a point in time, helping identify blocked threads, lock contention, deadlocks, saturated workers, and blocking calls on reactive event loops. Capture multiple dumps when useful to distinguish persistent blocking from transient activity.
+
+### Q246. How do you diagnose connection pool exhaustion?
+
+Correlate active/pending connection metrics with transaction duration, slow queries, request concurrency, and thread stacks. Check for connections held while doing remote calls or waiting on locks. Increasing the pool without checking database capacity may make the incident worse.
+
+### Q247. How should memory growth be investigated?
+
+Compare heap usage after garbage collection, allocation rate, object histograms, heap dumps, and container/native memory metrics. Look for retained collections, unbounded caches or queues, listener registrations, and thread-local/context leaks. A high heap before GC alone does not prove a leak.
+
+### Q248. What causes excessive Spring application startup time?
+
+Expensive bean initialization, broad classpath scanning, remote calls during startup, migrations, large dependency graphs, and eager singleton creation can contribute. Measure before optimizing, and verify that lazy initialization does not simply move failures and latency into production requests.
+
+### Q249. How do you distinguish JVM, database, framework, and downstream bottlenecks?
+
+Combine evidence: CPU and GC metrics, thread states, pool wait times, query plans, trace spans, and application timings. A framework stack frame in a trace does not prove the framework is the root cause; it may be waiting on the database or a remote service.
+
+### Q250. What is a safe performance optimization process?
+
+Establish a representative baseline, define a measurable target, change one major factor at a time, and compare throughput, latency percentiles, errors, resource use, and correctness. Keep a rollback path and avoid tuning based on a single local microbenchmark when production behavior is dominated by I/O or contention.
+
+### Official references
+- [Spring Boot Actuator metrics](https://docs.spring.io/spring-boot/reference/actuator/metrics.html)
+- [Java Flight Recorder command-line tool (JDK 21)](https://docs.oracle.com/en/java/javase/21/docs/specs/man/jfr.html)
+
+---
+
+## Spring Internals and Advanced Topics
+
+
+### Q251. What is a BeanDefinition?
+
+A BeanDefinition is container metadata describing how a bean should be created and configured, including its class or factory method, scope, dependencies, and other settings. Component scanning and configuration processing register definitions before regular singleton instantiation. Inspecting definitions helps diagnose missing or unexpectedly configured beans.
+
+### Q252. Why does Spring use bean post-processors?
+
+Bean post-processors provide lifecycle extension points for inspecting or wrapping bean instances. Auto-proxy creators use this infrastructure to apply aspects such as transactions or caching. Infrastructure ordering matters; a bean created too early may miss processing that would normally apply.
+
+### Q253. Why might an MVC interceptor not run even though a servlet filter logs the request?
+
+A filter can run before MVC selects a handler, while an interceptor runs only after a handler has been mapped. The request may be short-circuited by a security filter, fail handler mapping, target a static/resource path, or use a different dispatcher path. Inspect filter-chain order, the selected HandlerMapping, and response status before assuming the interceptor registration is broken.
+
+### Q254. Why can final methods complicate proxying?
+
+Subclass-based proxies cannot override final methods, and final classes cannot be subclass-proxied. Interface-based proxies have different constraints but only intercept calls made through the proxy contract. Verify the proxy type and method visibility when advice unexpectedly does not execute.
+
+### Q255. What is an ApplicationContext hierarchy?
+
+A context can have a parent context, allowing some bean lookups to fall back to parent definitions while child contexts define their own beans. This is useful in certain web or modular arrangements but can complicate visibility and duplicate definitions. Use it only when the isolation and inheritance model is understood.
+
+### Q256. How should custom composed annotations be designed?
+
+Composed annotations combine existing annotations and may provide aliases or defaults to express a domain convention. Keep their semantics narrow, document meta-annotation behavior, and test that component scanning or interception recognizes them. Avoid building opaque annotation frameworks that obscure the actual configuration.
+
+### Q257. How do classpath problems surface in Spring applications?
+
+Missing or incompatible dependencies can cause class-not-found, method-not-found, linkage, or auto-configuration condition failures. Inspect the resolved dependency graph, managed BOM versions, and the first meaningful cause in the stack trace. Avoid fixing a binary incompatibility by randomly upgrading one transitive library.
+
+### Official references
+- [Spring Core container](https://docs.spring.io/spring-framework/reference/core/beans.html)
+- [Spring AOP proxying](https://docs.spring.io/spring-framework/reference/core/aop/proxying.html)
+
+---
+
+## Spring Version Evolution and Migration
+
+
+### Q258. What is the major Jakarta migration concern in Spring 6 and Boot 3?
+
+The ecosystem moved from Java EE-era javax.* APIs to Jakarta EE jakarta.* APIs for specifications that changed namespace. Application source, servlet containers, validation providers, and third-party libraries must align. Not every javax.* package moved; Java SE packages such as javax.sql remain.
+
+### Q259. What are the important Spring Framework 7 and Boot 4 baselines?
+
+Framework 7 retains a Java 17 baseline and adopts Jakarta EE 11 APIs, including Servlet 6.1, JPA 3.2, and Bean Validation 3.1. Boot 4 requires Java 17 or later and Framework 7.x. The exact Boot patch may require a specific Framework patch, so consult its system-requirements page.
+
+### Q260. What changed for HTTP clients in Framework 7?
+
+Framework 7 deprecates RestTemplate in favor of RestClient. RestClient was introduced in Framework 6.1. For reactive non-blocking and streaming use cases, WebClient remains relevant. Follow the official migration guidance and check custom request factories, interceptors, converters, and error handling.
+
+### Q261. Why is a major Boot upgrade more than a dependency version change?
+
+Major upgrades may change Java baselines, managed dependency versions, configuration properties, removed APIs, servlet/Jakarta integration, security defaults, and observability behavior. Read migration guides and release notes, resolve compatibility first, and run tests against production-like infrastructure.
+
+### Q262. How should Spring Cloud compatibility be managed?
+
+Use the official compatibility guidance and corresponding BOM rather than independently pinning arbitrary Cloud components. The current official matrix maps Spring Cloud 2025.1.x to Boot 4.0.x and, starting with 2025.1.2, Boot 4.1.x; Spring Cloud 2025.0.x maps to Boot 3.5.x. Verify the matrix again before upgrading.
+
+### Q263. How do you plan a safe migration?
+
+Inventory runtime and dependencies, identify deprecated APIs, update one major boundary at a time where practical, compile and run focused tests, validate configuration and startup conditions, and exercise security, persistence, and downstream calls. Roll out progressively with metrics and a rollback plan.
+
+### Q264. How should deprecated APIs be handled?
+
+Determine the replacement, migration constraints, and reason for deprecation from the official documentation for the project's exact version. Check whether the API is deprecated for removal, whether behavior changes accompany the replacement, and whether third-party integrations depend on it. Avoid copying legacy examples into new code without labeling the version context. Track deprecations during routine upgrades so a future major-version migration is planned rather than rushed.
+
+### Q265. What is the role of a BOM?
+
+A Bill of Materials centralizes compatible dependency versions so related libraries are aligned. Boot's dependency management reduces manual version selection. Overriding managed dependencies can be necessary, but should be evidence-based and tested for binary compatibility.
+
+### Q266. What are notable Spring Framework 7 additions worth checking during migration?
+
+Framework 7 introduces new capabilities including programmatic bean registration, core resilience features, API versioning support, HTTP Service Client configuration improvements, and RestTestClient. Availability and exact APIs should be verified against the 7.0 reference and the Boot line managing it; do not backport assumptions to Framework 6.x.
+
+### Q267. Which dependency compatibility checks are most important during the Jakarta namespace migration?
+
+Do not perform a blind global replacement of `javax.` with `jakarta.`. Identify which imports belong to specifications that actually changed namespace, then align the servlet container, persistence provider, Bean Validation implementation, and third-party libraries to the target Jakarta EE generation. Keep Java SE packages such as `javax.sql` unchanged, inspect transitive dependencies for old APIs, and use compile errors plus targeted integration tests to find remaining incompatibilities.
+
+### Q268. Why should API versioning support be treated as a contract design choice?
+
+Framework-level versioning mechanisms can help route or negotiate API versions, but they do not decide compatibility policy, deprecation windows, or client migration. Define the contract and test how versions are selected before adopting the mechanism.
+
+### Q269. What should be checked when moving tests to newer Spring test APIs?
+
+Framework and Boot lines may introduce or deprecate test utilities, mock-bean annotations, and client test support. Verify the exact API and dependency baseline, then test context wiring and the actual request/response path rather than only updating imports.
+
+### Q270. How should you treat Spring Framework 7.1 prerelease documentation?
+
+As of 2026-10-24, the official release list identifies Framework 7.0.10 as the latest stable 7.0 release and Framework 7.1.0-RC1 as a prerelease. Prerelease notes can help plan compatibility work, but changes in prerelease documentation must not be presented as released stable behavior. For example, the 7.1 prerelease notes flag changes to forwarded-header filter/transformer constructors; proxy deployments should explicitly review which forwarded-header family they trust. Re-check the official release list and the exact target version's migration guide before upgrading.
+
+### Official references
+- [Spring Framework versions and support](https://github.com/spring-projects/spring-framework/wiki/Spring-Framework-Versions)
+- [Spring Framework 7.0 release notes](https://github.com/spring-projects/spring-framework/wiki/Spring-Framework-7.0-Release-Notes)
+- [Spring Framework 7.1 prerelease notes](https://github.com/spring-projects/spring-framework/wiki/Spring-Framework-7.1-Release-Notes)
+- [Spring Framework releases](https://github.com/spring-projects/spring-framework/releases)
+- [Spring Boot 4.0 system requirements](https://docs.spring.io/spring-boot/4.0/system-requirements.html)
+- [Spring Boot current system requirements](https://docs.spring.io/spring-boot/system-requirements.html)
+- [Spring Boot 4.0 migration guide](https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide)
+- [Spring Cloud compatibility](https://spring.io/projects/spring-cloud)
+- [Spring REST clients](https://docs.spring.io/spring-framework/reference/integration/rest-clients.html)
+
+---
+
+## Advanced Spring Ecosystem and Specialized Modules
+
+This chapter supplements the core Spring Framework + Spring Boot handbook with ecosystem areas that commonly appear in senior backend roles. It is intentionally separate from the core chapters because these modules are opt-in and have their own operational models.
+
+### Q271. When should you choose Spring Batch instead of a scheduled service that loops over records?
+
+Spring Batch is designed for restartable, stateful batch workloads with explicit job/step boundaries, chunk processing, checkpoints, skip/retry policies, and execution metadata. A simple scheduled service can be appropriate for a small bounded task, but it must otherwise recreate those concerns itself. Choose based on recovery, scale, auditability, and operational requirements rather than on record count alone.
+
+A typical chunk-oriented step reads a bounded chunk, processes each item, and writes the chunk within a transaction boundary supported by the configured transaction manager. If a process fails, persisted execution state can support restart from a checkpoint when the reader/writer and job parameters are designed for restartability.
+
+### Q272. What is the difference between a Spring Batch job, step, tasklet, and chunk-oriented step?
+
+A job is the overall batch workflow; a step is a unit within that workflow. A tasklet step runs a tasklet repeatedly until it signals completion, which suits operations such as cleanup or a controlled one-off task. A chunk-oriented step reads items, optionally processes them, and writes a chunk, which suits record pipelines. Chunk size affects transaction frequency, memory, throughput, and recovery granularity.
+
+### Q273. How do you make a batch job restartable and safe to rerun?
+
+Use stable identifying job parameters, durable job-repository metadata, restart-aware readers/writers, and explicit policies for what happens when a job is launched again. Avoid treating a random run identifier as a business idempotency key. Make external side effects idempotent or record them durably; a database checkpoint alone cannot atomically commit an email, HTTP call, or message publish with the database transaction.
+
+### Q274. What problem does Spring Modulith solve in a modular monolith?
+
+Spring Modulith helps structure and verify module boundaries inside one deployable application. It supports expressing application modules, checking dependencies, documenting module structure, and testing module behavior. It does not automatically turn modules into separately deployable services; the runtime, database, and deployment may remain shared.
+
+A modular monolith can reduce distributed-systems overhead while preserving explicit boundaries. Module boundaries should reflect domain capabilities, not merely package names or technical layers.
+
+### Q275. How should modules communicate in a modular monolith?
+
+Prefer an explicit module API over direct access to another module's internal implementation. Application events can decouple the initiating module from interested listeners, but event semantics must be clear: synchronous in-process events are not a durable message broker and can still participate in the caller's failure path. If an event must survive process failure or coordinate with an external broker, design durable publication, often using an outbox or another persistence-backed mechanism.
+
+### Q276. When is Spring for GraphQL a better fit than REST?
+
+GraphQL can fit client-driven data requirements where clients need different combinations of related fields and a typed schema is valuable. REST can be simpler for resource-oriented APIs, caching through standard HTTP semantics, file transfer, and straightforward operational boundaries. GraphQL is not automatically faster: resolver fan-out, N+1 database access, expensive queries, and weak query-cost controls can make it more expensive.
+
+Use DataLoader-style batching or equivalent resolver batching where appropriate, bound query depth/complexity, authorize at the correct data boundary, and monitor resolver-level latency.
+
+### Q277. How do you prevent the N+1 problem in GraphQL resolvers?
+
+Identify resolver paths that trigger one query per parent item. Batch related loads for a request using a DataLoader pattern, fetch related data efficiently, and avoid solving every case with an enormous eager join that duplicates rows or loads unused data. Add tests and query-count/trace evidence for representative nested queries. Authorization must still be enforced for each requested object or through a demonstrably equivalent secured query.
+
+### Q278. When should a Spring application use WebSocket or STOMP instead of ordinary HTTP polling?
+
+WebSocket supports a persistent, bidirectional connection and is useful for interactive updates such as collaboration, dashboards, or live status. Polling or server-sent events can be simpler when communication is one-way or update frequency is low. STOMP provides a messaging protocol over WebSocket in supported Spring configurations; it does not by itself solve authentication, authorization, multi-node fan-out, backpressure, or delivery guarantees.
+
+Design connection limits, heartbeat/idle policies, reconnect behavior, authorization of destinations, and a strategy for distributing messages across application instances.
+
+### Q279. How should authentication and authorization work for WebSocket messaging?
+
+Authenticate the connection using a supported mechanism and validate the principal before accepting sensitive subscriptions or messages. Apply authorization to destinations and message operations, not only to the HTTP handshake. Treat client-provided user identifiers and destination names as untrusted input. Consider token expiry, reconnect, cross-origin policy, message size limits, rate limiting, and revocation behavior. Verify the exact integration and defaults for the Spring Security version in use.
+
+### Q280. Which runtime assumptions commonly break when building a Spring application as a native image?
+
+Native-image closed-world analysis may not discover reflective access, dynamically loaded classes, resources, serialization types, or generated proxies. Prefer framework/library-provided runtime hints and supported registration mechanisms, and test the produced executable rather than relying only on JVM tests. Diagnose missing metadata from the native build/runtime error, register only the required access, and measure startup, memory, throughput, build time, and compatibility before choosing native deployment.
+
+Measure startup, memory, throughput, and operational behavior under realistic load before choosing native deployment.
+
+### Q281. What are runtime hints, and why might a native build need them?
+
+Native-image compilation performs closed-world analysis and may not discover every class, constructor, resource, proxy, or reflective access used dynamically. Runtime hints describe required reflection, resources, serialization, or proxy behavior for supported AOT/native processing. Prefer framework/library-provided hints and supported registration APIs; avoid blanket reflection registration because it can increase image size and obscure missing dependencies. Test the produced executable, not only the JVM test suite.
+
+### Q282. How do virtual threads affect Spring Boot application design?
+
+Virtual threads reduce the cost of many blocking tasks by allowing the JVM to schedule large numbers of threads efficiently. They do not make database connections, downstream services, CPU, or file descriptors unlimited. Connection pools, bulkheads, rate limits, timeouts, and bounded admission remain important. Pinning and thread-local usage can also affect behavior depending on the JDK and workload.
+
+Compare virtual-thread and platform-thread deployments with production-like I/O patterns; do not assume a virtual-thread switch alone increases throughput.
+
+### Q283. How is Spring Authorization Server different from an OAuth2 resource server?
+
+An authorization server issues tokens and implements authorization protocol responsibilities such as client registration, consent, and token issuance according to its configuration. A resource server accepts requests bearing access tokens and validates them before granting access to protected resources. A single product may host both roles, but they are distinct trust boundaries. Most business APIs need resource-server behavior, not a custom token-issuing implementation.
+
+Prefer a well-supported identity provider when it meets the requirements. If operating an authorization server, plan for key rotation, client lifecycle, protocol security, consent, revocation, incident response, and ongoing upgrades.
+
+### Q284. Why should authorization be enforced at both request and domain boundaries where needed?
+
+Request-level rules can reject unauthorized operations early, while method- or domain-level checks protect operations invoked through alternate entry points such as scheduled jobs, messaging listeners, or internal service calls. Avoid assuming HTTP filter rules automatically protect non-HTTP invocation paths. Keep authorization rules close enough to the protected operation to remain correct, but avoid scattering inconsistent checks across the codebase.
+
+Test allowed and denied cases, including tenant/object-level access. Authentication alone does not establish that a caller may access every object in the system.
+
+### Q285. What does Spring Session provide, and when is it useful?
+
+Spring Session externalizes and manages HTTP session state using supported backends, allowing sessions to be shared across application instances and reducing dependence on a single node's in-memory session. It is useful for clustered applications that still use server-side sessions. It does not eliminate session fixation, expiration, cookie security, CSRF, serialization compatibility, or backend availability concerns.
+
+Choose a backend and TTL strategy deliberately, secure session cookies, and plan behavior when the session store is unavailable.
+
+### Q286. When is Spring Integration appropriate?
+
+Spring Integration provides enterprise integration patterns such as message channels, routers, filters, transformers, service activators, and adapters for external systems. It is useful when an application has meaningful message-driven integration flows that would otherwise become ad hoc glue code. For a simple direct method call or a small isolated adapter, it may add unnecessary abstraction. Evaluate observability, error channels, retries, ordering, idempotency, and operational complexity.
+
+### Q287. How should retry behavior be designed for Spring integrations?
+
+Retry only failures that are plausibly transient, and bound attempts and total elapsed time. Use backoff and jitter to reduce synchronized retry storms. Do not retry validation errors, authorization failures, or non-idempotent operations blindly. A retry around a remote side effect may repeat an operation whose first response was lost; use an idempotency key or reconciliation when duplicate execution is harmful.
+
+Coordinate retry budgets with client timeouts, circuit breakers, queue redelivery, and upstream deadlines so layered retries do not multiply load.
+
+### Q288. What is the role of Spring Cloud Contract in consumer/provider compatibility?
+
+Contract testing captures expectations between a provider and its consumers and can generate or support tests that validate both sides against those expectations. It helps catch API drift earlier than a late end-to-end test alone. Contracts should describe stable behavior rather than private implementation details, and teams still need compatibility policy for optional fields, enum expansion, error formats, authentication, and version transitions.
+
+A passing contract suite does not prove capacity, resilience, deployment configuration, or full production correctness.
+
+### Q289. How should you test an application that combines batch processing, messaging, and a relational database?
+
+Use focused unit tests for transformation logic, framework-level tests for job/step wiring, and integration tests against the actual database engine where SQL and transaction behavior matter. Test restart after failure, duplicate delivery, idempotent writes, poison messages, and external side-effect boundaries. Use deterministic fixtures and clean up state between tests. Avoid relying only on in-memory substitutes when production behavior depends on locking, isolation, dialect, or database-specific features.
+
+### Q290. How do you decide whether to adopt an additional Spring project?
+
+Start from a concrete requirement and compare the project's capabilities against simpler alternatives. Evaluate compatibility with the selected Boot/Framework release train, maintenance and support status, operational footprint, learning cost, testing support, security posture, and migration path. Avoid adding a project because it is part of the Spring ecosystem; every dependency adds upgrade and runtime considerations. Record the decision and revisit it when requirements or support status change.
+
+
+## Official documentation
+
+Use the documentation matching the versions selected by the project; these ecosystem modules do not all share the same release cadence.
+
+- [Spring Batch Reference](https://docs.spring.io/spring-batch/reference/)
+- [Spring Modulith Reference](https://docs.spring.io/spring-modulith/reference/)
+- [Spring for GraphQL Reference](https://docs.spring.io/spring-graphql/reference/)
+- [Spring Framework WebSocket Reference](https://docs.spring.io/spring-framework/reference/web/websocket.html)
+- [Spring Boot AOT and native image documentation](https://docs.spring.io/spring-boot/reference/packaging/aot.html)
+- [Spring Boot task execution and virtual threads](https://docs.spring.io/spring-boot/reference/features/task-execution-and-scheduling.html)
+- [Spring Authorization Server Reference](https://docs.spring.io/spring-authorization-server/reference/)
+- [Spring Session Reference](https://docs.spring.io/spring-session/reference/)
+- [Spring Integration Reference](https://docs.spring.io/spring-integration/reference/)
+- [Spring Cloud Contract Reference](https://docs.spring.io/spring-cloud-contract/reference/)
+- [Spring Boot system requirements](https://docs.spring.io/spring-boot/system-requirements.html)
+
+---
