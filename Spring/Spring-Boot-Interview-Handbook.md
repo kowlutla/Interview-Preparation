@@ -1557,6 +1557,46 @@ If a behavior such as rollback, caching, or authorization disappears, check how 
 
 ---
 
+
+### Rapid last-minute revision path
+
+When interview time is limited, revise these areas first. Use the detailed answers earlier in this same handbook rather than treating this checklist as a separate guide.
+
+1. **Core container:** IoC/DI, constructor injection, bean scopes, lifecycle callbacks, post-processors and circular dependencies.
+2. **AOP and proxies:** JDK versus class proxies, self-invocation, final/private method limitations, advisor ordering, and transaction/cache/security annotations.
+3. **Spring Boot:** starters versus auto-configuration, condition evaluation, configuration/profile precedence, startup lifecycle, readiness and graceful shutdown.
+4. **Web APIs:** MVC request flow, validation, exception mapping, status codes, idempotency, pagination and stable API contracts.
+5. **Transactions and JPA:** propagation, isolation, rollback rules, transaction boundaries, persistence context, dirty checking, lazy loading, N+1 queries and locking.
+6. **Security:** authentication versus authorization, JWT validation, filter-chain matching, CORS versus CSRF, method security and tenant/object-level access.
+7. **Testing:** unit tests versus MVC slices versus full integration tests, Testcontainers, security negative-path tests, context caching and asynchronous test determinism.
+8. **Production operations:** Actuator, health/readiness/liveness, metrics/logs/traces, connection-pool saturation, slow endpoints, startup delays and safe configuration diagnostics.
+9. **Clients and resilience:** timeout budgets, retries/backoff/jitter, circuit breakers, bulkheads, idempotency and remote side effects after a timeout.
+10. **Caching, async and messaging:** cache keys/invalidation, proxy boundaries, executor saturation, durable delivery, retries, dead-letter handling, idempotent consumers and outbox consistency.
+11. **Reactive and ecosystem:** MVC versus WebFlux, blocking work in reactive pipelines, Spring Cloud compatibility and the trade-offs of adding ecosystem modules.
+12. **Upgrades:** Java/framework baselines, dependency alignment, removed APIs, Jakarta namespace changes, security defaults, integration tests and rollback plans.
+
+For each topic, practise a concise answer in this order: **direct answer → mechanism → realistic example → failure mode/trade-off → how to verify it**.
+
+### Official references retained from the concise guide
+
+- [Spring Framework Reference](https://docs.spring.io/spring-framework/reference/)
+- [Spring Boot Reference](https://docs.spring.io/spring-boot/reference/)
+- [Spring Boot auto-configuration](https://docs.spring.io/spring-boot/reference/using/auto-configuration.html)
+- [Spring Boot testing](https://docs.spring.io/spring-boot/reference/testing/)
+- [Spring Framework transaction management](https://docs.spring.io/spring-framework/reference/data-access/transaction.html)
+- [Spring Security Reference](https://docs.spring.io/spring-security/reference/)
+- [Spring Data JPA Reference](https://docs.spring.io/spring-data/jpa/reference/)
+- [Spring Boot Actuator](https://docs.spring.io/spring-boot/reference/actuator/)
+- [Spring Framework container extension points](https://docs.spring.io/spring-framework/reference/core/beans/factory-extension.html)
+- [Spring Security servlet configuration](https://docs.spring.io/spring-security/reference/servlet/configuration/java.html)
+- [Spring Security CORS](https://docs.spring.io/spring-security/reference/servlet/integrations/cors.html)
+- [Spring Security CSRF](https://docs.spring.io/spring-security/reference/servlet/exploits/csrf.html)
+- [Spring Framework bean overrides for tests](https://docs.spring.io/spring-framework/reference/testing/annotations/integration-spring/annotation-mockitobean.html)
+- [Spring WebFlux Reference](https://docs.spring.io/spring-framework/reference/web/webflux.html)
+
+Official documentation is authoritative for behavior and version compatibility. Interview-question sites can suggest themes but cannot establish a universal question frequency.
+
+
 ## Last-minute revision checklist
 
 Use this as the final pass before an interview. If you cannot explain a topic without reciting an annotation name, revisit the mechanism and a real failure scenario.
