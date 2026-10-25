@@ -245,3 +245,10 @@ The generic Boot system-requirements page currently renders Boot 4.1.0 (Java 17 
 - Repositioned the former 51-question file as a concise quick-revision guide and updated `Spring/README.md` to make the 290-question consolidated handbook the primary reading path. Existing exercises, scenario prompts, mock interviews, and tricky-question files remain preserved as supplementary practice material.
 - Structural checks confirmed 290 questions numbered continuously from Q1 to Q290, 26 topic areas, balanced code fences, and no gaps in question numbering. Official documentation links are included for version-sensitive behavior.
 - Scope limitation: this is a consolidation and focused editorial pass, not a full manual certification of every technical statement or every external URL. No compilation or runtime tests were performed; the guide is interview-oriented and uses illustrative snippets rather than complete applications. Continue to verify version-sensitive claims against the exact official reference for the target release.
+
+
+### Senior troubleshooting integration update — 2026-10-25
+
+- Added the eight senior-level production troubleshooting questions from the concise guide into the consolidated handbook, covering bean registration and conditional wiring, MVC/filter boundaries, security-chain diagnosis, cache/async proxy behavior, connection-pool exhaustion, configuration precedence, and manually instantiated objects.
+- The consolidated handbook now contains 298 sequentially numbered questions across 27 topic areas. The README and table of contents were synchronized to the expanded scope.
+- The eight additions were integrated as a dedicated troubleshooting section after the topic-by-topic Q&A. This improves the main guide's interview flow; it does not change the stated limitation that a full manual technical certification of every answer and every external URL has not been completed.
