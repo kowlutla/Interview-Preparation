@@ -1,21 +1,34 @@
 # Coverage and Technical Review
 
-**Review snapshot:** 2026-10-24  
+**Review snapshot:** 2026-10-25  
 **Repository branch:** `main`  
-**Purpose:** Track measurable coverage separately from technical certification. This file must not be read as a claim that every example has been compiled or every answer independently verified.
+**Primary deliverable:** [Spring-Interview-QA.md](Spring-Interview-QA.md)  
+**Audience:** Java backend engineers with 5–6 years of experience preparing for experienced/senior interviews.
 
-## Coverage inventory
+## Current acceptance snapshot
 
-| Requirement | Current inventory | Status |
-|---|---:|---|
-| Numbered Q&A headings | 610 counted across 25 core chapters (270), advanced ecosystem (20), and tricky-question files (320) | Count target and first-pass title/depth screens met; exhaustive claim-by-claim technical certification is not asserted |
-| Coding exercises | 85 numbered exercises | Count target met; runnable implementation depth varies |
-| Production scenarios | 75 numbered scenarios | Count target met; review each for investigation evidence and trade-offs |
-| Mock interviews | 5 interview files | Count target met; answers are model discussion prompts, not transcripts |
-| Topic categories | Parts A–Y plus a dedicated advanced ecosystem chapter; exercises/scenarios/mock interviews/tricky questions/references added | Initial breadth present; depth review remains |
-| Official documentation | Dedicated references plus per-topic links | Sampled core official URLs were opened successfully on 2026-10-24; a repository-wide external-URL audit remains incomplete |
-| Code validation | Eleven detailed reference-solution files added, including core/operations and testing/cloud patterns, alongside REST API, transactions, security, cache/async, Testcontainers/client, configuration/validation, outbox/idempotency, Actuator/metrics, and scheduled work/resilience | Not yet compiled as a single runnable sample application |
+| Check | Result | Interpretation |
+|---|---|---|
+| Primary handbook | 307 sequential Q&As across 27 topic areas | Main revision guide is consolidated in one Markdown file |
+| Navigation | 28 table-of-contents links checked against headings | No missing TOC targets detected in the latest structural pass |
+| Question integrity | No duplicate question numbers or exact duplicate question titles detected | This is a structural screen, not proof that every answer is semantically unique |
+| Markdown examples | 18 fence markers; balanced | Snippets are illustrative and are not claimed to have been compiled or executed |
+| Answer depth | Current parser finds every answer body at 50+ words; average about 89 words | Word count is a heuristic, not a correctness score |
+| External references | 76 unique URLs detected; selected official documentation pages spot-checked | Full automated crawl of all links has not been completed |
+| Technical correctness | Targeted reviews completed for high-impact and version-sensitive guidance | Do not interpret this as exhaustive line-by-line certification of all 307 answers |
+| Runtime validation | Not performed | The handbook is interview preparation, not a runnable demo application |
 
+## Final status
+
+The handbook is ready to use as the primary Spring interview-revision guide. The content has been expanded and targeted against the topics most relevant to experienced Java backend interviews: container internals, dependency injection, AOP/proxies, Boot auto-configuration, REST/API design, transactions, persistence, security, testing, reactive execution, messaging, resilience, observability, deployment, and production troubleshooting.
+
+The last targeted pass checked the current Spring Framework/Boot version guidance and the client migration guidance against official documentation. Spring Boot 4.1.2 currently documents Java 17+ and Spring Framework 7.0.10+ requirements; version-sensitive statements should still be rechecked against the exact release train used by a role or project. See the official [Boot system requirements](https://docs.spring.io/spring-boot/system-requirements.html), [Framework reference](https://docs.spring.io/spring-framework/reference/), and [Boot reference](https://docs.spring.io/spring-boot/reference/).
+
+**Remaining limitations are explicit, not blockers to using the guide:** all 307 answers have not been independently certified line by line; all 76 external URLs have not been crawled; snippets have not been compiled or run. Keep the guide current by checking official docs when a question depends on a particular patch or release train. Avoid adding questions merely to increase the count.
+
+## Historical review log
+
+The entries below preserve the earlier audit trail. Older inventory numbers refer to the repository before consolidation and should not be mistaken for the current primary handbook's question count.
 
 ## Review scope clarification — 2026-10-24
 
