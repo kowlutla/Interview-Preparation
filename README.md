@@ -8,6 +8,7 @@ A structured collection of interview-preparation handbooks for Java backend and 
 - [Spring Framework + Spring Boot Interview Handbook](Spring/Spring-Interview-QA.md)
 - [Hibernate + JPA + Spring Data JPA Interview Handbook](Hibernate-JPA/Hibernate-JPA-Interview-QA.md)
 - [SQL & Database Engineering Interview Handbook](SQL-Database/SQL-Database-Interview-QA.md)
+- [Apache Kafka Interview Handbook](KAFKA_INTERVIEW_GUIDE.md)
 
 Each guide prioritizes a manageable set of recurring interview themes with complete, readable answers, practical caveats, and official references. Question count is not the goal: important topics must remain covered, while duplicate and low-value questions should not make revision harder.
 
