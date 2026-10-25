@@ -300,3 +300,13 @@ The generic Boot system-requirements page currently renders Boot 4.1.0 (Java 17 
 - Final primary handbook blob SHA at this check: `77bb0025e5c16887017b4acb0018ecfefdab7d44`.
 - README count and this review log agree on 307 questions. No stale reference to the removed `Spring-Boot-Interview-Handbook.md` was found in the primary handbook or README.
 - Remaining limitation is unchanged: selected high-risk topics have received substantive edits and current official-source spot-checks, but a full manual certification of every answer, every external URL, or snippet compilation has not been completed.
+
+
+### Final content pass checkpoint — 2026-10-25
+
+- Expanded 11 additional answers focused on startup/configuration, API idempotency and error mapping, MVC filters/interceptors, deadlock diagnosis, security authorities/context, reactive backpressure/cancellation, cache stampedes and outage behavior, messaging reliability, and operational troubleshooting.
+- Re-ran the structural and title checks on the latest primary handbook: 307 questions continuously numbered Q1–Q307; no duplicate question numbers or exact duplicate titles; 27 topic areas; 28 TOC links with no missing targets; balanced code fences.
+- The current word-count heuristic reports an average of about 79 words per answer, a minimum of 40 words, and 68 answers below 50 words. Short answers still need judgment: a concise comparison may be adequate, while a high-risk scenario needs mechanism, failure modes, trade-offs, and diagnostics. This metric is not an accuracy score.
+- Latest primary handbook blob SHA: `245274e9614a230e8ebad0e5f8a9438960a23c45`.
+- High-risk answer improvements were informed by official Spring transaction documentation on proxy interception and rollback rules, Spring Security's first-matching SecurityFilterChain behavior, and current Framework/Boot release documentation. These checks support the reviewed claims but do not amount to certification of every answer.
+- Still outstanding: inspect remaining concise answers selectively; verify remaining version-sensitive claims and official URLs; do a final review of snippets for API coherence. No compile/test/runtime validation is planned for this interview-first guide, and the full manual certification of all 307 answers is not claimed.
