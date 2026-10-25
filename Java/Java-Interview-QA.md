@@ -19,20 +19,53 @@ A focused, version-aware guide for Java backend engineers. It prioritizes questi
 7. [Modern Java](#7-modern-java)
 8. [Production and senior-level scenarios](#8-production-and-senior-level-scenarios)
 9. [Additional specialist topics](#9-additional-specialist-topics)
-10. [Expanded coverage: frequently tested Java topics](#10-expanded-coverage-frequently-tested-java-topics)
-14. [Java Streams — coding interview questions](#14-java-streams--coding-interview-questions)
-15. [Java version-wise features: Java 8 to Java 25](#15-java-version-wise-features-java-8-to-java-25)
-16. [Core Java language, object model, and API contracts](#16-core-java-language-object-model-and-api-contracts)
-17. [Collections framework — deeper interview questions](#17-collections-framework--deeper-interview-questions)
-18. [Concurrency, executors, and asynchronous execution](#18-concurrency-executors-and-asynchronous-execution)
-19. [JVM, garbage collection, and diagnostics](#19-jvm-garbage-collection-and-diagnostics)
-20. [I/O, networking, JDBC, security, and testing](#20-io-networking-jdbc-security-and-testing)
-21. [Date/time, design patterns, code reading, and senior scenarios](#21-datetime-design-patterns-code-reading-and-senior-scenarios)
-28. [Last-minute revision](#28-last-minute-revision)
-29. [Official references](#29-official-references)
-30. [Editorial and validation notes](#30-editorial-and-validation-notes)
+10. [Strings, wrappers, and numeric behavior](#10-strings-wrappers-and-numeric-behavior)
+11. [Exceptions and resource safety](#11-exceptions-and-resource-safety)
+12. [Collections and generics: deeper questions](#12-collections-and-generics-deeper-questions)
+13. [Functional programming and everyday APIs](#13-functional-programming-and-everyday-apis)
+14. [Concurrency and asynchronous programming](#14-concurrency-and-asynchronous-programming)
+15. [JVM, class loading, and memory](#15-jvm-class-loading-and-memory)
+16. [I/O, JDBC, reflection, and modules](#16-io-jdbc-reflection-and-modules)
+17. [Java evolution and compatibility](#17-java-evolution-and-compatibility)
+18. [Security, testing, and engineering practice](#18-security-testing-and-engineering-practice)
+19. [Code-reading and output questions](#19-code-reading-and-output-questions)
+20. [Production scenario questions](#20-production-scenario-questions)
+21. [Java Streams — coding interview questions](#21-java-streams--coding-interview-questions)
+22. [Java version-wise features: Java 8 to Java 25](#22-java-version-wise-features-java-8-to-java-25)
+23. [Core Java language, object model, and API contracts](#23-core-java-language-object-model-and-api-contracts)
+24. [Collections framework — deeper interview questions](#24-collections-framework--deeper-interview-questions)
+25. [Concurrency, executors, and asynchronous execution](#25-concurrency-executors-and-asynchronous-execution)
+26. [JVM, garbage collection, and diagnostics](#26-jvm-garbage-collection-and-diagnostics)
+27. [I/O, networking, JDBC, security, and testing](#27-io-networking-jdbc-security-and-testing)
+28. [Date/time, design patterns, code reading, and senior scenarios](#28-datetime-design-patterns-code-reading-and-senior-scenarios)
+29. [Last-minute revision](#29-last-minute-revision)
+30. [Official references](#30-official-references)
+31. [Editorial and validation notes](#31-editorial-and-validation-notes)
+
 
 ---
+
+## Visual roadmap
+
+The diagrams below are rendered by GitHub from Mermaid source, so they remain readable in the Markdown repository and are easy to maintain alongside the guide.
+
+```mermaid
+flowchart TD
+    A[Java source] --> B[Compiler: javac]
+    B --> C[Bytecode: class files]
+    C --> D[Class loading and linking]
+    D --> E[JVM execution]
+    E --> F[Interpreter and JIT]
+    E --> G[Runtime libraries and GC]
+```
+
+```mermaid
+flowchart LR
+    A[Source collection] --> B[Intermediate operations]
+    B --> C[Terminal operation]
+    B --- D[filter / map / flatMap]
+    C --- E[collect / reduce / count / find]
+```
 
 ## 1. Java foundations and language behavior
 
@@ -466,7 +499,7 @@ Two classes with the same fully qualified name are not necessarily the same runt
 
 The earlier sections establish the core concepts. This section fills in additional language, API, runtime, and production topics that commonly appear as follow-up questions. Use it alongside the earlier sections rather than treating it as a separate syllabus.
 
-### Strings, wrappers, and numeric behavior
+## 10. Strings, wrappers, and numeric behavior
 
 ### Q65. What is the difference between String, StringBuilder, and StringBuffer?
 
@@ -498,7 +531,7 @@ Binary floating-point types such as `float` and `double` cannot represent many d
 
 For decimal quantities requiring predictable decimal arithmetic, such as many financial calculations, `BigDecimal` is often appropriate. Constructing it from a decimal string avoids importing the binary approximation of a double. Also note that `BigDecimal.equals()` considers both value and scale, whereas `compareTo()` compares numerical value; this distinction matters for equality and sorted collections.
 
-### Exceptions and resource safety
+## 11. Exceptions and resource safety
 
 ### Q70. When should you create a custom exception?
 
@@ -524,7 +557,7 @@ Yes, but it should not. A `return` or a thrown exception from `finally` can over
 
 Try-with-resources is generally preferable for closeable resources because it preserves the primary exception and records close failures as suppressed exceptions.
 
-### Collections and generics: deeper questions
+## 12. Collections and generics: deeper questions
 
 ### Q74. How do HashMap collisions work, and why does capacity matter?
 
@@ -568,7 +601,7 @@ A bounded type parameter restricts the types that can be supplied and makes a us
 
 Prefer a type signature that expresses the actual relationship between inputs and outputs. Avoid raw collections: they bypass compile-time checks and can cause failures far from the point where an unsafe value entered the system.
 
-### Functional programming and everyday APIs
+## 13. Functional programming and everyday APIs
 
 ### Q81. What is the difference between a Predicate, Function, Consumer, and Supplier?
 
@@ -600,7 +633,7 @@ The `java.time` API introduced in Java 8 provides clearer types for different co
 
 Choose the type based on the domain. A birthday is usually a date, an audit event is usually an instant, and a scheduled meeting often needs a local time plus a zone. A `LocalDateTime` alone does not identify a unique instant because it has no time-zone offset or daylight-saving rules.
 
-### Concurrency and asynchronous programming
+## 14. Concurrency and asynchronous programming
 
 ### Q86. What is the difference between synchronized, Lock, and atomic classes?
 
@@ -650,7 +683,7 @@ Structured concurrency aims to make related concurrent tasks share a clear lifet
 
 Their availability and final status have changed across JDK releases, and some versions expose these capabilities as preview APIs. In an interview, explain the design goal and verify the target JDK's status before claiming a particular API is final or production-ready. Do not treat preview features as stable language contracts.
 
-### JVM, class loading, and memory
+## 15. JVM, class loading, and memory
 
 ### Q94. What happens during class loading, linking, and initialization?
 
@@ -688,7 +721,7 @@ The heap stores Java objects managed by the garbage collector. Metaspace stores 
 
 A process can run out of native memory even when heap usage appears acceptable. When diagnosing memory pressure, inspect heap occupancy, metaspace, direct-buffer usage, thread stacks, native allocations, and the container or operating-system limit rather than looking only at `-Xmx`.
 
-### I/O, JDBC, reflection, and modules
+## 16. I/O, JDBC, reflection, and modules
 
 ### Q100. Why is the platform default charset a production risk?
 
@@ -738,7 +771,7 @@ Annotations attach metadata to declarations and can be consumed by the compiler,
 
 Annotations do not automatically cause behavior; some tool or runtime component must interpret them. When debugging framework behavior, check the annotation's retention, target, processor configuration, and whether the relevant framework actually scans that class or package.
 
-### Java evolution and compatibility
+## 17. Java evolution and compatibility
 
 ### Q108. What is the difference between source, bytecode, and runtime compatibility?
 
@@ -758,7 +791,7 @@ Check the supported runtime and build tool versions, framework and library compa
 
 An upgrade is not complete merely because compilation succeeds. Monitor startup, memory, latency, GC, dependency warnings, and behavior under load. Roll out gradually where possible and maintain a rollback plan.
 
-### Security, testing, and engineering practice
+## 18. Security, testing, and engineering practice
 
 ### Q111. Why are prepared statements safer than constructing SQL strings?
 
@@ -808,7 +841,7 @@ Decide whether absence is valid for each parameter, field, and return value, the
 
 Avoid mixing conventions without explanation. In large codebases, annotations and static analysis can make nullability contracts more visible, but they do not replace clear API design and runtime validation where untrusted input is involved.
 
-### Code-reading and output questions
+## 19. Code-reading and output questions
 
 ### Q119. What is printed when a method is overloaded with primitive, boxed, and varargs parameters?
 
@@ -828,7 +861,7 @@ Compile-time errors occur when source code violates language or type rules, so t
 
 When asked what a snippet does, first determine whether it compiles. If it does, then evaluate initialization, overload selection, dispatch, and runtime control flow. This sequence prevents wasting time tracing code that is invalid before execution begins.
 
-### Production scenario questions
+## 20. Production scenario questions
 
 ### Q122. A production service has rising latency but normal CPU utilization. What do you check first?
 
@@ -935,7 +968,7 @@ Check the exact JDK release, whether the feature is final, preview, or incubatin
 Evaluate the feature against a real maintenance or performance need, and test migration, observability, packaging, and production behavior. In interviews, distinguish the feature's design goal from its status in the specific release being discussed.
 
 
-## 14. Java Streams — coding interview questions
+## 21. Java Streams — coding interview questions
 
 These are practical stream exercises, not just API definitions. Code is intentionally limited to the core expression. In an interview, explain the edge cases, complexity, ordering, and why the chosen operation fits the requirement.
 
@@ -1173,7 +1206,7 @@ A Collector defines how to create an accumulation container, add one element, co
 
 Check the source ordering, intermediate operation order, terminal operation, equals/hashCode behavior used by distinct or map keys, null handling, and whether side effects were incorrectly placed in intermediate operations. For parallel streams, also check ordering requirements and whether the collector supports parallel reduction. Reduce the problem to a small input and test edge cases such as empty input, duplicates, nulls, and ties.
 
-## 15. Java version-wise features: Java 8 to Java 25
+## 22. Java version-wise features: Java 8 to Java 25
 
 Use this release-by-release section to revise when a feature appeared and when it became final. LTS status and vendor support periods are related but not identical; verify the JDK vendor's support policy for production decisions.
 
@@ -1191,7 +1224,7 @@ Use this release-by-release section to revise when a feature appeared and when i
 | Java 18–20 | Feature | UTF-8 default charset, virtual threads preview iterations, evolving pattern/concurrency features |
 | Java 21 | LTS | Virtual threads, record patterns, pattern matching for switch, sequenced collections, generational ZGC |
 | Java 22–24 | Feature | Foreign Function & Memory API final in 22, unnamed variables/patterns, evolving stream and language APIs |
-| Java 25 | LTS | Review the finalized Java 25 release features, runtime improvements, and compatibility changes against official release notes |
+| Java 25 | LTS | Module import declarations; compact source files and instance main methods; flexible constructor bodies; Scoped Values; Key Derivation Function API; compact object headers and runtime/JFR improvements. Primitive type patterns remained preview, structured concurrency preview, Vector API incubating |
 
 ### Q171. Which Java 8 features are most important for backend interviews?
 
@@ -1415,7 +1448,7 @@ Java 25 includes performance and runtime improvements such as compact object hea
 Among the language-facing finalized features are module import declarations, compact source files and instance main methods, and flexible constructor bodies. Scoped values and the Key Derivation Function API are also final. Primitive types in patterns/instanceof/switch remained a preview feature in Java 25; structured concurrency was still preview and the Vector API remained incubating. Check the official release documentation for the full feature and status list.
 
 
-## 16. Core Java language, object model, and API contracts
+## 23. Core Java language, object model, and API contracts
 
 ### Q209. What is the difference between a primitive and a reference type?
 
@@ -1546,7 +1579,7 @@ A dynamic proxy can create an object that implements specified interfaces and fo
 Exceptions generally represent conditions application code may handle or propagate. Error represents serious problems associated with the runtime or environment, such as linkage failures or resource exhaustion, and application code usually should not attempt to recover from arbitrary Errors. Cleanup in finally or try-with-resources still matters during abrupt termination, but do not swallow fatal conditions indiscriminately.
 
 
-## 17. Collections framework — deeper interview questions
+## 24. Collections framework — deeper interview questions
 
 ### Q241. What is the difference between Collection and Collections?
 
@@ -1588,7 +1621,7 @@ ConcurrentHashMap supports concurrent retrieval and updates with documented thre
 
 Prefer one atomic collection method, such as putIfAbsent or computeIfAbsent, when it expresses the intended state transition. A separate containsKey call followed by put can race because another thread may change the map between operations. If the invariant spans several objects or operations, a broader lock or transaction may be necessary.
 
-## 18. Concurrency, executors, and asynchronous execution
+## 25. Concurrency, executors, and asynchronous execution
 
 ### Q251. What are the lifecycle states of a Java thread?
 
@@ -1646,7 +1679,7 @@ Thread confinement means mutable state is accessed only by one thread, avoiding 
 
 ThreadLocal associates a value with a thread and can be useful for thread-specific state, but pooled-thread reuse requires careful cleanup and propagation across asynchronous boundaries can be confusing. ScopedValue models context bound to a bounded dynamic scope and became final in Java 25. Choose based on lifetime and propagation requirements; neither should be used to hide broad mutable global state.
 
-## 19. JVM, garbage collection, and diagnostics
+## 26. JVM, garbage collection, and diagnostics
 
 ### Q265. What is the difference between heap and stack memory?
 
@@ -1693,7 +1726,7 @@ Capture a thread dump while the application is stuck and inspect monitor ownersh
 A heap dump captures objects and references for retained-memory analysis. A thread dump captures thread states and stack traces for blocked threads, deadlocks, and executor problems. Choose the artifact that matches the symptom; collect them with care because dumps may be large and contain sensitive data.
 
 
-## 20. I/O, networking, JDBC, security, and testing
+## 27. I/O, networking, JDBC, security, and testing
 
 ### Q276. What is the difference between byte streams and character streams?
 
@@ -1856,7 +1889,7 @@ Java 25 includes work to simplify ahead-of-time cache configuration and capture 
 Reasons can include a newer LTS support baseline, language/API improvements, runtime and garbage-collection enhancements, security updates, and tooling improvements. The migration also has costs: framework compatibility, dependency upgrades, reflection/module access, changed defaults, and operational validation. Make the decision with a compatibility matrix, tests, performance baseline, and rollback plan rather than adopting new syntax alone.
 
 
-## 21. Date/time, design patterns, code reading, and senior scenarios
+## 28. Date/time, design patterns, code reading, and senior scenarios
 
 ### Q316. What is the difference between Instant, LocalDate, LocalDateTime, and ZonedDateTime?
 
@@ -2018,7 +2051,7 @@ Confirm the project's minimum JDK and compiler configuration, ensure the feature
 
 Revise language contracts, OOP and equality, strings and wrappers, exceptions, collections, generics, streams and coding exercises, date/time, concurrency and the Java Memory Model, executors and virtual threads, JVM and GC diagnostics, I/O/JDBC/security, testing, performance, and version changes. For each topic, practise one concise explanation, one edge case, one code example, and one production trade-off.
 
-## 28. Last-minute revision
+## 29. Last-minute revision
 
 If only a short time remains, prioritize these questions and make sure the explanations are clear enough to say aloud:
 
@@ -2043,7 +2076,12 @@ If only a short time remains, prioritize these questions and make sure the expla
 
 ---
 
-## 29. Official references
+## 30. Official references
+
+- [Java 25 language changes by release](https://docs.oracle.com/en/java/javase/25/language/java-language-changes-release.html)
+- [Java 25 language feature status summary](https://docs.oracle.com/en/java/javase/25/language/java-language-changes-summary.html)
+- [JDK 25 release notes](https://www.oracle.com/java/technologies/javase/25all-relnotes.html)
+
 
 Use official specifications and API documentation as the final authority for language and runtime contracts. Secondary interview guides are useful for discovering recurring themes, not for proving technical behavior or guaranteeing company-specific frequency.
 
@@ -2064,7 +2102,7 @@ Use official specifications and API documentation as the final authority for lan
 
 ---
 
-## 30. Editorial and validation notes
+## 31. Editorial and validation notes
 
 - This is the **curated primary interview guide**, not a claim that every advanced Java API can be covered in 54 questions.
 - It deliberately favors common concepts and senior-level reasoning over obscure trivia and repetitive question variants.
