@@ -1200,11 +1200,11 @@ interface OrderRepository {
     void save(Order order);
 }
 
-final class PayOrder {
+final class AuthorizeOrder {
     private final OrderRepository orders;
     private final PaymentGateway payments;
 
-    PayOrder(OrderRepository orders, PaymentGateway payments) {
+    AuthorizeOrder(OrderRepository orders, PaymentGateway payments) {
         this.orders = orders;
         this.payments = payments;
     }
@@ -1212,7 +1212,8 @@ final class PayOrder {
     void execute(OrderId id) {
         Order order = orders.findById(id)
                 .orElseThrow(() -> new OrderNotFoundException(id));
-        order.markPaid(payments.authorize(order.total()));
+        PaymentResult result = payments.authorize(order.total());
+        order.markPaymentAuthorized(result);
         orders.save(order);
     }
 }
