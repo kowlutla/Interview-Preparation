@@ -15,7 +15,7 @@ A high-signal, category-wise handbook for Java backend engineers with roughly 4â
 1. [JPA versus Hibernate](01-JPA-and-Hibernate-Fundamentals/01-Fundamentals.md#q1-what-is-the-difference-between-jpa-and-hibernate)
 2. [JDBC vs JPA vs Hibernate vs Spring Data JPA](01-JPA-and-Hibernate-Fundamentals/01-Fundamentals.md#q2-how-do-jdbc-jpa-hibernate-and-spring-data-jpa-differ)
 3. [Persistence context](01-JPA-and-Hibernate-Fundamentals/01-Fundamentals.md#q5-what-is-a-persistence-context)
-4. [Entity lifecycle states](01-JPA-and-Hibernate-Fundamentals/01-Fundamentals.md#q6-explain-transient-managed-detached-and-removed-entity-states)
+4. [Entity lifecycle states](01-JPA-and-Hibernate-Fundamentals/01-Fundamentals.md#q6-explain-transient-managed-detached-and-removed-states)
 5. [Dirty checking](01-JPA-and-Hibernate-Fundamentals/01-Fundamentals.md#q8-what-is-dirty-checking)
 6. [Flush vs commit](01-JPA-and-Hibernate-Fundamentals/01-Fundamentals.md#q9-what-is-the-difference-between-flush-and-commit)
 7. [persist() vs merge()](03-Entity-Lifecycle-and-Persistence-Context/01-Lifecycle.md#q1-what-is-the-difference-between-persist-and-merge)
