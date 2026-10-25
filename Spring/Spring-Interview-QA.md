@@ -476,23 +476,23 @@ DispatcherServlet is Spring MVC's front controller: it receives the servlet requ
 
 ### Q85. What is the difference between @Controller and @RestController?
 
-@Controller marks a Spring MVC controller, where a return value may be interpreted as a view name. @RestController combines controller semantics with response-body handling, so returned objects are generally serialized into the HTTP response. Individual methods can still customize status and headers using ResponseEntity.
+@Controller marks a class as an MVC controller, where a method's return value may be interpreted as a view name unless response-body semantics are applied. @RestController combines @Controller with @ResponseBody, so returned objects are written to the response through an appropriate message converter, commonly as JSON. Choose based on the endpoint's purpose and make the representation contract explicit. A method can override behavior with annotations where supported, but avoid mixing view rendering and REST response semantics in the same controller without a clear reason.
 
 ### Q86. What is the difference between @PathVariable and @RequestParam?
 
-@PathVariable binds a value from a URI path segment, commonly identifying a resource such as /orders/{id}. @RequestParam binds a query parameter or form parameter, commonly used for filtering, pagination, or optional modifiers. Choose based on resource semantics and the API contract, not personal preference alone.
+@PathVariable binds a value from the URI path, such as /orders/{orderId}, and is commonly used to identify a resource. @RequestParam binds a query parameter, such as ?status=OPEN or ?page=2, and is useful for filtering, sorting, and optional controls. Both can be required or optional according to the method signature/configuration. Validate and bound query parameters, especially page sizes and filter values, and do not treat an identifier in the path as proof that the caller is authorized to access the resource.
 
 ### Q87. Why use DTOs rather than returning persistence entities directly?
 
-DTOs define the API contract independently of database mapping, reduce accidental exposure of internal fields, and allow validation and serialization shape to evolve deliberately. Returning entities can also trigger lazy-loading queries or recursion through bidirectional relationships. Map at a clear application boundary and avoid leaking persistence details.
+DTOs define the API's input/output contract independently of persistence entities. Returning entities directly can expose internal fields, couple JSON shape to database mappings, trigger lazy-loading during serialization, or create recursion through bidirectional relationships. DTOs let the API evolve deliberately, validate incoming data, and avoid mass assignment of fields that clients should not control. Mapping adds code and can duplicate representations, so use focused DTOs for real boundaries rather than creating layers of nearly identical types without a purpose. Keep entity ownership and transaction behavior inside the persistence/application layer.
 
 ### Q88. How does request-body validation work?
 
-Use Jakarta Bean Validation constraints on request DTOs and trigger validation with @Valid or the supported validation mechanism at the controller boundary. Handle validation exceptions consistently and return actionable field errors without echoing sensitive input. Validation is not a replacement for business-rule validation or database constraints.
+For a request body, Spring MVC uses an HttpMessageConverter to deserialize the payload, and Bean Validation can validate the resulting object when the controller parameter is annotated appropriately, commonly with @Valid or @Validated according to the use case. Malformed JSON can fail before validation, while a syntactically valid object can fail field constraints. Handle these paths consistently and return a stable error contract. Boundary validation should cover simple input constraints; rules that depend on database state or business transitions belong in the application/domain layer and must also protect non-HTTP entry points.
 
 ### Q89. How should pagination be designed?
 
-Accept bounded page/size or cursor parameters, validate limits, and return predictable metadata. Large offset pagination can become expensive for deep pages; cursor/keyset approaches may be preferable for large, frequently changing datasets. Ensure sorting is deterministic, ideally with a unique tie-breaker.
+Use pagination to bound response size and database work. Validate page/size inputs, set a maximum page size, require deterministic sorting, and return only metadata the client actually needs. Offset pagination is simple but deep offsets can be expensive and concurrent inserts/deletes can shift records between requests. Page may require a count query; Slice can avoid the total count, and keyset/cursor pagination can work better for large changing datasets when a stable sort key exists. Design the response contract and consistency expectations before selecting the repository return type.
 
 ### Q90. What is content negotiation?
 
@@ -504,7 +504,7 @@ An operation is idempotent when repeating the same logical request produces the 
 
 ### Q92. How should file uploads be protected?
 
-Set request-size limits at the application and edge layers, validate content and authorization, avoid trusting client-supplied filenames or MIME types, and stream large files when appropriate. Store files outside executable application paths and apply malware scanning or content inspection when required by the threat model.
+Validate upload size and allowed content, do not trust the filename or declared Content-Type, and store files outside executable/public paths with access controls. Generate server-side storage names, prevent path traversal, and consider malware scanning and content inspection for risky formats. Stream large uploads rather than buffering the entire file in heap, and enforce limits at the reverse proxy, servlet container, and application layers. Return a stable error for oversized or unsupported files, and avoid logging raw file contents or sensitive metadata. Test both normal uploads and boundary/abuse cases.
 
 ### Q93. What is the difference between a servlet filter and HandlerInterceptor?
 
@@ -512,7 +512,7 @@ A servlet Filter runs in the servlet chain before or after the target servlet an
 
 ### Q94. How does Spring select an HTTP message converter?
 
-Spring MVC considers the target method parameter/return type, request Content-Type, response Accept negotiation, and converters registered in the application. Unsupported media types can produce 415 for request content or 406 for an unacceptable response representation. Customize converters only when the API needs behavior beyond standard support.
+Spring MVC selects an HttpMessageConverter based on the target parameter/return type and the media types declared by the request or response, including Content-Type and Accept. JSON commonly uses a Jackson-based converter when the relevant dependency is present. If a request fails, distinguish a missing converter, unsupported media type, malformed payload, and serialization error; they occur at different stages and should not all become generic 500 responses. Keep supported representations explicit and test both request deserialization and response serialization for the API's contract.
 
 ### Q95. What is the difference between 400 and 422?
 
@@ -524,7 +524,7 @@ Map public sort keys to a fixed set of entity properties or query expressions, v
 
 ### Q97. What is cursor pagination's main trade-off?
 
-It can avoid expensive deep offsets and behave better under some concurrent insert patterns, but it complicates arbitrary page jumps and requires stable cursor fields/order. Define whether cursors are opaque, signed, and bound to the original filter/sort criteria.
+Cursor/keyset pagination uses the last-seen sort key to fetch the next batch instead of skipping an increasing number of rows with OFFSET. It can perform better for deep pages and can behave more predictably under concurrent inserts, but it requires a stable deterministic ordering and a cursor that encodes enough filter/sort context. It is harder to jump directly to an arbitrary page and may not provide a cheap total count. Make cursors opaque and validate them; bind them to the query/filter context and avoid exposing sensitive internal fields unnecessarily.
 
 ### Q98. How should request validation differ from domain validation?
 
@@ -633,7 +633,7 @@ Start by verifying that transaction management is configured and that the object
 
 ### Q114. What is the difference between JdbcTemplate and NamedParameterJdbcTemplate?
 
-JdbcTemplate provides JDBC operations with resource handling and exception translation, using positional placeholders. NamedParameterJdbcTemplate supports named parameters that are expanded into JDBC placeholders. Both reduce repetitive JDBC plumbing but do not eliminate the need for correct SQL, transaction boundaries, or query performance analysis.
+JdbcTemplate handles JDBC boilerplate such as connection/statement lifecycle, parameter binding, result extraction, and translation of SQLExceptions into Spring's DataAccessException hierarchy. It typically uses positional placeholders. NamedParameterJdbcTemplate adds named placeholders such as :customerId, which can improve readability in queries with many parameters and can expand collections for IN clauses. Neither abstraction makes SQL automatically efficient or safe if query strings are assembled from untrusted input. Bind values, validate dynamic identifiers separately, keep transaction boundaries clear, and inspect execution plans for expensive queries.
 
 ### Q115. What does `readOnly = true` guarantee?
 
@@ -700,7 +700,7 @@ JPA defines the persistence API and entity model; a provider such as Hibernate i
 
 ### Q128. How do repository interfaces work without a handwritten implementation?
 
-Spring Data creates repository proxy implementations based on repository metadata and configured infrastructure. Method names, annotations, and fragments describe query behavior. When a derived query becomes hard to understand, prefer an explicit `@Query` or a custom repository fragment rather than an opaque method name.
+Spring Data creates repository proxy implementations from the repository interface and its metadata, so common CRUD/query methods do not need handwritten implementations. Derived query methods are parsed from their names; @Query and custom repository fragments provide explicit alternatives when method-name derivation becomes too complex. The proxy still delegates to JPA/provider infrastructure, so generated SQL, transaction boundaries, and entity-state behavior remain important. Keep repository contracts cohesive, avoid giant method names that encode an entire query language, and test complex queries against the production database engine.
 
 ### Q129. What is the purpose of Page, Slice, and List return types?
 
@@ -708,7 +708,7 @@ A Page usually provides the requested content plus total-element/page metadata, 
 
 ### Q130. What is a projection?
 
-A projection retrieves a subset or alternate view of data instead of exposing the full entity model. Interface and DTO projections can reduce unnecessary data transfer, but actual SQL and optimization depend on query form and provider behavior. Inspect generated SQL and query plans for critical paths.
+A projection returns only the fields needed for a use case instead of materializing and exposing an entire entity graph. Interface projections and DTO/constructor projections can reduce transferred data and avoid lazy-loading relationships that the response does not need. However, the actual SQL shape and optimization depend on whether the query is derived, JPQL, or native and on the provider. Verify generated SQL rather than assuming a projection always creates the ideal query. Projections are especially useful for read models, lists, and reporting; keep entity-based operations for use cases that need managed state and updates.
 
 ### Q131. How should dynamic filtering be implemented?
 
@@ -731,15 +731,15 @@ The provider updates and checks this field as part of entity persistence; do not
 
 ### Q134. What repository abstractions should you use?
 
-The available interfaces vary by Spring Data version. Common options include `CrudRepository`, `ListCrudRepository`, `PagingAndSortingRepository`, and `JpaRepository`; do not assume inheritance relationships from one version apply unchanged to another. Select the smallest useful contract and consult the reference for the chosen release.
+Choose repository interfaces according to the operations the caller needs and the Spring Data version in use. CrudRepository provides basic CRUD operations; PagingAndSortingRepository adds paging/sorting capabilities in versions where it is a separate contract; JpaRepository adds JPA-specific operations such as flush-related methods and batch deletion behavior. The exact inheritance hierarchy has changed across Spring Data generations, so do not memorize it without a version qualifier. Depend on the smallest useful interface for a service's contract, and verify method semantics before relying on flush or bulk-delete behavior.
 
 ### Q135. Why can repository pagination return inconsistent results during concurrent writes?
 
-Offset pages are positional, so inserts/deletes between requests can shift records across page boundaries. A deterministic sort reduces ambiguity but does not create a consistent snapshot across independent requests. For large changing datasets, consider cursor/keyset pagination and document its consistency model.
+Offset pagination identifies a page by position, so inserts or deletes between page requests can shift records and cause duplicates or omissions. A stable sort reduces ambiguity but does not guarantee a consistent snapshot across separate HTTP requests. For large datasets, use keyset/cursor pagination with a deterministic key and define whether newly inserted rows should appear in later pages. If the API requires a consistent snapshot, that is a stronger requirement than pagination alone provides. Test concurrent writes and ensure the sort has a unique tie-breaker, such as an ID, to avoid nondeterministic ordering.
 
 ### Q136. How do Specifications help with dynamic queries?
 
-Specifications compose predicates in a type-aware way for supported Spring Data JPA setups. They are useful when filters are optional, but complex joins and fetches can become difficult to reason about. Keep sorting, filtering, and fetch strategy deliberate and inspect generated SQL.
+Specifications let an application build composable predicates using the JPA Criteria API, which is useful when filters are optional or combined dynamically. They can keep query construction type-aware and reusable, but complex joins, fetches, sorting, grouping, and count queries can become difficult to maintain. Validate the fields users may filter or sort by, define empty/null semantics, and inspect generated SQL for important endpoints. Use a straightforward @Query or custom repository implementation when it expresses a fixed complex query more clearly than a chain of specifications.
 
 ### Q137. Why can @Modifying queries leave managed entities stale?
 
@@ -825,7 +825,7 @@ UserDetailsService loads user-related data for authentication flows that use it,
 
 ### Q152. How should passwords be stored?
 
-Store password hashes using a supported adaptive password encoder, such as the framework's delegating encoder configuration, and never store plaintext or reversible encrypted passwords as a substitute. Choose parameters appropriate to the deployment and plan migration when algorithms or parameters change.
+Passwords should be stored as adaptive one-way hashes, not plaintext or reversibly encrypted values. Spring Security's PasswordEncoder abstraction supports matching a submitted password against a stored encoded value; a delegating encoder can identify the encoding algorithm and support gradual migration between formats. Choose a supported adaptive algorithm and work factor suitable for the deployment, benchmark authentication cost, and protect against online guessing with rate limits and monitoring. Never log submitted passwords or encoded credential material unnecessarily. Plan how existing hashes will be upgraded when the algorithm or cost parameters change.
 
 ### Q153. What is the purpose of a PasswordEncoder?
 
@@ -893,7 +893,7 @@ The purpose is to replace a Spring bean dependency while keeping the rest of the
 
 ### Q166. Why can Spring tests become flaky or slow?
 
-Common causes include excessive full-context startup, shared mutable test state, nondeterministic asynchronous work, external dependencies, timing assumptions, and misuse of context caching. Prefer deterministic fixtures, bounded waits, isolated test data, and focused contexts. Do not add arbitrary sleeps to conceal race conditions.
+Flaky Spring tests often rely on timing, shared mutable state, live external systems, nondeterministic async work, or broad application contexts that leak state between tests. Reduce scope where possible, use deterministic fixtures, reset database/cache state explicitly, and wait on conditions with bounded timeouts instead of arbitrary sleeps. External dependencies should be isolated or started reproducibly. If a test fails only in a suite, check context caching and shared static/singleton state. Avoid using @DirtiesContext as a blanket fix; it can hide the actual isolation defect and significantly slow the suite.
 
 ### Q167. How should security tests be designed?
 
@@ -955,7 +955,7 @@ Observe outbound clients using latency distributions, success/failure counts, ti
 
 ### Q179. What are HTTP Service Clients?
 
-Modern Spring Framework versions support declarative HTTP service interfaces backed by a configured client adapter. They can reduce boilerplate for stable service contracts, but still need explicit timeout, authentication, error mapping, and observability configuration. Verify availability and configuration details for the target Framework release.
+HTTP Service Clients let you declare a Java interface whose methods describe remote HTTP operations, then connect that interface to a configured client adapter. This can make service contracts easier to read and reduce repetitive request construction, but the interface does not itself define the remote service's availability, timeout, authentication, or retry semantics. Configure the underlying RestClient/WebClient or supported adapter deliberately, map errors into meaningful application failures, and instrument outbound calls. Verify the exact Framework version and available client adapter before adopting this API in a codebase managed by an older Boot release.
 
 ### Official references
 - [Spring Framework REST clients](https://docs.spring.io/spring-framework/reference/integration/rest-clients.html)
@@ -985,7 +985,7 @@ An event-loop worker is expected to execute short, non-blocking tasks for many c
 
 ### Q184. How should errors and retries be handled in a reactive pipeline?
 
-Use Reactor operators to map, recover, or retry at a deliberate boundary. Retry only transient and safe-to-repeat operations, bound attempts, and consider the total deadline. An error recovery operator can change the signal into a fallback value, so avoid accidentally turning genuine failures into apparent success.
+Handle errors at the boundary where the application can make a meaningful decision. Use mapping operators for translating technical errors into domain/API errors, recovery operators only when a fallback is valid, and retries only for transient failures where repeating the operation is safe. Bound retry attempts and total elapsed time; do not convert every exception into an empty publisher or success-shaped value. In a reactive pipeline, error signals terminate the upstream sequence unless an operator changes that behavior. Preserve diagnostic information in logs/metrics and test timeout, cancellation, and retry paths as well as the happy path.
 
 ### Q185. What is cancellation, and why does it matter?
 
@@ -993,7 +993,7 @@ Cancellation means the subscriber no longer wants the result, often because the 
 
 ### Q186. How is context propagated in reactive applications?
 
-Reactive execution can hop threads, so ordinary ThreadLocal assumptions do not necessarily hold across the pipeline. Reactor Context is the common mechanism for contextual data, and supported integrations can bridge tracing or security context. Verify context propagation behavior for the exact versions and integrations in use.
+Reactive pipelines may switch threads between operators, so ThreadLocal-based assumptions do not always hold. Reactor Context carries subscriber-associated metadata across a reactive chain and is used by supported tracing/security integrations. It is not a replacement for explicit business parameters: keep business inputs in method signatures and reserve Context for cross-cutting metadata such as trace IDs or security state. Use framework-supported context-propagation features for the selected versions and test the path across scheduler switches, WebClient calls, and asynchronous boundaries. Never place secrets or large mutable objects in context without a clear reason.
 
 ### Q187. How does Reactor Context differ from a method parameter?
 
@@ -1042,7 +1042,7 @@ Design a health indicator to answer a specific operator decision, not to prove t
 
 ### Q196. What is distributed tracing useful for?
 
-Tracing connects spans across service boundaries to show where time is spent and where failures occur. Propagate context using supported instrumentation, sample according to operational needs, and avoid placing secrets or personal data in span attributes. Trace data complements, rather than replaces, logs and metrics.
+Distributed tracing records spans for a request as it crosses service and asynchronous boundaries, helping identify where latency accumulates and where errors originate. It is especially useful when a slow endpoint spends time waiting on several dependencies and ordinary logs cannot show the end-to-end sequence. Propagate standard trace context through supported HTTP and messaging instrumentation, and connect traces with structured logs and metrics. Sampling and retention must be planned for volume and privacy; avoid secrets and personal data in span attributes. Tracing complements metrics and logs rather than replacing service-level indicators or actionable alerts.
 
 ### Q197. How should production endpoints be secured?
 
@@ -1152,11 +1152,11 @@ A pool with an unbounded queue can keep accepting tasks even when arrival rate e
 
 ### Q215. How are exceptions from asynchronous methods observed?
 
-Exceptions from fire-and-forget void methods require an appropriate async exception handler because the caller cannot receive them. Methods returning Future or CompletableFuture can surface failures when the result is observed. Ensure failures are logged and measured without duplicating logs at every layer.
+For a fire-and-forget async method returning void, the caller cannot observe the thrown exception as a normal return value; configure an AsyncUncaughtExceptionHandler or handle/log failures inside the task boundary. If the method returns Future or CompletableFuture, failures are represented by the future and are visible when the caller observes it, composes it, or joins/gets the result. Ignoring the future effectively hides failures. Decide whether the caller needs confirmation, whether retries are appropriate, and whether the work must be durable—@Async alone does not persist tasks across process restarts.
 
 ### Q216. What is the difference between fixed rate and fixed delay scheduling?
 
-Fixed rate schedules executions according to a target cadence; fixed delay measures the delay after an execution completes before the next run. Actual behavior depends on scheduler configuration and task duration. Long tasks, process pauses, and multiple application instances require deliberate concurrency planning.
+Fixed rate schedules executions against a target cadence, whereas fixed delay waits for the configured interval after an execution completes before scheduling the next run. If a task takes longer than its period, actual overlap and timing depend on scheduler configuration and whether multiple scheduler threads or replicas are involved. Neither option provides cluster-wide single execution. Choose based on the requirement—wall-clock cadence versus spacing between completed runs—and make long-running tasks observable, idempotent, and safe during shutdown. Use a durable job/scheduler mechanism when missed runs or duplicate execution have business consequences.
 
 ### Q217. Why can a scheduled job run more than once in a cluster?
 
@@ -1221,15 +1221,15 @@ Spring Cloud release trains are tested against specific Spring Boot generations 
 
 ### Q228. What is the role of an API gateway?
 
-A gateway provides a controlled edge for routing and cross-cutting policies such as authentication integration, rate limiting, and request transformation. It should not become the only place business authorization exists, and its failure characteristics and bypass paths must be considered.
+An API gateway centralizes ingress routing and can apply cross-cutting edge policies such as authentication integration, rate limits, request/response transformation, and traffic shaping. It is useful for consistent edge behavior, but it should not own domain logic or be the sole authorization boundary because internal callers and alternate routes may bypass it. Keep route predicates and filter ordering explicit, enforce payload/time limits, and instrument downstream latency and failures. Gateway retries must respect the end-to-end deadline and operation idempotency; otherwise one client request can be multiplied into many downstream attempts.
 
 ### Q229. How should timeouts, retries, and circuit breakers work together?
 
-Timeouts bound individual waits, retries attempt recovery from selected transient failures, and circuit breakers limit repeated calls to an unhealthy dependency. Poorly aligned policies can multiply latency and load. Budget the full call chain, avoid retry storms, and define fallback behavior that remains correct.
+Timeouts limit how long one call waits, retries repeat selected failures, and circuit breakers stop repeatedly calling a dependency that is currently failing. They must be designed together: a retry multiplies attempt time and load, while a circuit breaker may reject calls before the timeout is reached. Set a total request deadline, allocate a budget to each hop, bound attempts, use backoff/jitter, and ensure fallback behavior is correct rather than fake success. Avoid retrying the same operation independently at gateway, client, and service layers without accounting for the multiplication of attempts.
 
 ### Q230. What is service discovery?
 
-Service discovery resolves logical service identities to available instances through a registry or platform mechanism. It introduces freshness, health, and propagation considerations. In orchestrated environments, platform-native DNS and service abstractions may be sufficient; do not add a registry without a need.
+Service discovery maps a logical service identity to available instances, through a registry or platform mechanism such as Kubernetes Service/DNS. It lets clients avoid hard-coding individual instance addresses, but it introduces health/freshness concerns: registration can lag, caches can be stale, and an instance can fail after discovery. Clients still need connection/response timeouts, sensible retries, and handling for zero healthy instances. In an orchestrated environment, platform-native discovery may be sufficient; add a separate registry only when it solves a real requirement. Monitor resolution failures and per-instance traffic distribution.
 
 ### Q231. How should distributed tracing be propagated?
 
@@ -1241,7 +1241,7 @@ A load balancer distributes requests among selected instances; it does not make 
 
 ### Q233. What is the difference between a retry and a circuit breaker?
 
-A retry repeats a selected operation after a failure; a circuit breaker suppresses calls when recent outcomes indicate a dependency is unhealthy. Retries can amplify load, while a breaker can reject calls that might have succeeded. Configure both around an explicit deadline and operation semantics.
+A retry makes another attempt after a selected failure; a circuit breaker tracks recent outcomes and temporarily rejects calls when the dependency appears unhealthy. Retries can recover from a brief transient issue but can also amplify load, while a breaker reduces pressure at the cost of failing fast even when an individual call might succeed. Align both with the total deadline and idempotency semantics, use bounded attempts and backoff, and define what fallback is safe. A circuit breaker is not a replacement for timeouts, and neither pattern fixes an overloaded or fundamentally unhealthy downstream service.
 
 ### Q234. Why can timeout values not be selected independently per service?
 
@@ -1270,7 +1270,7 @@ Assign clear ownership for connection/response timeouts, retries, and rate limit
 
 ### Q238. What should a production-ready Spring Boot service include?
 
-At minimum, it needs secure external configuration, bounded resource pools, meaningful readiness/liveness semantics, timeouts for remote dependencies, observable errors and latency, graceful shutdown, tested data migrations, and a rollback strategy. Exact requirements depend on the service's risk and workload.
+A production-ready service needs more than a successful startup. It should have secure external configuration, least-privilege access, bounded connection/thread/queue pools, dependency timeouts, appropriate retry and idempotency behavior, meaningful readiness/liveness probes, structured logs/metrics/traces, graceful shutdown, migration/rollback plans, and alerts tied to user impact. The exact checklist depends on risk and workload. Verify failure paths too: database outage, slow dependency, full executor queue, invalid credentials, message redelivery, and termination during work. Readiness should mean the instance can safely receive traffic, not merely that the process is running.
 
 ### Q239. How should a deployment drain requests and background work before termination?
 
@@ -1307,7 +1307,7 @@ Start by measuring where the time is spent rather than assuming the framework is
 
 ### Q245. What does a thread dump reveal?
 
-It shows thread states and stack traces at a point in time, helping identify blocked threads, lock contention, deadlocks, saturated workers, and blocking calls on reactive event loops. Capture multiple dumps when useful to distinguish persistent blocking from transient activity.
+A thread dump captures thread states and stack traces at a point in time. It can reveal threads blocked on monitors or I/O, lock contention, deadlocks, executor saturation, request threads waiting for a connection, and blocking calls running on reactive event-loop threads. Capture more than one dump when needed: a single WAITING state may be normal, while the same stacks persisting across dumps can reveal a stall. Correlate thread names/stacks with request traces, pool metrics, CPU/GC data, and the incident timeline before concluding the JVM is deadlocked.
 
 ### Q246. How do you diagnose connection pool exhaustion?
 
@@ -1315,7 +1315,7 @@ Correlate active, idle, pending, and connection-acquisition latency metrics with
 
 ### Q247. How should memory growth be investigated?
 
-Compare heap usage after garbage collection, allocation rate, object histograms, heap dumps, and container/native memory metrics. Look for retained collections, unbounded caches or queues, listener registrations, and thread-local/context leaks. A high heap before GC alone does not prove a leak.
+Compare heap usage after garbage collection over time, allocation rate, object histograms, heap dumps, GC logs, and container/native-memory metrics. A rising heap before GC can be normal allocation pressure; retained objects after GC are more suggestive of a leak. Look for unbounded maps/caches/queues, listener registrations, static references, thread-local/context retention, and large request/result buffers. Check native memory and thread counts too, because a container OOM can occur while Java heap remains below its configured maximum. Reproduce with representative load and compare retained object paths before changing heap size.
 
 ### Q248. What causes excessive Spring application startup time?
 
@@ -1323,11 +1323,11 @@ Startup delays can come from broad classpath scanning, auto-configuration condit
 
 ### Q249. How do you distinguish JVM, database, framework, and downstream bottlenecks?
 
-Combine evidence: CPU and GC metrics, thread states, pool wait times, query plans, trace spans, and application timings. A framework stack frame in a trace does not prove the framework is the root cause; it may be waiting on the database or a remote service.
+Separate evidence by layer. High CPU and allocation/GC pressure suggest JVM/application computation; blocked threads and long pool-acquisition waits point toward executor or database connection pressure; slow SQL and lock waits point toward the database; long trace spans around an outbound call point toward a dependency or network. A Spring stack frame often just shows where the thread is waiting, not the root cause. Correlate percentiles, traces, thread dumps, pool metrics, and query plans around the same time window. Change one suspected bottleneck at a time and verify the result under representative load.
 
 ### Q250. What is a safe performance optimization process?
 
-Establish a representative baseline, define a measurable target, change one major factor at a time, and compare throughput, latency percentiles, errors, resource use, and correctness. Keep a rollback path and avoid tuning based on a single local microbenchmark when production behavior is dominated by I/O or contention.
+Start with a representative baseline and a clear target—such as p95 latency, throughput, error rate, or resource consumption. Profile or trace the real bottleneck, change one major factor at a time, and compare both performance and correctness. Include warm-up, realistic data volume, concurrency, downstream latency, and failure conditions; a microbenchmark may not predict an I/O-bound production service. Watch for trade-offs such as lower latency but higher database load, larger memory use, or stale data. Keep a rollback path and record the measurements so an optimization is evidence-based rather than a guess.
 
 ### Official references
 - [Spring Boot Actuator metrics](https://docs.spring.io/spring-boot/reference/actuator/metrics.html)
@@ -1340,7 +1340,7 @@ Establish a representative baseline, define a measurable target, change one majo
 
 ### Q251. What is a BeanDefinition?
 
-A BeanDefinition is container metadata describing how a bean should be created and configured, including its class or factory method, scope, dependencies, and other settings. Component scanning and configuration processing register definitions before regular singleton instantiation. Inspecting definitions helps diagnose missing or unexpectedly configured beans.
+A BeanDefinition is metadata that tells the IoC container how to create and configure a bean, including the class or factory method, scope, constructor arguments, properties, dependencies, and lifecycle settings. Component scanning, @Bean methods, imports, and programmatic registration can contribute definitions. Definitions are processed before ordinary singleton creation, so inspecting them helps diagnose a bean that is missing, has the wrong scope, or is configured differently than expected. A BeanDefinition describes how the container should create an object; it is not the bean instance itself.
 
 ### Q252. Why does Spring use bean post-processors?
 
@@ -1360,11 +1360,11 @@ A context can have a parent context, allowing some bean lookups to fall back to 
 
 ### Q256. How should custom composed annotations be designed?
 
-Composed annotations combine existing annotations and may provide aliases or defaults to express a domain convention. Keep their semantics narrow, document meta-annotation behavior, and test that component scanning or interception recognizes them. Avoid building opaque annotation frameworks that obscure the actual configuration.
+A composed annotation combines one or more existing annotations into a reusable application-level convention, sometimes with aliases or overridden defaults. For example, a project may define a narrow stereotype or transaction annotation to standardize a common policy. Keep the meaning predictable, document the defaults, and test that component scanning, binding, or interception recognizes it in the intended context. Composed annotations become hard to debug when they hide many unrelated behaviors or introduce surprising overrides; use them to clarify a repeated contract, not to create a private annotation framework that every developer must reverse-engineer.
 
 ### Q257. How do classpath problems surface in Spring applications?
 
-Missing or incompatible dependencies can cause class-not-found, method-not-found, linkage, or auto-configuration condition failures. Inspect the resolved dependency graph, managed BOM versions, and the first meaningful cause in the stack trace. Avoid fixing a binary incompatibility by randomly upgrading one transitive library.
+Classpath incompatibilities often surface as ClassNotFoundException, NoClassDefFoundError, NoSuchMethodError, linkage errors, or auto-configuration conditions that unexpectedly stop matching. These can be caused by a library compiled against a different API version, duplicate transitive dependencies, or mixing incompatible Boot/Cloud release trains. Inspect the resolved dependency graph and the first meaningful cause in the stack trace; do not upgrade random jars independently to silence the error. Restore a supported BOM alignment, then run startup and integration tests that exercise the affected dependency path.
 
 ### Official references
 - [Spring Core container](https://docs.spring.io/spring-framework/reference/core/beans.html)
@@ -1381,7 +1381,7 @@ Spring Framework 6 and Boot 3 moved many Java EE/Jakarta EE APIs from the javax.
 
 ### Q259. What are the important Spring Framework 7 and Boot 4 baselines?
 
-Framework 7 retains a Java 17 baseline and adopts Jakarta EE 11 APIs, including Servlet 6.1, JPA 3.2, and Bean Validation 3.1. Boot 4 requires Java 17 or later and Framework 7.x. The exact Boot patch may require a specific Framework patch, so consult its system-requirements page.
+Spring Framework 7 has a Java 17 baseline and aligns with Jakarta EE 11 APIs; Spring Boot 4 requires Java 17 or later and Framework 7.x, with patch-level requirements managed by its dependency set. Compatibility also depends on servlet containers, persistence providers, validation libraries, and ecosystem projects. Do not assume that a framework baseline guarantees every third-party library supports the same Java or Jakarta versions. Check the exact Boot patch's system requirements and resolved BOM before setting CI/runtime bounds, and treat major upgrades as dependency-graph migrations rather than isolated version bumps.
 
 ### Q260. What changed for HTTP clients in Framework 7?
 
