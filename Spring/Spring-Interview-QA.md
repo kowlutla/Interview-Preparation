@@ -1583,7 +1583,7 @@ Spring Cloud Gateway routes requests and can apply edge concerns such as filters
 
 ### Q297. When would you use Spring Cloud OpenFeign instead of RestClient or HTTP Service Clients?
 
-OpenFeign provides a declarative interface style for calling remote services and integrates with Spring Cloud features in compatible release trains. RestClient and Spring Framework HTTP Service Clients provide alternatives within the Framework's own client ecosystem. The best choice depends on existing platform conventions, compatibility, load-balancing/resilience integrations, and team familiarity—not on syntax alone. All of them still require explicit timeouts, authentication, error mapping, observability, and retry/idempotency decisions. Check the current Spring Cloud support status and compatibility matrix before adopting OpenFeign in a new application.
+OpenFeign provides a declarative interface style for calling remote services and integrates with Spring Cloud configuration and load-balancing features in compatible release trains. However, the current official Spring Cloud OpenFeign documentation describes the project as feature-complete and recommends Spring HTTP Service Clients for new development. Prefer the Framework's HTTP Service Clients or RestClient when they meet the need; keep OpenFeign where existing integrations or platform conventions justify it. All clients still need explicit timeouts, authentication, error mapping, observability, and retry/idempotency decisions. Check the current Spring Cloud compatibility matrix before adopting or upgrading the client.
 
 ### Q298. How do Spring Cloud Config and Spring Vault differ?
 
