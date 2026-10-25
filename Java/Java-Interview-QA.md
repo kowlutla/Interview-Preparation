@@ -15,7 +15,7 @@ A focused, version-aware guide for Java backend engineers. It prioritizes questi
 1. [Java foundations and language behavior](#1-java-foundations-and-language-behavior)
 2. [Object-oriented design and contracts](#2-object-oriented-design-and-contracts)
 3. [Collections and data structures](#3-collections-and-data-structures)
-4. [Generics, exceptions, and functional programming](#4-generics-exceptions-and-functional-programming)
+4. [Generics and Stream fundamentals](#4-generics-and-stream-fundamentals)
 5. [Concurrency and the Java Memory Model](#5-concurrency-and-the-java-memory-model)
 6. [JVM, memory, and performance](#6-jvm-memory-and-performance)
 7. [Modern Java](#7-modern-java)
