@@ -77,6 +77,16 @@ Dirty checking is the provider's mechanism for detecting changes to managed enti
 
 Calling `save()` on an already managed entity is often unnecessary for dirty checking, though repository conventions and abstraction boundaries may still make it appear in service code. The important condition is that the entity remains managed and the transaction/context lifecycle allows the changes to be flushed. Dirty checking is not automatic tracking for arbitrary detached Java objects.
 
+```java
+@Transactional
+public void changeStatus(long id, OrderStatus status) {
+    Order order = orderRepository.findById(id).orElseThrow();
+    order.setStatus(status); // dirty checking detects this change
+}
+```
+
+The example assumes the service method is invoked through Spring's transactional proxy and the repository uses the same transaction manager. SQL is usually issued at flush/commit, not at the field assignment.
+
 ### Q5. What is the difference between flush and commit?
 
 A flush synchronizes pending persistence-context changes with the database, often by executing INSERT, UPDATE, or DELETE statements. Commit completes the database transaction. Flushing does not itself mean the transaction is committed; later work can still fail and the transaction can roll back.
@@ -173,6 +183,17 @@ Spring typically starts or joins a transaction through a transaction manager, wh
 
 The transaction annotation does not make every operation atomic across databases, HTTP calls, or message brokers. Proxy interception, propagation, rollback rules, and the correct transaction manager all matter. The persistence context's lifetime and the transaction's lifetime are related but conceptually distinct.
 
+```java
+@Transactional
+public void transferOwnership(long orderId, long customerId) {
+    Order order = orderRepository.findById(orderId).orElseThrow();
+    Customer customer = customerRepository.findById(customerId).orElseThrow();
+    order.setCustomer(customer); // owning-side change
+}
+```
+
+This illustrates one database unit of work, not a distributed transaction. By default, Spring's declarative rollback rules roll back on unchecked exceptions and `Error`; checked exceptions require an explicit rollback rule or a different configured policy.
+
 ### Q18. What is the difference between optimistic and pessimistic locking?
 
 Optimistic locking assumes conflicts are relatively uncommon and detects competing updates, commonly with a version field annotated `@Version`. An update includes the expected version; if another transaction has already changed the row, the update affects no matching version and the provider reports a concurrency conflict.
@@ -204,6 +225,15 @@ Rollback behavior depends on the transaction manager, framework configuration, a
 
 The service should define the business operation's consistency boundary, propagate or translate failures deliberately, and avoid catching an exception then continuing as if the transaction were healthy. After a persistence exception, the current transaction may no longer be usable. Retrying should generally occur around a new transaction and only when the operation is safe to repeat.
 
+```java
+@Transactional(rollbackFor = BusinessRuleException.class)
+public void approveOrder(long id) throws BusinessRuleException {
+    // checked BusinessRuleException also triggers rollback
+}
+```
+
+Use `rollbackFor` when a checked exception represents a failed business operation that must roll back. The annotation must be applied through the configured Spring transaction mechanism; self-invocation can bypass proxy-based interception.
+
 ---
 
 ## 5. Queries and Spring Data JPA
@@ -226,6 +256,13 @@ A Spring Data `Page` provides pagination metadata including total-element/page i
 
 For large tables or frequently changing data, total counts can be expensive or not particularly useful. Choose the return type based on what the API needs. If the client only needs “load more,” a Slice or cursor-based approach may be more efficient than returning a total count on every request.
 
+```java
+Page<Order> findByStatus(OrderStatus status, Pageable pageable);
+Slice<Order> findRecentByStatus(OrderStatus status, Pageable pageable);
+```
+
+Both signatures are illustrative repository methods. A `Page` can sometimes avoid executing a count query when Spring Data can infer the total from the returned content; do not assume every page request always runs exactly two SQL statements.
+
 ### Q25. What is the difference between derived queries, JPQL, and native queries in Spring Data JPA?
 
 Derived queries express common predicates through repository method names. JPQL provides a declared query over entity types and attributes. Native queries use database SQL and are useful for vendor-specific features or specialized query tuning.
@@ -235,6 +272,14 @@ Use derived methods for straightforward operations, but avoid excessively long m
 ### Q26. How should pagination and sorting be used safely with Spring Data JPA?
 
 Use a bounded page size and stable sorting with a unique tie-breaker. Without deterministic ordering, records can move between pages even when the query appears unchanged. Offset pagination can become costly at high offsets, while keyset/cursor pagination can be more efficient for sequential traversal if the query has a suitable index and stable key.
+
+```java
+Pageable page = PageRequest.of(
+    pageNumber, 50,
+    Sort.by("createdAt").descending().and(Sort.by("id").descending()));
+```
+
+The unique `id` tie-breaker makes ordering deterministic for rows with the same `createdAt`; it does not by itself provide a snapshot across concurrent inserts or updates.
 
 Do not expose arbitrary client-supplied property names without validation. Be cautious when combining pagination with collection fetch joins. For high-volume endpoints, consider projections, cursor pagination, and an index aligned with filtering and ordering.
 
@@ -343,7 +388,7 @@ No. `saveAll()` iterates over entities through repository save semantics; it doe
 
 A JPQL bulk update changes matching database rows directly and does not synchronize each affected managed entity with the persistence context. That makes it efficient, but already-loaded entities may continue to expose old values. Bulk statements also do not behave like iterating over entities: per-entity callbacks, cascades, and ordinary dirty checking are not applied in the same way, and version handling needs deliberate attention.
 
-In Spring Data JPA, a modifying query is commonly declared with `@Modifying` alongside `@Query`. Decide whether pending changes must be flushed first and whether the context should be cleared afterward; `clearAutomatically = true` can clear it after execution, while `flushAutomatically = true` can flush pending changes before it. These flags are not universal defaults and clearing detaches all managed entities in that context, so use them only when callers understand the consequence.
+In Spring Data JPA, a modifying query is commonly declared with `@Modifying` alongside `@Query`, and it must execute within a transaction. Declared query methods do not automatically receive transaction configuration in every case, so put the transaction boundary on the service or configure the repository method explicitly. Decide whether pending changes must be flushed first and whether the context should be cleared afterward; `clearAutomatically = true` can clear it after execution, while `flushAutomatically = true` can flush pending changes before it. These flags are not universal defaults and clearing detaches all managed entities in that context, so use them only when callers understand the consequence.
 
 ```java
 @Modifying(flushAutomatically = true, clearAutomatically = true)
@@ -672,7 +717,7 @@ For each, explain provider behavior, the generated SQL or transaction consequenc
 ## 12. Official references and version notes
 
 - [Jakarta Persistence specifications](https://jakarta.ee/specifications/persistence/)
-- [Hibernate ORM User Guide](https://docs.jboss.org/hibernate/orm/current/userguide/html_single/Hibernate_User_Guide.html)
+- [Hibernate ORM User Guide (stable documentation)](https://docs.hibernate.org/stable/core/userguide/html_single/)
 - [Hibernate ORM documentation and releases](https://hibernate.org/orm/documentation/)
 - [Hibernate ORM release compatibility matrix](https://hibernate.org/orm/releases/)
 - [Hibernate ORM migration guides](https://hibernate.org/orm/documentation/migrate/)
@@ -681,6 +726,8 @@ For each, explain provider behavior, the generated SQL or transaction consequenc
 - [Spring Boot reference](https://docs.spring.io/spring-boot/reference/)
 
 The Jakarta Persistence specification is the authority for portable persistence behavior. Hibernate documentation covers provider-specific features and implementation behavior. Spring Data documentation defines repository-layer behavior. Do not present draft or milestone specification features as stable contracts.
+
+**Documentation snapshot checked:** 25 October 2026. The official Hibernate documentation lists Hibernate ORM 7.4 as the latest stable series and 8.0 as development; Hibernate 7.4 is aligned with Jakarta Persistence 3.2. This is a documentation snapshot, not a recommendation to upgrade blindly—use the compatibility matrix for the Spring Boot, Java, JDBC driver, and database versions in the actual project.
 
 ### Version and compatibility notes
 
