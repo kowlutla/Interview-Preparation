@@ -590,6 +590,49 @@ JPA is now Jakarta Persistence: it defines a portable API and semantics that com
 
 Use portable APIs when portability is a real requirement. A Hibernate extension can be a reasonable engineering choice when it solves a measured problem, but label it clearly, pin compatible versions, and test it during upgrades. Never assume that a Hibernate-specific annotation, hint, query function, or configuration property will work identically with another provider or across major Hibernate versions.
 
+## 10A. Additional interview topics
+
+### Q73. How do you choose between @ManyToOne, @OneToMany, @OneToOne, and @ManyToMany mappings?
+
+Choose the mapping that reflects the relational model and the navigation the application actually needs. `@ManyToOne` commonly represents a foreign key from a child row to a parent and is often the owning side of a bidirectional one-to-many relationship. `@OneToMany` represents a collection and may be unidirectional or use `mappedBy` to point at the owning field. `@OneToOne` usually needs a unique foreign key (or a shared-primary-key mapping) to enforce one-to-one cardinality in the database. `@ManyToMany` maps a join table and is appropriate only when the relationship itself does not need its own attributes or lifecycle.
+
+Do not choose a bidirectional association automatically. It adds object-graph synchronization and serialization risks; map both directions only when the use cases need them. Keep fetch behavior, nullability, uniqueness, cascade, and orphan-removal decisions separate—each controls a different concern. For critical cardinality rules, verify that the actual database has the appropriate foreign-key and unique constraints.
+
+```java
+@ManyToOne(fetch = FetchType.LAZY, optional = false)
+@JoinColumn(name = "customer_id", nullable = false)
+private Customer customer;
+```
+
+### Q74. How do grouping, aggregation, and subqueries work in JPQL?
+
+JPQL queries the entity model rather than raw table names, but it supports joins, grouping, aggregate functions, and subqueries for many application queries. Use `GROUP BY` when returning aggregate values per group and `HAVING` to filter groups after aggregation. A correlated subquery can express conditions related to the outer entity, but complex reporting queries may be clearer or more efficient as DTO projections or native SQL, depending on database features and execution plans.
+
+```java
+@Query("""
+    select o.customer.id, count(o)
+    from Order o
+    where o.createdAt >= :since
+    group by o.customer.id
+    having count(o) >= :minimum
+    """)
+List<Object[]> findActiveCustomers(Instant since, long minimum);
+```
+
+For production code, prefer a typed DTO constructor projection over `Object[]` when practical, because array positions are easy to misread. Verify aggregate semantics, join multiplication, null handling, and the database execution plan. JPQL portability does not guarantee identical performance across providers or databases.
+
+### Q75. When would you use a fetch join versus an entity graph?
+
+A fetch join makes the fetch requirement explicit in JPQL, while an entity graph describes attributes to fetch for a particular operation without changing the entity's static mapping. Both can reduce extra selects, but neither guarantees that the resulting SQL is optimal. Fetch joins are easy to reason about for suitable to-one associations and bounded data; joining multiple to-many collections can multiply rows and complicate pagination. Entity graphs are useful when the same entity is loaded by different use cases with different fetch needs.
+
+```java
+@Query("select o from Order o join fetch o.customer where o.id = :id")
+Optional<Order> findWithCustomer(@Param("id") long id);
+```
+
+Use an entity graph when you want a named or repository-method-specific fetch plan, and a fetch join when the query itself clearly expresses the needed join. For paginated roots with to-many associations, consider paging IDs first and fetching details in a second query. Always verify SQL, row counts, and pagination behavior with the exact Hibernate version.
+
+
 ## 11. Last-minute revision
 
 Prioritize these questions first:
@@ -636,7 +679,7 @@ The Jakarta Persistence specification is the authority for portable persistence 
 
 ## 13. Editorial and validation notes
 
-- This guide contains 72 curated questions; regenerate the count from actual question headings after future edits.
+- This guide contains 75 curated questions; regenerate the count from actual question headings after future edits.
 - Portable Jakarta Persistence behavior, Hibernate-specific behavior, and Spring Data behavior are distinguished where the difference matters.
 - Code is intentionally limited to small illustrative snippets; the focus is interview understanding and production reasoning.
 - Exact SQL and performance depend on mappings, provider version, database, driver, and query plan; verify with logs and representative workloads.
