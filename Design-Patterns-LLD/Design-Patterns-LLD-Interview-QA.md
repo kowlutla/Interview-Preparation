@@ -379,9 +379,60 @@ Use a factory when selection or construction is a meaningful responsibility—fo
 
 ### Q25. What is the Abstract Factory pattern, and when should you use it?
 
-Abstract Factory creates a family of related products without exposing their concrete classes. For example, a UI toolkit may create matching buttons and checkboxes for a theme, or a storage abstraction may create compatible reader/writer components for one provider.
+Abstract Factory creates a **family of related products** through a common factory contract, so application code can use a compatible set without naming concrete classes. Think of a storage provider that supplies a reader and writer that must work together, or a UI toolkit that creates matching controls for one theme.
 
-The benefit is consistency across the product family. The cost is that adding a new product type can require changing every factory implementation. Use it when products must vary together as a family, not just because several classes share a prefix.
+```mermaid
+classDiagram
+    class StorageFactory {
+      <<interface>>
+      +createReader() Reader
+      +createWriter() Writer
+    }
+    class CloudStorageFactory
+    class LocalStorageFactory
+    class Reader {
+      <<interface>>
+      +read(key)
+    }
+    class Writer {
+      <<interface>>
+      +write(key, value)
+    }
+    StorageFactory <|.. CloudStorageFactory
+    StorageFactory <|.. LocalStorageFactory
+    Reader <|.. CloudReader
+    Reader <|.. LocalReader
+    Writer <|.. CloudWriter
+    Writer <|.. LocalWriter
+    CloudStorageFactory ..> CloudReader : creates
+    CloudStorageFactory ..> CloudWriter : creates
+    LocalStorageFactory ..> LocalReader : creates
+    LocalStorageFactory ..> LocalWriter : creates
+```
+
+A simplified Java sketch:
+
+```java
+interface DocumentReader {
+    String read(String key);
+}
+interface DocumentWriter {
+    void write(String key, String content);
+}
+interface StorageFactory {
+    DocumentReader reader();
+    DocumentWriter writer();
+}
+
+final class LocalStorageFactory implements StorageFactory {
+    public DocumentReader reader() { return new LocalReader(); }
+    public DocumentWriter writer() { return new LocalWriter(); }
+}
+```
+
+The concrete reader and writer types are omitted. The client receives one `StorageFactory` and asks it for both products, keeping the product family consistent. The example demonstrates the shape of the pattern; a real implementation would define error handling, resource lifecycle, and transaction semantics explicitly.
+
+**Trade-off:** adding another family (for example, cloud storage) is straightforward once its factory is implemented, but adding a new product kind (such as a lister) requires extending the factory contract and every family. Use Abstract Factory when products truly vary together. If you only need to choose one implementation, a simple factory, dependency injection, or map lookup is usually simpler.
 
 ### Q26. What is the Builder pattern, and when should you use it?
 
@@ -537,17 +588,150 @@ This is illustrative: production cache code must define expiration, invalidation
 
 ### Q32. What is the Facade pattern, and when should you use it?
 
-Facade offers a simpler interface over a complicated subsystem. A checkout facade might coordinate inventory, tax, payment, and receipt services behind one use-case operation. Unlike an adapter, its primary goal is to simplify interaction, not translate an incompatible interface. A facade should not become a god object that absorbs every business rule.
+Facade gives clients a small, purpose-oriented interface over a subsystem with several collaborators. A backend checkout facade might expose one `checkout()` operation while coordinating inventory, pricing, payment, and order confirmation. It reduces the knowledge a caller needs about the subsystem, but does not automatically make the underlying workflow transactional.
+
+```mermaid
+flowchart TD
+    C[Controller or caller] --> F[CheckoutFacade]
+    F --> I[InventoryService]
+    F --> P[PricingService]
+    F --> G[PaymentGateway]
+    F --> O[OrderRepository]
+```
+
+```java
+final class CheckoutFacade {
+    private final InventoryService inventory;
+    private final PricingService pricing;
+    private final PaymentGateway payments;
+    private final OrderRepository orders;
+
+    CheckoutFacade(InventoryService inventory, PricingService pricing,
+                   PaymentGateway payments, OrderRepository orders) {
+        this.inventory = inventory;
+        this.pricing = pricing;
+        this.payments = payments;
+        this.orders = orders;
+    }
+
+    Order checkout(Cart cart) {
+        inventory.reserve(cart);
+        Money total = pricing.totalFor(cart);
+        PaymentResult payment = payments.charge(cart.customerId(), total);
+        if (!payment.approved()) {
+            inventory.release(cart);
+            throw new PaymentRejectedException();
+        }
+        return orders.createPaidOrder(cart, total, payment.reference());
+    }
+}
+```
+
+Supporting types are omitted. This is a simplified orchestration example, not production-grade payment handling: failures can occur between steps, and compensation may fail too. Real checkout flows need explicit transaction boundaries, idempotency, and a recovery strategy (often a saga or durable workflow) rather than assuming that a facade makes multiple systems atomic.
+
+**Facade vs. Adapter:** an Adapter translates an incompatible interface; a Facade offers a simpler interface over a subsystem. A facade should coordinate a use case without absorbing every business rule or becoming a god object.
 
 ### Q33. What is the Proxy pattern, and when should you use it?
 
-Proxy controls access to another object while presenting a compatible interface. Common uses include access checks, lazy loading, remote access, and virtual proxies. A proxy often has a lifecycle or access-control responsibility; a decorator's intent is usually to add behavior.
+Proxy stands in for another object while exposing a compatible contract. It can control access, defer expensive creation, represent a remote object, or add lifecycle behavior. The client calls the proxy as if it were using the subject, while the proxy decides how and when to delegate.
 
-**Decorator vs Proxy:** their structures can be identical. Distinguish them by intent: decoration adds responsibilities; a proxy controls access, lifecycle, or indirection. In real systems the boundary can overlap. Security must be enforced at a trusted boundary; an in-process proxy alone cannot secure an exposed remote endpoint.
+```mermaid
+classDiagram
+    class Document {
+      <<interface>>
+      +read()
+    }
+    class RealDocument {
+      +read()
+    }
+    class ProtectedDocumentProxy {
+      +read()
+    }
+    Document <|.. RealDocument
+    Document <|.. ProtectedDocumentProxy
+    ProtectedDocumentProxy --> RealDocument : delegates to
+```
+
+```java
+interface Document {
+    String read();
+}
+
+final class ProtectedDocumentProxy implements Document {
+    private final Document target;
+    private final AccessPolicy access;
+    private final User user;
+
+    ProtectedDocumentProxy(Document target, AccessPolicy access, User user) {
+        this.target = target;
+        this.access = access;
+        this.user = user;
+    }
+
+    @Override
+    public String read() {
+        access.requireCanRead(user);
+        return target.read();
+    }
+}
+```
+
+The access policy, user and real document are illustrative collaborators. The proxy is useful only if callers cannot bypass it through an unprotected path. For remote APIs, authorization must also be enforced at the server boundary; an in-process proxy is not a security boundary by itself.
+
+**Proxy vs. Decorator:** their class structures may be identical. A Proxy controls access, creation, or indirection; a Decorator adds a responsibility while preserving the contract. Some real wrappers can serve both purposes, so explain intent rather than relying on the class shape alone.
 
 ### Q34. What is the Composite pattern, and when should you use it?
 
-Composite lets clients treat individual objects and groups uniformly through a shared abstraction. A file tree can represent both files and directories as `FileNode`; a directory contains child nodes and computes aggregate size. Use it when the domain is genuinely hierarchical. Avoid forcing uniform operations where leaves and composites have fundamentally different semantics.
+Composite represents individual objects and groups through a shared interface, so clients can apply the same operation to a leaf or a hierarchy. Common examples include file systems, organization trees, and nested UI components. Use it when the hierarchy is part of the domain; do not force every operation to make sense for every node if their semantics differ.
+
+```mermaid
+classDiagram
+    class FileNode {
+      <<interface>>
+      +size() long
+    }
+    class FileLeaf {
+      -bytes: long
+      +size() long
+    }
+    class Directory {
+      -children: List~FileNode~
+      +add(FileNode)
+      +size() long
+    }
+    FileNode <|.. FileLeaf
+    FileNode <|.. Directory
+    Directory o--> FileNode : contains many
+```
+
+```java
+interface FileNode {
+    long size();
+}
+
+final class FileLeaf implements FileNode {
+    private final long bytes;
+
+    FileLeaf(long bytes) {
+        if (bytes < 0) throw new IllegalArgumentException("bytes must be non-negative");
+        this.bytes = bytes;
+    }
+
+    public long size() { return bytes; }
+}
+
+final class Directory implements FileNode {
+    private final List<FileNode> children = new ArrayList<>();
+
+    void add(FileNode child) { children.add(Objects.requireNonNull(child)); }
+
+    public long size() {
+        return children.stream().mapToLong(FileNode::size).sum();
+    }
+}
+```
+
+This demonstrates recursive aggregation. A production file system would also need rules for cycles, duplicate children, concurrent mutation, access control, and I/O errors. The shared interface makes aggregate operations convenient, but can be awkward if leaf and composite operations cannot honestly share a contract.
 
 ### Q35. What is the Bridge pattern, and when should you use it?
 
@@ -642,23 +826,55 @@ Supporting types are intentionally omitted. The decorator preserves the `Payment
 
 ### Q39. What is the Strategy pattern, and when should you use it?
 
-Strategy encapsulates interchangeable algorithms behind a common contract. It is useful for shipping prices, discounts, payment routing, or retry policies when the choice can vary independently of the caller.
+Strategy encapsulates interchangeable algorithms behind one contract, allowing a caller to select or receive the policy without embedding every variant in a large conditional. Backend examples include shipping-price calculation, discount rules, payment routing, retry policies, and authorization policies.
+
+```mermaid
+classDiagram
+    class ShippingStrategy {
+      <<interface>>
+      +costFor(Order) Money
+    }
+    class StandardShipping
+    class ExpressShipping
+    class CheckoutPricing
+    ShippingStrategy <|.. StandardShipping
+    ShippingStrategy <|.. ExpressShipping
+    CheckoutPricing --> ShippingStrategy : delegates to
+```
 
 ```java
 interface ShippingStrategy {
     Money costFor(Order order);
 }
+
 final class StandardShipping implements ShippingStrategy {
-    public Money costFor(Order order) { return Money.of("5.00", order.currency()); }
+    public Money costFor(Order order) {
+        return Money.of("5.00", order.currency());
+    }
 }
+
+final class ExpressShipping implements ShippingStrategy {
+    public Money costFor(Order order) {
+        return Money.of("15.00", order.currency());
+    }
+}
+
 final class CheckoutPricing {
     private final ShippingStrategy shipping;
-    CheckoutPricing(ShippingStrategy shipping) { this.shipping = shipping; }
-    Money shippingCost(Order order) { return shipping.costFor(order); }
+
+    CheckoutPricing(ShippingStrategy shipping) {
+        this.shipping = Objects.requireNonNull(shipping);
+    }
+
+    Money shippingCost(Order order) {
+        return shipping.costFor(order);
+    }
 }
 ```
 
-The client selects or receives a strategy. If the behavior has only one stable implementation, a strategy interface may be unnecessary. A map of named strategies can replace a long conditional when lookup is data-driven, but do not create a registry just to avoid a short readable `if`.
+The amounts are illustrative; real pricing must define currency, taxes, thresholds and rounding. The key is that `CheckoutPricing` delegates the variable algorithm through a contract, and tests can inject a deterministic strategy.
+
+**When not to use it:** if behavior has one stable implementation or a short conditional is clearer, an interface may be unnecessary. Strategy is especially valuable when alternatives evolve independently or must be tested and selected separately.
 
 ### Q40. What is the Observer pattern, and when should you use it?
 
@@ -745,11 +961,79 @@ This shows the shape of a command, not a complete payment implementation. The co
 
 ### Q42. What is the Template Method pattern, and when should you use it?
 
-Template Method defines an algorithm skeleton in a base class and lets subclasses customize selected steps. It is useful when the overall sequence is stable but a few steps vary. The trade-off is inheritance coupling and less flexible composition. If subclasses need to vary several independent steps, strategies or injected collaborators may be easier to test.
+Template Method defines the fixed outline of an algorithm in a base class and lets subclasses customize selected steps. It fits workflows whose order must remain stable but whose details vary—for example, a report-generation pipeline that always loads data, transforms it, and writes output, with a different transformation per report type.
+
+```mermaid
+classDiagram
+    class ReportJob {
+      +run()
+      #loadData()
+      #transform()
+      #writeOutput()
+    }
+    class SalesReportJob
+    class AuditReportJob
+    ReportJob <|-- SalesReportJob
+    ReportJob <|-- AuditReportJob
+```
+
+```java
+abstract class ReportJob {
+    public final void run() {
+        var data = loadData();
+        var result = transform(data);
+        writeOutput(result);
+    }
+
+    protected abstract List<String> loadData();
+    protected abstract List<String> transform(List<String> data);
+    protected abstract void writeOutput(List<String> result);
+}
+```
+
+The data type is deliberately simplified. Marking `run()` final protects the sequence from being reordered by subclasses. A real workflow must still handle errors, resource cleanup, retries and partial output.
+
+**Trade-off:** Template Method uses inheritance, so subclasses are coupled to the base class's lifecycle and hooks. If several steps vary independently or need runtime replacement, injected strategies/composition are usually more flexible. Do not choose Template Method just to avoid writing a small helper method.
 
 ### Q43. What is the Chain of Responsibility pattern, and when should you use it?
 
-A chain passes a request through handlers until it is handled or the chain ends. A request validation pipeline might perform authentication, input validation, rate checks, and business validation. Define clearly whether every handler runs, a handler can stop the chain, and how errors are represented. A chain is less suitable when the order is obscure or the flow requires complex branching that is better expressed directly.
+Chain of Responsibility sends a request through an ordered sequence of handlers. Each handler may process it, reject it, or pass it to the next handler. It is useful when the order of checks is meaningful and handlers can be composed—for example, a request pipeline that checks authentication, input validity, rate limits, and business constraints.
+
+```mermaid
+flowchart LR
+    R[Request] --> A[Authentication]
+    A --> V[Input validation]
+    V --> L[Rate limit]
+    L --> B[Business validation]
+    B --> D[Dispatch]
+    A -. reject .-> X[Stop with error]
+```
+
+A minimal chain can use one common contract:
+
+```java
+interface RequestHandler {
+    void handle(Request request);
+}
+
+final class ValidationChain {
+    private final List<RequestHandler> handlers;
+
+    ValidationChain(List<RequestHandler> handlers) {
+        this.handlers = List.copyOf(handlers);
+    }
+
+    void handle(Request request) {
+        for (RequestHandler handler : handlers) {
+            handler.handle(request); // A rejection can throw or return a result.
+        }
+    }
+}
+```
+
+The example uses exceptions to stop the loop; a result-based design can make rejection explicit. Define the ordering, stop behavior, error aggregation and whether handlers are pure or side-effecting. In a web framework, middleware/interceptor pipelines are related applications of this idea, though their exact lifecycle differs.
+
+**Chain vs. Strategy:** Strategy chooses one algorithm for a task; a chain usually applies multiple handlers in sequence and may stop early. If all checks must always run and errors should be collected, a validation aggregator may be more accurate than a short-circuit chain.
 
 ### Q44. What is the State pattern, and when should you use it?
 
