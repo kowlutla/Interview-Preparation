@@ -1,4 +1,4 @@
-# Java Interview Handbook — Core Concepts to Senior-Level Discussion
+# Java Interview Handbook — Complete Topic-Wise Revision Guide (Java 8–25)
 
 A focused, version-aware guide for Java backend engineers. It prioritizes questions that repeatedly appear across interview-preparation sources and covers the concepts most likely to distinguish a prepared engineer: language contracts, collections, functional programming, concurrency, JVM behavior, modern Java, and production diagnosis.
 
