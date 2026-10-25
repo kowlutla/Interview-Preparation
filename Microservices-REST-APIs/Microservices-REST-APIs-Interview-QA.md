@@ -1352,7 +1352,7 @@ These sources support protocol semantics and implementation practices. Interview
 - [Spring Cloud CircuitBreaker reference](https://docs.spring.io/spring-cloud-circuitbreaker/reference/): Spring integration options for circuit breakers.
 - [Spring Boot Actuator reference](https://docs.spring.io/spring-boot/reference/actuator/index.html): application health and observability endpoints.
 - [Testcontainers documentation](https://testcontainers.com/): disposable dependencies for integration testing.
-- [OWASP API Security Top 10 (2023)](https://owasp.org/API-Security/editions/2023/en/0x00-header/): broken object/property-level authorization, unrestricted resource consumption, SSRF, and other API-specific risks.
+- [OWASP API Security Top 10 (2023)](https://owasp.org/API-Security/editions/2023/en/0x11-t10/): broken object/property-level authorization, unrestricted resource consumption, SSRF, and other API-specific risks.
 - [W3C Trace Context](https://www.w3.org/TR/trace-context/): interoperable trace-context propagation.
 - [Google SRE Book — Monitoring Distributed Systems](https://sre.google/sre-book/monitoring-distributed-systems/): monitoring, alerting, and production operations.
 - [Microsoft Azure Architecture Center — Microservices](https://learn.microsoft.com/en-us/azure/architecture/guide/architecture-styles/microservices): decomposition and trade-offs.
