@@ -495,10 +495,6 @@ Two classes with the same fully qualified name are not necessarily the same runt
 
 ---
 
-## 10. Expanded coverage: frequently tested Java topics
-
-The earlier sections establish the core concepts. This section fills in additional language, API, runtime, and production topics that commonly appear as follow-up questions. Use it alongside the earlier sections rather than treating it as a separate syllabus.
-
 ## 10. Strings, wrappers, and numeric behavior
 
 ### Q65. What is the difference between String, StringBuilder, and StringBuffer?
