@@ -108,7 +108,7 @@ The application creates an environment and context, registers bean definitions, 
 
 ### Q12. How should you decide whether to use Spring for a small Java program?
 
-Use Spring when dependency management, configuration, integration, or operational infrastructure meaningfully helps. For a tiny utility with few collaborators, a plain Java design may be simpler. Framework use has a learning and startup cost; the goal is not to make every program container-managed.
+Use Spring when the program benefits from dependency wiring, configuration management, integration libraries, transaction support, or operational features such as metrics and health checks. For a tiny command-line utility with only a few collaborators, plain Java may be easier to start, understand, and package. The right question is whether the framework removes meaningful complexity or adds lifecycle/configuration complexity that the problem does not need. Senior engineers should be able to justify the dependency and keep business logic testable without requiring a full application context for every unit test.
 
 ### Official references
 - [Spring Framework overview](https://docs.spring.io/spring-framework/reference/overview.html)
@@ -134,11 +134,11 @@ All are stereotype annotations used to identify components for scanning. @Servic
 
 ### Q16. What do @Configuration and @ComponentScan do?
 
-@Configuration marks a class as a source of bean definitions, often declared with @Bean methods. @ComponentScan instructs Spring to discover eligible stereotype-annotated classes in selected packages. In modern Boot applications, @SpringBootApplication includes component scanning rooted at the application's package, so package placement matters.
+@Configuration identifies a class that contributes bean definitions, often through @Bean factory methods. @ComponentScan tells Spring which packages to inspect for eligible component stereotypes. In a Boot application, @SpringBootApplication includes component scanning rooted at the package of the application class, which is why the main class is commonly placed in the root package. If a bean is missing, check the scan boundary and imported configuration before adding duplicate registration. Keep scans narrow and intentional in large modular applications to avoid accidentally discovering test or unrelated infrastructure components.
 
 ### Q17. How do @Primary and @Qualifier differ?
 
-@Primary gives one candidate preference when multiple beans match a single-valued injection point. @Qualifier narrows the candidate set using qualifier metadata. A qualifier can express a semantic role and is generally clearer when a consumer specifically needs a named kind of implementation.
+@Primary selects a preferred candidate when several beans match a single-valued injection point. @Qualifier narrows the candidates for a specific dependency and can express a semantic role, not just a bean name. Use @Primary when one implementation is a sensible default for most consumers; use a qualifier when a consumer specifically needs a particular implementation. If a consumer truly needs every implementation, inject a collection or map instead of arbitrarily selecting one. Keep the selection rule explicit so adding a new implementation does not silently change behavior.
 
 ### Q18. Is field injection always invalid?
 
@@ -166,7 +166,7 @@ For application configuration, Boot conditions such as @ConditionalOnProperty, @
 
 ### Q24. Why should dependencies generally point toward abstractions?
 
-Depending on an abstraction reduces the consumer's knowledge of a concrete implementation and can make replacement or testing easier. The abstraction must still represent a stable, coherent contract; adding interfaces for every class without a meaningful boundary can create ceremony rather than decoupling.
+Depending on a stable abstraction lets a consumer describe what it needs without depending on construction details of one concrete implementation. That can make replacement, testing, and modular ownership easier. However, an abstraction only helps when it represents a coherent contract; creating an interface for every class can add indirection without reducing coupling. Define interfaces at meaningful boundaries—such as a repository or external-service port—and keep the domain independent of infrastructure details where practical. Spring can inject the selected implementation, but it cannot fix an abstraction that leaks implementation details or has too many unrelated responsibilities.
 
 ### Q25. How do you debug NoSuchBeanDefinitionException?
 
@@ -209,11 +209,11 @@ When Spring creates a singleton, an injected prototype dependency is usually res
 
 ### Q32. When are request and session scopes available?
 
-They are web-aware scopes tied to an active web request or session and require the relevant web application context. Accessing them outside the required context can fail. They should not be confused with thread-local state that remains valid across asynchronous execution.
+Request and session scopes are available in a web-aware application context when an active request or session exists. They let a bean's lifetime follow the web interaction rather than the entire application lifetime. Injecting a request-scoped bean into a singleton usually requires a scoped proxy or provider so the correct target is resolved per request. Accessing the scope outside its context, such as from an unrelated background thread, can fail; request/session state also does not automatically propagate to async work. Pass only the required immutable context explicitly when crossing execution boundaries.
 
 ### Q33. What are @PostConstruct and @PreDestroy used for?
 
-They mark initialization and destruction callbacks on managed beans, subject to lifecycle and scope semantics. Initialization callbacks should not assume every other bean is fully operational in every ordering scenario, and destruction callbacks are not guaranteed for every abrupt process termination.
+@PostConstruct runs after dependency injection and before the bean is considered fully initialized; @PreDestroy is invoked during managed destruction for applicable bean scopes. They are useful for local setup/cleanup, but they are not reliable places for unbounded remote calls or critical durable work. A bean may be initialized before all application components are operational, and abrupt process termination may skip destruction callbacks. Keep lifecycle methods fast and deterministic, use explicit lifecycle/runner components for readiness-sensitive startup work, and let external resources have appropriate timeouts and shutdown handling.
 
 ### Q34. What is lazy initialization, and what is its trade-off?
 
@@ -246,7 +246,7 @@ Bean-definition overriding means a later definition with the same bean name repl
 
 ### Q39. When should you use @ConfigurationProperties instead of @Value?
 
-Use @ConfigurationProperties for grouped, type-safe configuration with relaxed binding and optional validation. @Value is suitable for a small number of individual values or expressions. For complex application settings, a dedicated configuration properties type is easier to document, test, and evolve.
+Use @ConfigurationProperties when several related settings form a configuration contract: it provides structured binding, relaxed naming, type conversion, and integration with validation. @Value is convenient for a small number of individual values or expressions. A dedicated properties type is easier to test, document, and evolve, and it helps detect invalid settings at startup. Validate required URLs, durations, limits, and pool sizes; avoid logging secret-bearing objects. Use constructor-bound or immutable configuration where supported by the target version, and check the effective value/source when deployment overrides behave unexpectedly.
 
 ### Q40. What is relaxed binding in Spring Boot?
 
@@ -262,7 +262,7 @@ Bind values to a dedicated properties class and apply Jakarta Bean Validation co
 
 ### Q43. How do you reason about property precedence?
 
-Spring Boot aggregates property sources and applies a defined precedence order, where higher-priority sources override lower-priority ones. The exact source list and behavior are versioned; consult the Boot externalized-configuration reference. When debugging, inspect the effective value and its source without exposing secrets in logs.
+Boot loads multiple property sources and applies a defined precedence order; a value from a higher-priority source can override the same key in a packaged file. Sources can include command-line arguments, environment variables, profile-specific files, imported configuration, and defaults, with exact ordering defined by the version. When a property differs between local and production, inspect active profiles and the origin of the effective value rather than editing YAML blindly. Avoid printing full configuration objects if they contain credentials, and document intentional overrides so operators can reason about the deployed configuration.
 
 ### Q44. Is @PropertySource the main way to configure a Boot application?
 
@@ -283,7 +283,7 @@ Use a managed secret store or the deployment platform's approved secret mechanis
 
 ### Q46. What is Aspect-Oriented Programming?
 
-AOP modularizes cross-cutting behavior such as transaction boundaries, authorization checks, metrics, and auditing that would otherwise be repeated across many methods. Spring AOP is primarily proxy-based and intercepts method calls that pass through the proxy; it is not a general bytecode-weaving system by default.
+Aspect-Oriented Programming separates cross-cutting behavior—such as transactions, method security, caching, metrics, or auditing—from repeated business-method code. Spring AOP normally applies this behavior through proxies that intercept eligible calls to Spring-managed beans. That means the call path matters: self-invocation and manually constructed objects can bypass advice. AOP is useful when the concern is genuinely cross-cutting and the boundary is stable, but it can obscure important business flow if used too broadly. In interviews, explain both the benefit of centralizing policy and the debugging cost of hidden interception.
 
 ### Q47. What are advice, pointcut, join point, and aspect?
 
@@ -299,7 +299,7 @@ When a method on a bean calls another method on the same instance with this.meth
 
 ### Q50. When should @Around advice be used?
 
-Use around advice when behavior must run before and after the invocation and may need to control proceeding to the target. Always call ProceedingJoinPoint.proceed() appropriately, preserve return values, and avoid swallowing exceptions accidentally. Use narrower advice types when they express the need more clearly.
+Use @Around advice when you need to control the invocation itself—for example, measure elapsed time around a call, conditionally proceed, or transform a result with care. It receives a ProceedingJoinPoint and can call proceed() to invoke the target; forgetting to call it may skip the business method, while calling it more than once may repeat side effects. Preserve the return value and exception behavior unless changing them is an explicit requirement. Prefer before/after/after-returning/after-throwing advice when they express the concern more narrowly, and keep pointcuts specific to avoid surprising unrelated methods.
 
 ### Q51. How do you order multiple aspects?
 
@@ -307,7 +307,7 @@ When multiple aspects intercept the same call, their order determines which advi
 
 ### Q52. Is Spring AOP appropriate for every cross-cutting concern?
 
-No. Use AOP for coherent cross-cutting policies at stable method boundaries. Prefer explicit code for business-critical flow that benefits from local readability, and use servlet filters or MVC interceptors when the concern belongs to the HTTP pipeline rather than service method execution.
+Spring AOP is a good fit for cross-cutting policies at stable method boundaries, such as transaction management, caching, and method security. It is not the right abstraction for every concern. HTTP request wrapping and low-level request logging may belong in a servlet filter; MVC handler behavior may belong in an interceptor or controller advice; business-critical workflow is often clearer as explicit application code. AOP also has proxy limitations and can make call behavior less visible. Choose the layer that naturally owns the concern and test the observable behavior through the actual framework path.
 
 ### Official references
 - [Spring AOP reference](https://docs.spring.io/spring-framework/reference/core/aop.html)
@@ -328,11 +328,11 @@ It combines the common roles of @SpringBootConfiguration, @EnableAutoConfigurati
 
 ### Q55. How does auto-configuration work?
 
-Boot evaluates candidate configuration classes and conditional annotations against the classpath, existing beans, properties, and application environment. Auto-configuration provides sensible defaults and often backs off when the application defines its own bean. It is conditional configuration, not hidden magic that overrides every user choice.
+Auto-configuration is conditional configuration supplied by Boot based on the classpath, application type, environment, properties, and bean definitions already registered. It provides useful defaults without requiring the application to declare every infrastructure bean manually. It is designed to back off in supported situations when the application provides its own configuration, but that depends on the condition and registration order. When behavior is unexpected, inspect the condition evaluation report and resolved dependencies. Treat auto-configuration as transparent configuration logic to understand and override, not as magic that should be disabled wholesale.
 
 ### Q56. What does @ConditionalOnMissingBean mean?
 
-It allows a configuration contribution when no matching bean is present at the point the condition is evaluated. It is commonly used to make auto-configuration replaceable by application configuration. Ordering and bean-definition registration matter, so custom auto-configuration should be tested in realistic contexts.
+@ConditionalOnMissingBean lets an auto-configuration contribute a default only when a matching bean definition has not already been registered at the point the condition is evaluated. This makes library defaults replaceable by application configuration. Matching can depend on bean type, name, and other condition attributes, so a similarly named bean is not necessarily enough. Ordering matters: a custom bean must be registered in a way the condition can see. Test both the default case and the user-override case with a focused application context to ensure the starter behaves as intended.
 
 ### Q57. What is the purpose of an executable Boot JAR?
 
@@ -376,7 +376,7 @@ Build one immutable artifact and provide environment-specific settings through s
 
 ### Q67. What is AOT processing in Spring Boot?
 
-Ahead-of-time processing prepares application metadata/code paths for scenarios such as native images and can improve startup/runtime characteristics in supported cases. It introduces constraints around reflection/dynamic behavior and must be tested with the chosen dependencies and build configuration.
+AOT processing analyzes an application at build time and prepares metadata or generated code paths that can help supported deployments, particularly native images. It can reduce startup time and memory in suitable workloads, but it introduces a closed-world constraint: reflection, dynamic class loading, resources, and proxies may need hints or explicit registration. Not every dependency supports every AOT/native use case. Test the produced artifact—not just JVM startup—and measure build time, startup, memory, throughput, and operational constraints before choosing native deployment. AOT is a deployment trade-off, not a universal performance switch.
 
 ### Q68. Does a successful Boot startup guarantee production correctness?
 
@@ -394,7 +394,7 @@ No. Startup proves only that the initialization path completed under the conditi
 
 ### Q69. How does Spring Boot auto-configuration decide what to configure?
 
-Boot imports candidate auto-configuration classes and evaluates conditions against classpath contents, bean definitions, properties, and application type. Conditions can enable defaults only when their prerequisites hold. Inspect the condition evaluation report rather than guessing which starter or property caused a configuration to activate.
+Boot discovers candidate auto-configuration classes and evaluates their conditions against classpath contents, existing bean definitions, properties, and the application environment/type. A configuration may activate only when a library is present and no application-defined replacement exists, for example. The condition evaluation report is the most direct way to see why a candidate matched or backed off. Check it alongside the resolved dependency tree, active profiles, effective properties, and startup exception. Avoid excluding a whole auto-configuration until you understand which beans it would otherwise provide and what depends on them.
 
 ### Q70. Why does auto-configuration often back off when a user bean exists?
 
@@ -406,7 +406,7 @@ Use the supported exclusion mechanisms, such as the exclude attribute on `@Sprin
 
 ### Q72. How do auto-configuration registration mechanisms differ across Boot generations?
 
-The registration metadata evolved. Older Boot generations commonly used `spring.factories` for auto-configuration candidates; modern Boot uses the dedicated `AutoConfiguration.imports` metadata for auto-configuration discovery. When building a starter, follow the documentation for the exact Boot baseline instead of copying old registration examples.
+Boot's auto-configuration registration metadata changed across generations. Older Boot versions commonly used spring.factories to list auto-configuration candidates; modern Boot uses the dedicated META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports resource. This matters when maintaining a custom starter: copying old metadata into a newer baseline can leave the configuration undiscovered even though the classes compile. Follow the official starter/auto-configuration documentation for the exact Boot line, and test the starter with ApplicationContextRunner or equivalent focused context tests rather than only testing it inside one consuming application.
 
 ### Q73. What can go wrong if a BeanFactoryPostProcessor triggers bean creation too early?
 
@@ -414,7 +414,7 @@ A BeanFactoryPostProcessor runs before normal singleton instantiation, so eagerl
 
 ### Q74. What does ApplicationContext refresh mean?
 
-Refresh initializes the context's infrastructure, applies factory post-processors, registers bean post-processors, instantiates eligible non-lazy singletons, and completes lifecycle coordination. Exact details depend on context type and version. A failure during refresh commonly prevents the application from reaching its ready state.
+ApplicationContext refresh is the phase in which Spring finalizes container setup: it processes factory post-processors, registers bean post-processors, creates eligible non-lazy singletons, applies lifecycle callbacks, and completes context startup. The exact sequence has version/context-specific details, but refresh is where many wiring and initialization failures surface. A failure can prevent the application from becoming ready even if the JVM process is running. When debugging, inspect the earliest root cause in the refresh exception chain and identify whether it came from configuration, bean construction, post-processing, a migration, or external initialization.
 
 ### Q75. How do you investigate slow startup?
 
@@ -997,7 +997,7 @@ Reactive pipelines may switch threads between operators, so ThreadLocal-based as
 
 ### Q187. How does Reactor Context differ from a method parameter?
 
-A method parameter explicitly carries data through a call graph; Reactor Context carries subscriber-associated metadata across a reactive chain. Use Context for cross-cutting metadata such as tracing where supported, but use explicit parameters for business inputs that should remain visible in method contracts.
+A method parameter explicitly carries a value through the method's call graph, making business dependencies visible in the API. Reactor Context is subscriber-associated metadata carried along a reactive pipeline and is useful for cross-cutting concerns such as tracing or security context when supported integrations use it. Context is not automatically equivalent to ThreadLocal and is not a reason to hide ordinary business inputs. Keep domain data explicit, use Context for genuinely contextual metadata, and verify propagation across scheduler switches, nested publishers, and HTTP/messaging boundaries. Avoid storing mutable or sensitive objects there without a clear lifecycle and access model.
 
 ### Q188. What is the danger of `onErrorResume` used too broadly?
 
@@ -1213,7 +1213,7 @@ A Spring application event is an in-process signal published within an applicati
 
 ### Q226. What is Spring Cloud responsible for?
 
-Spring Cloud provides integrations and abstractions for common distributed-system concerns such as configuration, service discovery, client-side load balancing, gateways, and resilience. Spring Framework provides core application infrastructure and Boot simplifies configuration and packaging; Cloud components have their own compatibility and maintenance considerations.
+Spring Cloud provides integrations for distributed application concerns such as centralized configuration, service discovery, load balancing, gateways, circuit-breaker integration, contract testing, and cloud/platform adapters. It complements Spring Framework's application infrastructure and Boot's packaging/configuration conventions; it does not replace domain architecture or make distributed calls reliable automatically. Each Cloud component has its own release/maintenance status and compatibility constraints. Use a Cloud module when it solves a concrete need, align it with the supported Boot release train, and evaluate whether platform-native capabilities already cover the requirement with less application complexity.
 
 ### Q227. Why must Spring Cloud and Boot versions be compatible?
 
