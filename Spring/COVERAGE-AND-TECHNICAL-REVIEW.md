@@ -239,7 +239,7 @@ The generic Boot system-requirements page currently renders Boot 4.1.0 (Java 17 
 
 ### Consolidated handbook review — 2026-10-25
 
-- Created `Spring-Boot-Interview-Handbook.md` as the primary, single-file, topic-organized study guide by consolidating the existing core Spring chapter Q&A and advanced ecosystem chapter rather than discarding their material.
+- Created `Spring-Interview-QA.md` as the primary, single-file, topic-organized study guide by consolidating the existing core Spring chapter Q&A and advanced ecosystem chapter rather than discarding their material.
 - The consolidated guide contains 290 sequentially numbered questions across 26 topic areas: fundamentals; IoC/DI; beans/scopes; configuration; AOP/proxies; Boot; auto-configuration/startup; profiles; MVC/REST; exception handling; transactions; Spring Data JPA; Security; testing; REST clients; WebFlux; Actuator/observability; caching; async/scheduling; events/messaging; Spring Cloud/microservices; deployment; performance/troubleshooting; internals; version migration; and advanced ecosystem modules.
 - Added full topic navigation, a senior-level last-minute revision checklist, and targeted expansions to several overly concise answers covering singleton concurrency, starters versus auto-configuration, profile selection, modifying JPA queries, security testing, and outbound-client observability.
 - Merged the former 51-question concise guide's rapid revision priorities and official reference links into the consolidated handbook, then removed the separate guide so Spring Framework, Spring Boot, and their related topics have one primary Markdown handbook. Existing exercises, scenario prompts, mock interviews, and tricky-question files remain preserved as supplementary practice material.
