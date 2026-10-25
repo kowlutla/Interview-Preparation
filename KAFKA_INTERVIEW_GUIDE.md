@@ -97,7 +97,7 @@ The partitioner chooses a partition according to the client version and configur
 
 ### Q13. Does Kafka guarantee ordering?
 
-Kafka preserves order within a partition, meaning a consumer reads that partition in offset order. It does not guarantee global order across multiple partitions. Producers, retries, and application-level asynchronous processing must also be configured or designed not to violate business ordering.
+Kafka preserves the order of records within a partition, and the offset is the authoritative sequence for that partition. It does not provide a total order across partitions; a consumer reading several partitions observes separate ordered streams. To preserve per-entity order, use a stable key so related records share a partition, avoid concurrent producer logic that sends business events out of sequence, and do not process records for the same key concurrently without sequencing. Producer idempotence helps prevent retry-related reordering under supported settings, but it cannot correct an application that submits events in the wrong order. Increasing a topic's partition count can remap keys, so it needs special care when ordering is critical.
 
 
 ### Q14. What is a consumer group?
@@ -412,12 +412,12 @@ Partitions are append-only logs split into segment files. Writes are appended an
 
 ### Q72. What is a segment, and what are segment rolling settings?
 
-A segment is a portion of a partition log. Brokers roll to a new segment based on size/time-related settings, and retention/cleanup generally removes or compacts eligible segments. Smaller segments can increase file/cleanup overhead; larger segments can affect cleanup granularity.
+A log segment is a file set containing a portion of a partition's log, with associated index files that help locate records. Kafka appends to the active segment and rolls to a new one when configured size or time conditions are met. Retention and cleanup operate largely at segment/record granularity, so segment settings influence how quickly data becomes eligible for cleanup and the amount of file/index overhead. Very small segments can increase file churn; very large segments can delay cleanup and make maintenance less granular. Tune only after understanding topic size, retention policy, broker I/O, and actual cleanup behavior.
 
 
 ### Q73. What is the high watermark?
 
-The high watermark represents the point up to which records are considered replicated sufficiently for normal consumer visibility under Kafka's replication model. Consumers generally do not read beyond it in the standard path. Transactional read_committed consumers also have a last-stable-offset constraint.
+The high watermark (HW) is the boundary of replicated log data considered committed under Kafka's replication protocol; ordinary consumers do not read beyond it. It helps prevent consumers from observing records that might be lost if a leader fails and an unreplicated tail is truncated. The HW is not the same as the log end offset (LEO), which marks the end of the replica's local log. For transactional consumers using `isolation.level=read_committed`, visibility is additionally constrained by the last stable offset (LSO), which stops before unresolved transactions. Interviewers often use these offsets to test whether you understand replication and transactional visibility separately.
 
 
 ### Q74. What is the difference between the log end offset and the last stable offset?
@@ -427,7 +427,7 @@ The log end offset marks the end of the current log. For transactional data, the
 
 ### Q75. What happens during partition reassignment?
 
-Partition reassignment moves replicas to different brokers to balance load or recover capacity. It can create extra network and disk I/O while replicas copy data. Plan concurrency/throttling, monitor progress and broker impact, and verify replication health afterward.
+Partition reassignment changes which brokers host replicas, typically to rebalance storage/traffic, replace a broker, or adjust placement. Kafka must copy replica data to target brokers, which can consume network bandwidth and disk I/O and temporarily increase load. Plan the movement in controlled batches, apply appropriate throttles, check destination capacity and rack/failure-domain placement, and watch reassignment progress, under-replicated partitions, and client latency. After completion, confirm ISR health and balanced disk/network usage; a completed reassignment is not automatically proof that the cluster is optimally balanced.
 
 
 ### Section I — Streams, Connect, CDC and schemas (Q76–Q85)
@@ -439,12 +439,12 @@ Kafka Streams is a client library for building stream-processing applications us
 
 ### Q77. What is the difference between KStream and KTable?
 
-A KStream models a flow of records/events, where each record is an independent fact. A KTable models the latest value for each key, with updates replacing prior state for that key. The semantics influence joins, aggregations, and interpretation of updates.
+A `KStream` represents a sequence of records where each record is an event; multiple records with the same key are all meaningful. A `KTable` represents the latest value for each key, similar to a continuously updated table or key-value view, so a new record updates that key's current state. A `GlobalKTable` replicates the table's state to each application instance and can support lookup-style joins, with different scaling and update trade-offs. These distinctions affect join semantics: stream-stream joins are event/window oriented, while stream-table joins enrich events using the table's current value. The right abstraction depends on whether the data means events or current state.
 
 
 ### Q78. What are event-time windows and late-arriving events?
 
-Windowed aggregation groups records by a time interval. Event time comes from the event timestamp; processing time is when the application handles it. Out-of-order or late records need a grace-period and correction policy, otherwise results may be incomplete or delayed.
+Windowing groups events by time ranges for aggregations such as counts or totals. Event time represents when the event occurred; processing time is when the application handles it, and ingestion/record timestamps may differ depending on configuration. Distributed streams can arrive out of order, so Kafka Streams window definitions include a grace period during which late records can still update a result. After the window closes, later records may be dropped from that window or handled according to the topology's semantics. Define timestamp extraction, allowed lateness, correction behavior, and downstream expectations explicitly—especially when late data can change financial or operational reports.
 
 
 ### Q79. How does Kafka Streams recover local state?
@@ -464,7 +464,7 @@ Change data capture (CDC) detects inserts, updates, and deletes from a database,
 
 ### Q82. How does Kafka Connect manage source offsets?
 
-Source connectors store progress according to connector behavior and worker configuration so they can resume after interruption. Correctness depends on source offset semantics, durability of connector configuration/offset topics, and connector capabilities. Review snapshot modes, restart behavior, and duplicate possibilities.
+Kafka Connect stores source connector progress in its internal offset topic so a source task can resume from a known position after restart; sink connectors also use consumer offsets for the Kafka records they have delivered. The meaning of an offset is connector-specific—for example, a database log position is different from a file byte position—and correctness depends on how the connector records progress relative to the external operation. Configure the internal topics with appropriate replication and retention, protect them from accidental deletion, and understand whether a connector can replay or duplicate data after failure. Test restart and recovery behavior rather than assuming offsets alone guarantee end-to-end exactly-once delivery.
 
 
 ### Q83. What is a schema registry used for?
@@ -511,12 +511,12 @@ Define RPO/RTO, backups or replication strategy, cluster provisioning, topic con
 
 ## Phase 6 — Mock interviews (Q91–Q100)
 
-### Q91. Scenario: A consumer's DB write succeeds, but its offset commit fails. What happens?
+### Q91. The record is likely to be delivered again because Kafka still has the previous committed offset, even though the database mutation already succeeded. This is the normal at-least-once failure window: the database and Kafka offset are separate transactional resources. Make the handler idempotent by storing a stable event ID (with a unique constraint) in the same database transaction as the business update; the second delivery then becomes a harmless no-op. Commit the Kafka offset only after the database transaction succeeds, and monitor repeated failures. A Kafka transaction alone cannot atomically commit an arbitrary external database write and the consumer offset.
 
 On restart or reassignment, Kafka may deliver the record again because the committed position did not advance. Use a stable event ID and atomically persist a deduplication marker with the business mutation. Commit only after the DB transaction succeeds.
 
 
-### Q92. Scenario: Compare release timestamps with lag, processing latency, errors, rebalance rate, CPU/GC, DB/API latency, and per-partition metrics. Roll back if the release is the likely cause and rollback is safe. Avoid scaling consumers until you know whether the bottleneck is partition parallelism or downstream saturation.
+### Q92. Scenario: First establish whether lag is increasing, which consumer groups and partitions are affected, and whether user-facing SLAs or data correctness are at risk. Compare the deployment time with processing latency, error rates, rebalance frequency, CPU/GC, thread pools, database/API latency, and input rate. Check whether the release changed deserialization, batch size, retry behavior, concurrency, or offset commits. If the release is strongly implicated and rollback is safe, stabilize first; do not scale blindly if consumers are already overwhelming the database or if the partition count limits useful parallelism. After recovery, replay/reconcile any failed work and add a regression test or alert.
 
 Compare release timestamps with lag, processing latency, errors, rebalance rate, CPU/GC, DB/API latency, and per-partition metrics. Roll back if the release is the likely cause and rollback is safe. Avoid scaling consumers until you know whether the bottleneck is partition parallelism or downstream saturation.
 
@@ -533,22 +533,22 @@ Check whether records use the same key and partition, whether partition count or
 
 ### Q95. Scenario: Events arrive late and have old timestamps. How do you process them?
 
-Determine whether the timestamp is event time or ingestion time. For analytics, use event-time windows with an explicit grace period and late-event correction strategy. For business workflows, validate state versions and define whether stale events are accepted, ignored, or sent for reconciliation.
+First determine whether the timestamp represents business event time, producer creation time, or broker ingestion time; clocks can also be skewed. For analytics, use event-time processing with a defined grace period and a policy for updating or correcting results when late events arrive. For state-changing business workflows, inspect the entity ID and sequence/version, then decide whether the event is valid, stale, or requires reconciliation. Do not blindly reorder events by timestamp because timestamps may be inaccurate and Kafka only guarantees partition order. Measure lateness and record enough metadata to investigate the source of delayed delivery.
 
 
 ### Q96. Scenario: There is a 100 GB backlog. How do you estimate drain time?
 
-Estimate net drain rate as sustainable processing throughput minus ongoing producer throughput. If processing handles 150 MB/s and incoming traffic is 50 MB/s, net drain is about 100 MB/s, so 100 GB takes roughly 1,000 seconds under idealized steady conditions. Include partition skew, dependency capacity, and overhead in the real estimate.
+Calculate the net drain rate as sustainable consumer processing throughput minus the current incoming data rate. If consumers can process 150 MB/s and producers continue adding 50 MB/s, the backlog shrinks at about 100 MB/s; a 100 GB backlog would take roughly 1,000 seconds (about 17 minutes) under idealized steady conditions. Use consistent units (decimal GB versus GiB), and remember that offset lag is not directly convertible to bytes without record-size information. Validate per-partition skew, downstream capacity, retries, replication and network overhead, and whether adding consumers is possible given the partition count. Scale gradually and watch downstream latency so recovery does not create a second incident.
 
 
 ### Q97. Scenario: A schema change breaks only one consumer. What is your approach?
 
-Identify that consumer's schema/serializer version, failing record, and compatibility mode. Check required fields, defaults, type changes, registry compatibility, and rollout order. Restore compatible schema behavior, then add cross-version contract tests.
+Capture the exact failing record, deserialization exception, consumer version, schema ID, and registry compatibility mode. Determine whether the producer introduced a missing/renamed field, incompatible type change, changed enum value, or serializer/wire-format mismatch. Check whether the consumer is older than the schema it is reading and whether compatibility is configured in the direction the rollout requires. Restore a compatible producer/consumer combination or roll back the schema change, then add contract tests covering old and new schema versions. A registry compatibility check helps prevent common breakages but does not prove that application-level semantics remain compatible.
 
 
 ### Q98. Scenario: The database is unavailable but Kafka producers are healthy. Should consumers continue?
 
-Avoid unbounded retries and memory queues. Apply bounded backoff, pause or limit consumption where appropriate, monitor lag and oldest-event age, and ensure retention can accommodate the outage. Once the database returns, restore processing gradually and watch for overload and duplicates.
+Do not keep retrying every record in a tight loop or buffer an unlimited number of records in memory. Use bounded exponential backoff with jitter, pause or reduce consumption when the database is unavailable, and make sure in-flight work and offset commits remain safe. Monitor lag, oldest-record age, retry rate, database recovery signals, and remaining Kafka retention; if the outage may outlast retention, escalate the data-loss risk early. When the database recovers, restore concurrency gradually to avoid a connection storm, and keep consumers idempotent because records may be redelivered after retries or restarts. Decide whether a DLT is appropriate: an outage affecting many valid records is often better handled by pausing than by sending everything to the DLT.
 
 
 ### Q99. Scenario: You need to migrate a consumer group or reset offsets. What safeguards are needed?
@@ -558,7 +558,7 @@ Document current group offsets, target offsets, replay range, and business impac
 
 ### Q100. Scenario: Interviewer asks how you lead a Kafka incident. What is your framework?
 
-Establish impact and data-integrity risk first. Stabilize the system with reversible changes, identify whether failures come from brokers, producers, consumers, partitioning, or downstream dependencies, and communicate status and decisions. Recover safely, reconcile critical business effects, then add tests, alerts, and runbooks based on the root cause.
+Start by stating customer/business impact, affected topics and groups, time window, and whether data may be lost, duplicated, or delayed. Assign an incident lead, a technical investigator, and a communication owner; preserve logs and metrics before making changes. Stabilize with reversible actions—such as pausing a problematic consumer or rolling back a bad release—while protecting data integrity. Form hypotheses and validate them against broker health, ISR/offline partitions, producer errors, consumer lag/rebalances, and downstream dependencies. After service recovers, reconcile business records and offsets, document root cause and contributing factors, and create measurable follow-ups: tests, alerts, capacity changes, and a runbook update.
 
 
 ## Senior-level revision checklist
