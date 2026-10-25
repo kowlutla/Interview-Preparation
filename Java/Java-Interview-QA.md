@@ -854,6 +854,78 @@ Thread-safe individual methods do not automatically make a multi-step workflow t
 
 ---
 
+### Q127. Why can String.length() differ from the number of visible characters?
+
+Java String stores UTF-16 code units, so `length()` reports the number of UTF-16 code units, not necessarily Unicode code points or user-perceived characters. A character outside the Basic Multilingual Plane uses a surrogate pair and therefore occupies two code units. Some visible symbols are also made from multiple code points, such as a base character plus a combining mark or a joined emoji sequence.
+
+For simple ASCII-oriented identifiers, `length()` often matches expectations. For Unicode-aware processing, use code-point APIs such as `codePointCount` and be clear whether the requirement concerns code units, code points, or grapheme clusters.
+
+### Q128. What are common pitfalls with String.split(), trim(), strip(), and isBlank()?
+
+`split()` accepts a regular expression, not a literal delimiter, and its default behavior discards trailing empty fields. Use a quoted delimiter or an appropriate regex when the delimiter has special meaning, and use a negative limit when trailing empty fields must be preserved. `trim()` removes a narrower range of leading and trailing characters than Unicode-aware `strip()`; `isEmpty()` checks whether length is zero, while `isBlank()` also recognizes strings containing only whitespace.
+
+These methods have different semantics, so choose based on the input format and Java version. In data processing, losing trailing empty columns can silently corrupt records; write a test for empty input, repeated delimiters, trailing delimiters, and non-ASCII whitespace.
+
+### Q129. What does computeIfAbsent() solve, and what should you avoid inside its mapping function?
+
+`computeIfAbsent(key, mappingFunction)` atomically associates a computed value when the key is absent under the map's contract, which is useful for patterns such as building a list per key or caching a result. It is safer than a separate contains/get followed by put when the map is concurrent and the operation needs atomic coordination.
+
+Keep the mapping function short and avoid recursively modifying the same map or performing slow, blocking work inside it. Concurrent map implementations can impose specific restrictions on the mapping function; consult the relevant API contract rather than assuming all Map implementations behave identically.
+
+### Q130. What is IdentityHashMap, and when would you use it?
+
+`IdentityHashMap` compares keys using reference identity (`==`) rather than logical equality (`equals()`). This makes it useful for specialized tasks such as tracking object identity during graph traversal, serialization-like processing, or cycle detection where two equal-but-distinct objects must remain separate.
+
+It is not a general replacement for `HashMap`. Most application maps should use logical equality, and callers should be told explicitly if identity semantics are required because the behavior can be surprising for strings, records, and value objects.
+
+### Q131. What is the ABA problem in compare-and-set algorithms?
+
+With compare-and-set (CAS), a thread checks that a value still equals an expected value before replacing it. The ABA problem occurs when another thread changes the value from A to B and then back to A; a CAS operation sees A again and cannot tell that an intermediate change occurred. Whether this matters depends on the state invariant and what the value represents.
+
+Where change history matters, use a versioned or stamped value, such as an appropriate stamped atomic reference, or redesign the state transition. Do not assume that a successful CAS proves nothing changed in between.
+
+### Q132. Why is double-checked locking unsafe without volatile?
+
+Double-checked locking tries to avoid acquiring a lock on every access by checking a shared reference before and after entering a synchronized block. Without the correct memory semantics, another thread could observe a published reference before construction is safely visible, because object initialization and reference publication are not automatically one indivisible action.
+
+In modern Java, a correctly implemented pattern uses a volatile reference and synchronized initialization, but the initialization-on-demand holder idiom or an enum singleton is often simpler. Explain both the visibility guarantee and why avoiding unnecessary custom singleton machinery is usually preferable.
+
+### Q133. Why is Thread.sleep() not a synchronization mechanism?
+
+`Thread.sleep()` pauses the current thread for a period, subject to scheduling, but it does not establish a happens-before relationship and does not guarantee that another thread's writes become visible. A test or program that “works” after sleeping may still contain a data race and can fail under different timing or hardware.
+
+Coordinate threads through synchronized state, volatile/atomic variables, latches, queues, futures, or other documented synchronization mechanisms. Sleeps can be useful for pacing or simulation, but not for proving that another thread has completed an operation.
+
+### Q134. What are p95 and p99 latency, and why are averages insufficient?
+
+p95 latency is the value at or below which 95% of observed requests complete; p99 similarly describes the 99th percentile. Averages can hide a small fraction of extremely slow requests, even though those tail requests often dominate user experience and timeouts in distributed call chains.
+
+Track percentiles alongside throughput, error rates, saturation, and dependency timings. Compare them over a meaningful window and sufficient request volume, and avoid treating one percentile as the whole story. Tail latency often points to queueing, contention, retries, garbage collection, or a slow dependency.
+
+### Q135. How do you investigate high CPU usage in a Java process?
+
+First establish whether the process is truly CPU-saturated and whether the usage is in application threads, GC, JIT compilation, or native code. Correlate operating-system process and thread metrics with JVM telemetry, then capture thread dumps or a Java Flight Recorder recording while the issue is active. Repeated hot stack traces can help identify loops, excessive serialization, expensive regular expressions, contention-related spinning, or unexpectedly high request volume.
+
+Do not tune the garbage collector or rewrite code before identifying the dominant CPU consumer. Compare the evidence with request rate and deployment changes, then validate a targeted fix under representative load.
+
+### Q136. What tools help diagnose a running JVM, and what is each useful for?
+
+Common tools include `jcmd` for diagnostic commands and recordings, `jstack` or equivalent thread-dump mechanisms for thread states, `jmap` or supported heap-dump commands for heap investigation, `jstat` for selected JVM statistics, and Java Flight Recorder with Java Mission Control for runtime-event analysis. Exact availability and command options depend on the JDK distribution, version, permissions, and environment.
+
+Use the least disruptive tool that answers the question, and check the tool's documentation for the target runtime. Heap dumps and recordings can be large and may contain sensitive data, so plan collection, storage, access control, and cleanup.
+
+### Q137. How do TCP, message framing, and blocking I/O affect Java network code?
+
+TCP provides a reliable byte stream, not message boundaries. A single read may return part of a message, one message, or multiple messages, so the application protocol must define framing—for example, a length prefix, delimiter with escaping, or fixed-size records. Assuming one read equals one request is a common networking bug.
+
+Blocking I/O is straightforward but ties up a thread while waiting. Non-blocking I/O and selectors can multiplex many channels but require more complex state management. Virtual threads can make blocking code easier to scale for many I/O-bound tasks, but connection limits, downstream capacity, timeouts, and backpressure still need explicit handling.
+
+### Q138. How should you evaluate a newer Java API or preview feature before adopting it?
+
+Check the exact JDK release, whether the feature is final, preview, or incubating, the required compiler/runtime flags, and whether dependent libraries and production tooling support it. Preview APIs can change or disappear, so adoption needs a conscious compatibility and upgrade plan rather than assuming source code will remain valid.
+
+Evaluate the feature against a real maintenance or performance need, and test migration, observability, packaging, and production behavior. In interviews, distinguish the feature's design goal from its status in the specific release being discussed.
+
 ## 11. Last-minute revision
 
 If only a short time remains, prioritize these questions and make sure the explanations are clear enough to say aloud:
