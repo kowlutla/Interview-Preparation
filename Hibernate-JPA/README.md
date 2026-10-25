@@ -165,7 +165,7 @@ I also watch for Spring's proxy behavior: calling a transactional method from an
 ### Q13. What makes a class a JPA entity?
 **Must Know**
 
-I use `@Entity` to tell the persistence provider that a class represents persistent data. The entity must satisfy the requirements of the Jakarta Persistence version in use, including having an identifier and meeting the relevant construction/access rules. I also try to keep entities focused on domain persistence rather than using them as REST request and response objects.
+I use `@Entity` to tell the persistence provider that a class represents persistent data. The entity must satisfy the requirements of the Jakarta Persistence version in use, including having an identifier, a public or protected no-argument constructor under the standard rules, and valid field/property access. The specification also places restrictions on entity classes and persistent members, so I check the version-specific requirements rather than assuming any ordinary Java class can be mapped unchanged. I keep entities focused on domain persistence instead of using them as REST request and response objects.
 
 If the database schema doesn't match the default naming strategy, I make the table and column mappings explicit so the mapping remains understandable.
 
@@ -620,7 +620,7 @@ I inspect the identifier and version fields and how Spring Data determines newne
 ### Q74. Are repository methods transactional by default?
 **Must Know**
 
-Spring Data repository methods have default transaction behavior: read operations are generally configured as read-only transactions, while write operations are transactional. Declared query methods and custom repository implementations can have details that need checking in the relevant reference.
+Inherited CRUD repository methods have default transaction settings: read operations are generally read-only, while write operations are transactional. But declared query methods do not automatically receive transaction configuration just because they are repository methods; I configure a transaction where needed or let them participate in a service-level transaction. Custom repository implementations also need their transaction behavior checked explicitly.
 
 For a business operation that updates several entities or calls multiple repositories, I normally put the transaction boundary at the service layer. That makes the intended unit of work explicit instead of relying on separate repository calls to define it.
 
@@ -715,7 +715,7 @@ I test those out-of-band update paths explicitly. If the application cannot guar
 ### Q87. What is JDBC batching in Hibernate?
 **High Value**
 
-JDBC batching groups compatible statements so the driver can send them in fewer round trips. This can improve high-volume insert or update workloads, but it depends on configuration, driver support, statement shape, and identifier generation. Identity-generated IDs can constrain insert batching because the generated key may be needed immediately.
+JDBC batching lets Hibernate submit multiple compatible parameter sets through a JDBC batch, reducing per-statement overhead and potentially reducing network round trips. It does not guarantee a single server call or a fixed number of round trips; the outcome depends on the driver, database, configuration, statement shape, and identifier generation. Identity-generated IDs can constrain insert batching because the generated key may be needed immediately.
 
 For a batch job, I also consider flushing and clearing in chunks so the persistence context doesn't grow without bound. Then I verify actual batching rather than assuming a configuration property is enough.
 
