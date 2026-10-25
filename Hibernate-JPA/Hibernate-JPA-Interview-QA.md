@@ -14,8 +14,13 @@ A focused guide for Java backend engineers who need to explain ORM behavior, que
 4. [Transactions and concurrency](#4-transactions-and-concurrency)
 5. [Queries and Spring Data JPA](#5-queries-and-spring-data-jpa)
 6. [Caching and production troubleshooting](#6-caching-and-production-troubleshooting)
-7. [Last-minute revision](#7-last-minute-revision)
-8. [Official references](#8-official-references)
+7. [Mapping details and persistence operations](#7-mapping-details-and-persistence-operations)
+8. [Repository design, dynamic queries, and batching](#8-repository-design-dynamic-queries-and-batching)
+9. [Testing and production diagnosis](#9-testing-and-production-diagnosis)
+10. [Senior-level production scenarios](#10-senior-level-production-scenarios)
+11. [Last-minute revision](#11-last-minute-revision)
+12. [Official references and version notes](#12-official-references-and-version-notes)
+13. [Editorial and validation notes](#13-editorial-and-validation-notes)
 
 ---
 
@@ -245,7 +250,134 @@ The right choice depends on the database, portability requirements, write volume
 
 ---
 
-## 7. Last-minute revision
+
+## 7. Mapping details and persistence operations
+
+### Q34. What is the difference between find(), getReference(), persist(), merge(), remove(), detach(), and refresh()?
+
+These `EntityManager` operations express different intentions. `find()` loads an entity by identity and returns `null` when no row exists. `getReference()` may return a reference whose state is loaded only when needed; it is useful when an association needs an entity reference by ID, but it is not a guarantee that no SQL or exception will occur before later access. `persist()` makes a new instance managed. `merge()` copies state into a managed instance and returns that instance. `remove()` marks a managed entity for deletion. `detach()` stops the context from tracking an entity, while `refresh()` reloads database state into a managed instance and overwrites its in-memory changes.
+
+The key interview point is to reason about entity state and the persistence context, not treat these methods as interchangeable CRUD shortcuts. Refreshing an entity with unsaved edits discards those edits; detaching it means later field changes are not automatically persisted. Exact SQL timing depends on provider behavior, identifier strategy, flush mode, and transaction state.
+
+### Q35. How do identifier generation, embedded values, and composite keys affect mapping?
+
+`@GeneratedValue` delegates identifier generation to a strategy chosen explicitly or through `AUTO`. `IDENTITY` commonly requires the insert to obtain the generated key and can limit insert batching. `SEQUENCE` can allocate identifiers before inserts and may benefit from allocation pooling when supported by the database and provider. `TABLE` uses a table-based generator and can add coordination overhead. The physical behavior of `AUTO` is provider- and database-dependent, so inspect the generated schema and SQL rather than assuming it selects the same strategy everywhere.
+
+Use `@Embeddable` for a value object whose fields are stored as part of an owning entity's table, and `@Embedded` to include it. Use `@EmbeddedId` or `@IdClass` for a composite key when the domain/schema genuinely requires multiple key columns. Composite key classes must satisfy the requirements of the target Jakarta Persistence version and be designed with stable equality and hashing. Avoid choosing a composite key solely to represent a relationship if a simpler surrogate key plus a unique constraint expresses the model more clearly.
+
+### Q36. How do you keep a bidirectional relationship consistent, and when should many-to-many be replaced with an association entity?
+
+The owning side controls the foreign-key or join-table update. In a `@OneToMany`/`@ManyToOne` mapping, the child-side `@ManyToOne` commonly owns the foreign key. Updating only the parent's inverse collection may change the Java object graph without changing the relationship stored in the database. Helper methods should update both sides so in-memory navigation and persistence mapping agree.
+
+`@ManyToMany` is suitable only when the join itself has no meaningful attributes or lifecycle. If the relationship needs fields such as role, quantity, effective date, status, audit data, or its own uniqueness rules, model the join table as an entity with two many-to-one associations. That makes constraints and lifecycle explicit and avoids uncontrolled cascades across shared entities.
+
+```java
+public void addLine(OrderLine line) {
+    lines.add(line);
+    line.setOrder(this); // owning side
+}
+```
+
+### Q37. What are field access, property access, lifecycle callbacks, and database constraints?
+
+JPA access strategy determines whether the provider reads and writes persistent state through fields or JavaBean properties. It is normally inferred from where mapping annotations such as `@Id` are placed, unless access is explicitly configured. Be consistent within an entity hierarchy and do not put persistence annotations on one access style while assuming the provider will use the other. Property accessors should not contain surprising business logic because the provider may call them during persistence operations.
+
+Lifecycle callbacks such as `@PrePersist`, `@PreUpdate`, and `@PostLoad` can support small entity lifecycle concerns, but they are not a substitute for service-level orchestration or reliable database constraints. Callback timing and which operations trigger callbacks depend on the persistence operation; bulk JPQL updates and deletes bypass normal per-entity lifecycle processing. Likewise, `nullable = false` and `unique = true` contribute mapping/schema metadata, but runtime integrity ultimately depends on the actual database schema and constraints. Validate migrations and constraints in the target database.
+
+
+## 8. Repository design, dynamic queries, and batching
+
+### Q38. When should you use derived queries, JPQL, Specifications, Criteria, or native SQL?
+
+Use derived query methods for straightforward predicates whose intent remains readable in the method name. Use `@Query` with JPQL when the query is clearer when written explicitly or needs joins, aggregation, or a DTO result. Specifications or Criteria are useful when a search screen combines optional filters dynamically; they avoid creating a separate repository method for every filter combination. Native SQL is justified when a database-specific feature, execution plan, or SQL construct is materially useful and the maintenance cost is understood.
+
+For optional filters, compose predicates only when supplied rather than encoding every combination into an enormous method name. Keep values parameterized; never concatenate user-provided values into JPQL or SQL. Test against realistic data and inspect generated SQL and the execution plan. Dynamic query abstractions improve composition, not the database's underlying cost.
+
+### Q39. Does saveAll() perform one bulk SQL insert, and what is the difference between JpaRepository and other repository interfaces?
+
+No. `saveAll()` iterates over entities through repository save semantics; it does not promise one SQL statement or JDBC batching. Actual round trips depend on Hibernate batching configuration, compatible SQL shapes, identifier generation, flush boundaries, transaction size, and the JDBC driver. For large imports, measure batch size and memory use, consider periodic `flush()` and `clear()`, and evaluate plain JDBC or database bulk-loading tools when ORM lifecycle behavior is unnecessary.
+
+`CrudRepository` provides common CRUD operations, `ListCrudRepository` refines several multi-entity return types to `List` in Spring Data versions that include it, and `JpaRepository` adds JPA-oriented operations such as flushing and batch deletion methods. Available interfaces and signatures are version-dependent. The repository abstraction does not itself guarantee a database bulk operation; inspect the exact Spring Data JPA version and SQL behavior.
+
+### Q40. How should bulk modifying queries be used safely?
+
+A JPQL bulk update changes matching database rows directly and does not synchronize each affected managed entity with the persistence context. That makes it efficient, but already-loaded entities may continue to expose old values. Bulk statements also do not behave like iterating over entities: per-entity callbacks, cascades, and ordinary dirty checking are not applied in the same way, and version handling needs deliberate attention.
+
+In Spring Data JPA, a modifying query is commonly declared with `@Modifying` alongside `@Query`. Decide whether pending changes must be flushed first and whether the context should be cleared afterward; `clearAutomatically = true` can clear it after execution, while `flushAutomatically = true` can flush pending changes before it. These flags are not universal defaults and clearing detaches all managed entities in that context, so use them only when callers understand the consequence.
+
+```java
+@Modifying(flushAutomatically = true, clearAutomatically = true)
+@Query("update Order o set o.status = :status where o.id = :id")
+int updateStatus(@Param("id") long id, @Param("status") OrderStatus status);
+```
+
+### Q41. How do auditing, custom repositories, and transaction boundaries fit together?
+
+Spring Data JPA auditing can populate fields such as `@CreatedDate`, `@LastModifiedDate`, `@CreatedBy`, and `@LastModifiedBy` when auditing is enabled and the entity/listener configuration is correct. Auditing records application-level metadata; it does not replace database constraints, immutable audit history, or a separate audit event stream when regulatory requirements demand one.
+
+Use a custom repository implementation when a query or persistence operation cannot be expressed cleanly with derived methods, `@Query`, Specifications, or projections. Keep transaction boundaries around business operations at the service layer when multiple repository calls must succeed or fail together. Repository methods have transactional behavior depending on the method and configuration, but several individually transactional repository calls are not automatically one atomic business transaction unless they participate in the same surrounding transaction.
+
+
+## 9. Testing and production diagnosis
+
+### Q42. What is the difference between Spring transaction propagation and database isolation?
+
+Propagation describes how Spring handles a method's transaction relative to an existing transaction—for example, joining it with `REQUIRED` or requesting an independent transaction with `REQUIRES_NEW` where the transaction manager supports it. Isolation describes which concurrent database changes a transaction may observe and which anomalies the database prevents. These are separate dimensions: propagation is a Spring transaction-management concern, while isolation semantics are ultimately implemented by the database and transaction manager.
+
+A propagation setting does not guarantee a particular isolation level, and an isolation annotation cannot fix an incorrectly designed business consistency boundary. Verify proxy interception, self-invocation, transaction manager selection, rollback rules, connection behavior, and the target database's isolation semantics. Keep transactions short, and avoid holding a connection while waiting for remote HTTP or Kafka calls.
+
+### Q43. How should JPA repositories be tested without trusting an in-memory database too much?
+
+`@DataJpaTest` is a Spring Boot test slice for JPA components. It usually configures entity scanning, repositories, and a test database, and test transactions are commonly rolled back by default. It is useful for mapping and repository behavior, but an in-memory database can differ from production in SQL dialect, constraints, locking, collation, sequence behavior, JSON types, and query plans.
+
+For behavior that depends on the production engine, use Testcontainers or another representative database environment. Test not only that a repository returns expected objects, but also constraints, pagination, generated SQL where important, optimistic-lock conflicts, and bulk-operation context behavior. A passing repository test does not prove a query will perform well with production cardinality or indexes.
+
+### Q44. How do you diagnose unexpected SELECTs, flushes, and stale entity state?
+
+Start with the exact operation and transaction boundary, then capture SQL, bind values where safe, statement timings, query counts, and Hibernate statistics if available. Identify whether a SELECT comes from entity loading, `merge()` state reconciliation, eager association fetching, lazy initialization, a count query, or application code. Identify whether an UPDATE appears at an explicit flush, an automatic flush before a query, or transaction completion.
+
+For stale state, ask whether a bulk update changed rows behind the persistence context, whether a second-level cache is enabled, and whether the application is reading from the same transaction/consistency view. Use `refresh()` for a specific managed entity only when overwriting its current in-memory state is intended; otherwise reload in a suitable context. Do not disable flushing or caching globally before understanding the mechanism.
+
+### Q45. What is a safe approach to batch processing thousands or millions of entities?
+
+First decide whether the work requires entity lifecycle semantics. If yes, use bounded transaction sizes where the business operation permits, configure JDBC batching, and periodically flush and clear the persistence context so it does not retain every processed entity. `flush()` sends pending changes to the database; `clear()` detaches all managed entities, so references held by the application must not be assumed to remain managed afterward. Choose batch size based on memory, driver behavior, lock duration, rollback cost, and database capacity.
+
+If the operation is a set-based transformation, bulk JPQL or SQL can be much cheaper than loading every row. For very large imports, database-native bulk-loading facilities or plain JDBC may be more appropriate. Measure rows per second, actual round trips, memory, lock waits, and transaction failure/restart behavior. A single enormous transaction can consume connections for too long and make rollback expensive; many tiny transactions can increase overhead and complicate consistency.
+
+
+## 10. Senior-level production scenarios
+
+### Q46. An endpoint slows down as the number of returned entities grows. How do you prove or rule out N+1?
+
+Capture a representative trace and compare SQL statement count with the number of root records returned. If one query loads the roots and repeated similar queries load an association for each root, N+1 is likely. Confirm which code path triggers association access—mapping, serialization, logging, or business logic—and check whether second-level caching is masking the query count in development.
+
+Then choose a use-case-specific fetch plan: a fetch join for suitable cardinality, an entity graph, batch fetching, or a DTO projection. For pagination, avoid blindly joining multiple collections because row multiplication can break page semantics or inflate memory. Verify statement count and total rows/bytes, execution plans, latency, and memory using realistic data; fewer statements alone does not guarantee less work.
+
+### Q47. A paginated endpoint returns duplicates, misses records, or becomes slow on later pages. What do you investigate?
+
+Check whether sorting is deterministic and includes a unique tie-breaker. Ordering only by a non-unique field can move equal-valued rows between pages, especially while concurrent writes occur. Inspect join cardinality, particularly collection fetch joins, and verify whether pagination is applied to root entities or joined SQL rows. Also inspect count-query correctness and whether the count query duplicates roots.
+
+For large offsets, the database may still scan and discard many rows; keyset/seek pagination can be more efficient when the API's navigation requirements allow it. A two-query strategy—page root IDs, then fetch required details—can avoid collection-fetch pagination problems. Validate results against concurrent updates and the actual database query plan rather than assuming `Pageable` guarantees correct semantics for every query shape.
+
+### Q48. An update fails with optimistic-lock errors under load. Should you automatically retry?
+
+First identify whether the conflict is expected contention or a symptom of stale detached state, long transactions, duplicate processing, or an incorrect version mapping. `@Version` prevents silent lost updates; the exception is a signal that the application's view was no longer current. Capture entity IDs, versions, transaction duration, retry count, and the competing write path without logging sensitive payloads.
+
+If the operation can be safely retried, retry the entire business operation in a new transaction: reload current state, re-evaluate business rules, and apply the intended change. Use bounded retries with backoff and jitter, and consider idempotency keys where requests or messages can be repeated. Do not blindly retry non-idempotent commands such as decrementing inventory or charging a payment. If contention is normal and high, consider a different aggregate boundary or carefully scoped pessimistic locking.
+
+### Q49. A database update succeeds but the service later rolls back, or a database write and Kafka publish can diverge. How do you respond?
+
+SQL execution is not the same as transaction commit. A flush may send statements to the database while the transaction remains uncommitted; a later exception, constraint failure, timeout, or rollback-only marker can cause the transaction to roll back. Check transaction logs, exception paths, propagation, rollback rules, connection/transaction manager, and the commit outcome rather than treating SQL logs as proof of durable success.
+
+For a database-plus-Kafka dual write, a database transaction and a Kafka publish are not automatically atomic together. Publishing before commit can emit an event for a transaction that later rolls back; publishing after commit can fail and leave the database updated without an event. The transactional-outbox pattern writes the business change and an outbox row in the same database transaction, then a separate publisher or CDC pipeline delivers the event with idempotent downstream handling. The outbox improves atomic recording of intent, but delivery, duplicates, ordering, and operational recovery still need design. See the Kafka handbook for messaging delivery semantics.
+
+### Q50. A cascade unexpectedly deletes data, or a relationship change is missing from the database. How do you debug it?
+
+Inspect the mapping for `CascadeType.REMOVE`, `CascadeType.ALL`, `orphanRemoval = true`, and the owning side. Determine whether the related object is truly privately owned or is shared reference data. For a missing relationship, check whether the owning side was changed and whether both sides of a bidirectional association remain consistent. For unexpected deletion, reproduce the exact entity operation and inspect SQL and foreign-key behavior.
+
+Correct the aggregate/lifecycle model rather than merely removing all cascades. Prefer explicit association entities for relationships with independent attributes or lifecycle, and enforce important integrity rules in database constraints. Add integration tests for removal and reassignment paths so future mapping changes cannot silently broaden deletion behavior.
+
+## 11. Last-minute revision
 
 Prioritize these questions first:
 
@@ -260,11 +392,16 @@ Prioritize these questions first:
 9. Page vs Slice and query selection (Q24–Q26)
 10. First/second-level cache, slow query diagnosis, and connection-pool exhaustion (Q27–Q30)
 
-For each, explain the provider behavior, the generated SQL or transaction consequence, the trade-off, and the way to diagnose it in production.
+11. EntityManager operations, identifier strategies, embedded values, relationship ownership, and callbacks (Q34–Q37)
+12. Derived queries versus JPQL/Specifications/native SQL, repository save semantics, modifying queries, auditing, and custom repositories (Q38–Q41)
+13. Propagation versus isolation, realistic JPA integration tests, SQL/flush diagnosis, and batch processing (Q42–Q45)
+14. N+1 investigation, stable pagination, optimistic-lock retry design, transaction/outbox failures, and mapping safety (Q46–Q50)
+
+For each, explain provider behavior, the generated SQL or transaction consequence, the trade-off, and how to diagnose it in production.
 
 ---
 
-## 8. Official references
+## 12. Official references and version notes
 
 - [Jakarta Persistence specifications](https://jakarta.ee/specifications/persistence/)
 - [Hibernate ORM User Guide](https://docs.jboss.org/hibernate/orm/current/userguide/html_single/Hibernate_User_Guide.html)
@@ -275,10 +412,17 @@ For each, explain the provider behavior, the generated SQL or transaction conseq
 
 The Jakarta Persistence specification is the authority for portable persistence behavior. Hibernate documentation covers provider-specific features and implementation behavior. Spring Data documentation defines repository-layer behavior. Do not present draft or milestone specification features as stable contracts.
 
-## Editorial and validation notes
+### Version and compatibility notes
 
-- This guide prioritizes a manageable set of questions with complete explanations rather than maximizing count.
+- The namespace changed from `javax.persistence.*` to `jakarta.persistence.*` with Jakarta Persistence 3.0. This is a source and binary compatibility boundary; update imports and compatible dependencies together.
+- Hibernate ORM 5.x is associated with the older Java Persistence namespace in common deployments; Hibernate ORM 6.x moved to Jakarta Persistence 3.x and made significant SQL, query, and type-system changes. Hibernate ORM 7.x continues the Jakarta Persistence 3.2 generation with a newer Java baseline. Check the official release compatibility matrix and migration guide for the exact minor version.
+- Spring Boot manages a tested dependency set. Prefer its dependency management rather than independently overriding Hibernate, Spring Data JPA, Jakarta Persistence APIs, and the JDBC driver without a compatibility reason.
+- Hibernate's supported series and compatibility matrix change over time. Use the official matrix and version-pinned migration guides as the source of truth for supported series, Java baselines, Jakarta Persistence levels, and Spring Boot compatibility. Treat `current` documentation as a moving target.
+
+## 13. Editorial and validation notes
+
+- This guide contains 50 curated questions; regenerate the count from actual question headings after future edits.
 - Portable Jakarta Persistence behavior, Hibernate-specific behavior, and Spring Data behavior are distinguished where the difference matters.
 - Code is intentionally limited to small illustrative snippets; the focus is interview understanding and production reasoning.
 - Exact SQL and performance depend on mappings, provider version, database, driver, and query plan; verify with logs and representative workloads.
-- This curated guide is the primary revision path. Existing chapter files remain until unique material is checked and consolidation is safe.
+- The primary handbook is the consolidated revision path. Legacy files should only be removed after their unique material has been inspected and preserved.
