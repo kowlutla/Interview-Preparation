@@ -39,7 +39,7 @@ This is a single-file revision handbook. Examples are intentionally small enough
   - [12.7 Payment processing](#127-design-a-payment-processing-system)
   - [12.8 Logging framework](#128-design-a-logging-framework)
   - [12.9 In-memory cache](#129-design-an-in-memory-cache)
-  - [12.10 Splitwise / expense sharing](#1210-design-splitwise--an-expense-sharing-system)
+  - [12.10 Splitwise and expense sharing](#1210-design-splitwise-and-expense-sharing)
   - [12.11 Food ordering](#1211-design-a-food-ordering-system)
   - [12.12 Hotel booking](#1212-design-a-hotel-booking-system)
   - [12.13 Ride booking](#1213-design-a-ride-booking-system)
@@ -1196,7 +1196,7 @@ Design a reusable logging framework with named loggers, severity levels, structu
 
 Design a thread-safe in-memory cache with get, put, update, and remove operations. Support a capacity limit, an eviction policy such as LRU or LFU, and optional expiration.
 
-### 12.10 Design Splitwise / an Expense-Sharing System
+### 12.10 Design Splitwise and Expense Sharing
 
 Design an expense-sharing application that supports groups, members, shared expenses, equal/exact/percentage splits, balance calculation, and settlements. Consider currency and rounding rules, expense edits, and optional debt simplification.
 
