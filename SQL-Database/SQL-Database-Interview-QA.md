@@ -301,6 +301,7 @@ First define a duplicate by its business key, not by assuming every identical-lo
 ```sql
 SELECT email, COUNT(*) AS occurrences
 FROM users
+WHERE email IS NOT NULL
 GROUP BY email
 HAVING COUNT(*) > 1;
 ```
@@ -395,13 +396,16 @@ Choose column order from real query patterns: equality predicates, range predica
 
 An index may be ignored because a large proportion of rows qualifies, the table is small, the index does not match the predicate or leading-column pattern, statistics are stale, implicit type conversion occurs, or a function/expression prevents a normal index range lookup. The optimizer may correctly choose a table scan if that is cheaper.
 
-For example, wrapping an indexed timestamp in a function can make range access harder:
+For example, wrapping an indexed timestamp in a function can make range access harder. The first predicate is MySQL-specific; Oracle commonly uses `TRUNC(created_at)` for date truncation.
 
 ```sql
--- Often less index-friendly
+-- MySQL: often less index-friendly
 WHERE DATE(created_at) = '2026-01-15'
 
--- Range predicate; adapt date literal syntax to the database
+-- Oracle: often less index-friendly
+WHERE TRUNC(created_at) = DATE '2026-01-15'
+
+-- Prefer a half-open range in either database; adapt bind syntax to the client
 WHERE created_at >= :start_time
   AND created_at <  :next_day_start
 ```
@@ -548,7 +552,18 @@ ORDER BY created_at DESC, order_id DESC
 LIMIT ?;
 ```
 
-For Oracle 12c and later, use the same predicate and ordering with `FETCH NEXT :page_size ROWS ONLY` instead of `LIMIT ?`. Bind the last row's timestamp twice and its `order_id` once. The `order_id` tie-breaker is essential when timestamps match. If the sort column can be NULL, define explicit NULL ordering and build a predicate that matches it. Keyset pagination works best with a compatible index and avoids scanning/discarding a large offset, but does not provide arbitrary page-number jumps.
+**Oracle 12c and later keyset version:**
+
+```sql
+SELECT order_id, created_at
+FROM orders
+WHERE created_at < :last_created_at
+   OR (created_at = :last_created_at AND order_id < :last_order_id)
+ORDER BY created_at DESC, order_id DESC
+FETCH NEXT :page_size ROWS ONLY;
+```
+
+The MySQL example uses positional `?` markers; the Oracle example uses named bind variables. Bind the last row's timestamp and `order_id`, plus the page size. The `order_id` tie-breaker is essential when timestamps match. These examples assume `created_at` is non-NULL. If the sort column can be NULL, define explicit NULL ordering and build a predicate that matches it. Keyset pagination works best with a compatible index and avoids scanning/discarding a large offset, but does not provide arbitrary page-number jumps.
 
 ### Q34. What is the difference between Oracle ROWNUM and ROW_NUMBER()?
 
@@ -640,6 +655,7 @@ The question selection reflects recurring themes across multiple interview-prepa
 - [Oracle — ROWNUM pseudocolumn](https://docs.oracle.com/en/database/oracle/oracle-database/23/sqlrf/ROWNUM-Pseudocolumn.html)
 - [Oracle — ROW_NUMBER analytic function](https://docs.oracle.com/en/database/oracle/oracle-database/23/sqlrf/ROW_NUMBER.html)
 - [Oracle — COALESCE](https://docs.oracle.com/en/database/oracle/oracle-database/26/sqlrf/COALESCE.html)
+- [Oracle — Integrity Constraints](https://docs.oracle.com/en/database/oracle/oracle-database/23/sqlrf/constraint.html)
 - [Oracle Database 21c — Generating and Displaying Execution Plans](https://docs.oracle.com/en/database/oracle/oracle-database/21/tgsql/generating-and-displaying-execution-plans.html)
 - [Oracle Database SQL Tuning Guide](https://docs.oracle.com/en/database/oracle/oracle-database/23/tgsql/sql-tuning-guide.pdf)
 
@@ -649,6 +665,7 @@ The question selection reflects recurring themes across multiple interview-prepa
 - [MySQL — Optimization and Indexes](https://dev.mysql.com/doc/refman/8.4/en/optimization-indexes.html)
 - [MySQL — Multiple-Column Indexes](https://dev.mysql.com/doc/refman/8.4/en/multiple-column-indexes.html)
 - [MySQL — EXPLAIN and EXPLAIN ANALYZE](https://dev.mysql.com/doc/refman/8.4/en/explain.html)
+- [MySQL — TRUNCATE TABLE](https://dev.mysql.com/doc/refman/8.4/en/truncate-table.html)
 - [MySQL — InnoDB Transaction Model and Isolation Levels](https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-model.html)
 - [MySQL — InnoDB Locking](https://dev.mysql.com/doc/refman/8.4/en/innodb-locking.html)
 
