@@ -277,7 +277,7 @@ Choose partitions from measured throughput and the parallelism the workload need
 
 ### Q47. How do you estimate Kafka storage?
 
-Approximate retained primary log storage as daily data volume multiplied by retention days, then adjust for compression and add replication copies, indexes, segment overhead, and free-space headroom. Also account for retention spikes, compaction, and data-growth trends. Validate against broker metrics and actual segment usage.
+Estimate retained primary data by multiplying average bytes ingested per day by retention days, then apply a measured compression ratio. Multiply by the replication factor to estimate total replica storage across the cluster, and add index/segment overhead plus operational headroom for bursts, reassignment, recovery, and disk imbalance. For example, 200 GB/day retained for 7 days is 1.4 TB of uncompressed primary data before compression and replicas; with RF=3, replica storage is roughly 4.2 TB before compression and overhead. Compacted topics need a different estimate based on key cardinality, update rate, and tombstone cleanup. Include growth and peak traffic, and validate the model against actual broker disk usage rather than relying on the estimate alone.
 
 
 ### Q48. Which consumer settings commonly affect throughput?
@@ -292,14 +292,14 @@ Backpressure means slowing intake when downstream processing cannot keep up. Use
 
 ### Q50. Consumer processing is slower than database writes can sustain. What do you do?
 
-Treat the database as the constrained dependency rather than assuming Kafka is slow. Check query latency, slow queries, lock contention, connection-pool utilization, transaction duration, CPU/IO, and the rate at which consumers issue requests. Optimize queries and indexes, batch writes where correctness permits, shorten transactions, and cap listener concurrency to the database's sustainable capacity. Apply backpressure or pause partitions during an outage instead of creating unbounded retries and in-memory queues. Scaling consumers helps only if the database has spare capacity; otherwise it increases contention and can make lag and recovery worse. Once the dependency recovers, ramp traffic gradually and monitor backlog drain rate.
+Treat the database as the constrained dependency rather than assuming Kafka is slow. Check query latency, slow queries, lock contention, connection-pool utilization, transaction duration, CPU/IO, and the rate at which consumers issue requests. Optimize queries and indexes, batch writes where correctness permits, shorten transactions, and cap listener concurrency to the database's sustainable capacity. Apply backpressure or pause partitions during an outage instead of creating unbounded retries and in-memory queues. Scaling consumers helps only if the database has spare capacity; otherwise it increases contention and can make lag and recovery worse. Once the dependency recovers, ramp traffic gradually and monitor backlog drain rate. Estimate recovery using net drain rate (processing throughput minus new incoming traffic), and verify that retention can accommodate the backlog while it drains.
 
 
 ### Section F — Production troubleshooting and reliability (Q51–Q60)
 
 ### Q51. How do you troubleshoot a broker unreachable error?
 
-Start with the exact client error and determine whether failure occurs during bootstrap, metadata discovery, authentication, or a later produce/fetch request. Verify DNS, routing/firewall rules, broker `listeners` and `advertised.listeners`, TLS certificate trust/hostname matching, SASL mechanism and credentials, and load balancer behavior. A common failure is that the client can reach the bootstrap address but cannot reach the broker addresses returned in metadata. Test connectivity from the same network/container as the application, not only from an administrator's laptop. Correlate client logs with broker logs and check broker health, listener ports, and recent certificate or network changes before increasing retry timeouts.
+Start with the exact client error and determine whether failure occurs during bootstrap, metadata discovery, authentication, or a later produce/fetch request. Verify DNS, routing/firewall rules, broker `listeners` and `advertised.listeners`, TLS certificate trust/hostname matching, SASL mechanism and credentials, and load balancer behavior. A common failure is that the client can reach the bootstrap address but cannot reach the broker addresses returned in metadata. Test connectivity from the same network/container as the application, not only from an administrator's laptop. Correlate client logs with broker logs and check broker health, listener ports, and recent certificate or network changes before increasing retry timeouts. If only one topic/partition fails, inspect its leader and ISR; if all brokers fail together, prioritize shared network, authentication, or cluster-wide causes.
 
 
 ### Q52. What do under-replicated partitions mean?
@@ -319,7 +319,7 @@ A poison message is a record that repeatedly fails processing, often because of 
 
 ### Q55. How do you safely replay DLT records?
 
-Identify and fix the cause before replay. Preserve event IDs, record source metadata, and track replay attempts. Reprocess through a controlled pipeline with idempotent business effects and limits on replay rate. Do not blindly copy all records back to the original topic if ordering or duplicates can harm state.
+Identify and fix the cause before replay; otherwise the same records may fail again. Preserve the original topic, partition, offset, key, headers, payload, exception details, and event ID, and record the replay attempt and operator/action. Replay through a controlled process with bounded rate, idempotent business effects, and monitoring. Decide whether records should return to the original topic, go through a dedicated replay topic, or be handled by a repair job; blindly republishing to the original topic can alter ordering and create duplicate side effects. Confirm that the DLT has sufficient retention and access controls, and reconcile expected versus successful replay counts afterward.
 
 
 ### Q56. What is unclean leader election, and what is its trade-off?
@@ -329,7 +329,7 @@ Clean leader election chooses an eligible in-sync replica, helping preserve reco
 
 ### Q57. What if a Kafka broker's disk is almost full?
 
-Identify which topics and partitions consume space, check retention/compaction cleanup, replica placement, ingestion growth, and segment deletion progress. Expand capacity or reduce data only according to approved retention/recovery requirements. Maintain headroom for segment rolling, reassignment, and recovery.
+Identify the largest topics/partitions and distinguish legitimate growth from a retention or cleanup problem. Check per-broker disk utilization, segment deletion/compaction progress, replica placement, ingestion spikes, and whether a reassignment or recovery is copying extra data. Add disk/broker capacity or reduce ingestion only through an approved plan; do not delete logs or shorten retention without understanding replay, audit, and recovery requirements. A full disk can prevent new writes and destabilize broker operations, so maintain headroom for segment rolling, replication, reassignment, and recovery. After mitigation, confirm disk usage is falling, replicas are healthy, and retention/cleanup is behaving as expected.
 
 
 ### Q58. How do you differentiate producer timeout from failed publication?
@@ -339,7 +339,7 @@ A producer timeout is an uncertain outcome, not proof that Kafka rejected the re
 
 ### Q59. What does NOT_LEADER_OR_FOLLOWER or LEADER_NOT_AVAILABLE suggest?
 
-The client may have stale metadata during leader movement or the partition may temporarily lack an available leader. Metadata refresh and retry can resolve transient cases; persistent failures require inspecting partition state, broker availability, controller health, and election logs.
+`NOT_LEADER_OR_FOLLOWER` usually means the request reached a broker that is not the current leader or valid follower for that operation, often because leadership changed and the client has stale metadata. `LEADER_NOT_AVAILABLE` means no usable leader is currently available for the partition. Clients normally refresh metadata and retry transient failures, but persistent errors require checking broker health, partition state, ISR membership, controller/quorum health, and leader-election logs. Determine whether the issue affects one partition or many; a single partition may have a replica/leader problem, while widespread failures suggest a broader broker, controller, or network incident. Avoid increasing retries indefinitely without fixing the underlying state.
 
 
 ### Q60. Which Kafka metrics would you monitor in production?
@@ -373,7 +373,7 @@ Use Kafka to distribute payment lifecycle events, but keep the authoritative pay
 
 ### Q65. Explain the transactional outbox pattern.
 
-The transactional outbox addresses the dual-write problem by committing the business state change and an event row in the same database transaction. A separate publisher polls the outbox or a CDC tool reads the database log and forwards the event to Kafka. This ensures that a committed business change has a durable event to publish, without requiring a distributed transaction between the database and Kafka. The publisher can still crash after Kafka accepts a record but before it records progress, so duplicates are possible and consumers should deduplicate by stable event ID. Define event ordering (often by aggregate/entity key), retry and poison-row behavior, outbox cleanup, schema ownership, and monitoring for oldest unpublished row and backlog. CDC can reduce polling overhead but adds connector operations and recovery considerations.
+The transactional outbox addresses the dual-write problem by committing the business state change and an event row in the same database transaction. A separate publisher polls the outbox or a CDC tool reads the database log and forwards the event to Kafka. This ensures that a committed business change has a durable event to publish, without requiring a distributed transaction between the database and Kafka. The publisher can still crash after Kafka accepts a record but before it records progress, so duplicates are possible and consumers should deduplicate by stable event ID. Define event ordering (often by aggregate/entity key), retry and poison-row behavior, outbox cleanup, schema ownership, and monitoring for oldest unpublished row and backlog. CDC can reduce polling overhead but adds connector operations and recovery considerations. In a polling relay, claim rows safely across multiple instances and avoid marking an event published before the Kafka send is confirmed; in a CDC relay, preserve the connector's source-offset and schema-evolution guarantees.
 
 
 ### Q66. What is a saga?
@@ -407,7 +407,7 @@ Use explicit audit schemas, reliable source publication, restrictive ACLs, reten
 
 ### Q71. How does Kafka store records on disk?
 
-Each partition is stored as an append-only log on disk, divided into segment files. Producers append record batches to the active segment; Kafka assigns offsets, and index files help locate offsets and timestamps without scanning the whole log. The log is written sequentially, which is efficient for disk and enables batch/network optimizations; replication copies the partition log to followers. When a segment rolls, older segments become candidates for retention deletion or compaction according to the topic cleanup policy. Actual disk use also includes indexes, metadata, and replicas. Kafka's performance depends heavily on sequential I/O, batching, page cache, and network throughput, so broker disk latency and page-cache pressure matter as much as raw disk capacity.
+Each partition is an append-only log divided into segment files. Producers send record batches, which are appended to the active segment; offsets identify records within that partition, while offset and time indexes help locate data efficiently. Sequential writes, batching, the operating-system page cache, and efficient transfer of batches are important to Kafka's throughput. Followers replicate the leader's log, and retention or compaction cleans eligible data in the background. A segment is not necessarily one record, and an offset is not a byte position. Disk capacity includes replica copies, indexes, and overhead, while disk latency and page-cache pressure can affect performance even when there is free space. This is why Kafka capacity and performance diagnosis should include both disk usage and I/O latency.
 
 
 ### Q72. What is a segment, and what are segment rolling settings?
@@ -449,7 +449,7 @@ Windowing groups events by time ranges for aggregations such as counts or totals
 
 ### Q79. How does Kafka Streams recover local state?
 
-Stateful operations use local state stores and Kafka changelog topics to restore state after restart or task migration. Recovery time depends on state size, changelog volume, local disk, and restoration throughput. Monitor restore duration and ensure state/changelog retention matches the processing design.
+Kafka Streams stores state locally for stateful operations such as aggregations and joins, while changelog topics record updates needed to reconstruct that state. If a task moves or an instance restarts and its local state is unavailable, Streams restores the store by replaying the changelog before processing normally. Recovery time depends on state size, changelog volume, local disk, network throughput, and whether a standby replica is available. Ensure changelog topics and internal topics have appropriate replication and configuration, monitor restore duration and task migration, and size the recovery budget against the service's RTO. External side effects are not restored by a state-store changelog and need separate idempotency/reconciliation.
 
 
 ### Q80. What is Kafka Connect?
@@ -496,17 +496,17 @@ Kafka ACLs define which authenticated principals may perform operations on resou
 
 ### Q88. How should Kafka credentials and certificates be handled?
 
-Keep secrets out of source control and ordinary application logs. Use a managed secret store, restrict who can read credentials, rotate them safely, and monitor expiry. Use different credentials for environments and services with least privilege.
+Store Kafka passwords, OAuth tokens, private keys, and trust material in a managed secret store or approved platform mechanism, not in source code, container images, committed config, or logs. Grant each service a separate least-privilege identity where practical, scope access to required topics/groups/transactional IDs, and rotate credentials without interrupting consumers or producers. Monitor certificate expiry and test renewal in advance; a certificate can be valid on one host but fail hostname or trust-chain validation elsewhere. Keep secrets out of exception messages and diagnostic bundles, and have a documented revocation procedure for suspected exposure.
 
 
 ### Q89. What privacy risks arise from Kafka event payloads?
 
-Events may replicate sensitive data into many topics, consumer groups, logs, DLTs, and archives. Minimize personal data, classify fields, restrict access, define retention/deletion obligations, encrypt where appropriate, and ensure dead-letter/replay tooling does not expose sensitive payloads broadly.
+An event can be copied into replicated partitions, multiple consumer groups, retry/DLT topics, connector targets, logs, backups, and archives, multiplying the places where sensitive information lives. Minimize payload data, use opaque references where possible, classify fields, apply topic-level authorization and encryption, and define retention and deletion requirements across the full pipeline. Avoid putting secrets or unnecessary personal data in keys, values, headers, exception logs, or DLTs. Ensure replay tools are audited and access-controlled, and understand that deleting a source record may not remove copies already delivered to downstream systems or archives. Privacy controls need to cover the whole data lifecycle, not only the Kafka topic.
 
 
 ### Q90. What should a Kafka disaster-recovery plan include?
 
-Define RPO/RTO, backups or replication strategy, cluster provisioning, topic configs, schemas, ACLs, offsets, connector state, and consumer recovery procedures. Test recovery, replay, and failback under realistic conditions. Ensure teams know which region or cluster is authoritative during failover.
+Define measurable RPO and RTO first, then document the recovery method: cross-cluster replication, backup/restore, or rebuilding from an authoritative source. Include topic and partition configuration, replication/retention settings, schemas, ACLs, credentials, Kafka Connect configuration and offsets, consumer-group offsets, Streams state, and application dependencies. Decide how producers switch, which cluster is authoritative, how duplicate or delayed events are reconciled, and how split-brain writes are prevented. Cross-cluster replication does not necessarily preserve original offsets, transaction state, or all ordering semantics, so test the actual client and replication setup. Run scheduled failover and failback exercises and measure recovery time and data loss against the agreed objectives.
 
 
 ## Phase 6 — Mock interviews (Q91–Q100)
@@ -528,7 +528,7 @@ No. Producer idempotence handles qualifying retries from a producer identity and
 
 ### Q94. Scenario: Records for one order appear out of order. What do you check?
 
-Check whether records use the same key and partition, whether partition count or partitioner configuration changed, whether producers publish concurrently, whether retries reorder sends, and whether consumers process records asynchronously without per-key sequencing. Use sequence numbers or state-version checks if required.
+Trace the order from producer to business side effect. Verify the records have the same key and partition, then check whether partition count, key serialization, or custom partitioner behavior changed. Look for multiple producers racing to publish updates, asynchronous application calls that submit events out of sequence, and producer retries with idempotence disabled or incompatible settings. On the consumer side, confirm that processing is not parallelized in a way that lets a later event finish first. If business ordering must survive retries, rebalances, and replay, include an entity sequence/version and reject or reconcile stale updates. Kafka preserves partition log order; it cannot infer the intended business order if producers publish events incorrectly.
 
 
 ### Q95. Scenario: Events arrive late and have old timestamps. How do you process them?
