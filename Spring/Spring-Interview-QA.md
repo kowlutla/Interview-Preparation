@@ -229,7 +229,7 @@ Common lifecycle mistakes include performing slow network calls in constructors 
 
 ### Q37. Can Spring override a bean definition with another bean of the same name?
 
-Behavior depends on configuration and Boot settings; bean-definition overriding is not a safe way to resolve accidental conflicts. Prefer unique, meaningful names and explicit conditions or qualifiers. Verify the selected Boot version's defaults when debugging duplicate-bean registration.
+Bean-definition overriding means a later definition with the same bean name replaces an earlier one. Whether this is allowed depends on the application context and Boot configuration/version, and relying on it can make behavior order-dependent and difficult to diagnose. Prefer explicit conditional configuration, meaningful bean names, qualifiers, or a clear primary candidate. If startup reports a duplicate bean, inspect which configuration registered each definition and why both are active; do not enable overriding simply to hide an accidental collision. Library auto-configuration should generally back off when the application provides a replacement bean.
 
 ### Official references
 - [Bean scopes](https://docs.spring.io/spring-framework/reference/core/beans/factory-scopes.html)
@@ -266,7 +266,7 @@ Spring Boot aggregates property sources and applies a defined precedence order, 
 
 ### Q44. Is @PropertySource the main way to configure a Boot application?
 
-Usually not. Boot's externalized configuration supports application.properties/application.yaml, profile-specific files, environment variables, command-line arguments, and imported configuration sources. @PropertySource remains useful for specific cases, but it is not a replacement for understanding Boot's configuration loading model.
+Usually not. Boot's externalized configuration system loads application.properties/application.yaml, profile-specific files, environment variables, command-line arguments, and supported imported configuration sources with defined precedence. @PropertySource is still useful for specific property files, but it is not the complete Boot configuration model and does not support every source/format the same way. When a value is unexpectedly wrong, inspect active profiles and property-source precedence, then identify the actual source of the resolved value. Avoid duplicating the same key across several sources unless the override is intentional and documented.
 
 ### Q45. How should secrets be supplied to production applications?
 
@@ -303,7 +303,7 @@ Use around advice when behavior must run before and after the invocation and may
 
 ### Q51. How do you order multiple aspects?
 
-Define ordering explicitly when the relative sequence matters, using supported ordering mechanisms such as @Order. Ordering affects nested interception and exception flow, so test the observable behavior rather than assuming the order from class names or registration order.
+When multiple aspects intercept the same call, their order determines which advice runs first and which runs inside another advice's scope. This can affect transaction boundaries, timing metrics, logging, security checks, and exception translation. Use an explicit ordering mechanism such as @Order only when order is part of the design, and understand the framework's precedence rules rather than assuming lower numbers or class names intuitively map to the desired nesting. Add a focused test that proves the externally observable sequence; avoid depending on incidental registration order.
 
 ### Q52. Is Spring AOP appropriate for every cross-cutting concern?
 
@@ -340,7 +340,7 @@ It packages an application with the runtime dependencies and a launcher structur
 
 ### Q58. What is the difference between CommandLineRunner and ApplicationRunner?
 
-Both provide callbacks after the application context has started. CommandLineRunner receives raw string arguments; ApplicationRunner receives parsed application arguments through ApplicationArguments. Keep startup work bounded, observable, and idempotent because a slow runner can delay the application from becoming ready.
+Both interfaces let application code run after the Spring application context has started. CommandLineRunner receives the raw command-line arguments as a String array, while ApplicationRunner receives an ApplicationArguments abstraction that separates option and non-option arguments. They are useful for bounded initialization or startup validation, but long-running work in a runner can delay readiness and cause deployment timeouts. Make startup work observable and idempotent, define what happens if it fails, and move recurring or durable work to a scheduler or job system rather than treating a runner as a background worker.
 
 ### Q59. How do you diagnose why an auto-configuration did not apply?
 
@@ -455,7 +455,7 @@ Keep environment-specific values external to the image, inject non-secret settin
 
 ### Q82. Does changing an environment variable update a running Spring bean?
 
-Usually not. Environment variables are read by the process environment, and property binding generally occurs during startup. Dynamic refresh requires an explicitly supported refresh mechanism and compatible consumers; a process restart or rollout is often the safer operational model.
+Usually not. Environment variables are part of the process environment and are not automatically re-read as live updates by existing Spring beans. Boot generally binds configuration during startup, so changing a Kubernetes ConfigMap or deployment environment may require a rollout/restart before the application sees the new value. Dynamic refresh is possible only when a supported refresh mechanism and compatible consumers are deliberately configured; it is not universal. For critical settings, document whether they are restart-bound or refreshable and test the deployment mechanism instead of assuming a changed external file updates in-memory objects.
 
 ### Q83. What is the danger of logging the Environment or all configuration properties?
 
@@ -496,7 +496,7 @@ Accept bounded page/size or cursor parameters, validate limits, and return predi
 
 ### Q90. What is content negotiation?
 
-Content negotiation selects a representation based on request headers and supported media types. Message converters handle serialization and deserialization for supported types. Explicitly define supported content types and test malformed payloads, unsupported media types, and incompatible Accept headers.
+Content negotiation determines which representation the server returns based on the request's Accept header and the media types supported by the handler/message converters. Request Content-Type, by contrast, describes the representation being sent to the server. A request can therefore fail because the payload is malformed, its Content-Type is unsupported, or the requested response type is unacceptable; these are different problems and may map to different HTTP statuses. Declare supported media types clearly and test JSON/XML or vendor media types only when the API actually supports them. Do not treat serialization errors as business-validation failures.
 
 ### Q91. What makes an API operation idempotent?
 
@@ -1249,11 +1249,11 @@ A request may traverse a gateway and several nested services, so each hop's proc
 
 ### Q235. What is a service mesh's relationship to Spring Cloud?
 
-A service mesh can provide infrastructure-level traffic, identity, and telemetry policies, while Spring Cloud provides application-library integrations. They may overlap; avoid implementing the same retry/security policy at multiple layers without understanding precedence and compounded behavior.
+A service mesh typically handles infrastructure-level traffic concerns such as service identity, transport security, retries, routing, and telemetry through proxies or the platform. Spring Cloud provides application-level libraries and integrations for configuration, discovery, gateways, load balancing, and resilience. The capabilities can overlap, and implementing retries or identity policies in both layers can multiply attempts or create confusing precedence. Decide which layer owns each policy, document the effective end-to-end timeout/retry budget, and verify behavior in deployment. A mesh does not replace application-level authorization or idempotency for business operations.
 
 ### Q236. How should service discovery and readiness interact?
 
-Discovery should ideally expose instances that are eligible to receive traffic, but propagation and caching mean stale instances can still be observed. Clients need bounded timeouts and failure handling even when health registration is configured correctly.
+Readiness indicates whether an instance should receive traffic; service discovery and load balancers should ideally use that signal to avoid routing new work to an unready instance. However, health propagation and discovery caches can be delayed, so clients may still call a recently failed or terminating instance. Keep client timeouts and failure handling even when readiness is configured correctly. During shutdown, remove the instance from traffic before stopping request handling, allow in-flight work to drain within a bounded period, and test the behavior under rolling deployment. Readiness is a routing signal, not a guarantee that every request will succeed.
 
 ### Q237. How do you avoid duplicate resilience policies across gateway and service clients?
 
@@ -1286,7 +1286,7 @@ The process uses native memory for thread stacks, metaspace, direct buffers, lib
 
 ### Q242. How should a service handle a dependency outage?
 
-Bound waits with timeouts, limit retries, use circuit breaking when appropriate, shed or queue work within explicit bounds, and return a meaningful failure or degraded response. Decide which functions can operate without the dependency and how recovery is detected.
+First, bound the time spent waiting on the dependency and prevent retries from multiplying load during the outage. Depending on the business function, use a circuit breaker, bulkhead, bounded queue, degraded response, or explicit failure response; do not silently return fake success. Decide which operations can continue without the dependency and which must fail closed. For writes, record durable intent or provide reconciliation if work may be retried later. Monitor dependency latency/error rate and recovery, and test the recovery path so queued work does not create a second traffic spike when the service returns.
 
 ### Q243. What should be checked before a rolling deployment?
 
