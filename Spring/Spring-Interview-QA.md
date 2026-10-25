@@ -4,7 +4,7 @@
 
 **Purpose:** A topic-organized, interview-first revision handbook covering Spring Framework, Spring Boot, and the related Spring ecosystem. Answers explain the mechanism, practical implications, common failure modes, and trade-offs rather than giving one-line definitions. Use short snippets only when they clarify behavior.
 
-**Version note:** Spring APIs and defaults evolve. The stable documentation available at review time lists Spring Framework 7.0.x and 6.2.x; Spring Boot and ecosystem projects have their own compatibility lines. For version-specific answers, verify against the exact Framework, Boot, Java, and Spring Cloud versions used by the target application. [Official Spring Framework reference](https://docs.spring.io/spring-framework/reference/) · [Official Spring Boot reference](https://docs.spring.io/spring-boot/reference/).
+**Version note (reviewed 25 October 2026):** The official documentation currently lists Spring Framework 7.0.10 and 6.2.19 as stable lines; Spring Boot 4.1.x is also documented, with its own Java and Framework requirements. Do not mix version numbers independently: Boot manages a tested dependency set, and Spring Cloud release trains have their own compatibility matrix. In an interview, state the version family you have used and check migration guides before making version-specific claims. [Spring Framework versions](https://docs.spring.io/spring-framework/reference/) · [Spring Boot system requirements](https://docs.spring.io/spring-boot/system-requirements.html) · [Spring Boot reference](https://docs.spring.io/spring-boot/reference/).
 
 ## How to use this handbook
 
@@ -590,53 +590,63 @@ Log the exception and relevant safe identifiers at the boundary where it can be 
 
 ### Q109. What does @Transactional do?
 
-@Transactional declares transaction semantics for a method or class when transaction management is configured. In common Spring proxy mode, calls passing through the proxy are intercepted and a transaction manager coordinates the relevant resource transaction. The annotation does not make arbitrary remote calls atomic with a database write.
+`@Transactional` declares the transaction boundary and attributes—such as propagation, isolation, timeout, read-only intent, and rollback rules—for a method or class. In the common proxy-based model, a call entering through the Spring proxy starts, joins, or otherwise participates in a transaction; the transaction manager then coordinates the configured resource, such as JDBC or JPA. The method's database work normally commits when it completes successfully and rolls back when the configured rollback rules match. It does **not** make an HTTP call, a Kafka publish, and a database write one atomic operation. Put the boundary around a coherent business use case, commonly at the service layer, rather than adding the annotation indiscriminately to every repository and controller.
 
 ### Q110. What is transaction propagation?
 
-Propagation determines how a method participates when a transaction already exists. REQUIRED joins an existing transaction or starts one; REQUIRES_NEW suspends an existing transaction and starts a separate one where supported; SUPPORTS can run with or without a transaction. Choose based on business consistency, locking, and failure semantics rather than treating propagation as a performance toggle.
+Propagation answers: **what should this method do if the caller already has a transaction?** `REQUIRED` is the usual default: join the current transaction or create one. `REQUIRES_NEW` suspends the current transaction and starts an independent one, so the inner work may commit even if the outer transaction later rolls back; it may also need another database connection. `SUPPORTS` runs with a transaction if one exists, while `MANDATORY` requires one and `NEVER` rejects one. `NOT_SUPPORTED` suspends an existing transaction. `NESTED`, where supported, usually uses a savepoint in the same physical transaction. Choose based on required commit/rollback semantics—not as a generic way to “make a method transactional.”
 
 ### Q111. What is transaction isolation?
 
-Isolation controls which effects of concurrent transactions are visible, subject to the database and transaction manager. Standard levels describe anomalies such as dirty reads, non-repeatable reads, and phantom reads, but exact behavior depends on the database implementation. Validate assumptions against the production database, not only an in-memory test database.
+Isolation defines how concurrent transactions observe each other's changes. The familiar levels—READ_UNCOMMITTED, READ_COMMITTED, REPEATABLE_READ, and SERIALIZABLE—describe progressively stronger guarantees, but their exact behavior depends on the database, MVCC implementation, and locking strategy. For example, READ_COMMITTED typically prevents dirty reads but can allow the same row to return different committed values on two reads. Stronger isolation can reduce anomalies while increasing blocking, retries, or contention. Spring's `Isolation.DEFAULT` delegates to the database default; do not assume the same behavior across PostgreSQL, Oracle, MySQL, and an in-memory test database. Set a level only when the business invariant requires it, then test concurrent operations against the actual database engine.
 
 ### Q112. Does Spring roll back for every exception?
 
-Traditional declarative defaults generally roll back for unchecked exceptions and Errors, not all checked exceptions. Explicit rollback rules can change this. Since Spring Framework 6.2, transaction management can also be configured with a global `rollbackOn = ALL_EXCEPTIONS` policy; version and transaction-specific rollback rules still matter. A caught exception that never escapes the transactional boundary may not trigger rollback automatically, and rollback-only status can lead to an unexpected rollback at commit time.
+By default, Spring's declarative transaction rules roll back for `RuntimeException` and `Error`, but not for checked exceptions. This surprises developers who catch or declare a checked business exception and assume the database work will be undone. Specify `rollbackFor` when a checked exception must trigger rollback, or `noRollbackFor` when a matching exception should not. Spring Framework 6.2 also supports changing the global default to roll back on all exceptions; confirm the exact version and configuration before relying on it. A rollback rule is evaluated against an exception that reaches the transaction interceptor—catching an exception inside the method and returning normally usually prevents the default rule from seeing it, unless the transaction was already marked rollback-only.
+
+```java
+@Transactional(rollbackFor = PaymentRejectedException.class)
+public void placeOrder(Order order) throws PaymentRejectedException {
+    orderRepository.save(order);
+    paymentService.authorize(order); // checked failure should roll back
+}
+```
+
+Keep exception policy aligned with business semantics, and test rollback behavior rather than only asserting that an exception was thrown.
 
 ### Q113. Why might @Transactional appear not to work?
 
-Common causes include self-invocation bypassing the proxy, a method not being intercepted, transaction management not being enabled/configured, an unexpected transaction manager, or exception handling that prevents rollback rules from applying. Inspect transaction logs, proxy boundaries, propagation, and the actual exception path.
+Start by verifying that transaction management is configured and that the object is a Spring-managed bean. In default proxy mode, the call must enter through the proxy; `this.update()` inside the same class bypasses the transaction interceptor. Also check method visibility and proxy type, whether the annotation is on the concrete implementation, which transaction manager is selected, and whether the code actually accesses a transactional resource. Finally, inspect rollback rules: checked exceptions do not trigger rollback by default, and catching an exception may let the method return normally. Turn on transaction-related debug logging and write a test that verifies the database state after success and failure. Refactoring the transactional operation into a separate injected bean is usually clearer than relying on self-proxy tricks.
 
 ### Q114. What is the difference between JdbcTemplate and NamedParameterJdbcTemplate?
 
 JdbcTemplate provides JDBC operations with resource handling and exception translation, using positional placeholders. NamedParameterJdbcTemplate supports named parameters that are expanded into JDBC placeholders. Both reduce repetitive JDBC plumbing but do not eliminate the need for correct SQL, transaction boundaries, or query performance analysis.
 
-### Q115. What does readOnly=true guarantee?
+### Q115. What does `readOnly = true` guarantee?
 
-It communicates that a transaction is intended to be read-only and may allow transaction-manager or persistence-provider optimizations. It is not a universal guarantee that the database will reject writes; behavior depends on the transaction manager, driver, and database. Do not use it as a security control.
+It declares intent and can enable optimizations—for example, a JPA provider may avoid some dirty-checking work, and a transaction manager or database driver may apply read-only hints. It is not a portable promise that writes will be rejected, and it is not an authorization boundary. The effect depends on the transaction manager, provider, driver, and database. Use it for genuinely read-only service operations where appropriate, but do not annotate a method read-only if it must update entities, and verify the actual behavior on the production stack.
 
 ### Q116. Why is a database transaction not enough for reliable Kafka publishing?
 
-A local database transaction and a broker publish usually involve separate resource managers. One can succeed while the other fails, creating inconsistent state. Depending on the use case, use an outbox pattern, idempotent consumer, retry strategy, or a deliberately designed transaction integration; do not assume @Transactional alone creates distributed atomicity.
+A local database transaction normally protects the database resource, not an independent Kafka broker operation. If the database commits and publishing fails, downstream systems never learn about the change; if the message is published first and the database rolls back, consumers may observe an event for state that does not exist. Spring's transaction synchronization or Kafka transaction support can coordinate specific workflows, but do not assume that simply putting `@Transactional` on a method makes a database and broker one atomic resource. For robust database-to-event delivery, the transactional outbox pattern stores the business change and an outbox record in one database transaction, then publishes the record asynchronously. Consumers should still be idempotent because delivery and retries can produce duplicates.
 
 ### Q117. Which coding patterns hold JDBC connections longer than intended?
 
 Long transactions that include remote HTTP calls, slow processing, user interaction, or large result iteration can retain a connection while doing work that does not require the database. Keep transaction boundaries around the required database operation, avoid remote I/O inside them, and use bounded streaming/chunking where appropriate. Confirm the actual connection-acquisition/release lifecycle for the chosen transaction manager and data-access API.
 
-### Q118. What resource-pool risk does REQUIRES_NEW introduce?
+### Q118. What resource-pool risk does `REQUIRES_NEW` introduce?
 
-When an outer transaction holds a connection and a proxied inner call starts a REQUIRES_NEW transaction, the outer resources may remain bound while the inner transaction needs another connection. Under high concurrency, a small pool can become exhausted or cause threads to wait for connections held by their own suspended outer transactions.
+The outer transaction is suspended, but its connection may remain bound and unavailable for reuse while the inner transaction acquires another connection. If many request threads all hold an outer connection and wait for a second connection, the pool can become saturated; increasing the pool blindly can then overload the database. This risk is especially important when a loop or layered service invokes several `REQUIRES_NEW` operations.
 
-Use REQUIRES_NEW only when independent commit semantics are required. Size and test the connection pool against nested transactional call patterns, keep transaction scopes short, and remember that self-invocation may prevent the intended propagation from being applied.
+Use it only when the inner operation truly must commit or roll back independently. Keep both scopes short, verify that the call crosses a Spring proxy, and load-test the maximum nesting/concurrency pattern while watching active connections, pending borrowers, acquisition latency, and transaction duration.
 
-### Q119. When is NESTED propagation useful?
+### Q119. When is `NESTED` propagation useful?
 
-Where the transaction manager and resource support it, NESTED can use a savepoint inside an existing transaction. It is not universally supported and should not be assumed equivalent to REQUIRES_NEW, which creates a separate transaction.
+`NESTED` is useful when a sub-operation should be able to roll back to a savepoint without necessarily rolling back all work performed earlier in the outer transaction. It normally remains part of the same physical transaction; a successful outer commit commits the work that remains. Support depends on the transaction manager and resource, and JPA-specific behavior should not be assumed to match JDBC savepoint behavior. Unlike `REQUIRES_NEW`, it does not generally create an independently committing transaction. Use it only when partial rollback is a real business requirement and test the exact database/transaction-manager combination.
 
 ### Q120. Why can a caught exception still lead to rollback failure at commit?
 
-An inner operation may mark the transaction rollback-only before the exception is caught. The outer method then returns normally, but commit cannot succeed and may result in an unexpected rollback exception. Trace where rollback-only was set rather than focusing only on the final return path.
+An inner transactional method can mark the shared transaction rollback-only when it encounters a failure. If the outer method catches that exception and continues, its own code may appear successful, but the transaction cannot be committed. At the end of the outer boundary, Spring may throw `UnexpectedRollbackException` rather than silently pretending that the work committed. Investigate the earliest exception and the propagation boundary, not just the final exception. Decide whether the inner failure should abort the whole use case, be isolated with `REQUIRES_NEW`, or be handled as a normal business outcome; each choice changes consistency semantics.
 
 ### Q121. What is the difference between a local transaction and a distributed workflow?
 
@@ -673,7 +683,7 @@ Collect database deadlock diagnostics and transaction/query logs, map lock acqui
 
 ### Q127. What does Spring Data JPA add on top of JPA?
 
-It provides repository abstractions, derived query parsing, pagination and sorting integration, projections, auditing support, and extension points. JPA still defines persistence semantics and the provider implements them; Spring Data does not eliminate the need to understand entity state, query plans, or transaction boundaries.
+JPA defines the persistence API and entity model; a provider such as Hibernate implements it. Spring Data JPA builds repository infrastructure on top: it creates repository proxies, derives queries from method names, supports declared queries, paging and sorting, projections, specifications, auditing, and custom repository fragments. It reduces repetitive data-access code but does not remove JPA concepts such as managed versus detached entities, dirty checking, flush timing, lazy loading, or the persistence context. A senior answer should distinguish the repository abstraction from the ORM behavior underneath it, and use SQL logs and database execution plans when performance is the problem.
 
 ### Q128. How do repository interfaces work without a handwritten implementation?
 
@@ -691,13 +701,13 @@ A projection retrieves a subset or alternate view of data instead of exposing th
 
 Use a supported approach such as Specifications, query-by-example where suitable, or a custom repository query. Validate allowed filter and sort fields, combine predicates deliberately, and avoid string-concatenating untrusted SQL. Query design should remain understandable and testable.
 
-### Q132. How do N+1 queries arise?
+### Q132. How do N+1 queries arise, and how would you fix them?
 
-An initial query loads a collection of entities, then accessing relationships triggers additional queries per entity. Detect it with SQL logs, tracing, query-count assertions, and database metrics. Fix with an appropriate fetch strategy, projection, entity graph, or query redesign; indiscriminately eager-loading everything can create oversized joins.
+The application loads a list of parent entities with one query and then triggers a separate query for a lazy relationship for each parent—for example, one query for 100 orders followed by 100 customer lookups. The code can look harmless while latency and database load grow with result size. Confirm the pattern with SQL logging, tracing, query-count tests, or ORM statistics. Choose a targeted fix: a DTO projection for a read use case, a fetch join for a suitable query, or an `@EntityGraph` when it expresses the required graph clearly. Avoid making every relationship eager: multiple collections can cause row multiplication, duplicate results, pagination problems, and excessive memory use. Validate the generated SQL and execution plan.
 
 ### Q133. How do optimistic and pessimistic locking differ?
 
-Optimistic locking detects conflicting updates, commonly using a version attribute, and fails one competing update rather than holding a long-lived lock throughout work. Pessimistic locking requests database locks for selected records. Choose based on contention, transaction duration, retry policy, and database capabilities.
+Optimistic locking assumes conflicts are uncommon. A `@Version` field lets the provider detect that another transaction updated the row since it was read; the losing update fails with an optimistic-lock exception, and the application must reload and reconcile. Pessimistic locking asks the database to lock selected rows, which can prevent conflicting updates but increases blocking and deadlock risk. Prefer optimistic locking for many read-heavy workloads with occasional conflicts; consider pessimistic locking when contention is expected and the critical section is short. A retry is not automatically correct: re-evaluate the business command against current state rather than blindly replaying an old entity.
 
 ### Q134. What repository abstractions should you use?
 
@@ -738,11 +748,24 @@ Compare data volume and distribution, index definitions, current database statis
 
 ### Q141. What is the difference between authentication and authorization?
 
-Authentication establishes the identity or principal associated with a request. Authorization decides whether that principal may perform an action on a resource. A valid login or JWT does not automatically imply permission to access every endpoint or tenant's data.
+Authentication answers **who is making the request?** and establishes an `Authentication` representing the principal and its credentials/authorities. Authorization answers **is this principal allowed to perform this action on this resource now?** A successfully validated JWT proves only what the trusted issuer and validated claims establish; it does not mean the caller may read every customer, order, or tenant. Enforce authorization at the correct boundary, including object-level and tenant-level checks, and test forbidden cases. A common security defect is to authenticate a user correctly but trust a client-supplied resource ID without verifying ownership or permission.
 
-### Q142. What is SecurityFilterChain?
+### Q142. What is `SecurityFilterChain`?
 
-SecurityFilterChain defines servlet filters and request-matching security rules applied to matching requests. Modern configuration commonly declares one or more SecurityFilterChain beans instead of extending the removed WebSecurityConfigurerAdapter pattern. Multiple chains require deliberate ordering and matchers because the first matching chain controls processing.
+In servlet applications, Spring Security uses `FilterChainProxy` to select a `SecurityFilterChain` for each request. Each chain defines its own filters and security configuration. If several chains match, **only the first matching chain is used**, so chain order and request matchers are security-critical: a broad `/api/**` or `any request` matcher placed too early can shadow a more specific policy. Modern applications normally declare `SecurityFilterChain` beans instead of extending the removed `WebSecurityConfigurerAdapter` approach. When debugging, identify the selected chain first, then inspect authentication, authorization rules, custom filters, and the final entry-point/denied-handler behavior.
+
+```java
+@Bean
+SecurityFilterChain apiSecurity(HttpSecurity http) throws Exception {
+    http.securityMatcher("/api/**")
+        .authorizeHttpRequests(auth -> auth
+            .requestMatchers("/api/health").permitAll()
+            .anyRequest().authenticated());
+    return http.build();
+}
+```
+
+This is an illustrative fragment, not a complete security policy; authentication mechanism, CSRF/CORS policy, and error handling must be configured for the application.
 
 ### Q143. What is the difference between 401 and 403?
 
@@ -750,7 +773,7 @@ SecurityFilterChain defines servlet filters and request-matching security rules 
 
 ### Q144. How should a REST API validate JWTs?
 
-Prefer Spring Security's OAuth 2.0 Resource Server support and configure trusted issuer or JWK settings rather than hand-writing token parsing. Validate signature and relevant claims such as issuer, expiry, and audience when required by the trust model. A decoded JWT is not trustworthy until cryptographic and claim validation succeeds.
+Prefer Spring Security OAuth 2.0 Resource Server support instead of writing a custom parser. Configure the trusted issuer and signing-key/JWK source so the framework can validate the signature and standard claims such as expiration and not-before; validate audience when the API's trust model requires it. Also verify algorithm and key-rotation expectations, authority mapping, and failure behavior. Decoding the Base64URL payload is not validation: anyone can construct a token-shaped string, and a correctly signed token from the wrong issuer or intended for a different audience must still be rejected. Keep secrets and raw tokens out of logs, and test expired, malformed, wrong-issuer, wrong-audience, and insufficient-authority cases.
 
 ### Q145. What is SecurityContextHolder?
 
@@ -762,7 +785,7 @@ Authorities are granted permission strings. Role-based checks are a convention t
 
 ### Q147. Why does CSRF protection matter, and when should it remain enabled?
 
-CSRF protection mitigates cross-site request forgery when browsers automatically attach credentials such as session cookies. Stateless APIs using non-ambient bearer tokens have a different threat profile, but disabling CSRF should follow a deliberate authentication and browser-client analysis, not a blanket rule for every endpoint called REST.
+Cross-site request forgery abuses the browser's automatic attachment of credentials—most commonly session cookies—to make an authenticated user submit an unwanted request. CSRF protection should normally remain enabled for browser applications using cookie/session authentication. A service that accepts bearer tokens explicitly supplied in an `Authorization` header and does not rely on ambient browser credentials may have a different CSRF risk, but that conclusion depends on the full authentication and browser design. Calling an endpoint “REST” or “stateless” is not by itself sufficient justification to disable CSRF. Document the threat model and test the intended browser and non-browser clients.
 
 ### Q148. What are CORS and CSRF, and why are they not interchangeable?
 
@@ -770,11 +793,11 @@ CORS is a browser-enforced cross-origin access policy; CSRF is an attack in whic
 
 ### Q149. How should method-level security be enabled and used?
 
-Enable method security using the supported configuration for the selected version and apply annotations such as @PreAuthorize at appropriate service boundaries. Because interception is proxy-based in common setups, self-invocation and proxy visibility matter. Authorization rules should be tested for both allowed and denied principals.
+Enable method security with `@EnableMethodSecurity` in a configuration class, then place expressions such as `@PreAuthorize` on application/service methods where they protect the business operation rather than only one transport entry point. For example, `@PreAuthorize("hasAuthority('order:read')")` expresses a permission check, while a tenant/resource ownership check may need a domain-aware authorization service. Common proxy limitations apply: a direct self-invocation may bypass interception, and the method must be eligible for the configured proxy mechanism. Keep expressions readable, avoid placing sensitive authorization logic only in controllers, and write tests for permitted, denied, anonymous, and cross-tenant cases.
 
-### Q150. How should multiple SecurityFilterChain beans be ordered?
+### Q150. How should multiple `SecurityFilterChain` beans be ordered?
 
-Each chain has a request matcher and an order. The first matching chain is used, so a broad high-priority matcher can shadow a more specific chain. Keep matchers explicit and test both intended and unintended paths.
+Give each chain a clear, non-overlapping purpose where possible—for example, a high-priority chain for `/api/**` and a fallback chain for browser routes. Spring Security evaluates chains in order and uses the first one whose matcher succeeds; it does not merge all matching chains. Put narrow matchers before broad catch-all matchers and make the fallback policy explicit. Test a request that should match each chain, plus paths that nearly overlap, and inspect debug logs to confirm which chain actually ran. A route that matches no intended chain can be exposed or governed by an unexpected default, so treat chain coverage as a security test.
 
 ### Q151. What is the difference between UserDetailsService and AuthenticationProvider?
 
@@ -794,11 +817,11 @@ Method security commonly uses Spring AOP interception. A direct self-call may by
 
 ### Q155. Should authorization exist only at the controller layer?
 
-No. Controller rules protect the HTTP entry point, but the same business operation may be invoked by a scheduled job, message listener, batch process, or another service. Enforce authorization at a boundary that covers every relevant caller, using method security or domain/application checks where appropriate. Keep request-shape validation separate from permission checks, and test allowed and denied paths through each meaningful entry point.
+Usually not. Controller authorization is useful for protecting HTTP routes, but the same use case may later be invoked by a scheduled task, message listener, batch job, or another application component. Put the invariant at a service/domain boundary that all relevant callers pass through, and use controller rules as an additional edge policy where appropriate. Separate authentication identity, permission checks, and business validation. Also remember that system-initiated work may have no end-user principal, so define its service identity and allowed actions deliberately rather than bypassing checks implicitly. Test the operation through each entry point that matters.
 
 ### Q156. How should multi-tenant authorization be enforced?
 
-Derive the caller's tenant from trusted authentication claims or a verified server-side mapping, then verify that the requested resource belongs to that tenant at the service or data-access boundary. Apply the same tenant context to asynchronous work, scheduled jobs, exports, caches, and message consumers. Never trust a client-supplied tenant ID by itself; test cross-tenant object IDs and ensure query filters, cache keys, and administrative paths cannot bypass isolation.
+Treat tenant isolation as a data-access and authorization invariant, not just a URL convention. Resolve the tenant from a trusted claim or server-side identity mapping, then verify that each requested resource belongs to that tenant before reading or mutating it. Apply the same context to repository queries, cache keys, asynchronous tasks, scheduled jobs, exports, and message consumers; background processing must carry an explicit trusted tenant context. A client-supplied `tenantId` may be a filter but must not be treated as proof of access. Test attempts to substitute another tenant's object ID, omit tenant criteria, reuse cached results across tenants, or enter through an administrative path.
 
 ### Q157. What is session fixation protection?
 
@@ -810,7 +833,7 @@ An AuthenticationEntryPoint handles a request that requires authentication when 
 
 ### Q159. What should security tests cover beyond a happy path?
 
-Cover anonymous access, authenticated-but-forbidden access, authorized access, malformed/expired tokens, wrong issuer or audience, authority mapping, CSRF where relevant, and tenant isolation. A successful test alone does not establish that forbidden requests are rejected.
+Test the authorization matrix, not just successful login: anonymous requests, authenticated users lacking the required authority, permitted users, wrong roles/authorities, expired or malformed tokens, wrong issuer/audience, CSRF behavior for cookie-authenticated flows, and cross-tenant resource access. Verify that failures return the intended 401/403 behavior and do not leak internal details. Include method-security tests because endpoint tests may not prove every service entry point is protected. Use framework test support to establish principals where appropriate, but retain integration tests that validate the real authentication configuration and token decoder.
 
 ### Official references
 - [Spring Security reference](https://docs.spring.io/spring-security/reference/)
@@ -824,29 +847,29 @@ Cover anonymous access, authenticated-but-forbidden access, authorized access, m
 
 ### Q160. What is the difference between a unit test and an integration test?
 
-A unit test isolates a small unit and usually replaces collaborators with test doubles. An integration test verifies that components work together across real framework configuration or infrastructure boundaries. Use the smallest test scope that proves the behavior, but retain integration coverage for wiring, serialization, transactions, and database-specific behavior.
+A unit test checks a small unit of behavior in isolation—typically with plain Java objects and mocked collaborators—so failures are fast and easy to diagnose. An integration test checks whether multiple real components cooperate correctly, such as Spring wiring, JSON conversion, transaction boundaries, repository queries, or communication with a database/broker. The important question is what boundary the test actually exercises. A test annotated with Spring test support is not automatically a meaningful integration test if every dependency is mocked. Use unit tests for business rules, focused slice tests for framework behavior, and a smaller set of high-value integration tests against real infrastructure where provider-specific behavior matters.
 
-### Q161. What does @SpringBootTest do?
+### Q161. What does `@SpringBootTest` do?
 
-It creates an application context using Boot's test support and can load a broad slice of the application. It is useful for integration behavior but may be slower and more coupled to configuration than a focused test. Avoid using it for every simple service unit test.
+It creates a test `ApplicationContext` using Spring Boot's application setup, so the test can exercise real configuration, bean wiring, and selected infrastructure. Depending on `webEnvironment`, it can use a mock web environment or start a server. That breadth makes it useful for a few end-to-end integration checks, but it is slower and failures can be harder to localize than unit or slice tests. Do not use it as the default for every service test. If the context fails, inspect the root cause and test configuration rather than adding mocks until the test happens to start; the aim is to validate the intended application wiring.
 
 ### Q162. What is a test slice?
 
-A slice annotation loads a focused subset of application infrastructure for a testing purpose, such as MVC or JPA. It improves feedback speed and helps isolate concerns, but components outside the slice may need explicit mocks or test configuration. A slice test does not prove that the entire production context starts.
+A test slice loads only the infrastructure relevant to a layer, reducing setup and making failures easier to interpret. Examples include `@WebMvcTest` for MVC behavior and `@DataJpaTest` for JPA/repository behavior. Because the slice intentionally excludes unrelated beans, provide mocks or imports for collaborators the test needs; do not interpret a missing bean as proof that production wiring is broken. Conversely, a slice test cannot prove that the complete application context starts. Use slice tests for focused contracts and keep a smaller number of full-context tests for integration risks.
 
 ### Q163. When should you use MockMvc?
 
-MockMvc exercises Spring MVC request handling through the test framework without requiring a live HTTP server. It can verify routing, serialization, validation, status codes, and security filters when configured. Use a real-server test when network/server behavior itself matters.
+`MockMvc` runs requests through Spring MVC's request-handling infrastructure without opening a real network socket. It is effective for testing controller mapping, validation, message conversion, exception handling, status codes, and configured servlet security integration. It is faster and more deterministic than starting a server, but it does not verify actual socket behavior, reverse-proxy settings, TLS termination, connection handling, or every container-specific feature. Use a real-server test when transport/deployment behavior is part of the risk, and keep most controller contract tests at the MockMvc level.
 
 ### Q164. What is Testcontainers useful for?
 
-Testcontainers starts disposable infrastructure such as a database or broker for tests, allowing verification against a real engine rather than relying solely on an in-memory substitute. It improves fidelity but adds runtime and environment requirements; keep test data deterministic and ensure containers are cleaned up.
+Testcontainers lets integration tests start disposable services—such as the database engine, Kafka, or Redis—in containers, so the test exercises real protocol and engine behavior instead of a simplified substitute. It is particularly valuable for SQL dialect, isolation, locking, migrations, broker acknowledgements, and serialization issues. The trade-off is slower startup and a dependency on a container runtime or configured CI environment. Keep fixtures deterministic, isolate state between tests, pin image versions, and make cleanup reliable. Use it selectively for behaviors that an in-memory fake cannot faithfully represent.
 
-### Q165. What is the difference between @MockBean and @MockitoBean?
+### Q165. What is the difference between `@MockBean` and `@MockitoBean`?
 
-`@MockBean` was the established Spring Boot test annotation for replacing beans in an application context. It was deprecated for removal in Spring Boot 3.4 in favor of Spring Framework's `@MockitoBean`, and Boot 4 removes `@MockBean`/`@SpyBean` support. Use `@MockitoBean` (and `@MockitoSpyBean` for spies) on modern Framework/Boot lines, but retain the older annotation only when maintaining a compatible legacy Boot line.
+`@MockBean` was Spring Boot's established annotation for adding or replacing a mock in the test `ApplicationContext`. It was deprecated in Boot 3.4 in favor of Spring Framework's `@MockitoBean`; modern Boot/Framework lines should use the replacement supported by their version. `@MockitoSpyBean` is the corresponding spy annotation. This is version-sensitive, so check the migration guide before changing imports in a legacy codebase.
 
-The migration is not always a mechanical import swap: on Framework 6.2/7.0, use the supported test-class field or type-level declarations rather than declaring mocks inside configuration classes. Framework 7.1 prerelease documentation adds constructor-parameter support for these annotations; do not assume that API is available on the stable 7.0 line. Follow the exact Boot/Framework migration guide and verify test-context replacement semantics.
+The purpose is to replace a Spring bean dependency while keeping the rest of the context real. It is different from a plain Mockito `@Mock`, which creates an object but does not by itself replace a bean in Spring's context. Prefer plain Mockito for isolated unit tests and context-level bean overrides only when the test genuinely needs Spring wiring. Verify the annotation's supported declaration locations and replacement semantics for the exact Framework/Boot version.
 
 ### Q166. Why can Spring tests become flaky or slow?
 
