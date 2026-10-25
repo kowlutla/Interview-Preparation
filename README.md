@@ -9,6 +9,7 @@ Choose a handbook by topic:
 - [Java Interview Handbook](Java/Java-Interview-QA.md)
 - [Spring Framework + Spring Boot Interview Handbook](Spring/Spring-Interview-QA.md)
 - [Microservices & REST APIs Interview Handbook](Microservices-REST-APIs/Microservices-REST-APIs-Interview-QA.md)
+- [Distributed Systems & Event-Driven Architecture Interview Handbook](Distributed-Systems/Distributed-Systems-Interview-QA.md) — consistency, failure handling, consensus, distributed transactions, messaging semantics, sagas, and production scenarios.
 - [Hibernate + JPA + Spring Data JPA Interview Handbook](Hibernate-JPA/Hibernate-JPA-Interview-QA.md)
 - [SQL & Database Engineering Interview Handbook](SQL-Database/SQL-Database-Interview-QA.md)
 - [Apache Kafka Interview Handbook](Kafka/KAFKA_INTERVIEW_GUIDE.md)
@@ -26,6 +27,8 @@ Interview-Preparation/
 │   └── Spring-Interview-QA.md
 ├── Microservices-REST-APIs/
 │   └── Microservices-REST-APIs-Interview-QA.md
+├── Distributed-Systems/
+│   └── Distributed-Systems-Interview-QA.md
 ├── Hibernate-JPA/
 │   └── Hibernate-JPA-Interview-QA.md
 ├── SQL-Database/
@@ -38,9 +41,10 @@ Interview-Preparation/
 
 1. **Java** — language fundamentals, collections, concurrency, JVM, and modern Java.
 2. **Spring** — dependency injection, Spring Boot, framework behavior, transactions, security, testing, and production behavior.
-3. **Microservices & REST APIs** — service boundaries, HTTP semantics, API contracts, resilience, security, distributed consistency, and production troubleshooting.
-4. **Hibernate + JPA** — persistence context, mappings, fetching, transactions, query performance, and concurrency.
-5. **SQL & databases** — query logic, joins, indexes, transactions, isolation, and database-specific behavior.
-6. **Kafka** — messaging fundamentals, delivery guarantees, consumer groups, operations, and production scenarios.
+3. **Microservices & REST APIs** — service boundaries, HTTP semantics, API contracts, resilience, security, and service-level communication.
+4. **Distributed Systems & Event-Driven Architecture** — cross-service correctness, consistency, failure handling, coordination, sagas, messaging semantics, and production reliability.
+5. **Hibernate + JPA** — persistence context, mappings, fetching, transactions, query performance, and concurrency.
+6. **SQL & databases** — query logic, joins, indexes, transactions, isolation, and database-specific behavior.
+7. **Kafka** — broker architecture, topics and partitions, producer/consumer behavior, configuration, commands, and operational scenarios.
 
-Use the handbooks as revision material, and verify version-sensitive details against the official documentation for the JDK, framework, ORM provider, database, or Kafka version relevant to the role.
+Use the handbooks as revision material, and verify version-sensitive details against the official documentation for the JDK, framework, ORM provider, database, or messaging technology relevant to the role.
