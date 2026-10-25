@@ -161,7 +161,7 @@ A Kafka transaction groups writes to multiple topic partitions into one atomic u
 
 ### Q25. What does exactly-once semantics mean in Kafka Streams or consume-transform-produce?
 
-With appropriate processing and transaction configuration, Kafka can atomically commit output records and consumed offsets, preventing a restarted processor from exposing output for an input position that was not committed consistently. This guarantee has defined boundaries and does not automatically encompass arbitrary external systems.
+In a Kafka consume-transform-produce pipeline, exactly-once processing means output records and the offsets of the input records that produced them are committed atomically in a Kafka transaction. If the transaction aborts, the output is not visible to `read_committed` consumers and the input offsets do not advance as if the work succeeded, so the input can be processed again safely. Kafka Streams builds on this model and can include its state-store changelog records in the same processing guarantee. The guarantee requires the appropriate client/framework configuration and transactional visibility; it is not a claim that code executes only once. A database write, HTTP request, email, or payment outside Kafka is not included automatically and still needs idempotency or another consistency pattern.
 
 
 ### Q26. Why can consumers receive duplicates even when producers are idempotent?
@@ -213,7 +213,7 @@ Configure a `Properties` object with `bootstrap.servers`, key/value serializers,
 
 ### Q35. When would you use manual acknowledgments in Spring Kafka?
 
-Manual acknowledgment is useful when the application needs an explicit point to declare a record or batch processed. It must be coordinated with listener-container acknowledgment mode, exception propagation, rebalances, and transaction design. Acknowledging before business work is durable can lose work; acknowledging later can cause duplicate delivery.
+Manual acknowledgment is useful when the listener needs to decide explicitly when a record or batch is considered successfully processed—for example, after a database transaction completes. In Spring Kafka, the configured container `AckMode` controls how the acknowledgment is handled; `MANUAL` and `MANUAL_IMMEDIATE` have different commit timing semantics, so verify the version-specific behavior. Never acknowledge before the business effect is durable, or a crash may cause the record to be skipped. Acknowledge after success and design for redelivery if a crash happens before the offset is committed. Also account for listener exceptions, error-handler recovery, transactions, and partition revocation; manual acknowledgment is not itself an exactly-once mechanism.
 
 
 ### Q36. How does @KafkaListener concurrency work?
@@ -238,7 +238,7 @@ Keep most business-rule tests as ordinary unit tests with no broker. Add integra
 
 ### Q40. How should a Kafka consumer shut down gracefully?
 
-Stop accepting new work, allow in-flight processing to finish within a deadline, commit only positions corresponding to completed work, and close the consumer/container. Coordinate shutdown with worker pools and avoid committing offsets past unfinished asynchronous tasks. Test shutdown during processing and during rebalance.
+Graceful shutdown should stop new work, finish or safely cancel in-flight work within a bounded deadline, commit only offsets for completed records, and close the consumer or listener container. In Spring applications, stop the listener container through its lifecycle mechanism rather than abruptly killing consumer threads. If workers process records asynchronously, wait for completion and commit only the highest contiguous completed offset per partition; do not commit past unfinished tasks. If the shutdown deadline expires, leave uncompleted work uncommitted so Kafka can redeliver it. Test termination during normal processing, a downstream outage, and a rebalance, and make handlers idempotent so a retry is safe.
 
 
 ## Phase 3 — Performance and production incidents (Q41–Q60)
@@ -257,7 +257,7 @@ Producer throughput is determined by both client behavior and cluster capacity: 
 
 ### Q43. When should you use compression?
 
-Compression reduces network and disk bytes and can improve throughput, at the cost of CPU and sometimes latency. LZ4 and Snappy often emphasize speed; gzip may compress more but use more CPU; Zstandard offers configurable trade-offs depending on version and environment. Benchmark real payloads.
+Compression is valuable when network bandwidth, broker disk I/O, or storage cost is a bottleneck. Kafka compresses record batches, so batching usually improves compression efficiency; compression can reduce bytes replicated between brokers as well as bytes sent by producers. LZ4 and Snappy often favor speed, gzip may achieve a higher ratio at greater CPU cost, and Zstandard offers tunable trade-offs where supported. The best choice depends on payload shape—already-compressed images or encrypted blobs may gain little—and on CPU headroom, latency targets, and consumer decompression cost. Benchmark realistic payloads and report throughput, p95/p99 latency, CPU, and compression ratio rather than choosing by algorithm reputation alone.
 
 
 ### Q44. How do you calculate consumer lag?
@@ -292,14 +292,14 @@ Backpressure means slowing intake when downstream processing cannot keep up. Use
 
 ### Q50. Consumer processing is slower than database writes can sustain. What do you do?
 
-Measure database latency, connection-pool saturation, locks, query plans, and concurrency. Batch operations where semantics permit, reduce transaction duration, optimize indexes, and cap concurrency. Increasing consumers can amplify database overload rather than solve it.
+Treat the database as the constrained dependency rather than assuming Kafka is slow. Check query latency, slow queries, lock contention, connection-pool utilization, transaction duration, CPU/IO, and the rate at which consumers issue requests. Optimize queries and indexes, batch writes where correctness permits, shorten transactions, and cap listener concurrency to the database's sustainable capacity. Apply backpressure or pause partitions during an outage instead of creating unbounded retries and in-memory queues. Scaling consumers helps only if the database has spare capacity; otherwise it increases contention and can make lag and recovery worse. Once the dependency recovers, ramp traffic gradually and monitor backlog drain rate.
 
 
 ### Section F — Production troubleshooting and reliability (Q51–Q60)
 
 ### Q51. How do you troubleshoot a broker unreachable error?
 
-Check DNS and advertised.listeners, network paths, TLS/SASL configuration, load balancer behavior, firewall rules, and broker health. A bootstrap connection can succeed while a returned advertised broker address is unreachable from the client. Capture client logs and test connectivity to advertised endpoints.
+Start with the exact client error and determine whether failure occurs during bootstrap, metadata discovery, authentication, or a later produce/fetch request. Verify DNS, routing/firewall rules, broker `listeners` and `advertised.listeners`, TLS certificate trust/hostname matching, SASL mechanism and credentials, and load balancer behavior. A common failure is that the client can reach the bootstrap address but cannot reach the broker addresses returned in metadata. Test connectivity from the same network/container as the application, not only from an administrator's laptop. Correlate client logs with broker logs and check broker health, listener ports, and recent certificate or network changes before increasing retry timeouts.
 
 
 ### Q52. What do under-replicated partitions mean?
@@ -363,7 +363,7 @@ Treat an event contract as a public API. Define the event name and meaning, prod
 
 ### Q63. Design order creation and inventory reservation.
 
-Persist the order and outbox event transactionally; publish the event; let inventory reserve stock idempotently and emit a result. Model pending, confirmed, and rejected states explicitly. If inventory fails after order creation, use a saga/compensating action or mark the order for cancellation rather than assuming cross-service atomicity.
+Create the order and an `OrderCreated` outbox row in one database transaction, then publish the outbox event to Kafka. The inventory service consumes it idempotently, reserves stock in its own transaction, and emits a result such as `InventoryReserved` or `InventoryRejected`. The order service transitions from `PENDING` to `CONFIRMED` or `REJECTED` based on that result; do not report success before the required business steps have completed. Use a stable order/event ID, unique constraints, explicit timeouts, retries, and reconciliation for ambiguous outcomes. If a later step fails, use a saga/compensating action (such as releasing a reservation or cancelling the order) rather than assuming a cross-service rollback. Define how duplicate, delayed, and out-of-order results are handled.
 
 
 ### Q64. How would you design payment processing with Kafka?
@@ -373,7 +373,7 @@ Use Kafka to distribute payment lifecycle events, but keep the authoritative pay
 
 ### Q65. Explain the transactional outbox pattern.
 
-Write the business row and an outbox event in one database transaction. A relay or CDC connector publishes outbox rows to Kafka and tracks delivery. The relay can publish more than once, so consumers must deduplicate or be idempotent. Monitor outbox age and backlog.
+The transactional outbox addresses the dual-write problem by committing the business state change and an event row in the same database transaction. A separate publisher polls the outbox or a CDC tool reads the database log and forwards the event to Kafka. This ensures that a committed business change has a durable event to publish, without requiring a distributed transaction between the database and Kafka. The publisher can still crash after Kafka accepts a record but before it records progress, so duplicates are possible and consumers should deduplicate by stable event ID. Define event ordering (often by aggregate/entity key), retry and poison-row behavior, outbox cleanup, schema ownership, and monitoring for oldest unpublished row and backlog. CDC can reduce polling overhead but adds connector operations and recovery considerations.
 
 
 ### Q66. What is a saga?
@@ -407,7 +407,7 @@ Use explicit audit schemas, reliable source publication, restrictive ACLs, reten
 
 ### Q71. How does Kafka store records on disk?
 
-Partitions are append-only logs split into segment files. Writes are appended and offsets identify records within a partition; indexes help locate offsets and timestamps. Background retention or compaction removes eligible segments/records according to topic policy.
+Each partition is stored as an append-only log on disk, divided into segment files. Producers append record batches to the active segment; Kafka assigns offsets, and index files help locate offsets and timestamps without scanning the whole log. The log is written sequentially, which is efficient for disk and enables batch/network optimizations; replication copies the partition log to followers. When a segment rolls, older segments become candidates for retention deletion or compaction according to the topic cleanup policy. Actual disk use also includes indexes, metadata, and replicas. Kafka's performance depends heavily on sequential I/O, batching, page cache, and network throughput, so broker disk latency and page-cache pressure matter as much as raw disk capacity.
 
 
 ### Q72. What is a segment, and what are segment rolling settings?
@@ -479,7 +479,7 @@ In a compacted topic, a tombstone is a record with a non-null key and a null val
 
 ### Q85. What does exactly-once mean in Kafka Streams?
 
-Kafka Streams can coordinate input offsets, state-store changelog records, and output records transactionally under the configured processing guarantee. This prevents inconsistent Kafka-visible results after recovery within its documented scope. External writes to arbitrary systems still need their own consistency strategy.
+Kafka Streams supports processing guarantees that coordinate consumed offsets, output-topic records, and state-store changelog updates. With exactly-once processing enabled, these Kafka-visible changes are committed transactionally so a restart does not expose output/state that is inconsistent with the committed input position. This does not mean the application code runs once; tasks may be retried after failures, and external side effects are outside the transaction. Choose the processing guarantee intentionally, understand the throughput/latency and transaction overhead, and use `read_committed` when downstream consumers must ignore aborted records. For external databases or APIs, use idempotency, an outbox, or a purpose-built sink connector with documented guarantees.
 
 
 ### Section J — Security and operational awareness (Q86–Q90)
@@ -523,7 +523,7 @@ Compare release timestamps with lag, processing latency, errors, rebalance rate,
 
 ### Q93. Scenario: Two independent producers publish the same business event. Will idempotence deduplicate them?
 
-Generally no. Producer idempotence deduplicates qualifying retries within a producer identity/session, not semantically identical events emitted independently by two producers. Use a stable business event ID, source ownership, and downstream idempotency.
+No. Producer idempotence handles qualifying retries from a producer identity and sequence, not semantic duplicates from two independent producers. If both producers publish the same logical event, Kafka normally stores two records because it cannot infer that they represent one business action. Prefer one authoritative event owner where possible; otherwise include a stable business event ID and deduplicate at the consumer or persistence boundary. If two producers can race to create the event, define a source-of-truth rule or use a unique business constraint so the duplicate is rejected deterministically. Monitor duplicate rates and preserve enough provenance to identify which producer emitted each record.
 
 
 ### Q94. Scenario: Records for one order appear out of order. What do you check?
@@ -553,7 +553,7 @@ Do not keep retrying every record in a tight loop or buffer an unlimited number 
 
 ### Q99. Scenario: You need to migrate a consumer group or reset offsets. What safeguards are needed?
 
-Document current group offsets, target offsets, replay range, and business impact. Test on staging, ensure idempotent effects, coordinate ownership so two consumers do not apply conflicting work, and capture metrics/audit evidence. Offset reset may skip or replay data and should be approved.
+Before resetting offsets, capture the consumer group's current committed offsets per partition, the intended target offsets, the reason for the reset, and the expected replay/skip range. Stop or coordinate the consumers so they do not race with the administrative operation, and validate the plan in a non-production environment if possible. Confirm that retention still contains the requested offsets and that downstream side effects are idempotent; resetting backward can repeat payments/notifications or rebuild state, while resetting forward can skip required events. Use an approved maintenance window, record the change for audit, and monitor lag, errors, duplicate effects, and business reconciliation afterward. For migrations, document the source and target group IDs and avoid having both groups apply the same side effects unintentionally.
 
 
 ### Q100. Scenario: Interviewer asks how you lead a Kafka incident. What is your framework?
