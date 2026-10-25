@@ -543,15 +543,31 @@ Confirm tests and security scanning completed; the image tag/digest is the expec
 For incident questions, explain the evidence you would gather before committing to a root cause. Commands below assume you have access to the relevant namespace and permissions.
 
 ### Q68. The application works locally but fails in a container. What do you check?
-**Symptoms:** Startup error, connection failure, or different behavior only in the image.  
-**Investigate:** `docker logs <container>`, `docker inspect <container>`; compare Java version, active profile, environment, working directory, file permissions, bind address, and mounted paths. Check whether a dependency URL incorrectly uses localhost.  
-**Likely causes/fix:** Missing file or environment variable, incompatible runtime, wrong port, inaccessible host service, or permission issue. Reproduce using the same image and configuration; document required runtime settings and add a smoke test.
+**Symptoms:** The same JAR works on a laptop, but the container exits, cannot reach a dependency, or behaves differently.
+
+**Investigate:** Start with \`docker logs <container>\` and \`docker inspect <container>\`. Compare the Java version, active Spring profile, required environment-variable names, working directory, permissions, mounted paths, listening address, and database/service URL. Check whether a URL still points to \`localhost\`, which inside the container means the container itself.
+
+**Likely causes and fix:** Missing files or configuration, an incompatible Java runtime, a port/bind-address mismatch, a dependency hostname that only works on the laptop, or a permission error. Reproduce using the exact image and configuration from the target environment rather than rebuilding a subtly different image.
+
+**Prevention:** Add a container smoke test to the build/release process, externalize configuration, document required settings, and exclude local secrets from the build context.
 
 ### Q69. The container exits immediately after startup.
-Inspect `docker ps -a`, logs, exit code, and the effective entrypoint/command. A missing JAR, invalid JVM option, configuration exception, or a shell script that backgrounds Java and exits are common causes. Run the application in the foreground and use exec-form entrypoint. Do not “fix” it by keeping an unrelated shell alive; that hides the real failure.
+**Symptoms:** The container appears briefly in \`docker ps\` and then stops, or Kubernetes repeatedly restarts it.
+
+**Investigate:** Check \`docker ps -a\`, \`docker logs <container>\`, and \`docker inspect <container>\` for exit code and command. In Kubernetes, use \`kubectl describe pod\` and \`kubectl logs <pod> --previous\` to capture the previous failed run.
+
+**Likely causes and fix:** The JAR is missing, the JVM option is invalid, runtime configuration validation fails, the image uses the wrong Java version, or a wrapper script starts Java in the background and exits. Run Java in the foreground as the main process and fix the first meaningful startup error rather than keeping an unrelated shell alive.
+
+**Prevention:** Test the built image itself in CI, validate required configuration, and include a startup smoke test with production-like environment variable names.
 
 ### Q70. A Pod is repeatedly OOMKilled.
-Run `kubectl describe pod <pod> -n <ns>` and inspect previous logs with `kubectl logs <pod> -n <ns> --previous`. Check termination reason, memory limit, actual container memory, heap settings, GC logs, thread count, direct memory, and workload spikes. Reduce unbounded memory use or concurrency, size the heap below the container limit with native headroom, and right-size the memory limit based on measurements. Increasing the limit may be appropriate, but first establish whether the problem is a leak, burst, or undersized budget.
+**Symptoms:** The Pod restarts and its last termination reason shows \`OOMKilled\`; application logs may stop abruptly without a Java exception.
+
+**Investigate:** Run \`kubectl describe pod <pod> -n <ns>\` and \`kubectl logs <pod> -n <ns> --previous\`. Compare the memory limit with actual container/cgroup usage, heap settings, GC logs, thread count, direct-buffer use, and traffic spikes. Distinguish an operating-system kill from a Java \`OutOfMemoryError\`.
+
+**Likely causes and fix:** Heap consumes most of the limit, a leak or burst increases heap, or native/off-heap memory is underestimated. Leave room for metaspace, code cache, thread stacks, direct buffers, and native allocations. Adjust heap, concurrency, or container memory based on measurements; increasing the limit alone can mask a leak and may create cluster-capacity pressure.
+
+**Prevention:** Load-test realistic peak concurrency, alert on container memory as well as heap, retain useful GC diagnostics, and review memory budget whenever thread pools or client pools change.
 
 ### Q71. A Pod is Running but the REST API is unavailable.
 **Investigate:** Check \`kubectl get pods -n <ns>\`, \`kubectl describe pod <pod> -n <ns>\`, readiness status, probe events, Service selectors, and the Service's EndpointSlices. Confirm that the application is listening on the expected interface and port, that the Service \`targetPort\` matches, and that the management/health port has not been confused with the application port. Then check ingress routing, DNS, NetworkPolicy, TLS, authentication, and application logs.
@@ -565,7 +581,13 @@ Check the exact path, port, scheme, timeout, response code, Actuator exposure/se
 Fix the underlying path, configuration, dependency, or startup problem before tuning thresholds. Base the startup window on measured cold-start time plus reasonable variability. Add the probe check to the rendered-manifest and post-deploy verification process so a misconfigured endpoint is found before production rollout.
 
 ### Q73. One service cannot call another using localhost.
-The caller is connecting to itself, not the destination Pod. Replace localhost with the destination Service DNS name and the Service port. Verify the Service exists in the expected namespace and has ready EndpointSlices. A local Compose hostname, Kubernetes service name, and production DNS name are different environments; externalize the destination URL.
+**Symptoms:** The caller gets connection refused or a timeout at a URL such as \`http://localhost:8080\`.
+
+**Investigate:** Inspect the caller's effective destination URL and logs. Confirm the destination Service exists in the correct namespace and has ready EndpointSlices; check the Service port and targetPort.
+
+**Likely cause and fix:** \`localhost\` refers to the caller's own network namespace, not a different Pod. Use the Kubernetes Service DNS name, such as \`http://inventory-service:8080\` for a Service exposing port 8080 in the same namespace. Across namespaces, include the namespace in the DNS name.
+
+**Prevention:** Externalize service URLs per environment and test service-to-service connectivity using the same DNS name and port that the application will use after deployment.
 
 ### Q74. A Service has no ready endpoints.
 Compare the Service selector with the labels on the Pod template and inspect the EndpointSlices associated with that Service. For example:
@@ -577,10 +599,22 @@ kubectl get endpointslices -n <ns> -l kubernetes.io/service-name=<service>
 Look at endpoint readiness/serving/terminating conditions and the port recorded in the slice. Common causes include a label typo, a failing readiness probe, the wrong target port, or a Service and Pod in different namespaces. Correct the manifest or underlying readiness/configuration issue; do not manually edit controller-managed endpoint data. Add a basic Service-selector check to chart review.
 
 ### Q75. A configuration change is not reflected in the application.
-Identify the source of truth (Helm values, ConfigMap, Secret, environment variable, or mounted file), then inspect the rendered Deployment and the running Pod's effective configuration without exposing secrets. Environment variables are read at process startup; changing their source does not mutate an existing process. ConfigMap volume updates may be eventual, but the application must reload the file. Trigger a controlled rollout or implement safe reload behavior, and consider a checksum annotation for Helm-managed configuration.
+**Symptoms:** A new environment value appears in Helm values or a ConfigMap, but application behavior remains unchanged.
+
+**Investigate:** Render the chart with the same values files/flags as the release and inspect the live Deployment template. Confirm whether the changed value is actually referenced by a template, and inspect the running Pod's configuration without printing secret values. Check whether the value is an environment variable, mounted file, or external secret.
+
+**Likely causes and fix:** The value was overridden, the template does not use it, or the Deployment Pod template did not change. Environment variables are read when the process starts; updating the source Secret does not mutate them. A projected ConfigMap/Secret volume may update eventually, but the application must reload the file, and a \`subPath\` mount will not receive automatic updates. Use a controlled rollout or implement a safe reload mechanism; a chart checksum annotation can trigger a rollout when rendered configuration changes.
+
+**Prevention:** Validate rendered manifests during review and test configuration changes through the actual deployment path. Never use a restart as a substitute for finding which source of configuration won precedence.
 
 ### Q76. Database connections are exhausted after scaling replicas.
-Calculate the maximum connection demand: pool maximum per replica × maximum replicas, plus jobs, admin sessions, and other services. Inspect pool active/idle/waiting metrics and database connection usage. Reduce per-replica pool limits, apply sensible timeouts, fix leaked or long-held transactions, and coordinate database capacity. Scaling application Pods can increase total DB concurrency rather than improve throughput.
+**Symptoms:** Requests wait for a connection, pool acquisition timeouts increase, or the database reports too many connections after the service scales out.
+
+**Investigate:** Compare database connection counts with per-replica pool settings and the maximum possible replica count. Inspect active/idle/waiting pool metrics, long-running queries/transactions, and whether jobs or other services share the same database.
+
+**Likely cause and fix:** A pool that looked modest for one replica multiplies when replicas grow. Estimate the upper bound as maximum pool size per replica × maximum replicas, then add other workloads and operational connections. Reduce per-replica pool size if appropriate, bound connection/query timeouts, and investigate leaks or long transactions. Raising the database limit may be valid only if the database has capacity to support it.
+
+**Prevention:** Include HPA maximum replicas in connection-budget reviews and load tests. Set a pool budget across the whole service fleet, not independently in each application instance.
 
 ### Q77. A rolling deployment causes temporary errors.
 Correlate each error with the rollout timeline and identify whether it came from a new Pod, an old Pod being terminated, or a downstream service. Check readiness accuracy, startup duration, \`maxSurge\`/\`maxUnavailable\`, capacity during surge, termination grace period, preStop hooks, and application shutdown logs. Also investigate keep-alive connections, load-balancer convergence, and whether clients retry non-idempotent operations.
@@ -593,22 +627,58 @@ Check Pod termination events, whether a \`preStop\` hook runs, the effective con
 The Pod grace period must cover hook time and application shutdown, with enough margin for the process to exit before SIGKILL. If a worker never terminates, investigate blocked I/O, missing timeouts, or non-cooperative background tasks instead of only increasing the grace period. Test while requests are in flight and check that clients handle an interrupted connection safely.
 
 ### Q79. Helm upgrade changes values but Pods do not restart.
-Run `helm template` with the exact values file and compare the rendered Pod template with the live Deployment. The changed value may not be referenced in a template, may affect only a ConfigMap, or may be overridden by a higher-precedence value. Kubernetes only rolls out when the Pod template changes. Add a config checksum annotation or explicitly design reload behavior. Do not restart workloads blindly without verifying which configuration they actually consumed.
+**Symptoms:** The release reports a new value or updated ConfigMap, but the Deployment still uses the old process environment.
 
-### Q80. A new image version fails to start.
-Verify the deployed image digest and logs, then compare the previous and new image: Java compatibility, startup command, required environment variables, file paths, native libraries, permissions, and schema/API assumptions. Check image pull events and architecture if the container never starts. Roll back the application release if safe, while separately assessing database migration compatibility and external side effects. Add startup smoke tests and backward-compatibility checks to the release process.
+**Investigate:** Render the chart using the exact release values, compare the resulting Pod template with the live Deployment, and inspect the stored release values. Verify whether the changed key actually appears in the generated resource and whether an override replaced it.
+
+**Likely cause and fix:** Kubernetes rolls out a Deployment when its Pod template changes, not simply because any resource in the Helm release changed. A ConfigMap update alone does not restart Pods. Add a checksum annotation of the rendered configuration to the Pod template, trigger a controlled rollout, or implement application-level reload for mounted files. Environment variables require a new process.
+
+**Prevention:** Include rendered-manifest review in the release process and make the chart's configuration-update behavior explicit. Remember that \`subPath\` mounts do not receive automatic projected-volume updates.
+
+### Q80. A new image version causes startup failures.
+**Symptoms:** The new ReplicaSet is created, but its Pods crash, fail probes, or cannot start while the previous version worked.
+
+**Investigate:** Verify the exact image tag and digest first. Inspect Pod events, startup logs, Java version, command/entrypoint, required environment settings, mounted paths, file permissions, architecture, and database/API compatibility. Use \`kubectl logs <pod> --previous\` if the container has restarted.
+
+**Likely causes and fix:** A missing configuration key, incompatible JDK, changed startup argument, image built for another architecture, permission regression, or a schema/API change can prevent startup. Roll back through the release process if it is safe; separately assess migrations and side effects because reverting a container does not revert data changes.
+
+**Prevention:** Promote the same immutable image tested in staging, check startup and health endpoints before promotion, and keep schema/API changes backward-compatible across overlapping versions during a rolling rollout.
 
 ### Q81. CPU throttling causes API latency.
-Correlate latency and timeout spikes with CPU usage/throttling, request volume, thread pools, and downstream waits. Check whether a tight CPU limit or low request is causing throttling; also profile CPU-heavy code, lock contention, serialization, and retries. Adjust limits/requests based on measurements and load-test the result. Increasing replicas may help only if the bottleneck is parallelizable and downstream systems have capacity.
+**Symptoms:** Request latency and timeouts rise while the service may still appear Running and Ready.
+
+**Investigate:** Correlate latency with CPU consumption and throttling, request rate, thread-pool queues, GC pauses, and downstream response times. Compare the limit with the measured CPU demand; inspect profiling data if available.
+
+**Likely cause and fix:** A tight CPU limit can throttle the process even when the node has unused CPU. Adjust requests/limits based on load tests and platform guidance, and optimize expensive computation, serialization, locking, or retry behavior. Scaling replicas helps only when work can be distributed and the database/downstream services can handle additional traffic.
+
+**Prevention:** Load-test at realistic concurrency and watch latency, throttling, queue depth, and downstream saturation together. Do not use CPU utilization alone as the application's health signal.
 
 ### Q82. Multiple replicas behave inconsistently.
-Look for in-memory session state, local files, local caches, random configuration, differing image digests, or environment drift. Compare Pod labels, image IDs, startup configuration, and logs. Externalize durable state and define cache consistency/invalidation. If sticky sessions are chosen, document their failover and scaling trade-offs; they are not a substitute for statelessness when correctness depends on shared state.
+**Symptoms:** A request works on one attempt but fails on another, or users lose state after a Pod restart or rescheduling event.
+
+**Investigate:** Compare each Pod's image digest, environment/configuration, logs, and readiness. Look for in-memory sessions, local files, process-local locks, caches with different values, or configuration loaded only at startup.
+
+**Likely cause and fix:** Requests can reach any ready replica, and a Pod's memory and writable layer are not shared durable storage. Move durable state to a database/object store and use an explicit shared session/cache design where needed. For caches, define expiry and invalidation/consistency expectations. Sticky sessions may reduce cross-replica session changes but do not provide durability and complicate failover.
+
+**Prevention:** Design APIs to be stateless where possible and test with more than one replica, including deleting a Pod during active use.
 
 ### Q83. A missing Secret or wrong environment variable prevents startup.
-Inspect Pod events and application startup errors; verify Secret name, key name, namespace, permissions, and deployment values. Kubernetes Secrets are namespace-scoped, and a Pod cannot reference a Secret in another namespace directly. Validate required configuration at startup with clear error messages, but never print secret values. Add deployment checks for required keys and test configuration in a staging-like environment.
+**Symptoms:** The process exits during configuration validation, cannot connect to its database, or reports a missing property.
+
+**Investigate:** Check Pod events and startup logs, then verify the Secret and key names in the same namespace as the Pod, the Helm values that reference them, and the environment variable spelling. Do not print secret contents to debug the problem.
+
+**Likely cause and fix:** A Secret name/key mismatch, an absent value, or an environment variable that does not map to the expected Spring Boot property can stop startup. Correct the reference and redeploy through the normal path. Kubernetes Secrets are namespace-scoped; a Pod cannot reference a Secret directly from another namespace.
+
+**Prevention:** Validate required configuration at application startup with a clear property name but no secret value, check required Secret/key existence before deployment, and test the release with the expected configuration shape in staging.
 
 ### Q84. The application is healthy but requests time out intermittently.
-Check whether latency is concentrated in the app, DB pool acquisition, downstream calls, CPU throttling, garbage collection, or ingress/network path. Compare request IDs and timestamps across services; inspect queue depth, connection-pool wait, timeouts, retries, and saturation. Align timeouts across hops and use bounded retries with backoff/jitter only for safe operations. Retries can amplify overload and must not be added blindly.
+**Symptoms:** Liveness/readiness may pass while specific API calls exceed their client timeout or fail only during load spikes.
+
+**Investigate:** Trace one request using its correlation/trace ID. Separate time spent in the HTTP server, request queue, DB pool acquisition, database query, downstream calls, CPU throttling, and garbage collection. Compare timeout values at each hop and inspect retry counts.
+
+**Likely causes and fix:** A health probe can be fast while a business endpoint is blocked on a slow query, exhausted connection pool, saturated executor, or slow downstream. Fix the saturated component, bound pool/queue sizes, configure sensible timeouts, and use bounded retries with backoff/jitter only for operations safe to retry. Retries can amplify overload; do not add them indiscriminately.
+
+**Prevention:** Monitor request latency percentiles, pool wait time, downstream latency, and saturation together; include slow-dependency and overload cases in testing.
 
 ### Q85. A rollout is stuck and old Pods remain.
 Start with \`kubectl rollout status deployment/orders-api -n <ns>\`, then inspect the Deployment, ReplicaSets, new Pods, events, image-pull status, readiness failures, and available capacity. Determine whether the new ReplicaSet cannot schedule, cannot pull the image, is crashing, or is running but never becomes Ready. An old ReplicaSet can intentionally remain available while Kubernetes tries to establish the new version.
@@ -616,12 +686,22 @@ Start with \`kubectl rollout status deployment/orders-api -n <ns>\`, then inspec
 Fix the cause or follow the release procedure to roll back. Do not delete old Pods merely to make the status look cleaner: they may be the only healthy capacity available. After recovery, add a check for the failure mode—such as pre-deploy image availability, probe verification, or resource validation—to reduce repeat incidents.
 
 ### Q86. A Pod cannot pull the image.
-Inspect Pod events for authentication failures, missing tag/digest, registry DNS/TLS issues, architecture mismatch, or rate limits. Confirm the image reference exists and the workload has the correct image-pull credentials or workload identity. Check whether the tag was overwritten or removed. Prefer immutable references and validate image availability before rollout.
+**Symptoms:** The Pod shows \`ErrImagePull\` or \`ImagePullBackOff\` and the application container never starts.
+
+**Investigate:** Use \`kubectl describe pod <pod> -n <ns>\` and read the events. Verify the repository and tag/digest exist, registry authentication is configured, the image reference is correct, and registry DNS/TLS/network access works from the cluster. Check rate limits and architecture compatibility where relevant.
+
+**Likely cause and fix:** Common causes include a misspelled or deleted tag, missing credentials, inaccessible registry, or a bad image reference. Correct the image or pull credentials and retry via the release pipeline; do not solve a production pull failure by switching to an unreviewed public image.
+
+**Prevention:** Verify image availability before rollout, promote immutable images, and ensure the workload's image-pull identity is configured in each target environment.
 
 ### Q87. Production fails but staging passes.
-Compare immutable image digest first, then configuration, secret versions, data/schema, permissions, DNS/network policy, TLS certificates, resource constraints, replica count, traffic patterns, and dependency versions. Capture evidence before changing settings. Production may expose concurrency or scale-related defects that staging traffic never triggers. Build a concise timeline and test the leading hypothesis in the safest available environment.
+**Symptoms:** The same feature passes in staging but fails, slows down, or behaves inconsistently after production rollout.
 
----
+**Investigate:** Compare the immutable image digest first, then runtime/JDK, environment variables and secret versions, database schema/data, database permissions, DNS/network policy, TLS certificates, resource requests/limits, replica count, traffic volume, and dependency versions. Use trace IDs and a timestamped timeline to isolate the first failing dependency.
+
+**Likely causes and fix:** Configuration drift is common, but production can also expose concurrency, scale, data-shape, rate-limit, and resource problems that staging traffic never triggers. Change one variable at a time where possible; roll back if impact is high and rollback is safe, while checking migration and side-effect compatibility.
+
+**Prevention:** Promote the same image digest through environments, keep differences in declarative configuration, test realistic traffic/data shapes, and validate representative business flows immediately after deployment.
 
 ## 11. Essential commands
 
@@ -652,7 +732,7 @@ kubectl describe pod <pod> -n <ns>
 kubectl logs <pod> -n <ns>
 kubectl logs <pod> -n <ns> --previous
 kubectl get deploy,rs,svc -n <ns>
-kubectl get endpointslices -n <ns>
+kubectl get endpointslices -n <ns> -l kubernetes.io/service-name=<service>
 kubectl get events -n <ns> --sort-by=.metadata.creationTimestamp
 kubectl rollout status deployment/<name> -n <ns>
 kubectl rollout history deployment/<name> -n <ns>
@@ -686,14 +766,17 @@ Prefer the official documentation for version-sensitive behavior. These are star
 - [Dockerfile reference](https://docs.docker.com/reference/dockerfile/)
 - [Docker build best practices](https://docs.docker.com/build/building/best-practices/)
 - [Docker multi-stage builds](https://docs.docker.com/build/building/multi-stage/)
+- [Docker build secrets](https://docs.docker.com/build/building/secrets/)
 - [Docker container networking](https://docs.docker.com/engine/network/)
 - [Kubernetes Deployments](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/)
 - [Kubernetes Pods](https://kubernetes.io/docs/concepts/workloads/pods/)
 - [Kubernetes Services and networking](https://kubernetes.io/docs/concepts/services-networking/service/)
+- [Kubernetes EndpointSlices](https://kubernetes.io/docs/concepts/services-networking/endpoint-slices/)
 - [Kubernetes probes](https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/)
 - [Kubernetes resource management](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)
 - [Kubernetes ConfigMaps](https://kubernetes.io/docs/concepts/configuration/configmap/)
 - [Kubernetes Secrets](https://kubernetes.io/docs/concepts/configuration/secret/)
+- [Kubernetes security contexts](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/)
 - [Kubernetes graceful Pod termination](https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/)
 - [Kubernetes HPA](https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/)
 - [Helm documentation](https://helm.sh/docs/)
