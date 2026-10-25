@@ -18,8 +18,10 @@ A focused, version-aware guide for Java backend engineers. It prioritizes questi
 6. [JVM, memory, and performance](#6-jvm-memory-and-performance)
 7. [Modern Java](#7-modern-java)
 8. [Production and senior-level scenarios](#8-production-and-senior-level-scenarios)
-9. [Last-minute revision](#9-last-minute-revision)
-10. [Official references](#10-official-references)
+9. [Additional specialist topics](#9-additional-specialist-topics)
+10. [Last-minute revision](#10-last-minute-revision)
+11. [Official references](#11-official-references)
+12. [Editorial and validation notes](#12-editorial-and-validation-notes)
 
 ---
 
@@ -385,7 +387,7 @@ Use bounded retries with backoff and jitter only when the operation is safe to r
 
 ---
 
-## 8A. Additional specialist topics
+## 9. Additional specialist topics
 
 ### Q55. How should Java I/O, NIO, and resource management be handled?
 
@@ -431,7 +433,7 @@ Build configuration is also part of compatibility. Understand Maven/Gradle toolc
 
 ---
 
-## 9. Last-minute revision
+## 10. Last-minute revision
 
 If only a short time remains, prioritize these questions and make sure the explanations are clear enough to say aloud:
 
@@ -455,7 +457,7 @@ If only a short time remains, prioritize these questions and make sure the expla
 
 ---
 
-## 10. Official references
+## 11. Official references
 
 Use official specifications and API documentation as the final authority for language and runtime contracts. Secondary interview guides are useful for discovering recurring themes, not for proving technical behavior or guaranteeing company-specific frequency.
 
@@ -475,7 +477,7 @@ Use official specifications and API documentation as the final authority for lan
 
 ---
 
-## Quality and scope notes
+## 12. Editorial and validation notes
 
 - This is the **curated primary interview guide**, not a claim that every advanced Java API can be covered in 54 questions.
 - It deliberately favors common concepts and senior-level reasoning over obscure trivia and repetitive question variants.
