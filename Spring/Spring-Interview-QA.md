@@ -574,7 +574,7 @@ Use 400 for malformed or invalid request data according to the API contract, 404
 
 ### Q104. What is ProblemDetail?
 
-ProblemDetail is Spring Framework's representation for an RFC 7807-style problem response, with standard fields such as type, title, status, detail, and instance plus optional extension properties. It provides a consistent structure for API errors, but the application still decides the public status, safe detail, stable error code, and validation metadata. Do not expose stack traces, SQL, hostnames, or secrets through detail/extensions. Verify serialization and exception-handler behavior against the Framework version in use, and keep the error contract stable so clients do not depend on internal exception class names.
+`ProblemDetail` is Spring Framework's representation for an RFC 9457 problem response (RFC 9457 supersedes RFC 7807), with standard fields such as type, title, status, detail, and instance plus optional extension properties. It provides a consistent structure for API errors, but the application still decides the public status, safe detail, stable error code, and validation metadata. Do not expose stack traces, SQL, hostnames, or secrets through detail/extensions. Verify serialization and exception-handler behavior against the Framework version in use, and keep the error contract stable so clients do not depend on internal exception class names.
 
 ### Q105. Should controllers catch every exception?
 
@@ -1409,7 +1409,7 @@ A Bill of Materials (BOM) centralizes a tested set of dependency versions so rel
 
 ### Q266. What are notable Spring Framework 7 additions worth checking during migration?
 
-Framework 7 adds capabilities that may matter to a migration or new design, including programmatic bean registration, core resilience support, API versioning, improvements around HTTP Service Clients, and RestTestClient. The important interview point is not to memorize a release-note list: explain which problem a feature solves, what version introduced it, and what constraints it has. Verify each API against the stable Framework 7.0 reference and the Boot line managing it; prerelease documentation for 7.1 must not be described as stable 7.0 behavior. For an existing service, prefer a measured migration case over adopting every new feature.
+Framework 7 adds capabilities that may matter to a migration or new design, including programmatic bean registration, core resilience support, API versioning, improvements around HTTP Service Clients, and `RestTestClient`. The core resilience support includes `@Retryable`, `@ConcurrencyLimit`, and programmatic retry via `RetryTemplate`; annotation-based processing must be enabled with `@EnableResilientMethods` (or the relevant post-processor). Because these features use Spring's interception model, proxy boundaries and advice ordering matter—for example, retry advice can wrap transaction advice so each attempt can run in a fresh transaction. The important interview point is to explain which problem a feature solves and what constraints it has, not memorize a release-note list. Verify APIs against the stable Framework 7.0 reference and the Boot line managing it; do not present 7.1 prerelease behavior as stable 7.0 behavior.
 
 ### Q267. Which dependency compatibility checks are most important during the Jakarta namespace migration?
 
@@ -1425,7 +1425,7 @@ When upgrading Spring test support, inspect the migration guide for removed/depr
 
 ### Q270. How should you treat Spring Framework 7.1 prerelease documentation?
 
-As of 2026-10-24, the official release list identifies Framework 7.0.10 as the latest stable 7.0 release and Framework 7.1.0-RC1 as a prerelease. Prerelease notes can help plan compatibility work, but changes in prerelease documentation must not be presented as released stable behavior. For example, the 7.1 prerelease notes flag changes to forwarded-header filter/transformer constructors; proxy deployments should explicitly review which forwarded-header family they trust. Re-check the official release list and the exact target version's migration guide before upgrading.
+As of 2026-10-25, the official release list identifies Framework 7.0.10 as the latest stable 7.0 release and Framework 7.1.0-RC1 as a prerelease. Prerelease notes can help plan compatibility work, but changes in prerelease documentation must not be presented as released stable behavior. For example, the 7.1 prerelease notes flag changes to forwarded-header filter/transformer constructors; proxy deployments should explicitly review which forwarded-header family they trust. Re-check the official release list and the exact target version's migration guide before upgrading.
 
 ### Official references
 - [Spring Framework versions and support](https://github.com/spring-projects/spring-framework/wiki/Spring-Framework-Versions)
