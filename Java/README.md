@@ -6,7 +6,7 @@ A focused, version-aware Java interview guide for backend engineers preparing fo
 
 **[Java Interview Handbook — Core Concepts to Senior-Level Discussion](Java-Interview-QA.md)**
 
-This is the primary reading path. It contains 138 curated questions with detailed, readable answers across Java fundamentals, object-oriented design, collections, generics, streams, concurrency, JVM behavior, modern Java, and production troubleshooting. It prioritizes concepts that are worth revising before an interview instead of maximizing question count.
+This is the primary reading path. It contains 355 interview questions across dedicated topic sections with detailed, readable answers across Java fundamentals, object-oriented design, collections, generics, streams, concurrency, JVM behavior, modern Java, and production troubleshooting. The guide includes focused explanations, concise code snippets where useful, a dedicated Streams coding section, Java 8–25 version coverage with LTS emphasis, and Mermaid diagrams for visual revision.
 
 ## Recommended study path
 
