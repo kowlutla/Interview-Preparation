@@ -252,3 +252,31 @@ The generic Boot system-requirements page currently renders Boot 4.1.0 (Java 17 
 - Added the eight senior-level production troubleshooting questions from the concise guide into the consolidated handbook, covering bean registration and conditional wiring, MVC/filter boundaries, security-chain diagnosis, cache/async proxy behavior, connection-pool exhaustion, configuration precedence, and manually instantiated objects.
 - The consolidated handbook now contains 298 sequentially numbered questions across 27 topic areas. The concise guide's last-minute revision priorities and official reference links have also been merged into this file, leaving one primary handbook for the stack. The README and table of contents were synchronized to the expanded scope.
 - The eight additions were integrated as a dedicated troubleshooting section after the topic-by-topic Q&A. This improves the main guide's interview flow; it does not change the stated limitation that a full manual technical certification of every answer and every external URL has not been completed.
+
+
+## Interview handbook quality and coverage pass — 2026-10-25
+
+### Current primary handbook
+
+- Primary file: [Spring-Interview-QA.md](Spring-Interview-QA.md).
+- The main handbook now contains **306 sequentially numbered questions (Q1–Q306)** across **27 topic areas**. This count includes the eight senior production troubleshooting questions and eight additional ecosystem questions.
+- Added targeted coverage for Spring for Apache Kafka, Spring Kafka listener retry/dead-letter handling, Spring AMQP/RabbitMQ, Spring Data JDBC versus JPA, Spring Data R2DBC, Spring Cloud Gateway, Spring Cloud OpenFeign, and Spring Cloud Config versus Spring Vault.
+- Expanded high-impact explanations around transaction boundaries, propagation, isolation, rollback behavior, proxy/self-invocation failures, JPA N+1 and locking, JWT validation, security-chain ordering, tenant isolation, test strategy, HTTP timeout/retry design, reactive blocking/error recovery, Actuator health semantics, caching, executor saturation, clustered scheduling, and async transaction boundaries.
+- Added short illustrative snippets for constructor injection, transaction rollback rules, SecurityFilterChain, cache lookup, async execution, and Spring Kafka listeners. Snippets intentionally show the relevant mechanism only; they are not complete applications.
+- Refreshed the handbook's dated version note against official documentation on 2026-10-25. Version claims remain release-sensitive and should be checked against the exact Boot BOM, Framework patch, Java baseline, and Spring Cloud train used by the target project.
+
+### Structural checks run after this pass
+
+- [x] Confirmed 306 question headings and continuous numbering from Q1 through Q306.
+- [x] Confirmed the 27 topic headings remain in the contents and all 28 TOC links resolve to existing headings using a simple Markdown slug check.
+- [x] Confirmed code-fence markers are balanced.
+- [x] Confirmed the question-body word-count screen has no answers below 35 words; the minimum observed answer-body count is 41 words. This is a depth heuristic only, not proof of clarity, correctness, or interview usefulness.
+- [x] Removed a duplicated sentence in the native-image answer.
+- [x] Updated the Spring README's question count and ecosystem coverage summary.
+
+### Remaining limits / next review focus
+
+- This pass improves depth and breadth but does **not** certify every technical claim line by line. Continue targeted manual review of Spring MVC/error handling, Boot configuration and startup, bean lifecycle, Spring Cloud compatibility, messaging delivery guarantees, version migration claims, and production diagnosis.
+- Official documentation pages were consulted for transaction proxy/rollback semantics, SecurityFilterChain behavior, Boot auto-configuration/testing, and current Framework/Boot version status. A full crawl of every external URL embedded in all Spring Markdown files has not been completed.
+- No code compilation, test execution, or runtime validation was performed. All snippets are illustrative and should be checked against the exact project dependencies before copying into production code.
+- Legacy exercises, scenarios, mock interviews, and topic files have been preserved; do not delete them until the primary handbook has completed the remaining content-quality review and the user explicitly moves to cleanup.
