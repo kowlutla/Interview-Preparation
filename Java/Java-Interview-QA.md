@@ -23,9 +23,12 @@ A focused, version-aware guide for Java backend engineers. It prioritizes questi
 14. [Java Streams — coding interview questions](#14-java-streams--coding-interview-questions)
 15. [Java version-wise features: Java 8 to Java 25](#15-java-version-wise-features-java-8-to-java-25)
 16. [Core Java language, object model, and API contracts](#16-core-java-language-object-model-and-api-contracts)
-19. [Last-minute revision](#19-last-minute-revision)
-20. [Official references](#20-official-references)
-21. [Editorial and validation notes](#21-editorial-and-validation-notes)
+17. [Collections framework — deeper interview questions](#17-collections-framework--deeper-interview-questions)
+18. [Concurrency, executors, and asynchronous execution](#18-concurrency-executors-and-asynchronous-execution)
+19. [JVM, garbage collection, and diagnostics](#19-jvm-garbage-collection-and-diagnostics)
+22. [Last-minute revision](#22-last-minute-revision)
+23. [Official references](#23-official-references)
+24. [Editorial and validation notes](#24-editorial-and-validation-notes)
 
 ---
 
@@ -1540,7 +1543,154 @@ A dynamic proxy can create an object that implements specified interfaces and fo
 
 Exceptions generally represent conditions application code may handle or propagate. Error represents serious problems associated with the runtime or environment, such as linkage failures or resource exhaustion, and application code usually should not attempt to recover from arbitrary Errors. Cleanup in finally or try-with-resources still matters during abrupt termination, but do not swallow fatal conditions indiscriminately.
 
-## 19. Last-minute revision
+
+## 17. Collections framework — deeper interview questions
+
+### Q241. What is the difference between Collection and Collections?
+
+Collection is the root interface for many collection types, such as List, Set, and Queue. Collections is a utility class containing static methods for operations such as sorting, searching, synchronization wrappers, and unmodifiable views. Map belongs to the collections framework but does not extend Collection because it represents key-value associations.
+
+### Q242. What is the difference between List, Set, and Queue?
+
+List is ordered and allows duplicates; Set models uniqueness; Queue models elements waiting for processing and defines ordering/removal behavior according to its implementation. Choose based on the required contract, not just familiarity. A Deque can support both queue and stack operations.
+
+### Q243. Why is ArrayList usually preferred over LinkedList?
+
+ArrayList provides constant-time indexed access and good cache locality, while insertion or deletion in the middle may require shifting elements. LinkedList has costly indexed access and allocates a node per element; insertion is only cheap when the position is already known through an iterator or node reference. In most ordinary application workloads, ArrayList is the simpler default.
+
+### Q244. How does ArrayList grow, and why should capacity be considered?
+
+ArrayList maintains a backing array and grows it when capacity is insufficient, copying existing references to a larger array. Growth is amortized efficient, but an individual expansion can be costly. If the approximate size is known, pre-sizing can reduce repeated growth; do not allocate huge capacity without evidence because it consumes memory.
+
+### Q245. What is the difference between HashSet and TreeSet?
+
+HashSet uses hashing and does not promise sorted iteration. TreeSet maintains sorted order according to natural ordering or a comparator, generally with logarithmic basic operations. TreeSet treats elements that compare as zero as duplicates, so inconsistent ordering can produce behavior that differs from equals-based collections.
+
+### Q246. What is LinkedHashMap useful for?
+
+LinkedHashMap maintains a predictable iteration order, commonly insertion order, and can also use access order. Access-order mode is useful as a building block for a simple LRU-style cache, but production caches still need concurrency policy, expiration, capacity, and memory behavior to be designed deliberately.
+
+### Q247. What is the difference between Iterator and ListIterator?
+
+Iterator traverses forward and can remove elements where supported. ListIterator is specific to lists and supports bidirectional traversal, index information, and element replacement or insertion where supported. Structural modifications made outside the iterator can invalidate fail-fast iterators; those checks are best-effort bug detection, not synchronization.
+
+### Q248. What is the difference between fail-fast and weakly consistent iteration?
+
+Fail-fast iterators may throw ConcurrentModificationException when they detect structural modification outside the supported iterator operations, but this is not guaranteed thread safety. Weakly consistent iterators from some concurrent collections can tolerate concurrent updates and reflect some state without throwing that exception. Understand the concrete collection's contract rather than assuming all iterators behave alike.
+
+### Q249. Why is ConcurrentHashMap safer than HashMap for concurrent access?
+
+ConcurrentHashMap supports concurrent retrieval and updates with documented thread-safety properties and atomic methods such as computeIfAbsent. HashMap does not support unsynchronized concurrent structural modification. ConcurrentHashMap disallows null keys and values, which avoids ambiguity in concurrent lookup results and should be considered in API design.
+
+### Q250. How do you make a check-then-act operation atomic?
+
+Prefer one atomic collection method, such as putIfAbsent or computeIfAbsent, when it expresses the intended state transition. A separate containsKey call followed by put can race because another thread may change the map between operations. If the invariant spans several objects or operations, a broader lock or transaction may be necessary.
+
+## 18. Concurrency, executors, and asynchronous execution
+
+### Q251. What are the lifecycle states of a Java thread?
+
+The Thread.State enum includes NEW, RUNNABLE, BLOCKED, WAITING, TIMED_WAITING, and TERMINATED. RUNNABLE includes threads that may be executing or ready to run; it does not mean the thread is continuously using a CPU. Thread states are diagnostic snapshots, so interpret them with stack traces and repeated observations.
+
+### Q252. What is the difference between sleep(), wait(), and join()?
+
+sleep pauses the current thread for a duration and does not release a monitor it owns. wait releases the monitor of the object on which it is called and waits for notification or another permitted wakeup condition. join waits for another thread to terminate. Use each only when its synchronization semantics match the requirement; sleep is not a substitute for coordination.
+
+### Q253. What is thread interruption?
+
+Interruption is a cooperative cancellation signal. Blocking methods may throw InterruptedException, which clears the interrupted status when thrown; code that cannot propagate the exception should generally restore the status with Thread.currentThread().interrupt() after handling or deciding to stop. Do not swallow interruption and continue indefinitely if the caller expects cancellation.
+
+### Q254. What is the difference between shutdown() and shutdownNow()?
+
+shutdown stops accepting new tasks and allows submitted tasks to finish. shutdownNow attempts to stop active tasks, typically by interrupting worker threads, and returns tasks that never commenced. Neither guarantees that a task will stop immediately; task code must cooperate with interruption and resource operations may have their own cancellation behavior.
+
+### Q255. Why can an unbounded executor queue be dangerous?
+
+An unbounded queue can allow requests to accumulate faster than workers process them. The service may appear healthy initially while queueing delay and retained memory grow, eventually causing timeouts or memory pressure. Use a bounded queue or an appropriate executor strategy, define rejection behavior, and expose queue depth and task wait time as metrics.
+
+### Q256. What is backpressure in a Java service?
+
+Backpressure prevents producers from overwhelming a slower consumer or dependency. It can be implemented through bounded queues, demand-aware reactive streams, concurrency limits, admission control, or rejection with a clear response. Adding more worker threads without controlling downstream capacity often moves the queue to another layer rather than solving overload.
+
+### Q257. What is the difference between Future and CompletableFuture?
+
+Future represents an asynchronous result and supports waiting, cancellation, and status checks. CompletableFuture also supports composition, transformation, combination, and explicit completion stages. CompletableFuture does not guarantee that every continuation runs on a new thread; non-async stages may execute on the thread completing the prior stage, while async methods use an executor according to their overload and configuration.
+
+### Q258. What is the common pool, and why can it matter?
+
+Many asynchronous operations use ForkJoinPool.commonPool by default. Blocking tasks or long-running work can interfere with unrelated operations that use the same pool. Select executors deliberately for blocking work, keep task behavior predictable, and inspect pool saturation when asynchronous pipelines become slow.
+
+### Q259. What are CountDownLatch, CyclicBarrier, and Semaphore used for?
+
+CountDownLatch lets one or more threads wait until a count reaches zero and cannot be reset. CyclicBarrier allows a fixed set of threads to meet at a reusable barrier. Semaphore limits concurrent access through permits. Choose the primitive that matches the coordination model and ensure failure paths do not leave other threads waiting forever.
+
+### Q260. What is the difference between ReentrantLock and synchronized?
+
+Both can provide mutual exclusion and visibility guarantees. ReentrantLock supports timed and interruptible lock acquisition, optional fairness, and multiple Condition objects, but requires explicit unlock, usually in finally. synchronized is simpler and releases the monitor automatically when the block exits. Prefer the simpler construct unless an explicit Lock feature is needed.
+
+### Q261. What is a race condition, and how do you prevent it?
+
+A race condition occurs when correctness depends on the timing or interleaving of operations that are not properly coordinated. Prevent it by protecting shared invariants with synchronization, atomic operations, thread-safe data structures, immutability, or confinement of state to one thread. Making one field volatile does not make a multi-step business operation atomic.
+
+### Q262. Why are virtual threads not a replacement for every executor?
+
+Virtual threads are particularly useful for high-concurrency workloads that spend time waiting, especially blocking I/O. They do not accelerate CPU-bound calculations and do not remove limits on database connections, remote-service quotas, memory, or file descriptors. Use semaphores or bounded resource pools when the downstream resource needs a concurrency limit.
+
+### Q263. What is thread confinement?
+
+Thread confinement means mutable state is accessed only by one thread, avoiding synchronization for that state. Local variables and objects that never escape the creating thread are common examples. Thread confinement can simplify correctness, but sharing the reference through callbacks, static fields, or asynchronous handoffs can break the assumption.
+
+### Q264. What is the difference between ThreadLocal and ScopedValue?
+
+ThreadLocal associates a value with a thread and can be useful for thread-specific state, but pooled-thread reuse requires careful cleanup and propagation across asynchronous boundaries can be confusing. ScopedValue models context bound to a bounded dynamic scope and became final in Java 25. Choose based on lifetime and propagation requirements; neither should be used to hide broad mutable global state.
+
+## 19. JVM, garbage collection, and diagnostics
+
+### Q265. What is the difference between heap and stack memory?
+
+The heap holds objects and arrays managed by the garbage collector. Each thread has its own stack of frames containing method-call state, local variables, and intermediate execution information. These are conceptual runtime areas; JIT optimizations can eliminate allocations or move values in ways that do not correspond directly to a simple source-level picture.
+
+### Q266. What is the difference between StackOverflowError and OutOfMemoryError?
+
+StackOverflowError often occurs when a thread's stack is exhausted, commonly due to unbounded recursion or deep call chains. OutOfMemoryError indicates that the JVM could not satisfy an allocation or another memory-related need; causes can include heap, metaspace, direct memory, or native resource exhaustion. Diagnose the exact message and runtime metrics rather than treating every memory error as a heap leak.
+
+### Q267. How does garbage collection determine whether an object is reachable?
+
+The garbage collector traces reachability from GC roots such as active thread stacks, static references, and other runtime roots. Objects no longer reachable from these roots can be reclaimed, subject to the collector's behavior. Garbage collection does not automatically close files, sockets, or database connections; those resources require explicit lifecycle management.
+
+### Q268. What is the difference between a memory leak and high allocation rate?
+
+A memory leak occurs when objects remain reachable longer than intended, causing retained memory to grow. High allocation rate means the application creates many objects, which may still be reclaimed promptly but can increase GC work. Heap dumps help investigate retention; allocation profiling and JFR help identify where objects are created.
+
+### Q269. What is a stop-the-world pause?
+
+A stop-the-world pause is a period when application threads are paused for a JVM operation, often related to garbage collection or runtime coordination. The impact depends on pause duration, frequency, workload, and latency requirements. Modern collectors aim to reduce pause impact through different trade-offs, but no collector makes all runtime coordination disappear.
+
+### Q270. How do G1, ZGC, and Shenandoah differ at a high level?
+
+G1 is a general-purpose regional collector designed to balance throughput and pause-time goals. ZGC targets very low pause times and supports large heaps; Shenandoah also emphasizes low pause times through concurrent work. Exact capabilities and defaults vary by JDK release and distribution. Select based on measured latency, throughput, heap size, and operational constraints rather than a universal “best” collector.
+
+### Q271. What is metaspace and how can it be exhausted?
+
+Metaspace stores class metadata outside the ordinary Java heap. It can grow when many classes or class loaders are retained, including in application servers or plugin environments. Investigate class counts, class-loader retention, redeployment patterns, and the exact OutOfMemoryError message; increasing the limit alone may only delay a leak.
+
+### Q272. What is escape analysis?
+
+Escape analysis lets the JIT determine whether an object is confined to a limited scope or escapes to other code or threads. This can enable optimizations such as scalar replacement or lock elimination in suitable cases. It is an optimization, not a language guarantee; do not assume every source-level object necessarily becomes a heap allocation or that a particular optimization always occurs.
+
+### Q273. What is JIT compilation and why does warm-up matter?
+
+The JVM can compile frequently executed bytecode into optimized machine code based on runtime observations. Early execution may have different performance from warmed-up execution as compilation and profiling progress. Microbenchmarks must account for warm-up, dead-code elimination, constant folding, and measurement noise; use JMH rather than timing a loop once.
+
+### Q274. How do you diagnose a suspected Java deadlock?
+
+Capture a thread dump while the application is stuck and inspect monitor ownership and waiting relationships. Look for cycles in which each thread waits for a resource held by another. Then map the stacks to application code, review lock acquisition order, and reduce nested locking or external calls while holding locks. Do not infer deadlock from high thread count alone.
+
+### Q275. What is the difference between a heap dump and a thread dump?
+
+A heap dump captures objects and references for retained-memory analysis. A thread dump captures thread states and stack traces for blocked threads, deadlocks, and executor problems. Choose the artifact that matches the symptom; collect them with care because dumps may be large and contain sensitive data.
+
+## 22. Last-minute revision
 
 If only a short time remains, prioritize these questions and make sure the explanations are clear enough to say aloud:
 
@@ -1565,7 +1715,7 @@ If only a short time remains, prioritize these questions and make sure the expla
 
 ---
 
-## 20. Official references
+## 23. Official references
 
 Use official specifications and API documentation as the final authority for language and runtime contracts. Secondary interview guides are useful for discovering recurring themes, not for proving technical behavior or guaranteeing company-specific frequency.
 
@@ -1586,7 +1736,7 @@ Use official specifications and API documentation as the final authority for lan
 
 ---
 
-## 21. Editorial and validation notes
+## 24. Editorial and validation notes
 
 - This is the **curated primary interview guide**, not a claim that every advanced Java API can be covered in 54 questions.
 - It deliberately favors common concepts and senior-level reasoning over obscure trivia and repetitive question variants.
