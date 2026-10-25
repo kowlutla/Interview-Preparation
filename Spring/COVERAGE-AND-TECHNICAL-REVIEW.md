@@ -320,3 +320,13 @@ The generic Boot system-requirements page currently renders Boot 4.1.0 (Java 17 
 - Latest primary handbook blob SHA: `ea054e4b59de6ab3d1d35b0d8836395af17569dd`.
 - README and review log both state 307 questions. The removed duplicate handbook filename is not referenced in the main guide or README.
 - Still not claimed: exhaustive line-by-line correctness certification of all 307 answers, a full crawl of every external URL, or code compilation/runtime validation. Continue reviewing remaining concise answers and version-sensitive ecosystem details before treating the guide as fully accepted.
+
+
+### Core concepts depth pass and latest checks — 2026-10-25
+
+- Expanded 19 more foundational answers covering BeanFactory/ApplicationContext, bean registration, component scanning, qualifiers, scopes/lifecycle, configuration binding/precedence, AOP advice, auto-configuration, AOT, context refresh, reactive context, and the Spring Cloud ecosystem.
+- Latest handbook structural check: 307 Q&As continuously numbered; no duplicate question numbers or exact duplicate titles; 27 topic areas; 28 TOC links with no missing heading targets; balanced code fences.
+- Latest answer-body screen reports approximately 87 words on average, a minimum of 45 words, and 14 answers below 50 words. This is a substantial improvement over the initial short-answer distribution, but it remains a heuristic and not a correctness score.
+- Latest primary handbook blob SHA: `c3e93e0947310c9f56a82ef5b2ae0dccd733bd49`.
+- The guide now includes short examples where they help explain constructor injection, rollback rules, SecurityFilterChain, exception handling, optimistic locking, caching, async execution, and Spring Kafka listeners.
+- Next review priority is the remaining 14 concise answers, then a final manual pass over version-sensitive claims and link destinations. Full line-by-line certification and code compilation/runtime validation remain unclaimed.
