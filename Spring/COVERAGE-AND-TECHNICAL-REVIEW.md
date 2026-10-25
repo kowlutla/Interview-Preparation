@@ -310,3 +310,13 @@ The generic Boot system-requirements page currently renders Boot 4.1.0 (Java 17 
 - Latest primary handbook blob SHA: `245274e9614a230e8ebad0e5f8a9438960a23c45`.
 - High-risk answer improvements were informed by official Spring transaction documentation on proxy interception and rollback rules, Spring Security's first-matching SecurityFilterChain behavior, and current Framework/Boot release documentation. These checks support the reviewed claims but do not amount to certification of every answer.
 - Still outstanding: inspect remaining concise answers selectively; verify remaining version-sensitive claims and official URLs; do a final review of snippets for API coherence. No compile/test/runtime validation is planned for this interview-first guide, and the full manual certification of all 307 answers is not claimed.
+
+
+### Final targeted depth pass — 2026-10-25
+
+- Expanded 35 additional answers across REST controllers/DTOs/validation/pagination, repository behavior/projections, password storage, async/reactive execution, distributed tracing, gateway/retry policies, production readiness, thread dumps, memory diagnosis, performance optimization, bean definitions, classpath compatibility, and Framework 7 migration baselines.
+- Latest structural recheck of the primary handbook: **307 Q&As, continuous Q1–Q307 numbering, no duplicate question numbers or exact duplicate question titles, 27 topic areas, 28 TOC links with no missing targets, and balanced code fences**.
+- Current answer-body word-count screen: average approximately 84 words, minimum 40 words, 33 answers below 50 words. The remaining concise answers are not automatically defects; the final pass should judge whether each one covers the mechanism, practical implications, and relevant trade-offs for that question.
+- Latest primary handbook blob SHA: `ea054e4b59de6ab3d1d35b0d8836395af17569dd`.
+- README and review log both state 307 questions. The removed duplicate handbook filename is not referenced in the main guide or README.
+- Still not claimed: exhaustive line-by-line correctness certification of all 307 answers, a full crawl of every external URL, or code compilation/runtime validation. Continue reviewing remaining concise answers and version-sensitive ecosystem details before treating the guide as fully accepted.
