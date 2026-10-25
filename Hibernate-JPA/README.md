@@ -2,7 +2,20 @@
 
 A high-signal, category-wise handbook for Java backend engineers with roughly 4–5 years of experience preparing for senior and product-company interviews. It prioritizes persistence-context mechanics, generated SQL, fetching and performance, transactions, concurrency, repository behavior, and production diagnosis over question volume.
 
-> **Scope:** 107 numbered questions across the core chapters, plus three focused mock interviews (12 questions each). The material is interview-focused and intentionally uses small snippets rather than full applications. It is an authored first pass, not a claim that every technical statement has received an independent line-by-line review.
+> **Scope:** 107 numbered questions across the core chapters, plus three focused mock interviews (12 questions each). Answers are written in a spoken interview style: direct explanation, practical context, mechanism, and relevant caveats. The material uses small snippets only where they help rather than full applications. The conversational rewrite is complete; an independent line-by-line technical audit and external-link crawl remain separate quality tasks.
+
+
+## Answer-writing standard
+
+The answers are intended to sound like a developer explaining a concept to an interviewer, not a glossary or documentation excerpt. A strong answer should:
+
+1. Start with a direct explanation in natural language.
+2. Explain how the behavior works, not just name it.
+3. Use a small, realistic example when it improves understanding.
+4. Mention a meaningful caveat, trade-off, or common production failure.
+5. Avoid repeated question text, an “Answer:” label, unnecessary formal filler, and large tutorial-style code samples.
+
+Not every question needs all five elements. Straightforward questions should stay concise; high-value questions should go deeper enough that the candidate can defend the answer and handle follow-ups.
 
 ## Prerequisites
 - Java classes, collections, exceptions, and basic generics.
