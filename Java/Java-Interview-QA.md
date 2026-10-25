@@ -433,6 +433,26 @@ Build configuration is also part of compatibility. Understand Maven/Gradle toolc
 
 ---
 
+### Q62. What security mistakes should Java backend developers avoid?
+
+Security depends on the application's trust boundaries, not just on using a particular Java API. Validate and constrain untrusted input at the appropriate boundary, use parameterized SQL rather than string concatenation, avoid unsafe deserialization of untrusted data, prevent path traversal by resolving and validating paths against an intended root, and do not disable TLS certificate/hostname verification to “fix” a connection problem.
+
+Use established cryptographic APIs and libraries instead of inventing algorithms, store secrets outside source control, apply least privilege, and avoid logging credentials, tokens, or sensitive payloads. For outbound requests, consider SSRF risks including redirects and DNS resolution behavior. A strong answer explains the threat model and layered controls; no single normalization or validation step guarantees safety in every environment.
+
+### Q63. What should be configured when making HTTP calls from Java?
+
+A production HTTP client needs explicit connection and request/response timeouts, sensible connection reuse/pooling where supported, TLS verification, redirect policy, resource cleanup, and observability. The standard `java.net.http.HttpClient` became a standard API in Java 11; older code may use other client libraries with their own configuration and lifecycle rules.
+
+Timeouts should align with the overall request deadline, and retries should be bounded and restricted to operations that are safe to repeat. A timeout only means the caller did not receive a response in time; the remote service may still have completed the operation. Record useful metrics and correlation context without leaking secrets, and avoid creating a new client for every request when the client is intended to be reused.
+
+### Q64. How does class-loader delegation work, and why can class-loading problems occur?
+
+Class loaders locate and define classes at runtime. The traditional parent-delegation model asks a parent loader to load a class before the child defines it, helping avoid duplicate definitions of core classes and supporting a consistent runtime type system. Application servers, plugin systems, module layers, and custom class loaders can use more complex arrangements.
+
+Two classes with the same fully qualified name are not necessarily the same runtime type if they were defined by different class loaders. This can cause confusing `ClassCastException`, `NoClassDefFoundError`, or linkage errors in application servers and plugin architectures. Diagnose the actual class loader, classpath/module path, dependency conflicts, and loading origin rather than assuming the source code type name uniquely identifies the runtime class.
+
+---
+
 ## 10. Last-minute revision
 
 If only a short time remains, prioritize these questions and make sure the explanations are clear enough to say aloud:
@@ -452,7 +472,7 @@ If only a short time remains, prioritize these questions and make sure the expla
 13. Heap vs stack, GC, memory leaks, JIT (Q37–Q42)
 14. Java 8, records/sealed classes, Java 21 virtual threads, Java 25 migration awareness (Q44–Q48)
 15. Diagnose latency, GC pressure, executor starvation, and safe retries (Q49–Q54)
-16. Revise I/O/resource management, serialization risks, JDBC transactions, reflection/JPMS, design patterns, benchmarking, and test/build compatibility (Q55–Q61)
+16. Revise I/O/resource management, serialization risks, JDBC transactions, reflection/JPMS, design patterns, benchmarking, testing/build compatibility, secure coding, HTTP client behavior, and class loading (Q55–Q64)
 
 **Revision method:** For each question, first give a concise explanation, then explain the mechanism, one important limitation or trade-off, and a practical example. If an answer takes several minutes, identify the core answer and keep the deeper detail ready for follow-up questions.
 
