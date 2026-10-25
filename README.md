@@ -14,6 +14,7 @@ Choose a handbook by topic:
 - [Hibernate + JPA + Spring Data JPA Interview Handbook](Hibernate-JPA/Hibernate-JPA-Interview-QA.md)
 - [SQL & Database Engineering Interview Handbook](SQL-Database/SQL-Database-Interview-QA.md)
 - [Apache Kafka Interview Handbook](Kafka/KAFKA_INTERVIEW_GUIDE.md)
+- [Docker, Kubernetes & Helm Interview Handbook](Docker-Kubernetes-Helm/Docker-Kubernetes-Helm-Interview-QA.md) — Java application containerization, runtime behavior, Kubernetes workloads and networking, Helm releases, security basics, and developer-focused production troubleshooting.
 
 ## Repository structure
 
@@ -22,22 +23,15 @@ Each topic has one primary Markdown handbook. Open the linked file above to read
 ```text
 Interview-Preparation/
 ├── README.md
-├── Java/
-│   └── Java-Interview-QA.md
-├── Design-Patterns-LLD/
-│   └── Design-Patterns-LLD-Interview-QA.md
-├── Spring/
-│   └── Spring-Interview-QA.md
-├── Microservices-REST-APIs/
-│   └── Microservices-REST-APIs-Interview-QA.md
-├── Distributed-Systems/
-│   └── Distributed-Systems-Interview-QA.md
-├── Hibernate-JPA/
-│   └── Hibernate-JPA-Interview-QA.md
-├── SQL-Database/
-│   └── SQL-Database-Interview-QA.md
-└── Kafka/
-    └── KAFKA_INTERVIEW_GUIDE.md
+├── Java/Java-Interview-QA.md
+├── Design-Patterns-LLD/Design-Patterns-LLD-Interview-QA.md
+├── Spring/Spring-Interview-QA.md
+├── Microservices-REST-APIs/Microservices-REST-APIs-Interview-QA.md
+├── Distributed-Systems/Distributed-Systems-Interview-QA.md
+├── Hibernate-JPA/Hibernate-JPA-Interview-QA.md
+├── SQL-Database/SQL-Database-Interview-QA.md
+├── Kafka/KAFKA_INTERVIEW_GUIDE.md
+└── Docker-Kubernetes-Helm/Docker-Kubernetes-Helm-Interview-QA.md
 ```
 
 ## Suggested study order
@@ -49,6 +43,9 @@ Interview-Preparation/
 5. **Distributed Systems & Event-Driven Architecture** — cross-service correctness, consistency, failure handling, coordination, sagas, messaging semantics, and production reliability.
 6. **Hibernate + JPA** — persistence context, mappings, fetching, transactions, query performance, and concurrency.
 7. **SQL & databases** — query logic, joins, indexes, transactions, isolation, and database-specific behavior.
-8. **Kafka** — broker architecture, topics and partitions, producer/consumer behavior, configuration, commands, and operational scenarios.
+8. **Kafka** — broker architecture, topics and partitions, producer/consumer behavior, delivery semantics, and production scenarios.
+9. **Docker, Kubernetes & Helm** — containerize and run the service, understand its runtime constraints, configure workload health and resources, debug connectivity, and deliver releases safely.
 
-Use the handbooks as revision material, and verify version-sensitive details against the official documentation for the JDK, framework, ORM provider, database, or messaging technology relevant to the role.
+The order moves from language and application fundamentals toward distributed behavior and then application delivery. You can study Docker/Kubernetes earlier if your current project requires it.
+
+Use the handbooks as revision material, and verify version-sensitive details against the official documentation for the JDK, framework, ORM provider, database, messaging technology, or deployment platform relevant to the role.
