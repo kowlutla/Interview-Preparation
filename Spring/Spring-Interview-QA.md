@@ -19,8 +19,9 @@ A focused interview guide for Java backend engineers. It emphasizes the Spring c
 7. [Testing, observability, and production readiness](#7-testing-observability-and-production-readiness)
 8. [Caching, asynchronous work, and messaging](#8-caching-asynchronous-work-and-messaging)
 9. [Reactive programming and version evolution](#9-reactive-programming-and-version-evolution)
-10. [Last-minute revision](#10-last-minute-revision)
-11. [Official references](#11-official-references)
+10. [Senior-level production troubleshooting](#10-senior-level-production-troubleshooting)
+11. [Last-minute revision](#11-last-minute-revision)
+12. [Official references](#12-official-references)
 
 ---
 
@@ -322,7 +323,7 @@ Review the Java version, dependency management, Spring Security configuration, H
 
 ---
 
-## 10. Last-minute revision
+## 11. Last-minute revision
 
 Prioritize these questions when time is limited:
 
@@ -343,7 +344,7 @@ For each answer, be ready to explain the mechanism, one common failure mode, and
 
 ---
 
-## 11. Official references
+## 12. Official references
 
 - [Spring Framework Reference](https://docs.spring.io/spring-framework/reference/)
 - [Spring Boot Reference](https://docs.spring.io/spring-boot/reference/)
@@ -353,13 +354,18 @@ For each answer, be ready to explain the mechanism, one common failure mode, and
 - [Spring Security Reference](https://docs.spring.io/spring-security/reference/)
 - [Spring Data JPA Reference](https://docs.spring.io/spring-data/jpa/reference/)
 - [Spring Boot Actuator](https://docs.spring.io/spring-boot/reference/actuator/)
+- [Spring Framework container extension points](https://docs.spring.io/spring-framework/reference/core/beans/factory-extension.html)
+- [Spring Security servlet configuration](https://docs.spring.io/spring-security/reference/servlet/configuration/java.html)
+- [Spring Security CORS](https://docs.spring.io/spring-security/reference/servlet/integrations/cors.html)
+- [Spring Security CSRF](https://docs.spring.io/spring-security/reference/servlet/exploits/csrf.html)
+- [Spring Framework bean overrides for tests](https://docs.spring.io/spring-framework/reference/testing/annotations/integration-spring/annotation-mockitobean.html)
 - [Spring WebFlux Reference](https://docs.spring.io/spring-framework/reference/web/webflux.html)
 
 Official documentation is authoritative for behavior and version compatibility. Interview-question sites can suggest themes but cannot establish a universal question frequency.
 
 ## Editorial and validation notes
 
-- The guide prioritizes a focused set of recurring questions over hundreds of repetitive variants.
+- The guide prioritizes a focused set of recurring questions over hundreds of repetitive variants. It contains 51 numbered questions, including targeted senior-level production troubleshooting scenarios.
 - Answers explain mechanisms and practical consequences rather than giving only definitions.
 - Small examples are used only where they clarify behavior; full sample applications are intentionally excluded.
 - Proxy semantics, transaction behavior, and security configuration must be verified against the exact framework generation.
