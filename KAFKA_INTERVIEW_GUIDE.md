@@ -40,7 +40,7 @@ Apache Kafka is a distributed event-streaming platform built around durable, par
 
 ### Q2. How is Kafka different from a traditional message queue?
 
-Many traditional queues emphasize work distribution and may remove messages once acknowledged. Kafka stores an ordered log for a configured retention period, so multiple consumer groups can independently read and replay the same records. Kafka also scales through partitions and replication. Exact behavior depends on queue/broker technology and configuration, so avoid absolute comparisons.
+Many traditional message queues emphasize competing consumers and work distribution; depending on the product, a message may be removed after acknowledgment. Kafka is a retained, partitioned log: each consumer group tracks its own offsets, and multiple groups can independently read the same event stream or replay it within retention. Kafka partitions provide horizontal parallelism and replicas provide fault tolerance. This makes Kafka a strong fit for event streams, replay, fan-out, and high-throughput pipelines, while a traditional queue may be simpler for per-message routing, request/reply, or task dispatch. The comparison is not absolute—modern brokers overlap in features—so choose based on ordering, retention, routing, latency, operational model, and delivery guarantees.
 
 
 ### Q3. What is a Kafka topic?
@@ -60,27 +60,27 @@ A Kafka record consists primarily of a key, value, timestamp, and headers; the b
 
 ### Q6. What is an offset?
 
-An offset is a record's position within one partition. It is not a global topic sequence and should not be interpreted as a timestamp. Consumer-group offsets record the next position to read, and may be committed automatically or explicitly depending on consumer configuration.
+An offset identifies a record's position within a particular partition; it is not globally unique across a topic and is not a timestamp. The pair `(topic, partition, offset)` identifies a record location in the log. Consumer-group committed offsets represent the position from which the group should resume—conceptually the next record to consume, although APIs and monitoring tools may describe lag using adjacent offset positions. Offsets can have gaps from the consumer's perspective due to compaction or transactional visibility, so offset difference is not always the exact count of visible records. Committing an offset records progress; it does not acknowledge a business transaction in an external database.
 
 
 ### Q7. What is a Kafka broker?
 
-A broker is a Kafka server that stores partition replicas, serves producer and consumer requests, and participates in cluster coordination. A topic's partitions are distributed among brokers. A broker can lead some partitions and host followers for others.
+A broker is one Kafka server process in the cluster. It stores partition replica logs and indexes, handles produce/fetch requests, participates in replication, and reports state to the cluster's controller/quorum. A broker may lead some partitions and host follower replicas for others, so load balancing is about partition placement and request traffic rather than assigning one broker per topic. Brokers advertise addresses that clients must be able to reach; a bootstrap server is only the initial discovery endpoint. Broker health checks should include request latency, disk and network saturation, replica status, and controller/metadata connectivity.
 
 
 ### Q8. What does a Kafka cluster provide?
 
-A Kafka cluster is a set of brokers coordinated to host partition replicas, elect leaders, and serve clients. The cluster spreads partitions and replica copies to provide capacity and fault tolerance. Cluster health depends on both broker availability and the replica state of individual partitions.
+A Kafka cluster is a set of brokers operating under shared metadata and coordination. Topics are divided into partitions, and replica placement distributes those partitions across brokers for capacity and fault tolerance. The controller/quorum manages metadata and leadership changes, while clients discover brokers and leaders through metadata. A cluster can appear partially healthy while particular partitions have no leader or insufficient in-sync replicas, so assess partition-level health rather than just broker process uptime. Production capacity planning must consider CPU, disk, network, replication overhead, partition count, retention, and failure headroom.
 
 
 ### Q9. What is the controller in Kafka?
 
-The controller coordinates cluster metadata and broker/partition state transitions. In modern Kafka deployments using KRaft, controller quorum members use a metadata log to agree on cluster metadata and leadership decisions. Brokers still serve normal producer and consumer traffic.
+The controller is responsible for cluster metadata and state transitions such as broker registration and partition leader changes; it does not process every producer or consumer request itself. In KRaft mode, a controller quorum replicates a metadata log and elects an active controller, removing ZooKeeper as Kafka's external metadata system. Broker nodes host partition replicas and serve client traffic; deployments may use combined broker/controller roles or dedicated controllers depending on cluster size and operational design. Controller quorum availability is important for metadata changes and leadership management, so monitor controller health and follow the version-specific deployment guidance.
 
 
 ### Q10. How does KRaft differ from ZooKeeper-based Kafka?
 
-KRaft uses Kafka's own quorum-based metadata management rather than external ZooKeeper for cluster metadata and controller coordination. It reduces the need to operate a separate coordination system. Migration procedures and support vary by Kafka version and deployment, so follow version-specific upgrade documentation.
+KRaft stores cluster metadata in Kafka's own replicated metadata log and uses a controller quorum for coordination; ZooKeeper-based clusters depended on a separate ZooKeeper ensemble. KRaft simplifies the architecture and lets Kafka manage metadata using its own consensus and log mechanisms. It does not mean every Kafka feature or migration procedure is identical across releases: supported upgrade paths, metadata versions, controller/broker roles, and operational commands depend on the Kafka version. In interviews, explain the architectural difference, then emphasize controlled upgrades and compatibility documentation rather than suggesting that migration is a simple configuration toggle.
 
 
 ### Section B — Producers and consumers (Q11–Q20)
@@ -233,7 +233,7 @@ Spring Kafka supports transactions by configuring a `DefaultKafkaProducerFactory
 
 ### Q39. How do you test a Spring Kafka consumer?
 
-Unit-test business logic without a broker where possible. Integration-test serialization, listener wiring, retry/DLT behavior, offsets, and transaction semantics using a real or compatible Kafka test environment. Synchronize on observable outcomes with bounded waits rather than fixed sleeps.
+Keep most business-rule tests as ordinary unit tests with no broker. Add integration tests for serializers/deserializers, topic configuration assumptions, listener container wiring, partition/key behavior, retries and DLT publication, offset commits, and transaction visibility. Use `spring-kafka-test`, Testcontainers, or another environment appropriate to the project's version and CI constraints; an embedded test broker is not a substitute for every production-broker behavior. Assert observable outcomes with bounded polling or latches instead of fixed sleeps, and clean up topics and consumer groups between tests. Include failure-path tests, not just the happy path.
 
 
 ### Q40. How should a Kafka consumer shut down gracefully?
@@ -344,7 +344,7 @@ The client may have stale metadata during leader movement or the partition may t
 
 ### Q60. Which Kafka metrics would you monitor in production?
 
-Monitor under-replicated/offline partitions, ISR changes, request latency and errors, network/disk/CPU, produce/fetch throughput, consumer lag and age, rebalance rate, failed/retried records, DLT volume, and storage growth. Define SLOs and alert around business impact rather than a noisy single metric.
+Monitor Kafka infrastructure and application behavior together. Broker-side signals include offline and under-replicated partitions, ISR shrink/expand, request queue/latency/errors, network and disk throughput/latency, CPU/GC, controller health, and storage growth. Client-side signals include producer error/retry rates and send latency, consumer lag and oldest-record age, poll/processing duration, rebalance frequency, commit failures, and downstream dependency latency. Track DLT volume, retry rates, and event-processing success because broker metrics alone do not reveal business failure. Set alerts against SLOs and trends, distinguish warning signals from immediate data-integrity risks, and maintain dashboards that let responders isolate the affected topic, partition, group, and release.
 
 
 ## Phase 4 — System design (Q61–Q70)
@@ -358,7 +358,7 @@ It decouples producers and consumers, allows independent scaling, retains events
 
 ### Q62. How do you design event contracts between microservices?
 
-Define event names, ownership, schema, keys, timestamp semantics, event IDs, compatibility policy, and versioning expectations. Publish facts that have happened rather than commands disguised as events. Avoid leaking internal database structures into public contracts.
+Treat an event contract as a public API. Define the event name and meaning, producer ownership, stable event ID, entity/business key, timestamp semantics, schema format and compatibility rules, required versus optional fields, and how deletion or correction is represented. Prefer past-tense facts such as `OrderCreated` over ambiguous messages that mix a command with an event; consumers should not need access to the producer's database schema to interpret the event. Document whether order matters per entity and whether consumers may replay old versions. Add contract tests and a deprecation/migration policy so producers and consumers can be deployed independently.
 
 
 ### Q63. Design order creation and inventory reservation.
@@ -368,7 +368,7 @@ Persist the order and outbox event transactionally; publish the event; let inven
 
 ### Q64. How would you design payment processing with Kafka?
 
-Treat Kafka as event transport, not the payment ledger. Use stable payment/idempotency keys, durable state, gateway idempotency support, explicit state transitions, reconciliation, and carefully controlled retries. Avoid assuming a timeout proves the external charge failed.
+Use Kafka to distribute payment lifecycle events, but keep the authoritative payment state in a durable system designed for financial correctness. Give each payment attempt a stable idempotency key and use the payment provider's idempotency facility where available; persist request/response state and model transitions such as `PENDING`, `AUTHORIZED`, `CAPTURED`, `FAILED`, and `UNKNOWN` explicitly. If a request times out, the provider may still have processed it, so query/reconcile by the provider's reference instead of blindly issuing a new charge. Publish state changes reliably through an outbox or equivalent mechanism, make consumers idempotent, restrict sensitive data in events, and reconcile Kafka events against the payment ledger.
 
 
 ### Q65. Explain the transactional outbox pattern.
@@ -565,14 +565,18 @@ Start by stating customer/business impact, affected topics and groups, time wind
 
 Use this checklist to rehearse your answers aloud:
 
-- [ ] Explain leader failure, replication, and ISR shrinkage.
-- [ ] Diagnose consumer lag, rebalances, and hot partitions.
-- [ ] Explain idempotency, commits, and duplicate delivery.
-- [ ] Design outbox, retries, DLT, and replay workflows.
-- [ ] Compare Kafka transactions with database transactions.
-- [ ] Design order processing and fraud detection.
-- [ ] Explain schema compatibility and Spring Kafka failure handling.
-- [ ] Walk through an incident from detection through prevention.
+- [ ] Explain topics, partitions, offsets, leader/follower replicas, ISR, high watermark, and KRaft.
+- [ ] Compare `acks`, `min.insync.replicas`, idempotent producers, transactions, and consumer isolation levels.
+- [ ] Explain consumer groups, assignment/rebalances, commits, lag, backpressure, and per-partition ordering.
+- [ ] Diagnose hot partitions, under-replicated partitions, broker/network/disk saturation, and producer timeouts.
+- [ ] Design bounded retries, DLT/quarantine, safe replay, idempotent consumers, and graceful shutdown.
+- [ ] Explain database/Kafka dual writes, transactional outbox, CDC, sagas, and reconciliation.
+- [ ] Compare Kafka transactions with database transactions and state exactly-once boundaries.
+- [ ] Explain producer batching/compression, partition sizing, retention, compaction, and storage estimation.
+- [ ] Compare Kafka Streams, Kafka Connect, CDC, and schema registry/compatibility.
+- [ ] Explain TLS/SASL, ACLs, secret rotation, privacy, and disaster recovery.
+- [ ] Design order/inventory and payment flows with explicit states and compensations.
+- [ ] Walk through an incident from detection and stabilization to reconciliation and prevention.
 
 For each scenario, practice in this order: **clarify requirements → explain the failure mechanism → propose a design → discuss trade-offs → describe monitoring and recovery**.
 
