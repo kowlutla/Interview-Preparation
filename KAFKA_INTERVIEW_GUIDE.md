@@ -511,9 +511,9 @@ Define RPO/RTO, backups or replication strategy, cluster provisioning, topic con
 
 ## Phase 6 — Mock interviews (Q91–Q100)
 
-### Q91. The record is likely to be delivered again because Kafka still has the previous committed offset, even though the database mutation already succeeded. This is the normal at-least-once failure window: the database and Kafka offset are separate transactional resources. Make the handler idempotent by storing a stable event ID (with a unique constraint) in the same database transaction as the business update; the second delivery then becomes a harmless no-op. Commit the Kafka offset only after the database transaction succeeds, and monitor repeated failures. A Kafka transaction alone cannot atomically commit an arbitrary external database write and the consumer offset.
+### Q91. Scenario: A consumer's database write succeeds, but its offset commit fails. What happens?
 
-On restart or reassignment, Kafka may deliver the record again because the committed position did not advance. Use a stable event ID and atomically persist a deduplication marker with the business mutation. Commit only after the DB transaction succeeds.
+The record may be delivered again because Kafka still has the previous committed offset, even though the database mutation already succeeded. This is the normal at-least-once failure window: the database and Kafka offset are separate transactional resources. Make the handler idempotent by storing a stable event ID (with a unique constraint) in the same database transaction as the business update; the second delivery then becomes a harmless no-op. Commit the Kafka offset only after the database transaction succeeds, and monitor repeated failures. A Kafka transaction alone cannot atomically commit an arbitrary external database write and the consumer offset.
 
 
 ### Q92. Scenario: Consumer lag starts right after a release. How do you triage?
