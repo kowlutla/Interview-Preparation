@@ -6,14 +6,14 @@ A focused guide for Java backend engineers preparing for experienced and senior 
 
 **[Hibernate, JPA, and Spring Data JPA Interview Handbook](Hibernate-JPA-Interview-QA.md)**
 
-This is the primary reading path. It contains 50 curated questions covering persistence contexts, entity lifecycle, mappings and relationships, fetching and query performance, transactions and locking, Spring Data repository behavior, batching, testing, and production troubleshooting.
+This is the primary reading path. It contains 75 curated questions with small, focused Java, JPQL, and configuration snippets where they clarify behavior. Topics include entity lifecycle, relationship mappings, fetching and query performance, transactions and locking, repository semantics, caching, batching, testing, and production diagnosis.
 
 ## Recommended study path
 
 1. Read the foundations and lifecycle sections first; they explain why ORM behavior occurs.
 2. Study fetching and query performance before memorizing annotations.
 3. Review transaction and concurrency behavior with the exact provider/database version in mind.
-4. Practice the senior-level production scenarios, then finish with the last-minute revision list and version-specific official references.
+4. Master the Top 15 list, practise the senior-level production scenarios, then use the last-minute revision checklist and official version-specific references.
 
 ## Accuracy and scope
 
@@ -24,7 +24,7 @@ This is the primary reading path. It contains 50 curated questions covering pers
 
 ## Extended legacy material
 
-Legacy chapter material has not been deleted as part of this update. Before any cleanup, inventory the actual files and compare their unique questions and scenarios against the consolidated guide; preserve anything valuable before removal.
+The `Hibernate-JPA` directory is intentionally kept simple: one primary interview Markdown handbook plus this README. The directory was inspected and contains no separate chapter-wise legacy files to consolidate or delete.
 
 - [Spring Data JPA reference](https://docs.spring.io/spring-data/jpa/reference/)
 - [Hibernate ORM User Guide](https://docs.jboss.org/hibernate/orm/current/userguide/html_single/Hibernate_User_Guide.html)
