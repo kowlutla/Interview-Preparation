@@ -259,9 +259,9 @@ COMMIT;
 The application must roll back or skip the update when the insert indicates a duplicate. A unique constraint is essential; an in-memory set is not enough across restarts or replicas.
 
 ### Q30. How should retries and dead-letter topics be designed?
+Retries should be designed around the type of failure, not applied to every exception in the same way. A temporary database timeout or rate limit may recover after a short delay, so use a bounded retry policy with exponential backoff and jitter. Invalid data, an unsupported schema, or a permanent business-rule failure will usually not improve by retrying; classify these separately and route them to a dead-letter topic (DLT) or quarantine workflow after the agreed attempts.
 
-Retry transient failures with bounded attempts and backoff. Classify permanent errors—such as irreparably invalid schema or business validation—as non-retryable and route them to a DLT/quarantine path. Preserve source metadata, alert on DLT growth, and establish safe replay procedures. Consider ordering: retry topics can let later events overtake an earlier failed event.
-
+A DLT is not a place to silently abandon messages. Preserve enough metadata to investigate the failure—original topic, partition, offset, key, timestamp, exception category, and trace/event ID—while avoiding secrets or sensitive payloads in logs. Alert on DLT volume, assign an owner, and document how records are corrected and replayed. Before using retry topics, consider ordering: a later event for the same key may be processed while an earlier event is waiting to retry. Choose that trade-off deliberately and make replay idempotent.
 
 ### Section D — Java and Spring Kafka (Q31–Q40)
 
@@ -634,9 +634,9 @@ Begin with explicit RPO (how much data loss is acceptable) and RTO (how long rec
 
 
 ### Q70. How do you build a reliable audit/event history?
+A reliable audit history starts with a clear event contract: what happened, who or what initiated it, when it happened, which business entity it concerns, and which correlation or event ID ties it to the workflow. Publish audit events through a reliable mechanism such as a transactional outbox; otherwise, the business update can commit while the audit event is lost. Use stable schemas, explicit timestamps, and enough context to reconstruct decisions without copying unnecessary personal or secret data.
 
-Use explicit audit schemas, reliable source publication, restrictive ACLs, retention and archive policies, monitoring for gaps, and access auditing. Kafka alone does not prove legal immutability; archive to storage with suitable immutability/integrity controls when required. Avoid compaction if the full history must be retained.
-
+Kafka can provide durable, replicated event storage, but it does not by itself guarantee an immutable, legally compliant audit archive. Restrict write and read permissions, monitor access, define retention and archival policies, and protect archived data against unauthorized modification. Also monitor for publication gaps and delayed events, and periodically reconcile important business records with the audit stream. If the requirement is regulatory-grade evidence, document retention, integrity, access, and recovery controls rather than describing Kafka alone as an audit solution.
 
 ## Phase 5 — Internals and advanced topics (Q71–Q90)
 
@@ -658,9 +658,9 @@ The high watermark (HW) is the boundary of replicated log data considered commit
 
 
 ### Q74. What is the difference between the log end offset and the last stable offset?
+The **log end offset (LEO)** is the position at the end of the partition log on a particular replica; it represents where the next record would be appended. The **last stable offset (LSO)** matters for transactional consumption: it is the boundary before the first open transaction that prevents later records from being considered stable. A consumer using `isolation.level=read_committed` does not read beyond that stable boundary, because a later transaction might still commit or abort.
 
-The log end offset marks the end of the current log. For transactional data, the last stable offset is the point before the first open transaction that prevents read_committed consumers from safely advancing further. A consumer can therefore be caught up to committed data while the log end offset is farther ahead.
-
+For example, if a producer starts a transaction and leaves it open, records written after that transaction may already exist in the log but remain unavailable to `read_committed` consumers until the transaction resolves. This is why a transactional consumer can appear behind even when the log end offset is advancing. When investigating, compare the LEO, LSO, transaction state, and consumer isolation level; do not assume every offset difference means ordinary processing lag.
 
 ### Q75. What happens during partition reassignment?
 
