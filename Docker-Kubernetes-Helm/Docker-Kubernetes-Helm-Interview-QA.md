@@ -2,7 +2,7 @@
 **Audience:** Java backend developers with 4–6 years of experience targeting Senior Software Engineer and Backend Engineer roles.  
 **Focus:** Application packaging, runtime behavior, deployment configuration, networking, release safety, and production troubleshooting—not cluster administration.
 
-> Examples are illustrative and should be validated against the Docker Engine, Kubernetes, Helm, JDK, and Spring Boot versions used by your team. Kubernetes examples use the `apps/v1` Deployment API and current probe/resource conventions.
+> Examples are illustrative and should be validated against the Docker Engine, Kubernetes, Helm, JDK, and Spring Boot versions used by your team. Kubernetes examples use the `apps/v1` Deployment API and current probe/resource conventions. Helm 4 is now available; commands and flags can differ by Helm major version, so check `helm version` and consult the documentation for your installed version.
 
 ## Contents
 1. [How containers and Kubernetes fit together](#1-how-containers-and-kubernetes-fit-together)
@@ -756,6 +756,7 @@ kubectl get pod <pod> -n <ns> -o yaml
 
 ### Helm
 ```bash
+helm version
 helm lint ./chart
 helm template orders ./chart -n <ns> -f values-prod.yaml
 helm history orders -n <ns>
@@ -763,7 +764,7 @@ helm get values orders -n <ns>
 helm get manifest orders -n <ns>
 helm rollback orders <revision> -n <ns>
 ```
-Use `helm lint` for common chart validation, `helm template` to inspect what values actually render, `helm get values` to inspect release values, `helm get manifest` to inspect the release's stored manifests, and `helm history/rollback` to review or restore a prior release. A rollback changes Kubernetes resources, not irreversible external side effects.
+Use `helm version` to identify the installed major version and choose matching documentation. Use `helm lint` for common chart validation, `helm template` to inspect what values actually render, `helm get values` to inspect release values, `helm get manifest` to inspect the release's stored manifests, and `helm history/rollback` to review or restore a prior release. A rollback changes Kubernetes resources, not irreversible external side effects.
 
 ---
 
