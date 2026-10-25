@@ -80,11 +80,11 @@ This works when OrderRepository is registered as a bean and there is an unambigu
 
 ### Q5. What is the difference between BeanFactory and ApplicationContext?
 
-BeanFactory is the basic container abstraction for managing bean definitions and creating beans. ApplicationContext builds on it with application-oriented features such as event publication, message resolution, resource loading, and integration with framework infrastructure. Most application code should use the context indirectly rather than manually calling container lookups.
+BeanFactory is the core IoC container contract for registering definitions and creating/looking up beans. ApplicationContext builds on it with application-level capabilities such as event publication, message resolution, resource loading, and integration with framework infrastructure. Most application code should receive its collaborators through injection rather than calling the container as a service locator. The distinction matters mainly when working with container internals or lightweight contexts; for typical Boot applications, ApplicationContext is the normal application container.
 
 ### Q6. What is a Spring bean?
 
-A bean is an object instantiated, assembled, and otherwise managed by a Spring IoC container. Beans can be registered by component scanning, @Bean factory methods, imports, or programmatic registration. Not every object in a Spring application is a bean; objects created with ordinary new are not automatically managed.
+A Spring bean is an object whose creation, dependency wiring, lifecycle, and applicable post-processing are managed by an IoC container. It can be registered through component scanning, @Bean methods, imports, or programmatic configuration. A class does not become a bean merely because it has a Spring annotation in source; the relevant configuration must discover or register it. Likewise, an object created with ordinary new does not automatically receive injection, lifecycle callbacks, transactions, caching, or async proxy behavior. Distinguish the class from the managed instance and its possible proxy.
 
 ### Q7. What is a POJO, and must every POJO be a Spring bean?
 
@@ -96,7 +96,7 @@ The Spring ecosystem is a set of related projects with different responsibilitie
 
 ### Q9. What is tight coupling, and how does Spring help reduce it?
 
-Tight coupling occurs when a class directly constructs or depends on a concrete collaborator, making replacement and isolated testing difficult. Spring can inject an abstraction or selected implementation, allowing configuration to choose collaborators. DI helps manage coupling but does not automatically make a poorly designed interface or architecture modular.
+Tight coupling occurs when a class knows too much about a concrete collaborator or controls its construction, making replacement and isolated testing difficult. Spring's DI lets the consumer depend on an abstraction while configuration supplies an implementation. This helps only when the abstraction is stable and meaningful; a large interface that exposes implementation details can still couple consumers tightly. Use constructor injection, keep responsibilities cohesive, and isolate external systems behind clear boundaries. The container handles wiring, but design choices determine whether the resulting application is actually modular.
 
 ### Q10. Does using Spring automatically make an application loosely coupled or testable?
 
@@ -130,7 +130,7 @@ All are stereotype annotations used to identify components for scanning. @Servic
 
 ### Q15. What is the difference between @Bean and @Component?
 
-@Component is placed on a class discovered by component scanning. @Bean is placed on a method in a configuration class, and the method's return value is registered as a bean. @Bean is particularly useful for configuring third-party classes that cannot be annotated directly or for explicit factory logic.
+@Component marks a class for discovery through component scanning, while @Bean marks a factory method whose returned object is registered in the container. Use @Component for classes you own that naturally belong in the component model. Use @Bean for third-party types you cannot annotate, explicit factory logic, or configuration that should be visible in one place. Both create managed beans, but their registration paths differ. Remember that direct calls between @Bean methods have container semantics in full @Configuration mode; lite configuration has different method-call behavior.
 
 ### Q16. What do @Configuration and @ComponentScan do?
 
@@ -154,7 +154,7 @@ A BeanFactoryPostProcessor operates on bean-definition metadata before ordinary 
 
 ### Q21. When would you use ObjectProvider<T>?
 
-Use ObjectProvider<T> when a dependency is intentionally optional, lazily resolved, or needs candidate iteration at runtime. It exposes operations such as getIfAvailable() and stream access without requiring immediate resolution at the injection point. Do not use it merely to hide an unclear dependency design.
+ObjectProvider<T> is useful when a dependency is intentionally optional, should be resolved lazily, or when the consumer needs to enumerate multiple candidates at runtime. Methods such as getIfAvailable(), getIfUnique(), and stream() let the caller defer resolution until the point of use. This is also useful when a singleton needs a fresh prototype instance per operation. Avoid using ObjectProvider merely to hide a required dependency or to postpone a configuration error; if the collaborator is mandatory, constructor injection is usually clearer.
 
 ### Q22. What does @Lazy do?
 
@@ -170,7 +170,7 @@ Depending on a stable abstraction lets a consumer describe what it needs without
 
 ### Q25. How do you debug NoSuchBeanDefinitionException?
 
-Check that the implementation is on the runtime classpath, component scanning covers its package, conditions and profiles permit registration, and the required bean type is assignable. Inspect the condition evaluation report in Boot applications and verify that configuration is loaded in the failing test or runtime context.
+Start with the exact missing type and the first root-cause exception. Verify that the implementation is on the runtime classpath, is registered by component scanning or configuration, and is not excluded by an inactive profile or a failed conditional annotation. Check package roots, @Import declarations, test-slice boundaries, and whether the bean is defined in the same application context. In Boot, the condition evaluation report can explain why auto-configuration did not contribute a bean. Fix the missing registration cause instead of creating a duplicate or broadening scanning indiscriminately.
 
 ### Q26. How do you debug NoUniqueBeanDefinitionException?
 
@@ -201,7 +201,7 @@ No. Singleton scope controls how many instances the container creates; it does n
 
 ### Q30. What is prototype scope?
 
-Prototype scope asks Spring to create a new instance each time that bean is requested from the container. Spring manages construction and initialization, but it does not generally track prototype instances through destruction callbacks after handing them to the caller. The caller must release resources when necessary.
+Prototype scope asks Spring to create a new instance each time that bean is requested from the container, rather than maintaining one shared instance per bean definition. Spring still performs construction, dependency injection, and initialization, but generally does not track prototype instances for automatic destruction callbacks after handing them to the caller. This scope is useful for stateful short-lived helper objects, but is less common than singleton services. If a prototype owns resources, make cleanup explicit; if a singleton needs a new prototype for every operation, use ObjectProvider or a factory rather than injecting it once.
 
 ### Q31. What happens when a prototype bean is injected into a singleton?
 
@@ -217,7 +217,7 @@ Request and session scopes are available in a web-aware application context when
 
 ### Q34. What is lazy initialization, and what is its trade-off?
 
-Lazy initialization delays creation until a bean is needed. It can reduce startup time and work, but can defer configuration errors and latency to the first request that triggers the bean. Use it based on startup measurements and readiness semantics rather than as a default cure.
+Lazy initialization defers creation of a bean until it is first needed; it can also affect dependency resolution depending on where @Lazy is applied. This can shorten startup when some components are rarely used, but moves construction cost and configuration failures to the first call that triggers the bean. A service can appear ready while a lazy bean is still broken. Use lazy initialization based on measured startup needs and define readiness accordingly. It is not a general fix for circular dependencies or poor lifecycle design.
 
 ### Q35. What is a scoped proxy?
 
@@ -250,7 +250,7 @@ Use @ConfigurationProperties when several related settings form a configuration 
 
 ### Q40. What is relaxed binding in Spring Boot?
 
-Boot's configuration binder can map equivalent property naming styles to Java property names, subject to its binding rules. For example, external kebab-case configuration can bind to a camelCase Java property. Follow the canonical property names in documentation rather than inventing names based on guesswork.
+Relaxed binding allows Boot's configuration binder to map supported equivalent naming styles to Java property names—for example, an external kebab-case property can bind to a camelCase field. It reduces friction across properties files, environment variables, and other supported sources, but it follows defined naming rules rather than guessing arbitrary aliases. Use canonical documented property names, validate required settings, and inspect the effective value and source when binding behaves unexpectedly. Relaxed binding does not eliminate typos or resolve conflicting property sources by itself.
 
 ### Q41. What does @Profile do?
 
@@ -258,7 +258,7 @@ Boot's configuration binder can map equivalent property naming styles to Java pr
 
 ### Q42. How should configuration properties be validated?
 
-Bind values to a dedicated properties class and apply Jakarta Bean Validation constraints when validation support is configured. Fail fast with a clear startup error for invalid required configuration instead of allowing a malformed URL, missing credential, or impossible pool size to fail during live traffic.
+Bind related settings into a dedicated @ConfigurationProperties type and apply Jakarta Bean Validation constraints when validation support is configured. Validate values such as URLs, durations, pool sizes, retry counts, and required identifiers at startup so invalid deployment configuration fails early. Use cross-field validation where settings must be consistent—for example, a minimum timeout must not exceed the total request deadline. Keep secrets out of diagnostic output and ensure errors identify the invalid property without revealing its value. Test both successful binding and expected startup failure for invalid settings.
 
 ### Q43. How do you reason about property precedence?
 
@@ -287,11 +287,11 @@ Aspect-Oriented Programming separates cross-cutting behavior—such as transacti
 
 ### Q47. What are advice, pointcut, join point, and aspect?
 
-An aspect groups cross-cutting behavior. Advice is the action executed at a selected point. A pointcut selects join points, which in Spring AOP are method-execution join points on Spring-managed objects. Understanding the selection expression is essential because an overly broad pointcut can affect unrelated code.
+An aspect groups cross-cutting behavior. Advice is the action that runs before, after, around, or when an invocation returns or throws. A pointcut selects which join points receive the advice; in Spring AOP, those join points are primarily method executions on Spring-managed objects intercepted by a proxy. The selection expression is important: an overly broad pointcut can apply logging, transactions, or security behavior to unrelated methods. When debugging, inspect both the pointcut match and whether the call passes through the proxy.
 
 ### Q48. How do JDK dynamic proxies and CGLIB proxies differ?
 
-JDK proxies implement interfaces; CGLIB-based proxies create a subclass of the target class. Proxy selection depends on configuration and framework context. Class-based proxies cannot override final methods, and final classes cannot be subclass-proxied. Design for interception at public service boundaries rather than assuming every method can be intercepted.
+JDK dynamic proxies implement one or more interfaces and intercept calls made through those interfaces; CGLIB-style class proxies create a subclass of the target class. Class-based proxies cannot subclass a final class or override a final method, while interface proxies require callers to use the proxied interface contract. The actual proxy strategy depends on configuration and framework defaults, so do not infer it from the source class alone. If transactions or caching do not run, inspect the runtime proxy, method visibility/modifiers, and call path. Prefer testing through the injected bean rather than invoking the target directly.
 
 ### Q49. What is the self-invocation problem?
 
@@ -320,7 +320,7 @@ Spring AOP is a good fit for cross-cutting policies at stable method boundaries,
 
 ### Q53. What is a Spring Boot starter?
 
-A starter is a convenient dependency descriptor that brings in a curated set of dependencies for a use case. It reduces dependency-selection effort but does not itself implement the feature or guarantee correct production configuration. The managed versions should normally come from the Boot dependency-management model.
+A starter is a curated dependency descriptor that brings together the libraries commonly needed for a capability, such as web, validation, testing, or data access. It simplifies dependency selection and normally relies on Boot's dependency management to align versions. A starter does not itself implement the feature, guarantee that auto-configuration conditions match, or configure every production concern. For example, adding a data starter does not remove the need to choose a database, externalize credentials, size the connection pool, and define migrations. Inspect the resolved dependency tree when behavior changes after adding a starter.
 
 ### Q54. What does @SpringBootApplication combine?
 
@@ -402,7 +402,7 @@ Many auto-configurations use conditions such as `@ConditionalOnMissingBean` so a
 
 ### Q71. How do you exclude an auto-configuration?
 
-Use the supported exclusion mechanisms, such as the exclude attribute on `@SpringBootApplication` or the corresponding configuration property. First verify why the configuration matched; excluding it may remove supporting beans that other components rely on. Prefer correcting the classpath or property condition when that is the actual cause.
+Exclude an auto-configuration using a supported exclusion on @SpringBootApplication/@EnableAutoConfiguration or the relevant configuration property for the target Boot version. First inspect the condition report to understand why it matched and which beans it contributes. Excluding a broad configuration may remove infrastructure required by other components, turning one symptom into several missing-bean failures. Prefer correcting the dependency, property, or custom-bean condition when that is the real problem. After an exclusion, test the resulting context and confirm that no required endpoint or infrastructure silently disappeared.
 
 ### Q72. How do auto-configuration registration mechanisms differ across Boot generations?
 
