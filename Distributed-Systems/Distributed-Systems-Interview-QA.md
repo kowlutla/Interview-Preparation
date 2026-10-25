@@ -21,7 +21,8 @@ The answers are written to support both understanding and spoken interview respo
 12. [Distributed caching and coordination](#12-distributed-caching-and-coordination)
 13. [Observability and production reliability](#13-observability-and-production-reliability)
 14. [Real-world interview scenarios](#14-real-world-interview-scenarios)
-15. [References](#15-references)
+15. [Additional high-value topics](#15-additional-high-value-topics)
+16. [References](#16-references)
 
 ## 1. Distributed systems fundamentals
 
@@ -800,7 +801,48 @@ Adopt the least complex design that meets explicit requirements, then validate i
 
 **Likely follow-ups:** What evidence justifies adding a pattern? Name the invariant or operational requirement it protects, and the failure test/metric that will verify it. If the requirement can be met with one local transaction, prefer that simpler boundary.
 
-## 15. References
+## 15. Additional high-value topics
+
+These questions fill a few useful gaps without duplicating the core explanations or the dedicated Kafka and Microservices handbooks.
+
+### Q106. What is a failure detector, and how do gossip-based membership protocols work?
+
+A failure detector estimates whether a node is reachable or healthy; it cannot always prove that a node has crashed. A slow response, network partition, overloaded scheduler, and actual process failure can look similar from another machine. A timeout-based detector can therefore produce false suspicions.
+
+Gossip protocols spread membership and health information by having nodes exchange updates with selected peers rather than relying on one central registry for every update. This can scale well, but membership views may temporarily differ. Treat “suspected dead” as evidence for a recovery decision, not proof that the node has stopped acting. For authoritative writes, combine detection with terms/epochs, quorum rules, and fencing so a false suspicion cannot create two valid owners.
+
+### Q107. What is a conflict-free replicated data type (CRDT), and when would you use one?
+
+A CRDT is a data structure designed so replicas can accept updates independently and converge when they exchange state or operations, provided the data type's mathematical and protocol assumptions hold. Examples include certain counters, sets, and maps. CRDTs can be useful for multi-region collaboration, replicated counters, and availability-oriented updates where concurrent changes should merge without a central coordinator.
+
+The merge semantics matter. A grow-only counter cannot represent arbitrary decrements; a set's removal semantics need to account for concurrent additions; and a CRDT does not make every business invariant safe. It is not a universal replacement for transactions or consensus. Use one only when its defined merge behavior matches the domain, and account for metadata growth, tombstones, and eventual propagation.
+
+### Q108. What is consistent hashing, and how do virtual nodes help with rebalancing?
+
+Consistent hashing maps both keys and nodes onto a hash space so a key is assigned to a nearby node on the ring. When nodes are added or removed, only a subset of keys generally needs to move, unlike simple modulo hashing where changing the node count can remap most keys.
+
+Virtual nodes assign multiple positions in the hash space to each physical node, improving distribution and allowing nodes to receive different amounts of work. This reduces—but does not eliminate—skew. Real systems still need capacity-aware placement, replication, hot-key mitigation, safe data migration, and a plan for requests during rebalancing. Consistent hashing is a placement technique, not a consistency or durability guarantee.
+
+### Q109. What are anti-entropy, read repair, and hinted handoff in replicated storage?
+
+These are techniques some replicated data stores use to recover from replica divergence or temporary unavailability. **Anti-entropy** compares replica state in the background and repairs differences. **Read repair** uses a read that discovers inconsistent replicas as an opportunity to bring them closer together. **Hinted handoff** temporarily stores updates intended for an unavailable replica and forwards them when it returns.
+
+They have different limits: read repair only helps for data that is read, hints can expire or be lost according to the implementation, and repair may consume substantial network and disk bandwidth. None should be treated as a universal promise that replicas are immediately consistent. Understand the database's documented consistency level, repair schedule, and behavior when a node is unavailable longer than the hint-retention window.
+
+### Q110. How would you choose between coordination and conflict-free updates in a multi-region system?
+
+Start with the invariant, not the replication topology. If concurrent updates must never violate a constraint—such as spending the same balance twice—route decisions through an authoritative coordination mechanism or use a conditional operation that enforces the invariant. If updates can be merged safely, such as independent additions to a set or certain counters, a CRDT or domain-specific merge may allow more local availability.
+
+The choice is not simply “strong consistency versus eventual consistency.” Identify which operations can be accepted independently, how conflicts are detected and resolved, what users observe while replicas converge, and how the system behaves when a region is isolated. Some systems need a hybrid: strongly coordinated writes for critical state and eventually consistent projections for reads.
+
+### Q111. How do you rebalance a shard or partition without losing or duplicating writes?
+
+Treat rebalancing as a data-migration protocol, not merely a routing-table update. A safe plan typically establishes a new owner or migration epoch, copies a consistent snapshot, captures concurrent writes or changes since that snapshot, catches up the target, and then performs a controlled cutover. During the transition, requests need a clear routing and retry policy.
+
+The implementation must define which owner is authoritative at each stage, how stale owners are fenced, and how retries are deduplicated. Validate row counts, checksums, versions, and application-level invariants before retiring the old copy. The exact sequence depends on the database or sharding framework; do not assume that consistent hashing by itself safely migrates data.
+
+
+## 16. References
 
 These sources provide foundational definitions and implementation guidance. Protocol details and product behavior should always be checked against the specific system/version in use.
 
@@ -819,6 +861,8 @@ These sources provide foundational definitions and implementation guidance. Prot
 13. Spring for Apache Kafka, *Transactions*: transaction support and integration boundaries: https://docs.spring.io/spring-kafka/reference/kafka/transactions.html
 14. Google SRE, *Addressing Cascading Failures*: overload, retry amplification, and backoff: https://sre.google/sre-book/addressing-cascading-failures/
 15. AWS Prescriptive Guidance, *Saga patterns*: orchestration, choreography, idempotency, and compensation considerations: https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/saga-patterns.html
+16. Shapiro et al., *Conflict-Free Replicated Data Types*: https://inria.hal.science/inria-00555588/document
+17. Das, Gupta, and Motivala, *SWIM: Scalable Weakly-consistent Infection-style Process Group Membership Protocol*: https://www.cs.cornell.edu/projects/Quicksilver/public_pdfs/SWIM.pdf
 
 ---
 
