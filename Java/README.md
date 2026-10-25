@@ -31,3 +31,7 @@ The former chapter-by-chapter handbook contains additional specialist topics, sc
 - [Official Documentation and Resources](references/Official-Documentation-and-Resources.md)
 
 **Editorial standard:** Keep the guide focused, preserve important topics, merge repetitive questions, and provide complete explanations that are technically accurate, human-readable, and useful for interview revision.
+
+## Comprehensive coverage plan
+
+The handbook is being expanded using a topic-by-topic audit rather than an arbitrary question-count target. See the [Java Interview Question Coverage Plan](QUESTION-COVERAGE-PLAN.md) for the complete category checklist and review/acceptance criteria. The existing chapter bank remains in place until its unique useful content has been mapped into the canonical guide.
