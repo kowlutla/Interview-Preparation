@@ -324,18 +324,58 @@ Class initialization safely publishes the instance. An enum singleton is also ro
 
 ### Q24. What is the Factory Method pattern, and when should you use it?
 
-Factory Method delegates creation to a method or subtype so callers depend on a product contract instead of concrete construction details.
+Factory Method lets a creator decide which concrete product to instantiate while callers work with a product abstraction. In the classic GoF form, subclasses override a creation method; in everyday backend code, a small factory object or method that selects an implementation is also often called a factory. Be precise about which form you mean in an interview.
+
+Consider a notification service that should not contain provider-specific construction logic:
+
+```mermaid
+classDiagram
+    class NotificationSender {
+      <<interface>>
+      +send(recipient, message)
+    }
+    class EmailSender
+    class SmsSender
+    class NotificationService
+    class SenderFactory {
+      +create(channel) NotificationSender
+    }
+    NotificationSender <|.. EmailSender
+    NotificationSender <|.. SmsSender
+    SenderFactory ..> NotificationSender : creates
+    NotificationService --> NotificationSender : uses
+```
+
+A compact factory implementation could be:
 
 ```java
 interface NotificationSender {
     void send(String recipient, String message);
 }
-interface NotificationSenderFactory {
-    NotificationSender create();
+
+final class SenderFactory {
+    private final NotificationSender email;
+    private final NotificationSender sms;
+
+    SenderFactory(NotificationSender email, NotificationSender sms) {
+        this.email = email;
+        this.sms = sms;
+    }
+
+    NotificationSender create(String channel) {
+        return switch (channel) {
+            case "email" -> email;
+            case "sms" -> sms;
+            default -> throw new IllegalArgumentException(
+                    "Unsupported channel: " + channel);
+        };
+    }
 }
 ```
 
-A factory is useful when construction involves configuration, selecting an implementation, or hiding vendor-specific setup. A factory method in the GoF sense is a creation method designed for overriding in subclasses; in everyday code, “simple factory” often means a separate object with a conditional. Name the distinction in interviews. If construction is just `new Foo()`, a factory may add no value.
+This is a simple factory, not the strict subclass-based GoF Factory Method. It centralizes selection, while the caller still invokes the returned `NotificationSender` contract. In a Spring application, dependency injection can supply the implementations.
+
+Use a factory when selection or construction is a meaningful responsibility—for example, configuration, provider setup, or mapping a requested type to an implementation. If the only operation is `new Foo()`, a factory may add unnecessary indirection. For a growing set of channels, a validated map of implementations may be easier to extend than a switch.
 
 ### Q25. What is the Abstract Factory pattern, and when should you use it?
 
@@ -622,13 +662,86 @@ The client selects or receives a strategy. If the behavior has only one stable i
 
 ### Q40. What is the Observer pattern, and when should you use it?
 
-Observer defines a one-to-many relationship: when a subject changes or emits an event, registered observers are notified. It is useful for in-process listeners, UI events, and domain events. Specify whether delivery is synchronous, ordered, and allowed to fail. One observer throwing an exception should not accidentally prevent all other listeners unless that is the intended contract.
+Observer defines a one-to-many relationship: a subject publishes a notification to registered observers when an event occurs. It is useful for in-process listeners, UI events, and domain events where publishers should not know the concrete listener types.
 
-In-process Observer is not equivalent to durable messaging. If events must survive process crashes or cross service boundaries, use a durable broker and address transactional publication separately.
+```mermaid
+flowchart LR
+    S[Order service] --> E[Order placed event]
+    E --> N[Email listener]
+    E --> A[Audit listener]
+    E --> M[Metrics listener]
+```
+
+A small in-process version might look like this:
+
+```java
+interface OrderPlacedListener {
+    void onOrderPlaced(OrderPlaced event);
+}
+
+final class OrderEvents {
+    private final List<OrderPlacedListener> listeners = new CopyOnWriteArrayList<>();
+
+    void subscribe(OrderPlacedListener listener) {
+        listeners.add(Objects.requireNonNull(listener));
+    }
+
+    void publish(OrderPlaced event) {
+        for (OrderPlacedListener listener : listeners) {
+            listener.onOrderPlaced(event);
+        }
+    }
+}
+```
+
+The event and listener implementations are omitted for focus. This example is synchronous: a slow listener delays the publisher, and an exception can interrupt later listeners unless failures are isolated deliberately. Decide whether listener order matters, whether one failure should block others, and how subscription lifecycle is managed.
+
+Do not confuse in-process Observer with durable pub/sub. If an event must survive a process crash or reach another service, use durable messaging and handle publication consistency, retries, duplicate delivery, and schema evolution. A common backend approach is to persist the business change and an outbox record in one transaction, then publish the event asynchronously.
 
 ### Q41. What is the Command pattern, and when should you use it?
 
-Command represents a request as an object, allowing queuing, logging, retry policies, or undo when meaningful. A command can include a stable identifier, parameters, and an execution handler. For side-effecting commands, retries require idempotency or deduplication; merely wrapping a method call in a class does not make it safe to repeat.
+Command represents a request as an object. That makes it possible to queue, log, audit, retry, schedule, or route work without hard-coding the operation directly into the caller. It is particularly useful when requests need a lifecycle beyond an immediate method call.
+
+```mermaid
+classDiagram
+    class Command {
+      <<interface>>
+      +execute()
+    }
+    class CapturePaymentCommand {
+      +execute()
+    }
+    class CommandHandler {
+      +submit(Command)
+    }
+    Command <|.. CapturePaymentCommand
+    CommandHandler --> Command : dispatches
+```
+
+For example:
+
+```java
+interface Command {
+    void execute();
+}
+
+final class CapturePaymentCommand implements Command {
+    private final PaymentService payments;
+    private final String paymentId;
+
+    CapturePaymentCommand(PaymentService payments, String paymentId) {
+        this.payments = payments;
+        this.paymentId = paymentId;
+    }
+
+    @Override
+    public void execute() {
+        payments.capture(paymentId);
+    }
+}
+```
+
+This shows the shape of a command, not a complete payment implementation. The command handler or queue is responsible for dispatching it; the payment service still owns payment rules. For side-effecting commands, retries must be safe: use a durable command identifier or idempotency key and persist the outcome appropriately. Wrapping a call in a class does not itself provide retries, durability, or exactly-once execution.
 
 ### Q42. What is the Template Method pattern, and when should you use it?
 
@@ -640,9 +753,49 @@ A chain passes a request through handlers until it is handled or the chain ends.
 
 ### Q44. What is the State pattern, and when should you use it?
 
-State represents behavior that changes with an object's state. Instead of scattering state-dependent switches through the code, each state can define permitted transitions and behavior.
+State models behavior that depends on an object's current lifecycle state. It can replace a growing collection of state-dependent conditionals when each state has meaningful behavior and transition rules. For a small lifecycle, an enum and a single guarded transition method are often simpler than a class per state.
 
-For an order, `PENDING`, `PAID`, `SHIPPED`, and `CANCELLED` have different allowed actions. A small enum and guarded transition method may be enough; separate State classes are justified when behavior is substantial or state-specific logic keeps growing. Never assume a state object alone protects a transition against concurrent updates in the database.
+For example, an order may allow payment only while pending and shipment only after payment:
+
+```mermaid
+stateDiagram-v2
+    [*] --> PENDING
+    PENDING --> PAID: payment accepted
+    PENDING --> CANCELLED: cancel
+    PAID --> SHIPPED: dispatch
+    PAID --> CANCELLED: cancel and refund
+    SHIPPED --> [*]
+    CANCELLED --> [*]
+```
+
+A minimal enum-based approach keeps transitions explicit:
+
+```java
+enum OrderStatus { PENDING, PAID, SHIPPED, CANCELLED }
+
+final class Order {
+    private OrderStatus status = OrderStatus.PENDING;
+
+    void markPaid() {
+        requireStatus(OrderStatus.PENDING);
+        status = OrderStatus.PAID;
+    }
+
+    void ship() {
+        requireStatus(OrderStatus.PAID);
+        status = OrderStatus.SHIPPED;
+    }
+
+    private void requireStatus(OrderStatus expected) {
+        if (status != expected) {
+            throw new IllegalStateException(
+                    "Expected " + expected + " but was " + status);
+        }
+    }
+}
+```
+
+This is a guarded state transition, not a full GoF State implementation. Separate state classes become useful when each state has substantial, distinct behavior or the number of transitions makes the enum approach difficult to maintain. In a concurrent or persisted system, an in-memory check is not enough to prevent races: enforce the transition atomically with a database version, conditional update, lock, or other suitable coordination mechanism.
 
 ### Q45. What is the Iterator pattern, and when should you use it?
 
