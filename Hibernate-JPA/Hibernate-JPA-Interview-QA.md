@@ -654,6 +654,14 @@ Prioritize these questions first:
 12. Derived queries versus JPQL/Specifications/native SQL, repository save semantics, modifying queries, auditing, and custom repositories (Q38–Q41)
 13. Propagation versus isolation, realistic JPA integration tests, SQL/flush diagnosis, and batch processing (Q42–Q45)
 14. N+1 investigation, stable pagination, optimistic-lock retry design, transaction/outbox failures, and mapping safety (Q46–Q50)
+15. Relationship ownership and common association cardinalities (Q51, Q73)
+16. Parameter binding, custom count queries, and JPQL aggregation (Q52–Q53, Q74)
+17. Hibernate batch/subselect fetching versus JDBC batching, OSIV, and cache strategy (Q54–Q56)
+18. Pessimistic lock failures, constraints, validation, and persistence exception diagnosis (Q57–Q59)
+19. N+1 regression tests, schema migrations, bulk-update lifecycle effects, and JDBC batch settings (Q60–Q63)
+20. Persistence-context identity, automatic flush, native query mapping, and entity equality pitfalls (Q64–Q66)
+21. Choosing entity updates versus bulk DML/JDBC, read-only patterns, and service transaction boundaries (Q67–Q68)
+22. Specifications, JPA portability, and fetch join versus entity graph (Q69–Q72, Q75)
 
 For each, explain provider behavior, the generated SQL or transaction consequence, the trade-off, and how to diagnose it in production.
 
@@ -681,7 +689,7 @@ The Jakarta Persistence specification is the authority for portable persistence 
 
 ## 13. Editorial and validation notes
 
-- This guide contains 75 curated questions; regenerate the count from actual question headings after future edits.
+- This guide contains 75 curated questions; regenerate the count from actual question headings after future edits. The Top 15 list is a fast first pass; the full topic-wise set and production scenarios remain the complete revision path.
 - Portable Jakarta Persistence behavior, Hibernate-specific behavior, and Spring Data behavior are distinguished where the difference matters.
 - Code is intentionally limited to small illustrative snippets; the focus is interview understanding and production reasoning.
 - Exact SQL and performance depend on mappings, provider version, database, driver, and query plan; verify with logs and representative workloads.
