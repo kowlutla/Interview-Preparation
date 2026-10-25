@@ -670,6 +670,10 @@ Use HTTPS everywhere, configure allowed origins narrowly, and avoid wildcard COR
 
 Validate types, lengths, ranges, and allowed values at the boundary, and use parameterized queries or safe APIs rather than concatenating untrusted input into SQL, shell commands, templates, or query languages. Validation alone is not sufficient if the input is later interpreted in a different context; output encoding and safe query construction still matter.
 
+Prevent **mass assignment and broken object-property authorization** by mapping request DTOs to explicitly writable fields rather than binding arbitrary JSON directly to persistence entities. A caller allowed to update a display name must not be able to set fields such as tenantId, ownerId, role, accountBalance, or approvalStatus unless the business policy explicitly permits it. Apply authorization to individual properties and operations, not just to the object as a whole.
+
+Treat user-supplied URLs as untrusted when a service fetches remote content, validates webhook destinations, or imports files. This can create **server-side request forgery (SSRF)**: an attacker may target loopback, private-network, link-local, or cloud metadata endpoints. Prefer destination allowlists where feasible; validate resolved IP addresses, block prohibited address ranges, re-check after DNS resolution and redirects, restrict outbound network access, and defend against DNS rebinding. URL parsing alone is not a sufficient control.
+
 Return generic client errors with stable error codes and keep detailed diagnostics in access-controlled logs. Redact passwords, access tokens, session cookies, payment details, and sensitive personal data. Log enough context to investigate without recording full request bodies by default.
 
 Use rate limits, abuse detection, payload-size limits, authorization checks, dependency updates, and security testing as layers. Do not rely on a gateway alone; each service must protect its own resources.
@@ -1059,13 +1063,13 @@ Reproduce with production-like load and representative data, preferably in a con
 
 Use staged load tests, canaries, resource dashboards, and configuration parity to detect the issue before full rollout.
 
-### Q80. A dependency outage is causing cascading failures. What immediate actions do you take?
+### Q80. Requests fail during a rolling deployment because instances are terminated while still serving traffic. How do you design graceful shutdown?
 
-Protect the system first: stop retry amplification, enforce or tighten timeouts, open or tune the circuit breaker if justified, isolate the affected dependency with bulkheads, and shed noncritical work. Determine whether a safe fallback exists. Communicate the impact and avoid restarting all callers if their liveness is still healthy.
+Treat shutdown as a traffic-draining protocol, not just a process signal. When an instance receives a termination signal, it should stop accepting new work, become unready so routing can remove it, and allow in-flight requests to finish within a bounded grace period. The orchestrator's endpoint propagation and load-balancer drain time must be coordinated with the application's shutdown behavior; readiness changes are not always instantaneous.
 
-Then verify whether the dependency is recovering and gradually restore traffic rather than sending a synchronized surge. Watch queue depth, in-flight requests, and downstream error rates during recovery. A breaker should use limited half-open probes, not unleash all waiting traffic at once.
+For an HTTP service, configure the server and framework to stop accepting new connections or requests while completing active requests. Close message consumers carefully: stop fetching new messages, finish or safely release in-flight work, and acknowledge only after the durable business effect has committed. If a worker cannot finish before the deadline, rely on redelivery plus idempotent processing rather than acknowledging work that was lost.
 
-After the incident, fix the underlying bottleneck, test dependency failure at realistic load, and validate that recovery behavior is stable.
+Set the termination grace period longer than the expected drain window but still bounded. Test termination during slow requests, database transactions, message processing, and deployments under load. Also account for forced termination, which may bypass graceful hooks; shutdown logic is a best-effort recovery mechanism, not a substitute for durable state and retry safety.
 
 ### Q81. Two services require conflicting updates to shared business data. How do you redesign it?
 
@@ -1348,6 +1352,7 @@ These sources support protocol semantics and implementation practices. Interview
 - [Spring Cloud CircuitBreaker reference](https://docs.spring.io/spring-cloud-circuitbreaker/reference/): Spring integration options for circuit breakers.
 - [Spring Boot Actuator reference](https://docs.spring.io/spring-boot/reference/actuator/index.html): application health and observability endpoints.
 - [Testcontainers documentation](https://testcontainers.com/): disposable dependencies for integration testing.
+- [OWASP API Security Top 10 (2023)](https://owasp.org/API-Security/editions/2023/en/0x00-header/): broken object/property-level authorization, unrestricted resource consumption, SSRF, and other API-specific risks.
 - [W3C Trace Context](https://www.w3.org/TR/trace-context/): interoperable trace-context propagation.
 - [Google SRE Book — Monitoring Distributed Systems](https://sre.google/sre-book/monitoring-distributed-systems/): monitoring, alerting, and production operations.
 - [Microsoft Azure Architecture Center — Microservices](https://learn.microsoft.com/en-us/azure/architecture/guide/architecture-styles/microservices): decomposition and trade-offs.
