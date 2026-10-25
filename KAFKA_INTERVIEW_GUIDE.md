@@ -243,19 +243,20 @@ For example, in PostgreSQL, `ON CONFLICT DO NOTHING` allows the application to d
 
 ```sql
 BEGIN;
-INSERT INTO processed_event (event_id)
-VALUES (:event_id)
-ON CONFLICT (event_id) DO NOTHING
-RETURNING event_id;
-
--- Apply the business update only if the INSERT returned a row.
+WITH inserted AS (
+    INSERT INTO processed_event (event_id)
+    VALUES (:event_id)
+    ON CONFLICT (event_id) DO NOTHING
+    RETURNING event_id
+)
 UPDATE account
 SET balance = balance + :amount
-WHERE id = :account_id;
+WHERE id = :account_id
+  AND EXISTS (SELECT 1 FROM inserted);
 COMMIT;
 ```
 
-The conditional update is essential: in application code, execute it only if the insert returned an event ID. This snippet uses PostgreSQL syntax and is illustrative, not portable SQL.
+The update runs only when this transaction inserted a new event ID. This snippet uses PostgreSQL syntax and is illustrative, not portable SQL. In a real application, also check that the account update affected the expected row and handle any business validation failure before committing.
 
 
 ### Q30. How should retries and dead-letter topics be designed?
