@@ -418,7 +418,7 @@ Refresh initializes the context's infrastructure, applies factory post-processor
 
 ### Q75. How do you investigate slow startup?
 
-Measure startup phases before optimizing. Inspect startup logs and Boot startup metrics or the available startup endpoint/tooling, identify expensive bean constructors and initialization callbacks, and check classpath scanning, remote calls, migrations, and connection initialization. Lazy initialization can shift work rather than remove it, so validate first-request latency and readiness afterward.
+Measure startup before optimizing. Use startup logs, Boot's available startup instrumentation, and a focused profiler to identify slow phases or bean initialization rather than guessing. Common causes include remote calls in constructors or lifecycle callbacks, large dependency graphs, expensive migrations, classpath scanning, and eager initialization. Inspect the first slow bean or phase and check whether the delay is required for readiness. Lazy initialization can improve startup time but may move the failure into the first live request, so compare both startup and first-request behavior after each change.
 
 ### Q76. What is a custom auto-configuration module?
 
@@ -443,7 +443,7 @@ Spring Boot can load profile-specific configuration such as `application-dev.yam
 
 ### Q79. What are configuration imports used for?
 
-Boot configuration imports allow additional configuration sources to be loaded through its external configuration model. Optionality, location semantics, and integration-specific behavior depend on the source type and Boot version. Use the official reference for the exact syntax rather than assuming arbitrary remote URLs are automatically supported.
+Configuration imports let an application bring in additional configuration sources through Boot's supported import mechanism, including optional or location-specific configuration where appropriate. They are useful for externalized configuration and modular setups, but their activation and precedence should be explicit. Do not assume that importing a file makes every property override every other source; Boot uses a defined property-source order. When configuration differs between local and deployed environments, inspect the active profile, import declarations, environment variables, command-line arguments, and the effective source of the property. Keep secrets in a suitable secret-management mechanism rather than treating a configuration import as access control.
 
 ### Q80. Why use immutable or validated configuration properties?
 
@@ -451,7 +451,7 @@ Immutable or validated configuration properties turn deployment assumptions into
 
 ### Q81. How should Kubernetes configuration be organized?
 
-Keep environment-specific values external to the image, inject non-secret settings through the platform's configuration mechanism, and use a managed secret mechanism for credentials. Define resource requests/limits, probes, and shutdown behavior separately from application properties. Configuration changes do not automatically refresh arbitrary singleton beans.
+Keep environment-specific settings outside the immutable application image so the same artifact can be promoted through environments. Use ConfigMaps or equivalent mechanisms for non-secret configuration and a managed secret facility for credentials; restrict access and define rotation/reload behavior. Configure CPU/memory requests and limits, readiness/liveness/startup probes, graceful termination, and enough termination grace time for in-flight work. Confirm that changing a mounted file or ConfigMap actually triggers a refresh or rollout—many bound Spring properties are read at startup. Test configuration and shutdown behavior in the same deployment model used in production.
 
 ### Q82. Does changing an environment variable update a running Spring bean?
 
@@ -500,7 +500,7 @@ Content negotiation determines which representation the server returns based on 
 
 ### Q91. What makes an API operation idempotent?
 
-An operation is idempotent if repeating the same request has the same intended effect as performing it once. HTTP method semantics help communicate this, but implementation must honor them. For retryable create operations, an idempotency key and durable deduplication record may be needed to avoid duplicate side effects.
+An operation is idempotent when repeating the same logical request produces the same intended final effect as performing it once. HTTP defines methods such as PUT and DELETE as idempotent in semantics, but an application must still implement the contract correctly. For a payment/order POST that clients may retry after a timeout, an idempotency key can bind repeated requests to one stored outcome. Define key scope, retention, concurrency handling, and what happens if the same key is reused with a different payload. Idempotency is especially important when network failure makes it impossible to know whether the first attempt completed.
 
 ### Q92. How should file uploads be protected?
 
@@ -508,7 +508,7 @@ Set request-size limits at the application and edge layers, validate content and
 
 ### Q93. What is the difference between a servlet filter and HandlerInterceptor?
 
-A filter participates in the servlet request/response chain and can run before DispatcherServlet. A HandlerInterceptor participates in Spring MVC's handler lifecycle after handler mapping. Use filters for servlet-wide concerns such as request wrapping and security integration, and interceptors for handler-oriented concerns that need MVC metadata.
+A servlet Filter runs in the servlet chain before or after the target servlet and can affect requests before Spring MVC has selected a controller; Spring Security is implemented through filters. A HandlerInterceptor runs within Spring MVC around a mapped handler, so it depends on handler mapping and does not cover every request path in the same way. Use filters for low-level servlet concerns such as request wrapping or security integration, interceptors for MVC handler-oriented concerns, and controller advice for exception mapping or other controller-wide behavior. Choose the layer based on when the information becomes available and which request paths must be covered.
 
 ### Q94. How does Spring select an HTTP message converter?
 
@@ -516,7 +516,7 @@ Spring MVC considers the target method parameter/return type, request Content-Ty
 
 ### Q95. What is the difference between 400 and 422?
 
-Both can represent client input problems depending on the API contract. 400 is broadly used for malformed or invalid requests; 422 can express syntactically valid content whose instructions cannot be processed semantically. Choose a consistent contract rather than assuming the framework will choose your domain's preferred status automatically.
+400 Bad Request is commonly used when the request cannot be processed because its syntax or basic request representation is invalid, such as malformed JSON or failed boundary validation. 422 Unprocessable Content is often used when the representation is syntactically valid but its instructions fail semantic validation. The exact API convention matters more than memorizing a universal rule: teams may use 400 consistently for all validation failures. Document the contract, return a stable error shape, and ensure clients can distinguish malformed input from business conflicts without parsing framework-specific exception messages.
 
 ### Q96. How should API sorting parameters be secured?
 
@@ -570,11 +570,11 @@ This is a focused fragment; imports and the application's exception type are omi
 
 ### Q103. When should an exception become HTTP 400, 404, 409, or 500?
 
-Use 400 for invalid request syntax or input according to the API contract, 404 when the requested resource is not found, 409 for a conflict with current resource state, and 500 for unexpected server failures. The correct status depends on the semantics and must remain consistent across endpoints.
+Use 400 for malformed or invalid request data according to the API contract, 404 when the requested resource does not exist or is intentionally not discoverable, 409 for a conflict with current state such as a version/concurrency conflict, and 500 for an unexpected server failure. These are common conventions rather than a substitute for a consistent public contract. Do not map every exception to 400 or expose internal exception details. If a downstream dependency fails, a suitable 5xx response may be more accurate than blaming the caller. Test status, error body, and headers for both expected business failures and unexpected defects.
 
 ### Q104. What is ProblemDetail?
 
-In supported Spring Framework versions, `ProblemDetail` represents an RFC 7807-style problem response. It can provide a standard type/title/status/detail/instance shape with extensions. Verify version support and serialization behavior, and do not expose stack traces or internal exception messages to clients.
+ProblemDetail is Spring Framework's representation for an RFC 7807-style problem response, with standard fields such as type, title, status, detail, and instance plus optional extension properties. It provides a consistent structure for API errors, but the application still decides the public status, safe detail, stable error code, and validation metadata. Do not expose stack traces, SQL, hostnames, or secrets through detail/extensions. Verify serialization and exception-handler behavior against the Framework version in use, and keep the error contract stable so clients do not depend on internal exception class names.
 
 ### Q105. Should controllers catch every exception?
 
@@ -582,15 +582,15 @@ No. Catch exceptions when the layer can meaningfully recover, translate, or add 
 
 ### Q106. How should validation errors be represented?
 
-Return a stable structure with a general error code and field-level messages that are safe to disclose. Avoid returning rejected secrets or full request bodies. Keep validation messages suitable for API clients and do not make clients parse framework exception class names.
+Represent validation errors in a stable response format with an overall error type/code and field-level details that clients can display or associate with inputs. Do not return the full rejected payload, secrets, or raw framework exception messages. Normalize messages and field paths so an internal DTO refactor does not unnecessarily break clients. Distinguish request-shape validation from business-state conflicts, and decide whether multiple field errors are returned together. Tests should cover malformed JSON, missing fields, boundary violations, and domain validation failures, including the exact status and response structure.
 
 ### Q107. How do downstream service failures affect API error mapping?
 
-Distinguish invalid client input from temporary dependency failures, timeouts, and unavailable downstream systems. Map them according to the API contract, preserve retryability information where appropriate, and avoid exposing internal hostnames. Pair error responses with bounded timeouts, metrics, and trace correlation.
+Separate caller mistakes from dependency failures. Invalid input should usually map to a client error; a downstream timeout or unavailable dependency is generally a server-side/dependency failure and may justify a 502, 503, or 504 according to the API contract. Preserve the distinction between a received downstream error response and a timeout where the remote operation may have completed. Do not leak internal URLs, credentials, or raw remote payloads. Include a correlation/trace identifier and safe diagnostic context, and define retryability carefully so clients do not repeat non-idempotent operations blindly.
 
 ### Q108. How do you preserve diagnostic context without leaking sensitive details?
 
-Log the exception and relevant safe identifiers at the boundary where it can be understood; include a trace or correlation ID in logs and responses. Redact tokens and personal data, avoid logging the same exception at every layer, and keep client-facing details separate from internal diagnostics.
+Log enough context to diagnose the failure—operation, safe identifiers, dependency name, status/exception category, elapsed time, and trace/correlation ID—while redacting credentials, personal data, and sensitive request/response fields. Log the exception once at the boundary that can make sense of it rather than logging and rethrowing at every layer. The client response should contain a stable error code and safe explanation, not a stack trace or database message. Align logs with metrics and traces so an operator can move from a user-visible failure to the relevant request path without exposing secrets.
 
 ### Official references
 - [Spring MVC exception handling](https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-controller/ann-exceptionhandler.html)
