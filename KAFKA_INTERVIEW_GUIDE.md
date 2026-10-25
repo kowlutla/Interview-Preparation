@@ -874,22 +874,87 @@ Start by stating customer/business impact, affected topics and groups, time wind
 
 ## Senior-level revision checklist
 
-Use this checklist to rehearse your answers aloud:
+Use this as a **readiness test**, not another list to memorize. For each item, mark:
 
-- [ ] Explain topics, partitions, offsets, leader/follower replicas, ISR, high watermark, and KRaft.
-- [ ] Compare `acks`, `min.insync.replicas`, idempotent producers, transactions, and consumer isolation levels.
-- [ ] Explain consumer groups, assignment/rebalances, commits, lag, backpressure, and per-partition ordering.
-- [ ] Diagnose hot partitions, under-replicated partitions, broker/network/disk saturation, and producer timeouts.
-- [ ] Design bounded retries, DLT/quarantine, safe replay, idempotent consumers, and graceful shutdown.
-- [ ] Explain database/Kafka dual writes, transactional outbox, CDC, sagas, and reconciliation.
-- [ ] Compare Kafka transactions with database transactions and state exactly-once boundaries.
-- [ ] Explain producer batching/compression, partition sizing, retention, compaction, and storage estimation.
-- [ ] Compare Kafka Streams, Kafka Connect, CDC, and schema registry/compatibility.
-- [ ] Explain TLS/SASL, ACLs, secret rotation, privacy, and disaster recovery.
-- [ ] Design order/inventory and payment flows with explicit states and compensations.
-- [ ] Walk through an incident from detection and stabilization to reconciliation and prevention.
+- **Ready** — I can explain it clearly without notes, including a realistic example.
+- **Review** — I understand it but need prompts or mix up important details.
+- **Weak** — I cannot explain it yet or cannot reason through a failure scenario.
 
-For each scenario, practice in this order: **clarify requirements → explain the failure mechanism → propose a design → discuss trade-offs → describe monitoring and recovery**.
+Do not mark an item Ready just because you recognize the terminology. Practise answering aloud as if an interviewer has asked you the question.
+
+### 1. Core model and ordering
+
+- [ ] Can I explain how topics, partitions, offsets, leaders, followers, ISR, retention, and compaction fit together?
+- [ ] Can I explain why ordering is per partition, how keys affect partition selection, and what can change when the partition count changes?
+- [ ] Can I explain consumer groups, partition assignment, rebalances, committed offsets, and why a consumer group cannot actively process one partition with multiple consumers at the same time?
+- [ ] Can I distinguish broker health from partition health, including offline and under-replicated partitions?
+- [ ] Can I explain KRaft's controller quorum and how it differs from ZooKeeper-based coordination?
+
+### 2. Delivery guarantees and data correctness
+
+- [ ] Can I compare at-most-once, at-least-once, and exactly-once processing, including the failure window for each?
+- [ ] Can I explain how `acks`, `min.insync.replicas`, producer idempotence, transactions, and `read_committed` work together—and what each does **not** guarantee?
+- [ ] Can I explain why producer idempotence does not deduplicate the same business event sent independently by two producers?
+- [ ] Can I handle the case where a database write succeeds but the consumer offset commit fails, without applying the business effect twice?
+- [ ] Can I explain why Kafka transactions do not automatically make a Kafka write and an arbitrary database transaction atomic?
+
+### 3. Java and Spring Kafka implementation
+
+- [ ] Can I configure a producer with appropriate serializers, acknowledgments, idempotence, security, and error handling?
+- [ ] Can I explain why `KafkaProducer` is thread-safe but `KafkaConsumer` is not, and how that affects application design?
+- [ ] Can I explain `poll()`, auto-commit versus manual commits, poll-interval limits, and safe handling of records processed asynchronously?
+- [ ] Can I explain Spring Kafka listener concurrency, acknowledgment modes, container-managed commits, and transaction configuration?
+- [ ] Can I design bounded retries and dead-letter handling, classify retryable versus non-retryable errors, and explain when retry topics can affect ordering?
+- [ ] Can I describe how I would test a listener's success, duplicate delivery, retry, and dead-letter paths?
+
+### 4. Performance and capacity
+
+- [ ] Can I explain how batching, `linger.ms`, compression, request sizes, and acknowledgments affect throughput, latency, CPU, and network use?
+- [ ] Can I estimate partition needs using throughput and consumer parallelism, while accounting for key skew and the limits of increasing partition count later?
+- [ ] Can I estimate storage from ingress rate, retention, replication factor, and overhead, while stating assumptions and units?
+- [ ] Can I interpret consumer lag per partition and distinguish a growing backlog from a temporarily high but draining backlog?
+- [ ] Can I explain backpressure when a downstream database is slower than Kafka, without unbounded in-memory buffering or unsafe offset commits?
+
+### 5. Production diagnosis and recovery
+
+- [ ] Given a broker-unreachable error, can I separate DNS/network/listener/TLS/authentication issues from broker or metadata problems?
+- [ ] Given repeated rebalances, can I investigate slow processing, poll interval violations, membership changes, assignment behavior, and downstream stalls?
+- [ ] Given under-replicated partitions or a nearly full disk, can I prioritize safe diagnosis and recovery without casually risking data loss?
+- [ ] Can I identify the metrics and logs I would inspect: producer errors/retries/latency, consumer lag and lag age, rebalance rate, ISR/offline partitions, request latency, disk, and network?
+- [ ] Can I lead an incident through impact assessment, stabilization, evidence gathering, data reconciliation, root cause, and preventive actions?
+
+### 6. Architecture and advanced capabilities
+
+- [ ] Can I explain the transactional outbox, CDC, idempotent consumers, sagas, and reconciliation—and say when each solves a different problem?
+- [ ] Can I design an order/inventory or payment flow with explicit state transitions, duplicate handling, timeouts, and compensating actions?
+- [ ] Can I explain schema compatibility, safe event evolution, tombstones, retention/compaction, and controlled replay?
+- [ ] Can I distinguish a plain consumer from Kafka Streams, and explain KStream/KTable, state stores, and event-time windows at an interview level?
+- [ ] Can I explain Kafka Connect source/sink connectors, connector offsets, and how CDC tools such as Debezium fit into a data pipeline?
+- [ ] Can I explain TLS, SASL, ACLs, secret rotation, sensitive event data, and disaster-recovery trade-offs?
+
+### 7. Senior-level answer quality
+
+For at least five questions, including two production scenarios, practise a concise answer using this structure:
+
+1. **State the guarantee or problem** in plain language.
+2. **Explain the mechanism**—what Kafka or the application actually does.
+3. **Walk through a failure case** and identify the risk of loss, duplication, delay, or reordering.
+4. **Choose a design** and explain the trade-off, including what the design does not guarantee.
+5. **Describe verification**: metrics, logs, tests, alerts, reconciliation, or a safe recovery procedure.
+
+A strong senior-level answer should go beyond naming a configuration property. It should explain why that setting is appropriate, what failure it addresses, what new trade-off it introduces, and how you would verify the behavior in production.
+
+### Final readiness gate
+
+You are ready to use this guide for last-minute revision when you can:
+
+- Explain the core delivery and ordering guarantees without contradicting yourself.
+- Work through a database/Kafka failure scenario without claiming that Kafka provides automatic end-to-end exactly-once business effects.
+- Diagnose a lag or rebalance incident in a sensible order and name the evidence you would check.
+- Defend a practical design with explicit trade-offs, idempotency, monitoring, and recovery.
+- Answer the questions in your own words rather than reciting the handbook.
+
+If an item is still Weak, revisit the matching question above, then answer it again without looking at the text.
 
 ## References
 
