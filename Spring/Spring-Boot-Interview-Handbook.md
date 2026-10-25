@@ -899,3 +899,230 @@ Modern Spring Framework versions support declarative HTTP service interfaces bac
 - [Spring Framework HTTP Service Clients](https://docs.spring.io/spring-framework/reference/integration/rest-clients.html)
 
 ---
+
+## Reactive Programming and WebFlux
+
+
+### Q180. What are Mono and Flux?
+
+In Project Reactor, `Mono<T>` represents an asynchronous sequence with zero or one item, while `Flux<T>` represents a sequence of zero to many items. They describe a publisher pipeline, not necessarily a separate thread or automatic parallel execution.
+
+### Q181. What is backpressure?
+
+Backpressure is a mechanism for coordinating demand between a subscriber and a publisher so the consumer can signal how many items it is ready to process. It helps manage flow but does not magically bound every external resource or make a blocking call safe.
+
+### Q182. How does WebFlux differ from Spring MVC?
+
+Spring MVC is commonly used with a thread-per-request, blocking programming model. WebFlux is designed for non-blocking reactive processing and can use a small event-loop worker set. WebFlux is most beneficial when the whole I/O path is non-blocking and concurrency demands justify the model's complexity.
+
+### Q183. Why are blocking calls dangerous on event-loop threads?
+
+Blocking work prevents an event-loop worker from servicing other tasks, causing latency and throughput degradation. Use reactive clients and reactive data access where appropriate, or isolate unavoidable blocking work on a suitable bounded scheduler. Moving blocking work to another scheduler still consumes threads and must be capacity-planned.
+
+### Q184. How should errors and retries be handled in a reactive pipeline?
+
+Use Reactor operators to map, recover, or retry at a deliberate boundary. Retry only transient and safe-to-repeat operations, bound attempts, and consider the total deadline. An error recovery operator can change the signal into a fallback value, so avoid accidentally turning genuine failures into apparent success.
+
+### Q185. What is cancellation, and why does it matter?
+
+A subscriber can cancel its subscription when it no longer needs data. Well-designed pipelines propagate cancellation to upstream work where supported, releasing resources and avoiding unnecessary processing. External calls and custom publishers must be examined to ensure cancellation really stops or limits work.
+
+### Q186. How is context propagated in reactive applications?
+
+Reactive execution can hop threads, so ordinary ThreadLocal assumptions do not necessarily hold across the pipeline. Reactor Context is the common mechanism for contextual data, and supported integrations can bridge tracing or security context. Verify context propagation behavior for the exact versions and integrations in use.
+
+### Q187. How does Reactor Context differ from a method parameter?
+
+A method parameter explicitly carries data through a call graph; Reactor Context carries subscriber-associated metadata across a reactive chain. Use Context for cross-cutting metadata such as tracing where supported, but use explicit parameters for business inputs that should remain visible in method contracts.
+
+### Q188. What is the danger of onErrorResume used too broadly?
+
+`onErrorResume` replaces an error signal with another publisher; used too broadly, it can hide a database outage or programming defect behind an apparently successful response. Recover only failures with a domain-valid fallback, preserve the original cause in logs and metrics, and distinguish expected absence (such as an optional record) from infrastructure failure. Avoid returning empty data for critical dependencies unless the API contract explicitly permits it.
+
+### Q189. Why can flatMap increase concurrency unexpectedly?
+
+`flatMap` can subscribe to multiple inner publishers concurrently, and its concurrency/prefetch choices affect how much work is in flight. A high concurrency level can saturate a database pool or downstream API even when the event loop itself remains responsive. Set explicit limits, align them with downstream capacity and request deadlines, and use an ordering-preserving operator when output order is part of the contract.
+
+### Q190. How should retries interact with cancellation?
+
+A retry operator can resubscribe after a failure, but cancellation and deadlines should stop unnecessary work. Ensure retries are bounded and safe to repeat, and test that cancellation does not leave unmanaged side effects running.
+
+### Q191. When should a reactive application use a boundedElastic scheduler?
+
+It can isolate unavoidable blocking work from event-loop threads, but it is not a substitute for a non-blocking dependency and still has finite resource capacity. Bound the work, observe queueing, and prefer reactive I/O when feasible.
+
+### Official references
+- [Spring WebFlux reference](https://docs.spring.io/spring-framework/reference/web/webflux.html)
+- [Project Reactor reference](https://projectreactor.io/docs/core/release/reference/)
+
+---
+
+## Actuator and Observability
+
+
+### Q192. What does Spring Boot Actuator provide?
+
+Actuator exposes operational endpoints and integrates health, metrics, and application information with the running application. Common uses include readiness/liveness probes, metrics scraping, and inspecting selected runtime state. Endpoint availability is different from web exposure: configure which endpoints are enabled and exposed, secure sensitive endpoints, and avoid publishing environment/configuration details to untrusted callers. Adding Actuator does not mean every endpoint should be public.
+
+### Q193. What is the difference between liveness and readiness?
+
+Liveness asks whether the process should be restarted because it is unable to make progress. Readiness asks whether the instance should receive traffic. A transient dependency failure should not automatically trigger restart loops unless the operational policy explicitly requires that behavior.
+
+### Q194. What is Micrometer?
+
+Micrometer provides an instrumentation facade for metrics that can be exported to supported monitoring systems. Prefer counters, timers, gauges, and histograms that answer operational questions. Avoid high-cardinality labels such as user IDs, raw URLs, or request IDs.
+
+### Q195. How should health indicators be designed?
+
+A health check should reflect a meaningful operational decision and be fast, bounded, and safe. Decide whether each dependency belongs in liveness or readiness, set timeouts, and avoid making a health endpoint itself a source of load during an incident. Health status is not a replacement for metrics and alerts.
+
+### Q196. What is distributed tracing useful for?
+
+Tracing connects spans across service boundaries to show where time is spent and where failures occur. Propagate context using supported instrumentation, sample according to operational needs, and avoid placing secrets or personal data in span attributes. Trace data complements, rather than replaces, logs and metrics.
+
+### Q197. How should production endpoints be secured?
+
+Expose only the endpoints required by the deployment platform and operators, restrict sensitive environment/configuration details, and apply authentication plus network-level controls. Prefer a separate management port/network where appropriate, while remembering that a separate port is not authentication. After upgrades, inspect the effective endpoint exposure and authorization rules in the deployed environment; do not assume prior defaults or security-chain matching still apply.
+
+### Q198. How should custom health indicators avoid cascading failures?
+
+Use short, bounded timeouts and cheap checks; a health indicator should not execute an expensive business workflow or fan out across every downstream dependency. Decide which dependencies are truly required for readiness and report optional degradation separately where possible. During a shared outage, probes must not create a retry storm or turn a partial dependency failure into every instance becoming unready at once.
+
+### Q199. What is the difference between an application metric and a business metric?
+
+Application metrics measure technical behavior such as latency, errors, pool usage, and saturation. Business metrics measure outcomes such as completed orders or failed checkouts. Both are needed because a service can be technically healthy while business success degrades.
+
+### Q200. How do you design alerts from SLOs?
+
+Start with user-visible service-level indicators such as successful requests and latency within a threshold, then choose alert windows that provide actionable response time without excessive noise. Consider multi-window burn-rate alerts for error-budget consumption, and separate symptoms from diagnostic signals. Pair each alert with a dashboard, runbook, and owner; CPU or memory thresholds alone do not always reveal whether users are affected.
+
+### Q201. Why must observability endpoints be reviewed after an upgrade?
+
+Endpoint availability, default exposure, configuration properties, and security integration can change across release lines. After an upgrade, inspect the actual enabled/exposed endpoint set, test anonymous and authorized access, and verify management-port/network policy. Pay particular attention to environment, configuration, heap/thread dumps, and shutdown endpoints because their data or actions can be sensitive. Treat the previous deployment policy as something to re-verify, not as proof of continued safety.
+
+### Official references
+- [Spring Boot Actuator](https://docs.spring.io/spring-boot/reference/actuator/)
+- [Micrometer documentation](https://docs.micrometer.io/)
+
+---
+
+## Spring Caching
+
+
+### Q202. What does @Cacheable do?
+
+It checks the configured cache for a key and, on a miss, invokes the method and stores the result according to the cache configuration. The annotation relies on caching infrastructure and commonly proxy interception, so self-invocation may bypass it. Cache keys and value semantics must be designed explicitly.
+
+### Q203. How do @CachePut and @CacheEvict differ?
+
+`@CachePut` always invokes the method and updates the cache with the result; `@CacheEvict` removes entries. Use them when the data-change semantics are clear. Combining cache annotations without understanding evaluation and ordering can produce stale or contradictory results.
+
+### Q204. Why is cache invalidation difficult?
+
+The source of truth can change through multiple paths, and distributed caches introduce propagation delay and concurrent updates. Define which writes invalidate which keys, consider TTL as a safety bound rather than perfect consistency, and test concurrent read/write scenarios.
+
+### Q205. What is a cache stampede?
+
+A large number of callers miss or expire the same key and simultaneously recompute the value, potentially overwhelming the backing service. Depending on the cache, use request coalescing, controlled refresh, jittered TTLs, or stale-while-revalidate patterns. Measure whether complexity is justified.
+
+### Q206. When should Redis be used instead of an in-memory cache?
+
+A local cache is fast and simple but is per-process and can diverge across replicas. Redis can share entries across instances but adds network latency, operational dependency, and its own consistency/failure modes. Select based on freshness, sharing, availability, and capacity requirements.
+
+### Q207. What happens to caching when the backing cache is unavailable?
+
+Behavior depends on the cache provider and application configuration. Decide whether to fail open by invoking the underlying method or fail closed, and ensure the fallback cannot overwhelm the source of truth. Monitor cache errors and hit ratio rather than assuming the cache is always available.
+
+### Q208. How do cache keys affect correctness and security?
+
+Keys must include every input that changes the result, including tenant or authorization scope where relevant. A missing dimension can return one user's data to another. Test key separation across tenants, locale, filters, and permission-sensitive responses.
+
+### Q209. How should cache invalidation interact with transaction commit?
+
+Evicting before a database transaction commits can allow a concurrent reader to reload old data; evicting only after commit has its own failure window. Understand provider transaction awareness and consistency requirements, and consider versioned keys or event-driven invalidation for distributed writers.
+
+### Q210. What is cache penetration?
+
+Repeated requests for absent keys can bypass a cache and repeatedly hit the source. Depending on semantics, cache negative results briefly, validate identifiers, or rate-limit abuse. Do not cache authorization failures in a way that leaks across identities.
+
+### Q211. What is stale-while-revalidate?
+
+It serves a previously cached value while refreshing it asynchronously, trading strict freshness for lower latency and reduced stampedes. Define maximum staleness and do not use it for data where stale reads violate critical invariants.
+
+### Q212. How do you observe cache usefulness?
+
+Measure hit/miss rate, load duration, evictions, failures, entry count or estimated memory, and the load placed on the underlying data source. A high hit ratio alone does not prove the cache is useful: stale values, expensive serialization, large entries, or invalidation bugs can outweigh the benefit. Segment metrics by a bounded cache name or operation, not by arbitrary keys or user IDs.
+
+### Official references
+- [Spring cache abstraction](https://docs.spring.io/spring-framework/reference/integration/cache.html)
+
+---
+
+## Asynchronous Processing and Scheduling
+
+
+### Q213. What does @Async do?
+
+When async execution is enabled and the invocation passes through the relevant proxy, Spring submits the method execution to a configured executor. It does not guarantee more capacity or faster completion; executor sizing, queue bounds, rejection policy, and shutdown behavior determine operational safety.
+
+### Q214. Why should thread pools have bounded queues?
+
+An unbounded queue can accumulate work faster than workers process it, increasing memory use and latency until the service becomes unhealthy. Choose worker count and queue capacity based on workload, downstream limits, and acceptable queueing delay. Define what happens when the system is saturated.
+
+### Q215. How are exceptions from asynchronous methods observed?
+
+Exceptions from fire-and-forget void methods require an appropriate async exception handler because the caller cannot receive them. Methods returning Future or CompletableFuture can surface failures when the result is observed. Ensure failures are logged and measured without duplicating logs at every layer.
+
+### Q216. What is the difference between fixed rate and fixed delay scheduling?
+
+Fixed rate schedules executions according to a target cadence; fixed delay measures the delay after an execution completes before the next run. Actual behavior depends on scheduler configuration and task duration. Long tasks, process pauses, and multiple application instances require deliberate concurrency planning.
+
+### Q217. Why can a scheduled job run more than once in a cluster?
+
+Each application replica may register and execute the same schedule. If only one execution is allowed globally, use a distributed coordination/locking mechanism or a scheduler designed for clustered execution, and make the task idempotent. A local synchronized block only coordinates threads in one process.
+
+### Q218. How should transactions interact with async work?
+
+A transaction bound to the calling thread generally does not automatically propagate into a separately executed async task. Define a transaction boundary inside the asynchronous operation if required, and pass immutable data rather than sharing mutable persistence state across threads.
+
+### Q219. How should cron time zones be handled?
+
+Specify the intended time zone explicitly through the scheduling annotation/configuration where supported, rather than relying on the container default. Test daylight-saving transitions, missed execution after downtime, and behavior when multiple replicas run the same schedule. A cron expression only defines trigger timing; it does not provide distributed locking, durable job state, or exactly-once execution. Use a cluster coordination or durable job mechanism when duplicate runs would be harmful.
+
+### Official references
+- [Spring task execution and scheduling](https://docs.spring.io/spring-framework/reference/integration/scheduling.html)
+
+---
+
+## Spring Events and Messaging
+
+
+### Q220. Are Spring application events synchronous by default?
+
+The standard event multicaster invokes listeners synchronously unless configured otherwise. A slow listener can therefore increase the publisher's latency. Asynchronous event delivery changes error handling and transaction/context assumptions and is not a durable message queue.
+
+### Q221. What does @TransactionalEventListener provide?
+
+It binds listener execution to a transaction phase, commonly after commit. If no transaction is active, behavior depends on the configured fallback option. It helps coordinate in-process reactions with transaction outcomes but does not guarantee durable delivery if the process crashes after commit.
+
+### Q222. Why is an outbox pattern useful?
+
+The application writes business state and an event record in the same local database transaction. A separate publisher relays the outbox record to the broker and marks progress. This avoids the dual-write gap, but requires handling retries, duplicate publication, cleanup, ordering, and operational monitoring.
+
+### Q223. Why must Kafka consumers be idempotent?
+
+At-least-once processing and retries can deliver the same logical event more than once. Use a durable deduplication key or design side effects to be idempotent. Acknowledgment timing and consumer transactions affect delivery behavior, but they do not remove the need to reason about external side effects.
+
+### Q224. How should listener retries and dead-letter handling be designed?
+
+Classify retryable and non-retryable failures, bound attempts, use backoff, and send poison messages to a monitored dead-letter destination when appropriate. Define replay procedures and preserve enough metadata to diagnose failures without exposing secrets. Ensure retry behavior does not block partitions indefinitely.
+
+### Q225. What is the difference between an application event and a broker message?
+
+An application event is an in-process communication mechanism within an application context. A broker message crosses a process boundary and can provide durable retention and independent consumers, depending on configuration. Use local events for local decoupling, not as a substitute for cross-service reliability.
+
+### Official references
+- [Spring application events](https://docs.spring.io/spring-framework/reference/core/beans/context-introduction.html)
+- [Spring for Apache Kafka](https://docs.spring.io/spring-kafka/reference/)
+
+---
