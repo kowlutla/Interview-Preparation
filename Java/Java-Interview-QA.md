@@ -20,9 +20,11 @@ A focused, version-aware guide for Java backend engineers. It prioritizes questi
 8. [Production and senior-level scenarios](#8-production-and-senior-level-scenarios)
 9. [Additional specialist topics](#9-additional-specialist-topics)
 10. [Expanded coverage: frequently tested Java topics](#10-expanded-coverage-frequently-tested-java-topics)
-11. [Last-minute revision](#11-last-minute-revision)
-12. [Official references](#12-official-references)
-13. [Editorial and validation notes](#13-editorial-and-validation-notes)
+14. [Java Streams — coding interview questions](#14-java-streams--coding-interview-questions)
+15. [Java version-wise features: Java 8 to Java 25](#15-java-version-wise-features-java-8-to-java-25)
+16. [Last-minute revision](#16-last-minute-revision)
+17. [Official references](#17-official-references)
+18. [Editorial and validation notes](#18-editorial-and-validation-notes)
 
 ---
 
@@ -926,7 +928,336 @@ Check the exact JDK release, whether the feature is final, preview, or incubatin
 
 Evaluate the feature against a real maintenance or performance need, and test migration, observability, packaging, and production behavior. In interviews, distinguish the feature's design goal from its status in the specific release being discussed.
 
-## 11. Last-minute revision
+
+## 14. Java Streams — coding interview questions
+
+These are practical stream exercises, not just API definitions. Code is intentionally limited to the core expression. In an interview, explain the edge cases, complexity, ordering, and why the chosen operation fits the requirement.
+
+### Q139. How do you filter even numbers and square them?
+
+    List<Integer> squares = numbers.stream()
+        .filter(n -> n % 2 == 0)
+        .map(n -> n * n)
+        .toList();
+
+Filter selects values and map transforms them. Stream.toList() is available from Java 16 and returns an unmodifiable list; for Java 8–15 use Collectors.toList(), whose mutability is not guaranteed by the general contract either.
+
+### Q140. How do you count the frequency of each word?
+
+    Map<String, Long> counts = words.stream()
+        .collect(Collectors.groupingBy(
+            Function.identity(), Collectors.counting()));
+
+groupingBy creates a group for each distinct word and counting reduces each group to a count. Normalize case and define punctuation handling before counting if the input is natural language.
+
+### Q141. How do you group employees by department?
+
+    Map<String, List<Employee>> byDepartment = employees.stream()
+        .collect(Collectors.groupingBy(Employee::getDepartment));
+
+The classifier determines each map key. If a department can be null, decide how to represent missing values explicitly because the default groupingBy collector does not accept a null classifier result.
+
+### Q142. How do you count employees in each department?
+
+    Map<String, Long> countByDepartment = employees.stream()
+        .collect(Collectors.groupingBy(
+            Employee::getDepartment, Collectors.counting()));
+
+This is a downstream collector. It retains counts rather than lists of employees, which is more efficient when the grouped objects are not needed later.
+
+### Q143. How do you find the second-highest distinct salary?
+
+    Optional<Integer> second = employees.stream()
+        .map(Employee::getSalary)
+        .distinct()
+        .sorted(Comparator.reverseOrder())
+        .skip(1)
+        .findFirst();
+
+The result is optional because there may be fewer than two distinct salaries. Sorting costs O(n log n); for a very large input where only two values are needed, a one-pass approach can be more efficient.
+
+### Q144. How do you find duplicate values in a list?
+
+    Map<String, Long> counts = values.stream()
+        .collect(Collectors.groupingBy(
+            Function.identity(), Collectors.counting()));
+
+    Set<String> duplicates = counts.entrySet().stream()
+        .filter(e -> e.getValue() > 1)
+        .map(Map.Entry::getKey)
+        .collect(Collectors.toSet());
+
+Counting first avoids shared mutable state inside the stream. A side-effect-based solution using a shared HashSet is not safe for parallel execution.
+
+### Q145. How do you remove duplicates while preserving encounter order?
+
+    List<String> unique = values.stream()
+        .distinct()
+        .toList();
+
+For an ordered stream, distinct preserves the first encountered occurrence. Equality relies on equals, so custom objects need correct equality semantics.
+
+### Q146. How do you partition numbers into even and odd groups?
+
+    Map<Boolean, List<Integer>> result = numbers.stream()
+        .collect(Collectors.partitioningBy(n -> n % 2 == 0));
+
+partitioningBy is appropriate when there are exactly two logical groups. groupingBy is better when the number of categories is variable.
+
+### Q147. How do you flatten a list of lists?
+
+    List<String> flattened = nested.stream()
+        .flatMap(List::stream)
+        .toList();
+
+map would produce a stream of lists; flatMap combines the inner streams into one stream. Decide how null inner lists should be handled rather than allowing accidental failures.
+
+### Q148. How do you split sentences into distinct words?
+
+    Set<String> words = sentences.stream()
+        .flatMap(s -> Arrays.stream(s.split("\\s+")))
+        .map(s -> s.toLowerCase(Locale.ROOT))
+        .collect(Collectors.toSet());
+
+This is a simple whitespace tokenizer, not a full natural-language tokenizer. Punctuation, Unicode rules, and locale-specific normalization may require additional handling.
+
+### Q149. How do you convert a list into a map, and what if keys repeat?
+
+    Map<Long, Employee> byId = employees.stream()
+        .collect(Collectors.toMap(Employee::getId, Function.identity()));
+
+toMap throws IllegalStateException when duplicate keys occur. If duplicates are valid, provide a merge function and document whether the first value, last value, or a combined value should win.
+
+### Q150. How do you sum values when multiple objects share the same key?
+
+    Map<String, Integer> totals = items.stream()
+        .collect(Collectors.toMap(
+            Item::getType, Item::getAmount, Integer::sum));
+
+The merge function combines values with the same key. Consider overflow and make sure summing matches the business rule.
+
+### Q151. How do you sort strings by length and then alphabetically?
+
+    List<String> sorted = words.stream()
+        .sorted(Comparator.comparingInt(String::length)
+            .thenComparing(Comparator.naturalOrder()))
+        .toList();
+
+Comparator composition expresses the primary and tie-breaker order. A deterministic tie-breaker makes results and tests more predictable.
+
+### Q152. How do you calculate sum, average, minimum, and maximum in one pass?
+
+    IntSummaryStatistics stats = numbers.stream()
+        .mapToInt(Integer::intValue)
+        .summaryStatistics();
+
+Primitive streams can reduce boxing. Be mindful of numeric overflow and precision; floating-point statistics are not a substitute for decimal arithmetic in financial domains.
+
+### Q153. How do you join strings with a delimiter?
+
+    String joined = names.stream()
+        .filter(Objects::nonNull)
+        .collect(Collectors.joining(", "));
+
+joining supports delimiters, prefixes, and suffixes. Decide explicitly whether null values should be rejected, filtered, or represented.
+
+### Q154. How do you test whether any, all, or none of the elements match?
+
+    boolean anyHigh = salaries.stream().anyMatch(s -> s > limit);
+    boolean allValid = salaries.stream().allMatch(s -> s >= 0);
+    boolean noneNegative = salaries.stream().noneMatch(s -> s < 0);
+
+These are short-circuiting terminal operations. On an empty stream, anyMatch is false while allMatch and noneMatch are true, which follows their logical definitions.
+
+### Q155. What is the difference between findFirst() and findAny()?
+
+findFirst returns the first element according to encounter order when the stream has one. findAny permits any matching element and can offer more flexibility in parallel pipelines. Choose findFirst when order is part of the requirement; do not use it as a substitute for sorting to find a minimum or maximum.
+
+### Q156. What is the difference between reduce() and collect()?
+
+reduce combines elements into a result using an operation such as sum or maximum. collect supports mutable reduction using a supplier, accumulator, and combiner, such as building a list or map. Avoid using reduce with a shared mutable list; use a collector designed for the reduction.
+
+### Q157. Why must a parallel reduce operation be associative?
+
+Parallel execution can split input into chunks and combine partial results in a different grouping. If the operation is not associative, changing the grouping can change the result. The identity must also be a valid identity for the operation. Subtraction is a classic example of an operation that is not associative.
+
+### Q158. How do you get a set of employee names per department?
+
+    Map<String, Set<String>> namesByDepartment = employees.stream()
+        .collect(Collectors.groupingBy(
+            Employee::getDepartment,
+            Collectors.mapping(Employee::getName, Collectors.toSet())));
+
+The downstream mapping collector transforms each employee to a name before collecting. This avoids collecting full employee lists and then traversing them again.
+
+### Q159. How do you calculate average salary per department?
+
+    Map<String, Double> averageByDepartment = employees.stream()
+        .collect(Collectors.groupingBy(
+            Employee::getDepartment,
+            Collectors.averagingDouble(Employee::getSalary)));
+
+This produces one average per group. For financial values, choose a decimal representation and explicit rounding policy when binary floating-point is not appropriate.
+
+### Q160. How do you collect entries into a sorted map?
+
+    Map<String, Long> counts = words.stream()
+        .collect(Collectors.groupingBy(
+            Function.identity(), TreeMap::new, Collectors.counting()));
+
+The map factory selects TreeMap, which sorts keys. Use it when sorted iteration is a requirement, not simply because sorted output looks convenient.
+
+### Q161. Why should peek() not be used for required business side effects?
+
+peek is primarily an inspection/debugging operation. Stream optimizations may skip processing that does not affect the terminal result, so required side effects inside peek are not reliable. Use an explicit terminal operation or place the side effect at a clear boundary.
+
+### Q162. Why can a Stream only be consumed once?
+
+A Stream is a pipeline, not a reusable collection. After a terminal operation, it is consumed and a second terminal operation normally fails. Create a new stream from a reusable source when multiple traversals are needed.
+
+### Q163. When is parallelStream() a poor choice?
+
+It can be slower for small inputs, cheap operations, blocking I/O, pipelines with shared mutable state, or strict ordering requirements. Parallel streams may also contend for shared fork/join infrastructure. Benchmark representative workloads instead of assuming parallel is faster.
+
+### Q164. How do you find the top three most frequent words?
+
+    List<Map.Entry<String, Long>> top = counts.entrySet().stream()
+        .sorted(Map.Entry.<String, Long>comparingByValue().reversed()
+            .thenComparing(Map.Entry.comparingByKey()))
+        .limit(3)
+        .toList();
+
+Sorting all k distinct entries costs O(k log k). For huge k and very small top-N, a bounded heap may be more efficient; this solution is straightforward and readable.
+
+### Q165. How do you find common elements between two lists efficiently?
+
+    Set<String> lookup = new HashSet<>(second);
+    List<String> common = first.stream()
+        .filter(lookup::contains)
+        .distinct()
+        .toList();
+
+The set gives efficient average membership checks and the output preserves the first list's encounter order. Clarify whether duplicates should be preserved, because set intersection and multiset intersection are different requirements.
+
+### Q166. How do you safely handle an empty numeric stream?
+
+    OptionalInt maximum = numbers.stream()
+        .mapToInt(Integer::intValue)
+        .max();
+
+The optional result represents the absence of a maximum. Avoid retrieving a value without checking presence or defining a fallback.
+
+### Q167. How do you compose methods that return Optional values?
+
+    Optional<Country> country = person
+        .flatMap(Person::getAddress)
+        .flatMap(Address::getCountry);
+
+flatMap avoids nested Optional values when each function already returns Optional. The example assumes the methods use Optional consistently; normalize nullable boundaries deliberately.
+
+### Q168. When is a loop better than a stream?
+
+Loops can be clearer for early exits, complex state changes, coordinated mutation, or detailed error handling. Streams are often concise for filter-map-reduce and collector-based transformations. Explain readability and complexity rather than claiming one style is always faster.
+
+### Q169. How do you implement a collector for a custom aggregation?
+
+A Collector defines how to create an accumulation container, add one element, combine partial containers, and optionally finish the result. Its combiner and characteristics must satisfy the collector contract, particularly if parallel execution is allowed. Prefer standard collectors unless the custom aggregation is genuinely clearer and tested in both sequential and parallel use.
+
+### Q170. What should you check when a stream pipeline gives an unexpected result?
+
+Check the source ordering, intermediate operation order, terminal operation, equals/hashCode behavior used by distinct or map keys, null handling, and whether side effects were incorrectly placed in intermediate operations. For parallel streams, also check ordering requirements and whether the collector supports parallel reduction. Reduce the problem to a small input and test edge cases such as empty input, duplicates, nulls, and ties.
+
+## 15. Java version-wise features: Java 8 to Java 25
+
+Use this release-by-release section to revise when a feature appeared and when it became final. LTS status and vendor support periods are related but not identical; verify the JDK vendor's support policy for production decisions.
+
+| Release | Status | Interview features to know |
+|---|---|---|
+| Java 8 | LTS | Lambdas, method references, functional interfaces, Streams, Optional, default interface methods, java.time |
+| Java 9 | Feature | JPMS modules, collection factories, private interface methods, takeWhile/dropWhile, Flow API |
+| Java 10 | Feature | Local-variable type inference with var |
+| Java 11 | LTS | Standard HttpClient, String.isBlank/strip/lines/repeat, Files.readString/writeString |
+| Java 12–13 | Feature | Switch expressions preview iterations, teeing collector, text blocks preview |
+| Java 14 | Feature | Switch expressions final, helpful NullPointerExceptions; records preview |
+| Java 15 | Feature | Text blocks final, hidden classes |
+| Java 16 | Feature | Records final, pattern matching for instanceof final |
+| Java 17 | LTS | Sealed classes final, stronger encapsulation of JDK internals; switch pattern matching preview |
+| Java 18–20 | Feature | UTF-8 default charset, virtual threads preview iterations, evolving pattern/concurrency features |
+| Java 21 | LTS | Virtual threads, record patterns, pattern matching for switch, sequenced collections, generational ZGC |
+| Java 22–24 | Feature | Foreign Function & Memory API final in 22, unnamed variables/patterns, evolving stream and language APIs |
+| Java 25 | LTS | Review the finalized Java 25 release features, runtime improvements, and compatibility changes against official release notes |
+
+### Q171. Which Java 8 features are most important for backend interviews?
+
+Prioritize lambdas, method references, functional interfaces, streams, Optional, default interface methods, and java.time. Be able to explain laziness, map versus flatMap, collector behavior, effectively final captured variables, and when a loop is clearer than a stream. These concepts remain common even in codebases running newer JDKs.
+
+### Q172. What is the difference between Java 9 modules and the classpath?
+
+The module system makes dependencies and exported packages explicit through module descriptors. The classpath traditionally exposes classes without the same module-level encapsulation. Modules can improve maintainability and encapsulation, but migration may expose libraries that rely on internal JDK APIs or broad reflective access.
+
+### Q173. What does var mean in Java 10?
+
+var asks the compiler to infer the static type from the initializer of a local variable. It is not dynamic typing, cannot be used without an initializer, and does not mean the variable can later hold a different type. Use it when the initializer makes the type obvious and avoid it when it obscures important information.
+
+### Q174. What Java 11 features should a backend engineer remember?
+
+Java 11 is an LTS release with the standard HTTP Client and useful String and Files APIs. It also removed Java EE and CORBA modules from the JDK distribution. When upgrading from Java 8, check library dependencies, removed modules, TLS behavior, build plugins, and runtime assumptions in addition to source changes.
+
+### Q175. What is the difference between a preview feature and a final feature?
+
+A preview feature is exposed for evaluation and may require explicit compiler/runtime enablement; it can change or be removed before finalization. A final feature is part of the standard platform contract for that release. Always identify both the first preview release and the release where the feature became final.
+
+### Q176. What should you know about records in Java 16 and later?
+
+Records are concise data carriers with generated component accessors and value-oriented equals, hashCode, and toString implementations. Their components are final, but immutability is shallow: a component can reference a mutable object. Use defensive copying if the record must protect its internal state.
+
+### Q177. Why are sealed classes useful in Java 17?
+
+Sealed classes and interfaces restrict which types may extend or implement them. They help model a closed set of domain alternatives and can make exhaustive handling clearer when combined with pattern matching. Use them only when the hierarchy is intentionally controlled rather than open to arbitrary extensions.
+
+### Q178. Why is Java 21 a major LTS milestone?
+
+Java 21 finalized virtual threads, record patterns, pattern matching for switch, and sequenced collections. It also included important runtime improvements. Structured concurrency and scoped values were preview APIs in Java 21, so they should not be described as final in that release.
+
+### Q179. How do you start a virtual thread?
+
+    Thread.startVirtualThread(() -> processRequest());
+
+Or create a named thread:
+
+    Thread worker = Thread.ofVirtual()
+        .name("request-worker")
+        .start(this::processRequest);
+
+Virtual threads make blocking task-per-thread code more scalable for I/O-bound work. They do not increase database capacity, remove downstream bottlenecks, or make CPU-heavy tasks infinitely faster.
+
+### Q180. How do you run tasks with a virtual-thread-per-task executor?
+
+    try (ExecutorService executor =
+             Executors.newVirtualThreadPerTaskExecutor()) {
+        Future<Result> result = executor.submit(this::loadResult);
+        Result value = result.get();
+    }
+
+Use deadlines, cancellation, and explicit error handling in production. A virtual thread per task is not the same as an unbounded amount of downstream capacity; use bounded resource pools and backpressure where needed.
+
+### Q181. What should you know about Java 25?
+
+Java 25 is an LTS release. Prepare its finalized language and API features, runtime and garbage-collection improvements, and migration implications from Java 17 or 21. Verify the exact release notes rather than relying on a remembered list, because feature status can change across preview iterations.
+
+### Q182. How should you plan a Java 17-to-21 or Java 25 migration?
+
+Verify framework, library, build-tool, and runtime compatibility; compile and test against the intended release; review reflective access, removed APIs, security defaults, and JVM flags; and run integration and performance tests under representative load. Roll out gradually where possible and compare latency, memory, GC, and error metrics with a baseline.
+
+### Q183. What is the difference between LTS and a feature release?
+
+LTS means a vendor offers an extended support commitment for that release; the exact duration depends on the vendor and distribution. Feature releases deliver newer platform changes on a shorter cadence. Choose a runtime based on security support, compatibility, operational readiness, and upgrade cost, not the label alone.
+
+### Q184. How should a version matrix distinguish introduced, preview, and finalized features?
+
+Track at least three states: first introduced, preview/incubator status if applicable, and final release. For example, virtual threads appeared as preview before becoming final in Java 21. This avoids saying that a feature was stable merely because it appeared in an earlier release.
+
+## 16. Last-minute revision
 
 If only a short time remains, prioritize these questions and make sure the explanations are clear enough to say aloud:
 
@@ -951,7 +1282,7 @@ If only a short time remains, prioritize these questions and make sure the expla
 
 ---
 
-## 12. Official references
+## 17. Official references
 
 Use official specifications and API documentation as the final authority for language and runtime contracts. Secondary interview guides are useful for discovering recurring themes, not for proving technical behavior or guaranteeing company-specific frequency.
 
@@ -972,7 +1303,7 @@ Use official specifications and API documentation as the final authority for lan
 
 ---
 
-## 13. Editorial and validation notes
+## 18. Editorial and validation notes
 
 - This is the **curated primary interview guide**, not a claim that every advanced Java API can be covered in 54 questions.
 - It deliberately favors common concepts and senior-level reasoning over obscure trivia and repetitive question variants.
