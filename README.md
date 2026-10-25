@@ -24,6 +24,8 @@ Interview-Preparation/
 ├── README.md
 ├── Java/
 │   └── Java-Interview-QA.md
+├── Design-Patterns-LLD/
+│   └── Design-Patterns-LLD-Interview-QA.md
 ├── Spring/
 │   └── Spring-Interview-QA.md
 ├── Microservices-REST-APIs/
