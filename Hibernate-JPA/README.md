@@ -27,7 +27,7 @@ This is the primary reading path. It contains 75 curated questions with small, f
 The `Hibernate-JPA` directory is intentionally kept simple: one primary interview Markdown handbook plus this README. The directory was inspected and contains no separate chapter-wise legacy files to consolidate or delete.
 
 - [Spring Data JPA reference](https://docs.spring.io/spring-data/jpa/reference/)
-- [Hibernate ORM User Guide](https://docs.jboss.org/hibernate/orm/current/userguide/html_single/Hibernate_User_Guide.html)
+- [Hibernate ORM User Guide (stable documentation)](https://docs.hibernate.org/stable/core/userguide/html_single/)
 - [Jakarta Persistence specifications](https://jakarta.ee/specifications/persistence/)
 
 **Goal:** A technically dependable guide that readers can understand, explain, and revise efficiently before an interview.
