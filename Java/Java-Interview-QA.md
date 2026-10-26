@@ -1428,7 +1428,6 @@ Two threads can both observe the key as absent and both create an order. If the 
 ```java
 Order order = orders.computeIfAbsent(orderId, this::createOrder);
 ```
-```
 
 The mapping function should be short, should not recursively update the same map in problematic ways, and should not perform a long remote call while holding up map coordination. More importantly, an in-memory map is not a durable or cross-instance idempotency mechanism. For payment/order correctness across service replicas or restarts, use a database uniqueness constraint, idempotency key, transaction, or other durable coordination appropriate to the domain.
 
