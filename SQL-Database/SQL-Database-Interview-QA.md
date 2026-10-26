@@ -1,8 +1,8 @@
 # SQL & Database Engineering Interview Q&A Handbook
 
-A focused interview handbook for Java backend engineers preparing for mid-level and senior software engineering interviews. All runnable SQL examples use MySQL syntax, targeting MySQL 8.0+ unless stated otherwise. Engine-specific behavior is called out in prose where it affects interview answers.
+A focused interview handbook for Java backend engineers preparing for mid-level and senior software engineering interviews. Runnable SQL examples use broadly compatible MySQL syntax, targeting MySQL 5.7+ unless a feature explicitly states otherwise. The emphasis is on clear, practical queries rather than requiring the newest MySQL features.
 
-> **Compatibility note:** SQL examples use MySQL 8.0+ syntax. Check the deployed MySQL version, SQL mode, schema constraints, and bind-parameter conventions before using a query in production. The examples are explanatory; they have not been executed against a live database as part of this handbook.
+> **Compatibility note:** Examples aim for MySQL 5.7+ compatibility and avoid requiring CTEs, window functions, or `EXPLAIN ANALYZE` where a simpler alternative is practical. Check the deployed version, SQL mode, schema constraints, and bind-parameter conventions before production use. The examples are explanatory and have not been executed against a live database as part of this handbook.
 
 ## Table of contents
 
@@ -145,30 +145,28 @@ GROUP BY customer_id;
 
 Remember that `SUM` and `AVG` generally ignore NULL input values, and `SUM` over no input rows may return NULL rather than zero. Use `COALESCE` if zero is the correct business meaning. Also verify whether an aggregate is computed before or after a join; the join's row grain affects the result.
 
-### Q11. When would you use a subquery or a common table expression (CTE)?
+### Q11. When would you use a subquery?
 
-A subquery expresses a query inside another query. A CTE, introduced with `WITH`, names a query expression so it can be read and referenced more clearly. CTEs are useful for breaking a multi-step transformation into understandable stages, including ranking then filtering.
+A subquery expresses a query inside another query. It can keep a multi-step operation readable without requiring newer syntax such as common table expressions (CTEs), which are not available in MySQL 5.7.
 
 ```sql
-WITH department_totals AS (
+SELECT e.employee_id, e.salary
+FROM employees e
+JOIN (
   SELECT department_id, AVG(salary) AS avg_salary
   FROM employees
   GROUP BY department_id
-)
-SELECT e.employee_id, e.salary
-FROM employees e
-JOIN department_totals d
-  ON d.department_id = e.department_id
+) d ON d.department_id = e.department_id
 WHERE e.salary > d.avg_salary;
 ```
 
-A CTE is not automatically faster than a subquery or join. Whether it is inlined, merged, or materialized depends on the database, version, and query shape. Use the clearest correct form first, then inspect the execution plan. Recursive CTE support and syntax details also vary by database/version.
+The derived table calculates one average per department, then the outer query compares each employee with that average. A subquery is not automatically faster than a join or another equivalent form. Prefer the clearest correct query, then inspect its execution plan and measure it with representative data.
 
-## Window Functions and Practical SQL
+## Practical SQL Query Patterns
 
 ### Q12. How do ROW_NUMBER, RANK, and DENSE_RANK differ?
 
-These window functions assign ordering numbers within a result set or partition. `ROW_NUMBER()` assigns a unique sequential number to each row, even when sort values tie. `RANK()` gives tied rows the same rank and leaves gaps afterward. `DENSE_RANK()` gives tied rows the same rank without gaps.
+These ranking functions assign ordering numbers within a result set or partition. `ROW_NUMBER()` assigns a unique sequential number to each row, even when sort values tie. `RANK()` gives tied rows the same rank and leaves gaps afterward. `DENSE_RANK()` gives tied rows the same rank without gaps. They are available in newer MySQL releases; the practical query examples in this handbook use alternatives that work on older MySQL versions.
 
 For salaries `100, 90, 90, 80`, the ranks are:
 
@@ -183,64 +181,54 @@ Use a deterministic tie-breaker with `ROW_NUMBER` when exactly one row must be s
 
 ### Q13. How do you find the second-highest distinct salary?
 
-Rank distinct salary values or use the second row of a distinct descending list. A window function makes the intent explicit and avoids the common mistake of treating two employees tied for the highest salary as first and second.
+Sort the distinct, non-NULL salary values in descending order and skip the highest one. This simple query works without window functions or CTEs and correctly handles ties for the highest salary.
 
 ```sql
-WITH salary_ranks AS (
-  SELECT salary,
-         DENSE_RANK() OVER (ORDER BY salary DESC) AS salary_rank
-  FROM employees
-  WHERE salary IS NOT NULL
-)
 SELECT DISTINCT salary
-FROM salary_ranks
-WHERE salary_rank = 2;
+FROM employees
+WHERE salary IS NOT NULL
+ORDER BY salary DESC
+LIMIT 1 OFFSET 1;
 ```
 
-This returns the second distinct salary, and returns no row if fewer than two distinct non-NULL salaries exist. If the requirement is the second employee after sorting (not the second distinct salary), use `ROW_NUMBER()` over employees with a deterministic tie-breaker. Clarify the requirement before coding.
+The query returns one row containing the second-highest distinct salary, or no rows if fewer than two distinct non-NULL salaries exist. If the requirement is instead the second employee after sorting, do not use `DISTINCT`; define a deterministic tie-breaker such as `employee_id`.
 
 ### Q14. How do you find the highest-paid employee in each department?
 
-Use a window function partitioned by department. Choose `RANK` if every employee tied for the highest salary should be returned; choose `ROW_NUMBER` if exactly one winner is required and define a tie-breaker.
+Compare each employee's salary with the maximum non-NULL salary in that employee's department. This returns all employees tied for the highest salary and avoids requiring window functions.
 
 ```sql
-WITH ranked AS (
-  SELECT employee_id, department_id, salary,
-         RANK() OVER (
-           PARTITION BY department_id
-           ORDER BY salary DESC
-         ) AS salary_rank
-  FROM employees
-  WHERE salary IS NOT NULL
-)
-SELECT employee_id, department_id, salary
-FROM ranked
-WHERE salary_rank = 1
-ORDER BY department_id, employee_id;
+SELECT e.employee_id, e.department_id, e.salary
+FROM employees e
+WHERE e.salary IS NOT NULL
+  AND e.salary = (
+    SELECT MAX(e2.salary)
+    FROM employees e2
+    WHERE e2.department_id = e.department_id
+  )
+ORDER BY e.department_id, e.employee_id;
 ```
 
-The example excludes NULL salaries. If departments with no non-NULL salary must also appear, start from the department table and left join an appropriately ranked employee result. Be explicit about whether NULL salaries count and whether all ties should be returned.
+The correlated subquery calculates the maximum salary for each employee's department. If a department has no non-NULL salaries, it contributes no rows. If exactly one winner is required even when salaries tie, define a business tie-breaker and use a different query.
 
-### Q15. How do you find the top N records per group?
+### Q15. How do you find the top N records per group without window functions?
 
-Use a ranking function with `PARTITION BY` and filter the result in an outer query or CTE. For example, to return the three most recent orders per customer:
+For MySQL versions without window functions, a correlated subquery can count how many rows rank ahead of the current row. The following returns up to three most recent orders per customer, using `order_id` to break timestamp ties:
 
 ```sql
-WITH ranked_orders AS (
-  SELECT order_id, customer_id, created_at,
-         ROW_NUMBER() OVER (
-           PARTITION BY customer_id
-           ORDER BY created_at DESC, order_id DESC
-         ) AS rn
-  FROM orders
-)
-SELECT order_id, customer_id, created_at
-FROM ranked_orders
-WHERE rn <= 3
-ORDER BY customer_id, created_at DESC, order_id DESC;
+SELECT o.order_id, o.customer_id, o.created_at
+FROM orders o
+WHERE (
+  SELECT COUNT(*)
+  FROM orders newer
+  WHERE newer.customer_id = o.customer_id
+    AND (newer.created_at > o.created_at
+      OR (newer.created_at = o.created_at AND newer.order_id > o.order_id))
+) < 3
+ORDER BY o.customer_id, o.created_at DESC, o.order_id DESC;
 ```
 
-The unique `order_id` tie-breaker makes the choice deterministic when timestamps match. `ROW_NUMBER` returns at most N rows per group; `RANK` or `DENSE_RANK` can return more than N rows when ties qualify. MySQL window functions require MySQL 8.0 or later.
+The count is the number of rows ordered ahead of the current row; fewer than three means the row belongs in the top three. This is easy to understand but can be expensive on large tables without a suitable index. If timestamps can be NULL, define the intended NULL ordering and adjust the predicate.
 
 ### Q16. How do you find customers who have never placed an order?
 
@@ -260,40 +248,39 @@ This expresses the requirement directly and is not confused by NULLs in an unrel
 
 ### Q17. How do you retrieve the latest record for each customer?
 
-Rank records per customer by timestamp and a unique tie-breaker, then keep rank one.
+Find the row for which no newer row exists for the same customer. Use a unique tie-breaker so the query returns one row even when timestamps match.
 
 ```sql
-WITH ranked AS (
-  SELECT e.*,
-         ROW_NUMBER() OVER (
-           PARTITION BY customer_id
-           ORDER BY updated_at DESC, event_id DESC
-         ) AS rn
-  FROM customer_events e
-)
-SELECT customer_id, event_id, updated_at, event_type
-FROM ranked
-WHERE rn = 1;
+SELECT e.customer_id, e.event_id, e.updated_at, e.event_type
+FROM customer_events e
+LEFT JOIN customer_events newer
+  ON newer.customer_id = e.customer_id
+ AND (newer.updated_at > e.updated_at
+      OR (newer.updated_at = e.updated_at AND newer.event_id > e.event_id))
+WHERE newer.event_id IS NULL;
 ```
 
-Define what “latest” means: event time, creation time, or update time can differ. If timestamps can be NULL, specify where NULLs belong using database-appropriate syntax or a normalized expression. Without a stable tie-breaker, the selected row among equal timestamps is not guaranteed. If the table is large, an index beginning with `customer_id` and followed by the ordering columns may help, depending on the access pattern and optimizer.
+Define what “latest” means: event time, creation time, or update time can differ. This example assumes `updated_at` is non-NULL and `event_id` is unique and non-NULL. An index beginning with `customer_id` and including the ordering columns may help; measure the plan on representative data.
 
-### Q18. How do you calculate a running total?
+### Q18. How do you calculate a running total without window functions?
 
-Use a windowed aggregate. Unlike `GROUP BY`, a window function keeps each detail row and adds a cumulative value.
+In older MySQL versions, a correlated subquery can sum all transactions up to the current transaction for the same account. This is more verbose and may be slower than a window function, but it avoids requiring MySQL 8.0.
 
 ```sql
-SELECT account_id, transaction_id, transaction_time, amount,
-       SUM(amount) OVER (
-         PARTITION BY account_id
-         ORDER BY transaction_time, transaction_id
-         ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+SELECT t.account_id, t.transaction_id, t.transaction_time, t.amount,
+       (
+         SELECT SUM(t2.amount)
+         FROM account_transactions t2
+         WHERE t2.account_id = t.account_id
+           AND (t2.transaction_time < t.transaction_time
+             OR (t2.transaction_time = t.transaction_time
+                 AND t2.transaction_id <= t.transaction_id))
        ) AS running_balance_change
-FROM account_transactions
-ORDER BY account_id, transaction_time, transaction_id;
+FROM account_transactions t
+ORDER BY t.account_id, t.transaction_time, t.transaction_id;
 ```
 
-The explicit `ROWS` frame and deterministic ordering avoid ambiguity from peer rows with equal sort values. This calculates a cumulative sum of transaction amounts, not necessarily a bank balance; an opening balance would need to be added. Consider how NULL amounts and reversals should be treated.
+The ordering key must be deterministic. This computes the cumulative sum of transaction amounts, not necessarily a bank balance; an opening balance may need to be added. Consider NULL amounts, NULL timestamps, and reversals, and index the account and ordering columns for larger tables.
 
 ### Q19. How do you identify duplicates and remove them safely?
 
@@ -312,20 +299,17 @@ Before deleting anything, preview the rows and decide which record should surviv
 **Preview the rows that would be removed:**
 
 ```sql
-WITH ranked AS (
-  SELECT user_id, email, created_at,
-         ROW_NUMBER() OVER (
-           PARTITION BY email
-           ORDER BY created_at, user_id
-         ) AS rn
-  FROM users
-  WHERE email IS NOT NULL
-)
-SELECT user_id, email, created_at
-FROM ranked
-WHERE rn > 1
-ORDER BY email, rn;
+SELECT u1.user_id, u1.email, u1.created_at
+FROM users u1
+JOIN users u2
+  ON u1.email = u2.email
+ AND (u1.created_at > u2.created_at
+      OR (u1.created_at = u2.created_at AND u1.user_id > u2.user_id))
+WHERE u1.email IS NOT NULL
+ORDER BY u1.email, u1.created_at, u1.user_id;
 ```
+
+This preview assumes the row with the earliest `created_at` and then smallest `user_id` should survive. The delete example below keeps the smallest `user_id` instead; use matching survivor rules for preview and deletion in production.
 
 **MySQL — keep the row with the smallest `user_id`:**
 
@@ -342,23 +326,21 @@ The MySQL self-join is appropriate only when keeping the smallest key is the int
 
 ### Q20. How do you find employees earning more than their department's average salary?
 
-Compute the average per department, then compare each employee with that department's average. A CTE keeps the aggregation separate from row-level filtering.
+Use a correlated subquery to compare each employee's salary with the average for the same department.
 
 ```sql
-WITH department_average AS (
-  SELECT department_id, AVG(salary) AS avg_salary
-  FROM employees
-  WHERE salary IS NOT NULL
-  GROUP BY department_id
-)
 SELECT e.employee_id, e.department_id, e.salary
 FROM employees e
-JOIN department_average d
-  ON d.department_id = e.department_id
-WHERE e.salary > d.avg_salary;
+WHERE e.salary IS NOT NULL
+  AND e.salary > (
+    SELECT AVG(e2.salary)
+    FROM employees e2
+    WHERE e2.department_id = e.department_id
+      AND e2.salary IS NOT NULL
+  );
 ```
 
-An equivalent window-function solution uses `AVG(salary) OVER (PARTITION BY department_id)`. The CTE makes the two grains easy to reason about. Departments containing only NULL salaries have no average group here; clarify whether those employees should be excluded or reported separately.
+The subquery calculates the department average for each employee's department. Departments with no non-NULL salaries contribute no matching employees. This form avoids CTEs and window functions; compare execution plans and consider indexing `department_id` for large tables.
 
 ## Indexes and Query Performance
 
@@ -510,7 +492,7 @@ In a JDBC prepared statement, bind the page size and offset to the two positiona
 For deep pagination, consider keyset (seek) pagination. Pass the last row's sort keys and request rows after that position, using a predicate consistent with the ordering. Assuming `created_at` is non-NULL, the next-page predicate for descending `(created_at, order_id)` is:
 
 ```sql
--- MySQL 8.x; use the bind syntax supported by your driver
+-- MySQL; bind values using your database driver
 SELECT order_id, created_at
 FROM orders
 WHERE created_at < ?
@@ -521,26 +503,26 @@ LIMIT ?;
 
 Bind the last row's timestamp twice, its `order_id`, and the page size to the four positional placeholders in the MySQL example. The `order_id` tie-breaker is essential when timestamps match. These examples assume `created_at` is non-NULL. If the sort column can be NULL, define explicit NULL ordering and build a predicate that matches it. Keyset pagination works best with a compatible index and avoids scanning/discarding a large offset, but does not provide arbitrary page-number jumps.
 
-### Q34. How does ROW_NUMBER() help with top-N queries in MySQL?
+### Q34. How do you retrieve the top three salaries per department in MySQL?
 
-MySQL 8.0 and later supports `ROW_NUMBER()`, which assigns a sequential number to rows within each window partition according to the specified ordering. It is useful for selecting the latest row per customer or the top N employees per department.
+For compatibility with older MySQL versions, use a correlated subquery to count employees in the same department who have a higher salary, plus a tie-breaker. This returns up to three employees per department.
 
 ```sql
-WITH ranked AS (
-  SELECT employee_id, department_id, salary,
-         ROW_NUMBER() OVER (
-           PARTITION BY department_id
-           ORDER BY salary DESC, employee_id
-         ) AS rn
-  FROM employees
-)
-SELECT employee_id, department_id, salary
-FROM ranked
-WHERE rn <= 3
-ORDER BY department_id, rn;
+SELECT e.employee_id, e.department_id, e.salary
+FROM employees e
+WHERE e.salary IS NOT NULL
+  AND (
+    SELECT COUNT(*)
+    FROM employees higher
+    WHERE higher.department_id = e.department_id
+      AND higher.salary IS NOT NULL
+      AND (higher.salary > e.salary
+        OR (higher.salary = e.salary AND higher.employee_id < e.employee_id))
+  ) < 3
+ORDER BY e.department_id, e.salary DESC, e.employee_id;
 ```
 
-Use `ROW_NUMBER()` when you need exactly up to N rows per group, with ties broken by a deterministic column. Use `RANK()` or `DENSE_RANK()` instead when tied salaries should share a rank. In MySQL 8.0+, `ROW_NUMBER()` makes the window ordering explicit and is usually clearer than relying on user variables or implicit row order.
+The query gives higher salaries priority and uses the smaller `employee_id` to break ties, returning at most three rows per department. It may be more expensive than a window-function query on large tables, so inspect the execution plan and consider an index on `(department_id, salary, employee_id)`.
 
 ### Q35. How does COALESCE handle NULL values in MySQL?
 
@@ -559,7 +541,7 @@ In MySQL, an integer column can be declared `AUTO_INCREMENT` so inserts can gene
 
 ### Q37. How do you inspect MySQL execution plans?
 
-MySQL's `EXPLAIN` shows the optimizer's chosen plan, including access methods, possible and chosen indexes, join order, and estimated rows. MySQL 8.0.18 and later also supports `EXPLAIN ANALYZE` for supported statements; it executes the statement and reports actual iterator timing and row information.
+MySQL's `EXPLAIN` shows the optimizer's chosen plan, including access methods, possible and chosen indexes, join order, and estimated rows. It is available in older MySQL versions and is the baseline tool for understanding how a query is executed.
 
 ```sql
 EXPLAIN
@@ -568,9 +550,7 @@ FROM orders
 WHERE customer_id = ?;
 ```
 
-For actual execution metrics, use `EXPLAIN ANALYZE` with a safe SELECT and a representative value. It executes the query, so do not run it casually on modifying statements or an overloaded production system.
-
-Compare estimated and actual row counts where available, inspect repeated loops and sorting, and verify that the plan matches expected cardinality. A full table scan is not automatically bad; it may be cheaper when a query needs a large fraction of the table.
+Compare estimated row counts, access types, selected indexes, join order, and use of temporary tables or filesort. A full table scan is not automatically bad; it may be cheaper when a query needs a large fraction of the table. Measure actual latency separately with representative parameters and data, and use the slow query log or application metrics to understand real workload behavior.
 
 ## Backend Production Scenarios
 
@@ -730,7 +710,7 @@ Before considering this handbook mastered, make sure you can do each of the foll
 
 - [ ] Explain `WHERE` versus `HAVING`, NULL logic, and why `NOT EXISTS` can be safer than `NOT IN`.
 - [ ] Write a join and explain how one-to-many relationships can inflate aggregates.
-- [ ] Solve second-highest salary, top-N-per-group, latest-row-per-customer, and customers-with-no-orders problems.
+- [ ] Solve second-highest salary, top-N-per-group, latest-row-per-customer, and customers-with-no-orders problems using basic MySQL queries.
 - [ ] Explain index trade-offs and walk through a measured slow-query investigation.
 - [ ] Describe a lost update, a deadlock, and how optimistic locking or an atomic update addresses them.
 - [ ] Explain why pagination needs a deterministic order and when keyset pagination is preferable.
@@ -741,5 +721,3 @@ Before considering this handbook mastered, make sure you can do each of the foll
 For each question, practise explaining the core idea aloud, writing the SQL without looking, and then naming one edge case. For performance and concurrency questions, explain the investigation steps and trade-offs before jumping to a fix. Prefer understanding query behavior and data cardinality over memorizing a single syntax pattern. Treat all destructive SQL examples as patterns to adapt: preview affected rows, verify keys and constraints, and test in a safe environment before production use.
 
 
-
-For each question, practise explaining the core idea aloud, writing the SQL without looking, and then naming one edge case. For performance and concurrency questions, explain the investigation steps and trade-offs before jumping to a fix. Prefer understanding query behavior and data cardinality over memorizing a single syntax pattern.
