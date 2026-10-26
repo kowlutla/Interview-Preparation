@@ -12,7 +12,7 @@ A focused interview handbook for Java backend engineers preparing for mid-level 
 - [Window Functions and Practical SQL](#window-functions-and-practical-sql)
 - [Indexes and Query Performance](#indexes-and-query-performance)
 - [Transactions and Concurrency](#transactions-and-concurrency)
-- [Oracle and MySQL in Practice](#oracle-and-mysql-in-practice)
+- [MySQL in Practice](#oracle-and-mysql-in-practice)
 - [Backend Production Scenarios](#backend-production-scenarios)
 - [Additional High-Value Backend Questions](#additional-high-value-backend-questions)
 - [References](#references)
@@ -327,25 +327,6 @@ WHERE rn > 1
 ORDER BY email, rn;
 ```
 
-**Oracle — delete by `ROWID` after reviewing the preview:**
-
-```sql
-DELETE FROM users
-WHERE ROWID IN (
-  SELECT rid
-  FROM (
-    SELECT ROWID AS rid,
-           ROW_NUMBER() OVER (
-             PARTITION BY email
-             ORDER BY created_at, user_id
-           ) AS rn
-    FROM users
-    WHERE email IS NOT NULL
-  )
-  WHERE rn > 1
-);
-```
-
 **MySQL — keep the row with the smallest `user_id`:**
 
 ```sql
@@ -397,19 +378,18 @@ Choose column order from real query patterns: equality predicates, range predica
 
 An index may be ignored because a large proportion of rows qualifies, the table is small, the index does not match the predicate or leading-column pattern, statistics are stale, implicit type conversion occurs, or a function/expression prevents a normal index range lookup. The optimizer may correctly choose a table scan if that is cheaper.
 
-For example, wrapping an indexed timestamp in a function can make range access harder. The first predicate is MySQL-specific; Oracle commonly uses `TRUNC(created_at)` for date truncation.
+For example, wrapping an indexed timestamp in a function can make range access harder. In MySQL, prefer a half-open range rather than applying `DATE()` to every row.
 
 ```sql
--- MySQL: often less index-friendly
-WHERE DATE(created_at) = '2026-01-15'
+-- Often less index-friendly
+WHERE DATE(created_at) = '2026-01-15';
 
--- Oracle: often less index-friendly
-WHERE TRUNC(created_at) = DATE '2026-01-15'
-
--- Prefer a half-open range in either database; adapt bind syntax to the client
-WHERE created_at >= :start_time
-  AND created_at <  :next_day_start
+-- Prefer a half-open range; bind the start and next-day boundary
+WHERE created_at >= ?
+  AND created_at <  ?;
 ```
+
+The two positional placeholders represent the start timestamp and the exclusive next-day boundary, respectively.
 
 Use correctly typed bind parameters and half-open time ranges. Function-based indexes or generated-column indexes can be appropriate when the expression is intentional and supported. Refresh statistics using the database's supported procedure when evidence suggests they are stale; do not force an index hint before understanding the plan.
 
@@ -423,26 +403,23 @@ Prefer `created_at >= :start AND created_at < :end` over converting every timest
 
 Start with evidence: identify the exact SQL, bind values, frequency, latency, rows returned, and whether time is spent in the database, network, or application. Compare the slow query with a known-good baseline and inspect the execution plan. Look for estimated-versus-actual row mismatches where available, full scans over large selective workloads, expensive sorts, repeated lookups, poor join order, and unexpectedly large intermediate results.
 
-A quick syntax reminder:
+A quick MySQL syntax reminder:
 
 ```sql
--- MySQL: estimated plan
+-- Estimated plan
 EXPLAIN
 SELECT order_id
 FROM orders
 WHERE customer_id = ?;
 
--- Oracle: estimated plan
-EXPLAIN PLAN FOR
+-- MySQL 8.0.18+: executes the SELECT and reports actual iterator timing/rows
+EXPLAIN ANALYZE
 SELECT order_id
 FROM orders
-WHERE customer_id = :customer_id;
-
-SELECT *
-FROM TABLE(DBMS_XPLAN.DISPLAY);
+WHERE customer_id = 123;
 ```
 
-The placeholder syntax shown is illustrative: the actual bind syntax depends on the database client or framework. A practical sequence is:
+The first example uses a prepared-statement placeholder. The second uses a literal value to keep the example directly runnable; `EXPLAIN ANALYZE` executes the statement, so use it only with a safe SELECT and suitable environment. A practical sequence is:
 
 1. Reproduce with representative data and parameter values.
 2. Inspect the plan and database metrics; check table/index statistics.
@@ -451,7 +428,7 @@ The placeholder syntax shown is illustrative: the actual bind syntax depends on 
 5. Measure before and after under comparable conditions.
 6. Roll out safely and monitor latency, load, and regressions.
 
-Oracle tools include `EXPLAIN PLAN`, `DBMS_XPLAN`, and runtime plan information where privileges and configuration allow. MySQL supports `EXPLAIN` and, in modern versions including 8.0.18+, `EXPLAIN ANALYZE` for supported statements; it executes the statement to collect actual timing and row data. Be careful with `EXPLAIN ANALYZE` on statements that modify data. An execution plan is evidence to interpret, not a score where any full scan is automatically bad.
+Use MySQL `EXPLAIN` for the optimizer's estimated plan and `EXPLAIN ANALYZE` (introduced in MySQL 8.0.18) to execute supported statements and inspect actual iterator timing and row counts. Be careful with `EXPLAIN ANALYZE` because it executes the statement. An execution plan is evidence to interpret, not a score where any full scan is automatically bad.
 
 ### Q26. What are covering indexes and index selectivity?
 
@@ -479,13 +456,13 @@ Isolation levels trade concurrency for how much concurrent activity a transactio
 - **Phantom:** Repeating a predicate query and seeing a changed set of matching rows.
 - **Lost update:** Two writers overwrite one another's changes if the application/database pattern does not protect the update.
 
-Oracle's usual Read Committed behavior gives each statement a consistent view as of that statement; Oracle also supports Serializable and Read Only transaction modes. InnoDB's default isolation level in MySQL 8.4 is Repeatable Read, using MVCC for consistent nonlocking reads and locks for writes; locking and predicate behavior matters. The textbook anomaly table is not a complete description of every engine's behavior. For a concurrency bug, reason about the exact engine, isolation level, transaction boundaries, and whether the query is a locking read.
+InnoDB's default isolation level in MySQL 8.4 is Repeatable Read, using MVCC for consistent nonlocking reads and locks for writes; locking and predicate behavior matters. Isolation semantics are engine-specific, so use the documentation for the deployed database and version. The textbook anomaly table is not a complete description of every engine's behavior. For a concurrency bug, reason about the exact engine, isolation level, transaction boundaries, and whether the query is a locking read.
 
 ### Q29. What is MVCC, and how is it different from locking?
 
 Multi-Version Concurrency Control (MVCC) keeps enough row versions or undo information for readers to observe a consistent snapshot while writers modify data. This can reduce reader-writer blocking, but it does not eliminate locks: writes still need coordination, and some reads explicitly request locks.
 
-Oracle uses undo-based consistent reads. InnoDB combines MVCC with row-level locking; ordinary consistent reads and locking reads have different semantics. Long-running transactions can retain old versions longer, increase cleanup work, and contribute to storage pressure. Do not assume that “MVCC means no blocking” or that a normal SELECT always sees the newest committed value at the instant it finishes.
+InnoDB combines MVCC with row-level locking; ordinary consistent reads and locking reads have different semantics. Long-running transactions can retain old versions longer, increase cleanup work, and contribute to storage pressure. Do not assume that “MVCC means no blocking” or that a normal SELECT always sees the newest committed value at the instant it finishes.
 
 ### Q30. What causes deadlocks, and how should an application handle them?
 
@@ -499,10 +476,10 @@ Optimistic locking assumes conflicts are uncommon. A typical implementation adds
 
 ```sql
 UPDATE inventory
-SET quantity = :new_quantity,
+SET quantity = ?,
     version = version + 1
-WHERE item_id = :item_id
-  AND version = :expected_version;
+WHERE item_id = ?
+  AND version = ?;
 ```
 
 If the affected-row count is zero, the row was changed or no longer exists; reload and resolve the conflict. In JPA, a `@Version` field can provide this pattern.
@@ -515,13 +492,11 @@ They hold locks longer, increase the chance of blocking and deadlocks, and can d
 
 Keep database transactions around the smallest unit of work that must be atomic. Do not call slow external services while holding database locks unless the design explicitly requires it. Monitor transaction age, lock waits, connection acquisition time, pool active/idle counts, and query latency. Increasing the connection pool alone may overload the database or worsen contention; identify whether connections are slow, leaked, or held by overly broad transaction boundaries.
 
-## Oracle and MySQL in Practice
+## MySQL in Practice
 
-### Q33. How should pagination be implemented in Oracle and MySQL?
+### Q33. How should pagination be implemented in MySQL?
 
 Always use a deterministic `ORDER BY`; pagination without stable ordering can return inconsistent pages. Offset pagination is straightforward, but large offsets may require the database to walk and discard many rows. Concurrent inserts or deletes can also shift records between requests.
-
-**MySQL 8.x:**
 
 ```sql
 SELECT order_id, created_at
@@ -530,16 +505,7 @@ ORDER BY created_at DESC, order_id DESC
 LIMIT ? OFFSET ?;
 ```
 
-**Oracle 12c and later:**
-
-```sql
-SELECT order_id, created_at
-FROM orders
-ORDER BY created_at DESC, order_id DESC
-OFFSET :offset ROWS FETCH NEXT :page_size ROWS ONLY;
-```
-
-Bind-marker syntax depends on the client or framework; `?` and `:name` are examples, not interchangeable raw-SQL syntax across all drivers.
+In a JDBC prepared statement, bind the page size and offset to the two positional placeholders. Use a deterministic order, including a unique tie-breaker.
 
 For deep pagination, consider keyset (seek) pagination. Pass the last row's sort keys and request rows after that position, using a predicate consistent with the ordering. Assuming `created_at` is non-NULL, the next-page predicate for descending `(created_at, order_id)` is:
 
@@ -553,24 +519,28 @@ ORDER BY created_at DESC, order_id DESC
 LIMIT ?;
 ```
 
-**Oracle 12c and later keyset version:**
+Bind the last row's timestamp twice, its `order_id`, and the page size to the four positional placeholders in the MySQL example. The `order_id` tie-breaker is essential when timestamps match. These examples assume `created_at` is non-NULL. If the sort column can be NULL, define explicit NULL ordering and build a predicate that matches it. Keyset pagination works best with a compatible index and avoids scanning/discarding a large offset, but does not provide arbitrary page-number jumps.
+
+### Q34. How does ROW_NUMBER() help with top-N queries in MySQL?
+
+MySQL 8.0 and later supports `ROW_NUMBER()`, which assigns a sequential number to rows within each window partition according to the specified ordering. It is useful for selecting the latest row per customer or the top N employees per department.
 
 ```sql
-SELECT order_id, created_at
-FROM orders
-WHERE created_at < :last_created_at
-   OR (created_at = :last_created_at AND order_id < :last_order_id)
-ORDER BY created_at DESC, order_id DESC
-FETCH NEXT :page_size ROWS ONLY;
+WITH ranked AS (
+  SELECT employee_id, department_id, salary,
+         ROW_NUMBER() OVER (
+           PARTITION BY department_id
+           ORDER BY salary DESC, employee_id
+         ) AS rn
+  FROM employees
+)
+SELECT employee_id, department_id, salary
+FROM ranked
+WHERE rn <= 3
+ORDER BY department_id, rn;
 ```
 
-The MySQL example uses positional `?` markers; the Oracle example uses named bind variables. Bind the last row's timestamp and `order_id`, plus the page size. The `order_id` tie-breaker is essential when timestamps match. These examples assume `created_at` is non-NULL. If the sort column can be NULL, define explicit NULL ordering and build a predicate that matches it. Keyset pagination works best with a compatible index and avoids scanning/discarding a large offset, but does not provide arbitrary page-number jumps.
-
-### Q34. What is the difference between Oracle ROWNUM and ROW_NUMBER()?
-
-Oracle's `ROWNUM` is a pseudocolumn assigned as rows are selected, before a same-query `ORDER BY` is applied in the classic query shape. Therefore, `WHERE ROWNUM <= 10 ORDER BY salary DESC` does not mean “the ten highest salaries”; it can select ten rows first and then sort them.
-
-`ROW_NUMBER()` is an analytic function that assigns sequence numbers according to an explicit window ordering and can partition by groups. For top-N results, use `ROW_NUMBER()` in a subquery/CTE or Oracle's row-limiting clause. `ROWNUM` remains useful in legacy Oracle SQL, but its evaluation order must be understood. MySQL has `ROW_NUMBER()` in version 8.0+, but does not have Oracle's `ROWNUM` pseudocolumn.
+Use `ROW_NUMBER()` when you need exactly up to N rows per group, with ties broken by a deterministic column. Use `RANK()` or `DENSE_RANK()` instead when tied salaries should share a rank. Unlike Oracle's `ROWNUM` pseudocolumn, MySQL's `ROW_NUMBER()` makes the window ordering explicit.
 
 ### Q35. What are the differences between NVL and COALESCE?
 
@@ -589,14 +559,20 @@ Oracle sequences are independent database objects that generate numeric values u
 
 MySQL commonly uses `AUTO_INCREMENT` on a table column, with generated values associated with inserts into that table. Allocation and persistence behavior depends on engine and version. Neither mechanism should be used as proof of transaction order or as a gapless invoice number without a separately designed business process. Use generated IDs for identity, and use constraints to enforce uniqueness.
 
-### Q37. How do you inspect execution plans in Oracle versus MySQL?
+### Q37. How do you inspect MySQL execution plans?
 
-Both databases have optimizers that choose access paths, join order, join algorithms, and operations such as sorting and aggregation. Read the plan to understand the strategy, not merely to look for an index name.
+MySQL's `EXPLAIN` shows the optimizer's chosen plan, including access methods, possible and chosen indexes, join order, and estimated rows. MySQL 8.0.18 and later also supports `EXPLAIN ANALYZE` for supported statements; it executes the statement and reports actual iterator timing and row information.
 
-- **Oracle:** `EXPLAIN PLAN` records the estimated plan; `DBMS_XPLAN` can display plan output. Where permissions and runtime statistics are available, inspect the cursor's actual plan and row counts because the explained plan may differ from the plan used during execution.
-- **MySQL:** `EXPLAIN` shows the optimizer's plan. `EXPLAIN ANALYZE` (available in modern MySQL 8.0 versions, introduced in 8.0.18) executes supported statements and reports actual iterator timing and row information.
+```sql
+EXPLAIN
+SELECT order_id
+FROM orders
+WHERE customer_id = ?;
+```
 
-Look for estimated versus actual row counts, access paths, join order, repeated loops, sorting, and whether the plan matches the query's expected cardinality. Plan syntax, columns, and instrumentation differ by version. Running an ANALYZE form can execute the statement, so use care with modifying queries and production environments.
+For actual execution metrics, use `EXPLAIN ANALYZE` with a safe SELECT and a representative value. It executes the query, so do not run it casually on modifying statements or an overloaded production system.
+
+Compare estimated and actual row counts where available, inspect repeated loops and sorting, and verify that the plan matches expected cardinality. A full table scan is not automatically bad; it may be cheaper when a query needs a large fraction of the table.
 
 ## Backend Production Scenarios
 
@@ -619,7 +595,7 @@ Choose a concurrency-control strategy based on the invariant. Optimistic locking
 ```sql
 UPDATE inventory
 SET quantity = quantity - 1
-WHERE item_id = :item_id
+WHERE item_id = ?
   AND quantity > 0;
 ```
 
@@ -633,11 +609,9 @@ Pool exhaustion means application threads cannot acquire a connection quickly; i
 
 Inspect pool active/idle/pending counts, connection acquisition latency, transaction duration, slow query and lock-wait data, and application traces. Verify connections are always closed or returned to the pool and transaction boundaries are narrow. Increasing the pool can increase database contention and is not a substitute for diagnosing why connections are retained. Add timeouts and alerts so overload fails predictably rather than cascading.
 
-### Q42. A query works in Oracle but behaves differently in MySQL. How do you troubleshoot it?
+### Q42. How do you troubleshoot unexpected MySQL query results or behavior?
 
-Do not assume SQL dialects share every detail. Check function availability and return types, implicit conversions, NULL semantics, collation and case sensitivity, date/time types and time zones, pagination syntax, identifier rules, grouping behavior, transaction isolation, and engine-specific optimizer choices.
-
-Reduce the issue to a small reproducible query and compare results as well as plans. Consult documentation for the deployed database versions, and use explicit casts, stable ordering, and unambiguous predicates. Avoid depending on non-standard behavior such as selecting ungrouped columns without a well-defined aggregate rule. Test migrations against representative data, including NULLs, duplicate values, and boundary timestamps.
+Unexpected MySQL results often come from implicit conversions, NULL semantics, collation and case sensitivity, date/time types and time zones, grouping rules, transaction isolation, or assumptions about ordering. Reduce the issue to a small reproducible query and inspect both its results and execution plan. Use explicit casts, stable ordering, and unambiguous predicates. Avoid selecting ungrouped columns without a well-defined aggregate rule. Test with representative data, including NULLs, duplicates, and boundary timestamps.
 
 
 ## Additional High-Value Backend Questions
@@ -667,7 +641,7 @@ In InnoDB, the table's rows are organized by the clustered index, normally the p
 
 This has practical design implications. A wide primary key is copied into secondary-index entries, increasing their size. A stable, reasonably narrow primary key can reduce that overhead. Randomly distributed primary-key inserts can also create different page-split and locality behavior from append-friendly keys, although the right choice depends on workload and requirements.
 
-Do not generalize InnoDB's clustered-index layout to Oracle tables: Oracle commonly stores table rows in heap-organized segments and maintains separate index structures. Index organization, storage overhead, and execution-plan interpretation are engine-specific. Confirm the actual table and index definitions and measure the workload rather than choosing a key based on a single rule.
+This clustered-index description is specific to MySQL InnoDB and should not be assumed for other database engines. Confirm the actual table and index definitions and measure the workload rather than choosing a key based on a single rule.
 
 ### Q45. How do prepared statements prevent SQL injection, and what can they not parameterize?
 
@@ -695,7 +669,7 @@ If the relationship has attributes such as enrollment date, role, quantity, or s
 
 ### Q47. How do upsert operations differ between MySQL and Oracle, and what concurrency issue remains?
 
-An upsert attempts to insert a row and update an existing row when a defined uniqueness conflict occurs. MySQL commonly uses `INSERT ... ON DUPLICATE KEY UPDATE`; Oracle supports `MERGE` for matching source and target rows. The syntax and edge cases differ, so use the documentation for the deployed engine and version.
+An upsert attempts to insert a row and update an existing row when a defined uniqueness conflict occurs. In MySQL, a common form is `INSERT ... ON DUPLICATE KEY UPDATE`. The operation relies on a primary-key or unique-key conflict; the application should still handle its exact retry and update semantics intentionally.
 
 The conflict must be based on a real database uniqueness rule, such as a primary key or unique business key. An application-level “SELECT first, then INSERT” is racy: two requests can both observe that the row is absent. A unique constraint is the durable arbiter under concurrency; the application should handle a duplicate-key outcome intentionally.
 
@@ -721,7 +695,7 @@ Lock scope and behavior depend on the engine, isolation level, index access path
 
 A regular view stores a query definition and presents its result when queried; it does not normally persist a separate copy of every result row. It can simplify complex joins, provide a stable interface over tables, and help restrict which columns are exposed, but it is not automatically a performance optimization. The optimizer may merge or otherwise transform the view query, depending on the database and query shape.
 
-A materialized view stores a precomputed result that must be refreshed or maintained. Oracle supports materialized views with refresh options and additional query-rewrite capabilities subject to configuration and eligibility. MySQL has regular views but does not provide the same native materialized-view feature; teams may implement a summary table or read model and maintain it with application logic, jobs, or events.
+MySQL provides regular views but not the same native materialized-view feature offered by some other database engines. For a precomputed result, teams commonly implement a summary table or read model and maintain it with application logic, jobs, or events.
 
 The trade-off is freshness and operational complexity versus faster repeated reads. Before introducing a materialized result, define refresh frequency, acceptable staleness, refresh failure handling, and how inserts, updates, and deletes affect the result. For many backend workloads, a well-indexed query or Redis cache may be simpler; choose based on measured requirements.
 
@@ -735,18 +709,6 @@ The question selection reflects recurring themes across multiple interview-prepa
 - [Coddy — SQL Interview Questions](https://coddy.tech/interview-questions/sql)
 - [Weekday — SQL Interview Questions and Answers](https://www.weekday.works/post/sql-interview-questions)
 - [buggedbrains — SQL Interview Questions](https://buggedbrains.com/interview/sql-interview)
-
-### Official Oracle documentation
-
-- [Oracle Database SQL Language Reference](https://docs.oracle.com/en/database/oracle/oracle-database/23/sqlrf/)
-- [Oracle MERGE statement](https://docs.oracle.com/en/database/oracle/oracle-database/23/sqlrf/MERGE.html)
-- [Oracle materialized views](https://docs.oracle.com/en/database/oracle/oracle-database/23/dwhsg/basic-materialized-views.html)
-- [Oracle — ROWNUM pseudocolumn](https://docs.oracle.com/en/database/oracle/oracle-database/23/sqlrf/ROWNUM-Pseudocolumn.html)
-- [Oracle — ROW_NUMBER analytic function](https://docs.oracle.com/en/database/oracle/oracle-database/23/sqlrf/ROW_NUMBER.html)
-- [Oracle — COALESCE](https://docs.oracle.com/en/database/oracle/oracle-database/26/sqlrf/COALESCE.html)
-- [Oracle — Integrity Constraints](https://docs.oracle.com/en/database/oracle/oracle-database/23/sqlrf/constraint.html)
-- [Oracle Database 21c — Generating and Displaying Execution Plans](https://docs.oracle.com/en/database/oracle/oracle-database/21/tgsql/generating-and-displaying-execution-plans.html)
-- [Oracle Database SQL Tuning Guide](https://docs.oracle.com/en/database/oracle/oracle-database/23/tgsql/sql-tuning-guide.pdf)
 
 ### Official MySQL documentation
 
