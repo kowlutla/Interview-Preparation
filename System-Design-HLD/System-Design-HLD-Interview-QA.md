@@ -2,7 +2,7 @@
 
 **Audience:** Java backend engineers with 5+ years of experience preparing for senior backend and product-company interviews.  
 **Purpose:** A progressive guide to architecture reasoning, capacity estimation, data ownership, consistency, failure handling, operations, and cost.  
-**Status:** Rebuilding for the 5–10 year experience band. Recent rewrites deepen capacity calculations, data ownership, queue/stream semantics, Kafka partitioning and consumer lag, outbox/idempotency, payment correctness, cache behavior, consistency, retries, security, observability, deployment safety, and disaster recovery. Coverage, technical accuracy, readability, and rendered diagrams still require review; not final sign-off.
+**Status:** Rebuilding for the 5–10 year experience band. Recent rewrites deepen capacity calculations, materialized views, backpressure, fan-out, cache contracts and keys, messaging, Kafka partitioning/lag, transactional boundaries, idempotency, payment correctness, security, observability, deployment safety, and disaster recovery. Coverage, technical accuracy, readability, and rendered diagrams still require review; not final sign-off.
 
 > **How to use this guide:** Learn fundamentals in order, then practise scenarios aloud. State assumptions, identify the critical business invariant, estimate scale, draw the simplest viable architecture, and deepen the part the interviewer challenges. Naming technologies is not the goal; explaining why the design satisfies requirements is.
 
@@ -1308,7 +1308,13 @@ Use contracts and identifiers to coordinate across owners: domain events/outbox,
 
 ### Q123. What is a materialized view, and when is it useful?
 
-A materialized view stores a precomputed representation of data for a read pattern. A social feed or customer dashboard may combine facts from several owners, making on-demand fan-out expensive. Build the view from reliable change events or periodic refreshes, track its freshness, and make updates idempotent. The trade-off is write amplification, extra storage, and eventual consistency. Rebuild and reconciliation procedures are part of the design.
+A materialized view stores the result of a query or transformation so that readers do not have to recompute it every time. It may live inside a database, a search engine, a key-value store, or another analytical/read-optimized system. Examples include a user's order summary, a product-search document, a news-feed candidate list, or daily revenue aggregates.
+
+Materializing a view trades cheaper reads for extra write and operational work. The system must decide how the view is updated: synchronously in the source transaction, asynchronously from an outbox/event stream, through CDC, or through periodic batch recomputation. Synchronous maintenance can add latency and couple the write to the projection; asynchronous maintenance creates a freshness window and requires retry, deduplication, ordering, deletion handling, and reconciliation.
+
+The view should have an explicit source of truth and a rebuild plan. If a projection is corrupted, can it be regenerated from authoritative data or retained events? If the pipeline has lag, what does the UI show? If two updates arrive out of order, can a stale event overwrite a newer view? Version numbers, idempotent upserts, tombstones for deletes, and replay checkpoints are common parts of a robust design.
+
+Use a materialized view when many reads reuse an expensive computation, read latency matters, or the query shape differs substantially from the write model. Avoid it when data changes constantly, the view is rarely reused, or the cost of maintaining freshness outweighs the read benefit. In an interview, explain refresh semantics, staleness, rebuild, and reconciliation—not merely that a view makes reads faster.
 
 ### Q124. How do you choose between request-time fan-out and precomputation?
 
@@ -1332,23 +1338,53 @@ A useful interview distinction is that **data-plane redundancy does not automati
 
 ### Q126. How do you choose between pushing and pulling work?
 
-With push, producers send work immediately to consumers; it can reduce latency but may overload consumers unless admission control and backpressure exist. With pull, consumers control their own pace, making load regulation simpler but potentially adding polling delay. Brokers often combine durable push-to-storage with consumer-controlled fetching. Choose based on latency, burstiness, consumer capacity, and how much control consumers need over throughput.
+With **push**, a producer actively sends work to consumers or invokes them. Push can reduce latency and work well when consumers are ready and capacity is known, but a fast producer can overwhelm a slow consumer unless the receiving system has flow control or bounded admission. With **pull**, consumers request work when they have capacity. Pull naturally limits intake and lets workers regulate concurrency, but may add polling latency and must handle fairness and empty polls efficiently.
+
+The best choice depends on workload shape, consumer heterogeneity, latency objectives, and broker capabilities. A queue with a visibility timeout or consumer credit can combine durable buffering with pull-based capacity control. A streaming system often has consumers fetch batches by offset, which gives the client control over processing rate and progress. A push-based HTTP callback system needs delivery retries, endpoint health handling, backoff, and a durable queue to absorb recipient downtime.
+
+Do not confuse push delivery with real-time completion. A producer can publish an event quickly, while the consumer processes it later; acknowledgements and end-to-end status need clear semantics. For high-volume systems, batch pulls can reduce per-message overhead but increase per-message latency and complicate failure/replay. For interactive control events, push may be preferable if the consumer is capable of handling bursts.
+
+Explain how the design behaves when consumers are slow or unavailable: producer blocking, queue growth, rejection, delayed delivery, or message expiry. Whichever pattern is selected, define who controls concurrency, how backlog is bounded, and how producers learn that the system cannot accept more work safely.
 
 ### Q127. Why are bounded queues important?
 
-A queue absorbs short bursts; it cannot fix a permanent throughput deficit. If arrival rate stays above completion rate, backlog grows until retention, memory, disk, or latency limits are reached. Bound in-memory queues and define rejection, persistence, expiry, and priority policies. Monitor queue age and estimated drain time, not only depth. A million old low-priority jobs can be more damaging than a small queue of deadline-sensitive work.
+A queue absorbs a temporary difference between incoming and outgoing work; it does not create processing capacity. An unbounded in-memory queue can consume all memory, while an unbounded durable queue can create enormous storage bills and hold work past its useful deadline. As queues grow, wait time rises and requests can expire before they are processed.
+
+Bound queues by the resource they protect: item count, bytes, per-tenant capacity, age, or a combination. A queue of 10,000 tiny events is different from 10,000 payloads of several megabytes. Choose the response when a limit is reached: block producers (backpressure), reject quickly, shed low-priority work, spill to durable storage, or expire stale items. Each choice has a user-visible contract.
+
+A bounded queue should be paired with admission control and monitoring. Track depth, bytes, oldest age, arrival rate, successful completion rate, retry rate, and time-to-drain. If the queue fills, inspect whether the root cause is insufficient workers or a downstream dependency limit; adding consumers can worsen database saturation or provider throttling.
+
+For a request queue, estimate the maximum acceptable wait from the end-to-end deadline and service rate, not just available memory. For a durable job queue, define retention, cancellation, replay, and dead-letter handling. In an interview, explain why the bound exists, what happens when it is reached, and how the system preserves critical work without pretending every request can be accepted during overload.
 
 ### Q128. How do you estimate whether a queue can recover from a burst?
 
-Calculate net drain rate as processing rate minus ongoing arrival rate. If 9,000 tasks/s can be processed while 6,000/s continue to arrive, a backlog of 1.8 million tasks takes roughly 600 seconds to drain. This assumes stable rates and homogeneous task cost. Include retries, poison messages, provider quotas, and worker failures. If net drain rate is zero or negative, adding retention only postpones the problem.
+Estimate how much backlog a burst creates, then calculate how quickly the system can drain it while new work continues. If arrivals are (lambda) events/second and successful processing capacity is (mu), net drain is (mu-lambda) only when (mu>lambda). For backlog (B), a first approximation is (B/(mu-lambda)). If processing capacity is no greater than arrivals, the queue cannot recover without reducing input or adding sustainable capacity.
+
+For example, a 900,000-message backlog with 7,000 completions/s and 2,500 new arrivals/s drains at 4,500/s, so ideal drain time is 200 seconds. This assumes similar event cost, stable provider quotas, no partition skew, and no additional failures. If retries or poison messages consume worker capacity, use successful completion rate rather than attempted throughput.
+
+Then validate the operational constraints. Can the database tolerate the replay write rate? Do external providers impose account-wide quotas? Does consumer parallelism depend on partition count or per-key ordering? Will catch-up traffic starve live interactive requests? A design may reserve a portion of capacity for real-time work, replay backlog at a safe rate, or expire events whose business deadline passed.
+
+Monitor backlog age and drain rate as well as depth; a queue that is shrinking too slowly can still violate the product's completion SLO. The recovery plan should include ramp-up, retry jitter, idempotency, and reconciliation for ambiguous prior attempts. In an interview, show the arithmetic, state assumptions, and explain what you would change if the expected drain time exceeds the business deadline.
 
 ### Q129. How do you select a partition key when both ordering and throughput matter?
 
-First define the ordering scope. If all events for an account must be ordered, account ID is a natural key, but a very active account may become a hot partition. Splitting one account across partitions improves throughput only by weakening ordering or requiring a later merge/coordination step. Measure skew and decide whether the business truly requires per-entity order, or only version checks and eventual convergence.
+The partition key is not merely a distribution choice; it defines the unit for which the system can preserve locality or ordering cheaply. If all events for an order must be applied in sequence, use an order-level key so those events are routed together. If the key is too broad—such as one global key—the workload can collapse onto a single partition. If it is too narrow or random, related events may be scattered and the desired ordering lost.
+
+Estimate both **key cardinality** and **traffic skew**. A million distinct keys does not help if one tenant or account emits most events. Use per-key and per-partition throughput measurements, not only total throughput. Also ask whether the business needs total order or just monotonic state updates; version checks can sometimes tolerate reordering without serializing every event.
+
+If a single key is inherently hot, mitigations include caching hot reads, batching updates, aggregating partial counters, or splitting the key into buckets. Bucketing spreads load but breaks straightforward per-key ordering and may require a merge/coordination stage. A large tenant can sometimes be sub-sharded while ordinary tenants remain colocated.
+
+Finally, plan for topology changes. Increasing partition count or changing a hash function may remap keys; older and newer events for the same entity can then be processed on different partitions during migration. Define a transition protocol or versioned routing strategy when ordering is critical. Explain which invariant forces the key choice, which queries benefit, how skew is detected, and how a hot key will be handled.
 
 ### Q130. When is a global lock a design smell?
 
-A global lock serializes otherwise independent operations and can become a throughput ceiling and availability dependency. Ask whether the invariant can instead be enforced with a unique constraint, conditional write, version check, partition ownership, or per-entity lock. Global coordination may be justified for rare administrative operations, but it should not sit on every request without a clear correctness reason.
+A global lock serializes otherwise independent work, so throughput is bounded by the critical section and every participant becomes dependent on the lock's availability. It can be correct for a genuinely global invariant, but it is a warning sign when the lock exists only because the data model or workflow does not express ownership clearly.
+
+Ask what invariant the lock protects. If two requests only conflict when they update the same account, use per-account concurrency control instead of one system-wide lock. If the database can enforce the rule through a unique constraint, conditional update, optimistic version, or a short transaction, that is often easier to reason about than a distributed lock. If the work is an aggregate, partitioning by aggregate key may preserve local ordering without global coordination.
+
+Global coordination has a throughput and reliability cost: one slow owner can block all callers, lock-service failure can stop writes, and lease expiry can permit overlap with a stale worker unless fencing is enforced. Long-running work should not hold a lock across network calls if the invariant can be split into durable state transitions.
+
+Do not remove a lock without proving the invariant still holds. Sometimes a single sequencer or leader is required for unique global ordering, and the cost should be explicit. In an interview, describe the critical section, expected conflict rate, the smallest ownership boundary that can protect it, and how you prevent stale owners or stuck locks.
 
 ### Q131. What is the difference between deduplication and idempotency?
 
@@ -1362,31 +1398,73 @@ Deduplication state can grow large, so use retention aligned with broker replay 
 
 ### Q132. How should you handle a request that depends on several downstream services?
 
-Draw the dependency graph and classify calls as required, optional, or conditionally required. Give each call a deadline within the overall request budget; parallelize independent calls where it helps. Bound concurrency and retries, and degrade only optional data. Fan-out increases the chance that at least one dependency is slow or failing, so precompute or consolidate calls when the user experience cannot tolerate the combined tail latency.
+Start by separating **required dependencies** from optional enrichment. A page may require product and pricing data but tolerate missing recommendations. If every dependency is treated as mandatory, one low-value service can break the whole user journey. Define fallback semantics before designing fan-out.
+
+For required calls, propagate an end-to-end deadline and allocate a budget to each dependency. Run independent calls concurrently when that reduces latency, but control concurrency so one incoming request does not trigger unlimited fan-out. Use bounded connection pools, request limits, and bulkheads. Retries must fit inside the remaining deadline and should not multiply at several layers. For writes, preserve a stable operation identity and treat timeout outcomes as uncertain.
+
+Each downstream has its own latency and error distribution. The response time of parallel fan-out is approximately the slowest required call plus orchestration overhead; serial calls accumulate latency. If the endpoint requires all (n) dependencies and their failures were independent, end-to-end availability would be the product of their availabilities. Real failures are correlated, so this is an initial model, not an exact forecast.
+
+For expensive or frequently requested combinations, consider precomputed read models instead of request-time fan-out. That reduces latency and coupling but introduces staleness and projection repair. Instrument each dependency's contribution to end-to-end latency, show which fallback was used, and test partial failures. A senior answer explains how the endpoint remains useful without hiding incorrect results.
 
 ### Q133. How do you reason about availability for a fan-out endpoint?
 
-If all N independent dependencies must succeed and each has availability A, a simplified estimate is A^N. For example, ten required dependencies each at 99.9% yield about 99.0% combined availability. This model assumes independence and ignores retries, caching, and fallback paths; real failures are often correlated. The architectural lesson is to reduce mandatory dependencies and define graceful behavior, not to treat the calculation as a production forecast.
+Identify which downstream results are required for the response. If all (n) independent dependencies must succeed, a first-order estimate is the product of their availabilities. If five required services are each 99.9% available, then (0.999^5 approx 99.50%). Real failures are correlated—shared networks, databases, credentials, or deployments can affect several services together—so the multiplication is only an initial model.
+
+Now decide whether every dependency truly must be on the critical path. An optional recommendation service can degrade to an empty list, but a payment authorization failure must not be replaced with a fabricated success. A cached response or precomputed projection can remove a dependency from the synchronous path, but only if its freshness and correctness contract is acceptable.
+
+Latency also composes: serial calls add their latency, while parallel calls are bounded by the slowest required call. Parallelism reduces latency but increases instantaneous concurrency and may amplify load during bursts. Set per-call timeouts from an end-to-end deadline, cap fan-out, and avoid retries that continue after the client has already given up.
+
+Measure the end-to-end journey, per-dependency success and p99 latency, fallback frequency, and business outcome. In an interview, show the dependency graph, mark required versus optional edges, estimate the availability/latency impact, and explain graceful degradation without weakening the core invariant.
 
 ### Q134. How do you choose a cache consistency model?
 
-Start from the consequence of stale data. Stale recommendations may be harmless; stale authorization, inventory, or balances may not be. For tolerant reads, define maximum acceptable staleness, TTL, invalidation, and repair. For critical decisions, read from the authority or use a datastore guarantee that supports the invariant. A short TTL is a bound on cache residence, not proof of instantaneous consistency.
+Choose consistency from the business operation, not from the cache product. Ask how stale the value may be, whether a read after a write must see the new value, whether revocation must be immediate, and whether incorrect decisions are reversible. “TTL of 30 seconds” is a staleness budget only under assumptions about invalidation, refill races, and cache availability; it is not a full consistency guarantee.
+
+For public content, eventual consistency with TTL and asynchronous invalidation may be sufficient. For session settings, read-your-writes may be needed so the user's own update appears immediately. For permissions, a stale authorization cache can allow access after revocation, so use a clear revocation strategy, short-lived credentials, version checks, or an authoritative policy check for high-risk operations. For inventory or balances, a cached value can support display but should not authorize the final mutation.
+
+Define the source of truth, invalidation/refresh mechanism, maximum tolerated stale age, and outage behavior. Versioned cache entries can prevent an older refill from overwriting a newer value; outbox/CDC invalidations can make change notification durable; single-flight can limit duplicate refills. These techniques reduce specific failure modes but introduce their own complexity.
+
+If the consistency requirement cannot be guaranteed with the cache, bypass it for that decision. Measure stale-read incidents and invalidation lag as product correctness signals, not only hit ratio. In an interview, give a concrete example and explain what the user observes during a write, concurrent read, delayed invalidation, and cache failure.
 
 ### Q135. What should a cache key include?
 
-Every input that can change the response representation: entity ID, tenant, locale, currency, permission scope, relevant query parameters, and sometimes schema/version. Omitting tenant or authorization context can leak data across users. Including too many dimensions fragments the cache and reduces hit ratio. Document the cache-key contract and test isolation explicitly.
+A cache key must include every input dimension that can change the cached result, and exclude dimensions that do not. For a public product detail page, the key may be product ID plus locale and representation version. For a personalized response, it might also need tenant, user/permission scope, currency, feature-flag cohort, or query filters. Omitting one of these can cause incorrect responses or a cross-tenant data leak.
+
+Treat key design as part of correctness and security. Do not trust arbitrary client-supplied strings as a complete identity; derive canonical values from validated input and trusted authentication context. Normalize case, encoding, default parameters, and query ordering where semantic equivalence requires it. Hash long or sensitive key material when appropriate, while keeping debugging and collision behavior understood.
+
+Include versioning where schema or serialization changes can make old cached values incompatible. When invalidating a resource, know which key variants are affected; broad prefix invalidation may be expensive or risky. Tenant- or user-specific keys can also create high cardinality and memory pressure, so account for eviction and TTL policy.
+
+A safe response cache must honor HTTP cache-control semantics, vary dimensions, authorization, cookies, and private/public boundaries. Never let a shared CDN or distributed cache store a personalized payload under a key that all users share. Test by changing one dimension at a time—tenant, user, locale, permission, feature flag, or filter—and verifying that data does not cross boundaries.
 
 ### Q136. How should a design respond to a cold cache after deployment or failover?
 
-Assume a cold cache may expose the full source workload. Estimate miss traffic, use bounded concurrency and request coalescing, and warm only high-value keys when safe. Stagger expirations and rollouts. Avoid eagerly loading the entire dataset if it competes with production traffic. If the source cannot handle cold-cache load, keep spare capacity or temporarily shed optional traffic.
+A cold cache removes the origin offload that normal traffic may rely on. If a cache restart or rollout causes millions of misses at once, the origin database can saturate even though request volume has not changed. Capacity planning should include this cold-cache condition, not just steady-state hit ratio.
+
+Use controlled warm-up for predictable hot keys, staggered deployment, jittered TTLs, request coalescing, and origin-side concurrency limits. Prewarming the entire keyspace may be wasteful or impossible; prioritize keys by recent traffic and business value. Consider a local cache layer only if its invalidation and memory behavior are understood. Serve stale data while refreshing only for data whose contract permits staleness.
+
+Keep application scaling from amplifying the miss storm: every new instance should not independently preload the same large dataset. Bound database connection pools and queries per key. If the cache is unavailable, explicitly degrade, throttle, or reject low-priority requests rather than opening the origin to unlimited concurrency.
+
+Watch cache hit ratio, origin QPS, database saturation, fill concurrency, eviction rate, and p99 during the ramp. Recovery should be gradual, with stop/rollback thresholds if the origin approaches its safe operating limit. In an interview, explain what changes under a cache outage and why the origin remains protected until the cache is warm again.
 
 ### Q137. What is the difference between a replica, a backup, and a read model?
 
-A replica maintains another copy for availability or read scaling, often with limited lag. A backup is a retained recovery point for restoring earlier state after corruption or deletion. A read model is a representation optimized for particular queries and may be derived from events. These serve different purposes; none automatically substitutes for the others.
+A **replica** is a live copy of a datastore maintained for availability, read scaling, or recovery. Depending on replication mode, it may lag behind the primary and may or may not contain every acknowledged write when promoted. A **backup** is a retained recovery point intended to restore data after loss, corruption, accidental deletion, or malicious change. A **read model** is a projection optimized for specific query patterns, often derived from events or CDC and potentially delayed.
+
+These are not interchangeable. A replica may reproduce a bad delete or corruption quickly, so it is not an independent backup. A backup is usually not suitable for serving current reads because it is older and restoring it may take time. A read model may omit details or denormalize state by design, so it should not be treated as the source of truth for operations it does not own.
+
+Each has a separate recovery contract. Replicas need lag, failover, and split-brain management. Backups need retention, access separation, immutability where appropriate, and restore testing against RPO/RTO. Read models need versioned schemas, replay/rebuild procedures, delete/tombstone handling, and monitoring for projection lag and mismatches.
+
+For example, an order database can be the authority, its replica can serve eligible reads, a backup can recover from accidental data corruption, and a search index can support text queries. If the search index is lost, rebuild it from the authority or retained events. In an interview, state what each copy is for and which guarantee it does—and does not—provide.
 
 ### Q138. How do you choose a consistency boundary for a business workflow?
 
-Identify the smallest set of facts that must change atomically to preserve an invariant. Keep those changes in one transaction when possible. Coordinate later cross-service steps through a saga or durable events, making intermediate states explicit. For example, order creation and its outbox event can commit together, while notification delivery occurs later. Do not expand a transaction across every service just to make the diagram look atomic.
+A consistency boundary is the set of state changes that must agree atomically to preserve a business invariant. Start by writing that invariant in business language. “An order cannot be confirmed unless inventory is reserved” may require order and inventory state to coordinate, while “the analytics dashboard reflects the order within one minute” can tolerate asynchronous propagation.
+
+If the invariant fits within one database, a local transaction, constraint, or conditional update is usually the simplest and strongest boundary. Splitting that transaction across services makes partial progress visible and requires explicit coordination. A saga can manage the lifecycle, but it does not provide atomic visibility: one service may have reserved inventory while payment is still pending.
+
+Some operations naturally have two outcomes: a durable command is accepted now, while completion occurs later. Expose a pending state and operation ID instead of pretending that asynchronous completion is synchronous. Define timeout and cancellation behavior, including whether external effects can still complete after the caller cancels.
+
+Put authority where the invariant can be enforced. A cache or search index may present approximate availability, but the inventory owner must atomically reserve the unit. For financial workflows, use ledger/state transitions, idempotency, reconciliation, and explicit unknown states. In an interview, identify the invariant, the smallest transaction boundary that protects it, and the cross-boundary protocol for progress, failure, compensation, and repair.
 
 ### Q139. What is the dual-write problem, and what patterns solve it?
 
