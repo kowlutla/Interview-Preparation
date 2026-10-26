@@ -4534,7 +4534,7 @@ flowchart LR
 
 ## 19. End-to-end case-study index
 
-This section includes worked end-to-end designs for five frequently used interview prompts, followed by an index of additional systems to practise. These are reference designs, not one-size-fits-all answers. In an interview, clarify the prompt, state assumptions, adapt the capacity model, and explain which requirement would change each major choice.
+This section includes eight worked end-to-end designs for frequently used senior-level interview prompts, followed by an index of additional systems to practise. These are reference designs, not one-size-fits-all answers. In an interview, clarify the prompt, state assumptions, adapt the capacity model, and explain which requirement would change each major choice.
 
 ### Worked design 1: URL shortener
 
