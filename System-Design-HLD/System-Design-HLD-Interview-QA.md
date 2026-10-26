@@ -41,7 +41,7 @@ A strong answer is not necessarily longer in every interview. It is deep enough 
 16a. [Core concept deep dives: partitioning, sharding, and traffic infrastructure](#core-concept-deep-dives-partitioning-sharding-and-traffic-infrastructure)
 17. [Advanced HLD deep-dive Q&A](#17-advanced-hld-deep-dive-qa)
 18. [Senior-level scenario bank](#18-senior-level-scenario-bank)
-19. [End-to-end case-study index](#19-end-to-end-case-study-index)
+19. [End-to-end case-study reference index](#19-end-to-end-case-study-reference-index)
 20. [Cross-references and authoritative reading](#20-cross-references-and-authoritative-reading)
 
 ---
