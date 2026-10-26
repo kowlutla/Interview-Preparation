@@ -7,7 +7,7 @@ A collection of focused interview-preparation handbooks for Java backend enginee
 Choose a handbook by topic:
 
 - [Java Interview Handbook](Java/Java-Interview-QA.md)
-- [Design Patterns & LLD Interview Handbook](Design-Patterns-LLD/Design-Patterns-LLD-Interview-QA.md) — object-oriented design, SOLID, GoF patterns, UML, concurrency-aware object models, and practical LLD case studies.\n- [System Design HLD Interview Handbook](System-Design-HLD/System-Design-HLD-Interview-QA.md) — architecture fundamentals, capacity estimation, consistency, scaling, reliability, and a senior-level scenario bank; make this a priority for dedicated HLD rounds.
+- [Design Patterns & LLD Interview Handbook](Design-Patterns-LLD/Design-Patterns-LLD-Interview-QA.md) — object-oriented design, SOLID, GoF patterns, UML, concurrency-aware object models, and practical LLD case studies.\n- [System Design HLD Interview Handbook](System-Design-HLD/System-Design-HLD-Interview-QA.md) — 300 numbered Q&As, 80 senior-level scenarios, capacity estimation, consistency, scaling, resilience, and multi-stage mock interviews; make this a priority for dedicated HLD rounds.
 - [Spring Framework + Spring Boot Interview Handbook](Spring/Spring-Interview-QA.md)
 - [Microservices & REST APIs Interview Handbook](Microservices-REST-APIs/Microservices-REST-APIs-Interview-QA.md)
 - [Distributed Systems & Event-Driven Architecture Interview Handbook](Distributed-Systems/Distributed-Systems-Interview-QA.md) — consistency, failure handling, consensus, distributed transactions, messaging semantics, sagas, and production scenarios.
