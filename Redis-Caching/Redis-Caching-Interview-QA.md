@@ -444,7 +444,7 @@ A Lua script can perform a bounded sequence of Redis operations atomically on th
 
 Scripts execute without other commands interleaving during their execution, so they must be short and bounded. A long script can block unrelated work on that Redis execution path. Validate input, avoid loops over unbounded collections, and make every key needed by a script explicit. In Redis Cluster, keys used by a multi-key script generally need to map to the same hash slot; use hash tags only when the resulting colocation and hot-key trade-off is acceptable.
 
-Server-side atomicity is not a distributed transaction with MySQL or an external API. If the script times out from the client's perspective, the client may not know whether it completed. Design retries and idempotency accordingly, and use the official command/function documentation for the deployed Redis version.
+Server-side atomicity is not a distributed transaction with MySQL or an external API. Also, atomic execution does not mean rollback: if a script performs a write and then encounters a runtime error, earlier writes are not automatically undone. Validate inputs and conditions before making mutations where possible. If the script times out from the client's perspective, the client may not know whether it completed. Design retries and idempotency accordingly, and use the official command/function documentation for the deployed Redis version.
 
 ### Q53. What is Redis pipelining, and how is it different from MULTI/EXEC?
 
