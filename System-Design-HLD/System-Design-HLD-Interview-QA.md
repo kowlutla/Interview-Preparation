@@ -2,7 +2,7 @@
 
 **Audience:** Java backend engineers with 5–10 years of experience preparing for senior and staff-leaning backend/product-company interviews.  
 **Purpose:** A progressive guide to architecture reasoning, capacity estimation, data ownership, consistency, failure handling, operations, and cost.  
-**Status:** Rebuilding for the 5–10 year experience band. Expanded several senior scenarios for cache behavior, search freshness, retention, global routing, consistency, outbox delivery, callback races, retry storms, service boundaries, provider quotas, object uploads, cancellation, and deployment-time connection pressure. Full coverage, technical accuracy, readability, and rendered diagrams remain under review.
+**Status:** Rebuilding for the 5–10 year experience band. Includes eight worked end-to-end designs (URL shortener, feed, chat, booking, notifications, rate limiter, search/autocomplete, and object storage) plus expanded senior scenarios. Full topic coverage, technical accuracy, readability, and rendered diagram validation remain in progress; not final sign-off.
 
 > **How to use this guide:** Learn fundamentals in order, then practise scenarios aloud. State assumptions, identify the critical business invariant, estimate scale, draw the simplest viable architecture, and deepen the part the interviewer challenges. Naming technologies is not the goal; explaining why the design satisfies requirements is.
 
@@ -4319,6 +4319,136 @@ Track queue depth/age, accepted-to-provider latency, delivery confirmation laten
 ### Trade-offs and follow-up probes
 
 The platform trades fast API acceptance for asynchronous completion. Separate per-channel adapters isolate provider-specific policies, but increase operational surface. A multi-provider strategy improves resilience only if the secondary has compatible semantics, capacity, and idempotency behavior. The interviewer may ask what happens when preferences change after queueing, the provider callback arrives before the synchronous response, the retry budget is exhausted, or the user requests deletion while messages remain queued.
+
+## Worked design 6: Distributed API rate limiter
+
+### Requirements and policy
+
+Clarify whether the limiter protects against abuse, enforces a customer contract, protects a provider quota, or controls system concurrency. The required guarantee differs: approximate burst protection can use local state, while a strict tenant/account quota requires coordination at the scope where that quota is enforced. Define keys (IP, API key, user, tenant, route, provider account), rate, burst, reset semantics, and fail-open/closed behavior.
+
+A rate limiter should return allow/deny plus retry guidance, be low latency, and remain available enough not to become the gateway's bottleneck. It should also protect against unbounded key cardinality and spoofed identity.
+
+### Architecture
+
+```mermaid
+flowchart LR
+  C[Client] --> E[Edge / Gateway]
+  E --> L[Rate Limit Service]
+  L --> K[(Sharded Counter / Token State)]
+  L --> P[Policy / Quota Control Plane]
+  E --> S[Backend Service]
+  P --> L
+```
+
+The data plane evaluates a request using a trusted identity/route key and a configured policy. The control plane owns limits and rollout/versioning. Cache validated policy locally so every request does not need a synchronous configuration lookup, but define how quickly changed or revoked policies take effect.
+
+### Algorithm and consistency choices
+
+A **token bucket** stores a refill rate, capacity, and current token balance; it allows controlled bursts while bounding long-run rate. A **fixed window** is simple but may permit a double burst around a window boundary. A **sliding window** smooths this effect but generally needs more state/work. A **leaky-bucket shaper** queues work for a smooth output rate; policing variants reject overflow. A concurrency limiter answers a different question—how many operations may be in flight—and may be needed alongside a rate limiter.
+
+A local limiter is fast and remains available during a shared-store outage, but each instance has its own budget and total allowance can multiply with autoscaling. A shared atomic store enforces a more global view but adds network latency, hot keys, and a dependency. Hierarchical token allocation lets a global controller allocate bounded budgets to instances; it trades exact instantaneous enforcement for lower hot-path coordination and potentially stranded tokens.
+
+For distributed counters, the algorithm must update state atomically. A read-then-write sequence can race and allow excess traffic; use a datastore atomic script/transaction or a dedicated rate-limit primitive. Avoid one global counter key that all requests contend on. Partition by the quota scope and analyze the hottest tenant/route.
+
+### Failure handling, overload, and security
+
+Define what happens if the limiter state store is slow or unavailable. A strict billing quota may need fail-closed behavior; coarse abuse protection may permit a conservative local fallback. Do not fail open without bounds. Ensure authenticated identity comes from trusted authentication context rather than arbitrary headers, and do not rely on IP address alone when clients share NAT or attackers rotate addresses.
+
+Apply inexpensive edge limits before expensive authentication/parsing, followed by identity- and operation-cost limits. A bulk export or search request should not necessarily consume the same budget as a cheap read. Bound key cardinality and TTL for anonymous identifiers. Use 429 and Retry-After when clients can act on it, but assume hostile clients may ignore advice.
+
+### Capacity, observability, and follow-ups
+
+Estimate checks per second at all policy scopes. If 50,000 requests/s require three global checks each, the limiter may see 150,000 state updates/s before retries or bursts. Measure hot-key skew, state-store latency, rejected requests, quota overshoot, key cardinality, and limiter-induced p99. Test autoscaling, region failover, store latency, provider quota exhaustion, and an attacker generating many new keys.
+
+In an interview, be ready to explain why a token bucket fits the policy, how the counter update is atomic, how quotas behave when the fleet doubles, and whether correctness or availability takes priority if the limiter backend fails.
+
+## Worked design 7: Search and autocomplete service
+
+### Requirements and query model
+
+Clarify whether the product needs full-text search, prefix autocomplete, typo tolerance, relevance ranking, filters/facets, personalization, language support, and freshness. Search is often a derived read model: the authoritative catalogue/content store owns the original data, while the search index is optimized for retrieval and may lag.
+
+Define measurable targets: query p95/p99, index freshness, update/delete propagation, result count, and acceptable behavior if ranking or suggestions are unavailable. Autocomplete needs especially low latency and may have very high request volume because clients request suggestions on every keystroke.
+
+### Architecture
+
+```mermaid
+flowchart LR
+  C[Client] --> G[Search API / Gateway]
+  G --> A[Autocomplete Index]
+  G --> S[Search Cluster]
+  W[Content Write API] --> D[(Authoritative Store)]
+  D --> O[Outbox / CDC]
+  O --> I[Indexing Pipeline]
+  I --> S
+  I --> A
+  G --> R[Ranking / Filters]
+  R --> C
+```
+
+A write commits to the authoritative store, then publishes a reliable change through an outbox/CDC stream. Indexing workers transform the record into search documents and update the full-text and autocomplete indexes. Query services validate filters and authorization, perform retrieval/ranking, and return results with a freshness or partial-result indicator when needed.
+
+### Index and query design
+
+For full-text search, the index may store analyzed tokens, fields, filters, and ranking features. For autocomplete, common choices include a prefix trie/FST, edge n-grams, or a dedicated suggestion index; each trades memory, update cost, typo handling, and ranking flexibility. Avoid querying the full search index in an unrestricted scan on every keystroke. Debounce requests client-side, cap query length/page size, cache high-frequency public prefixes, and use per-user/IP abuse controls.
+
+Use explicit field mappings and analyzer versions. Schema/analyzer changes often require a new index generation and reindexing. Keep source documents or events sufficient to rebuild the index; do not treat the search index as the sole source of truth unless that is an explicit datastore design.
+
+### Freshness, correctness, and privacy
+
+Make document updates idempotent and version-aware so a delayed older event cannot overwrite a newer version. Use tombstones/version checks to prevent old events from resurrecting deleted content. Index lag should be measured from authoritative commit to searchable version. If the product displays a price or inventory result, the checkout/write path must revalidate current values with the authoritative owner.
+
+Authorization and tenant filtering must be enforced on the search path. A shared cache key that omits tenant, visibility, locale, or entitlement can leak data. Search queries must not bypass private-content checks just because a document remains in an index after revocation. Define deletion and privacy-erasure behavior across replicas, caches, suggestions, and analytics.
+
+### Scaling, recovery, and testing
+
+Partition the index according to query locality and data volume; more shards can increase parallelism but add coordination, merge cost, metadata, and fan-out latency. A query across many shards may be dominated by the slowest shard. Use routing where queries have a reliable tenant/region key, but avoid a hot shard from a dominant tenant.
+
+To rebuild, create a new index generation, load a consistent snapshot, replay changes from the snapshot/log position, validate counts/samples/deletes, shadow-query, then switch an alias or routing pointer. Track index lag, indexing errors, shard health, query p99, cache hit ratio, zero-result rate, and result-quality metrics. In an interview, explain why a database index is not enough, how prefix search differs from full-text search, how deletes/updates propagate, and how a rebuild avoids losing live changes.
+
+## Worked design 8: Large file storage and synchronization
+
+### Requirements and metadata model
+
+Clarify maximum file size, object count, version history, sharing/access control, synchronization, chunking, deduplication, retention, encryption, geographic durability, and recovery targets. Separate the **control plane** (metadata, authorization, upload sessions, versions, sharing) from the **data plane** (large object bytes). Sending every byte through application servers often wastes compute and connection capacity.
+
+The metadata store may hold `file_id`, `owner/tenant`, `object_key`, size, checksum, MIME type, version, ACL, created/updated time, retention state, and upload status. Object storage holds the bytes. Avoid using a user-supplied filename as the storage key or assuming that an upload is available merely because bytes exist.
+
+### Architecture and upload flow
+
+```mermaid
+flowchart LR
+  C[Client] --> A[Metadata / Upload API]
+  A --> M[(Metadata DB)]
+  A --> U[Scoped Upload URL / Session]
+  C --> O[(Object Storage)]
+  O --> V[Validation / Scan Workers]
+  V --> M
+  C --> D[Download API]
+  D --> M
+  D --> S[Scoped Download URL / CDN]
+  S --> O
+```
+
+The client requests an upload session. The API authenticates the caller, checks tenant quotas, creates a scoped object key/session, and returns a short-lived pre-signed URL or multipart-upload capability. The client uploads directly to object storage, then calls a finalize endpoint. Finalization verifies the object exists, expected size/checksum matches, and required validation has completed before the metadata state becomes AVAILABLE.
+
+For large objects, multipart/resumable upload lets clients retry failed parts without retransferring the entire file. Persist session state and part checksums; make create/finalize idempotent. Clean up incomplete multipart uploads after a safe timeout. If validation includes malware scanning or transformation, expose UPLOADED/PROCESSING/AVAILABLE/REJECTED states and do not serve the object before policy checks finish.
+
+### Download, consistency, and security
+
+Authorize every download using trusted identity/ACL and issue a short-lived scoped URL or proxy the request where policy requires. If access is revoked, signed URL lifetime and CDN cache behavior define the exposure window. Do not place sensitive tokens in logs or public URLs unnecessarily. Separate user-controlled metadata from internal object keys, validate content type/size, and protect against active-content execution.
+
+Metadata and object storage are separate systems, so partial failures matter. An object may upload successfully while finalization fails; metadata can remain pending until a reconciliation worker detects the object and completes or removes the orphan. Conversely, metadata must not point to an object that was never durably stored. Use checksums, versioned object IDs, idempotent finalize, and reconciliation for orphaned data.
+
+Versioning and soft delete help recovery but increase storage and interact with privacy deletion. Lifecycle rules can move cold data to cheaper tiers, while restore delay and minimum storage-duration costs may affect the product contract. Backups must preserve metadata and any version references required to recover objects.
+
+### Capacity, reliability, and trade-offs
+
+Estimate new bytes/day × retention before adding replication, version history, multipart overhead, object metadata, backups, and cross-region copies. Include request rates for metadata separately from byte throughput. CDN caching helps downloads of eligible content but not private content unless cache policy correctly respects authorization. Direct upload reduces application bandwidth; it shifts work to object-store policy, signed-link security, finalization, scanning, and cleanup.
+
+Track upload completion rate, incomplete multipart sessions, checksum failures, scan backlog, object/metadata mismatches, access-denied rates, egress, storage growth, and restore time. In an interview, explain why the app server should not proxy bytes, how resumability and finalize work after a lost response, and how private objects remain private through CDN/cache/URL layers.
+
+
 
 ### Core systems
 
