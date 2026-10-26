@@ -2,7 +2,7 @@
 
 **Audience:** Java backend engineers with 5+ years of experience preparing for senior backend and product-company interviews.  
 **Purpose:** A progressive guide to architecture reasoning, capacity estimation, data ownership, consistency, failure handling, operations, and cost.  
-**Status:** Substantive rewrite underway after a quality reset: foundational explanations for load balancing, proxy/gateway roles, partitioning, and sharding have been expanded. This is not yet a final accuracy/readability sign-off; remaining sections and rendered diagrams still require review.
+**Status:** Substantive rewrite underway after a quality reset: foundational deep dives now cover partitioning/sharding, traffic infrastructure, database indexes and storage engines, transaction isolation, consensus/quorums/fencing, and storage selection. A full coverage and answer-quality audit remains in progress; this is not a final sign-off.
 
 > **How to use this guide:** Learn fundamentals in order, then practise scenarios aloud. State assumptions, identify the critical business invariant, estimate scale, draw the simplest viable architecture, and deepen the part the interviewer challenges. Naming technologies is not the goal; explaining why the design satisfies requirements is.
 
@@ -892,6 +892,52 @@ Define checks based on the traffic the instance can safely serve, use thresholds
 For a queue, let arrival rate be λ and service rate be μ. If λ is persistently greater than μ, backlog grows at roughly λ-μ items per second. If the backlog is 3.6 million messages, arrivals are 4,000/s, and workers complete 12,000/s, net drain is 8,000/s and ideal drain time is 450 seconds (7.5 minutes), assuming those rates stay stable and no new bottleneck appears. If arrivals equal or exceed service rate, the backlog never drains.
 
 Use bounded queues, queue age and depth alerts, producer throttling, concurrency limits, deadlines, and priority separation. Rejecting a request quickly may be safer than accepting work that cannot complete before its deadline. Do not shed a financial write after it may already have committed without returning an operation identity or defining how the caller discovers the outcome.
+
+### Deep dive K. How do database indexes work, and why can adding an index make a system slower?
+
+An index is an auxiliary data structure that helps the database find rows without scanning the entire table. Many relational databases use B-tree or B+ tree structures for general-purpose indexes because they support equality lookups and ordered/range scans. Other index types—such as hash, bitmap, inverted, spatial, or specialized engine-specific indexes—fit different query patterns. The exact options and guarantees depend on the database engine.
+
+An index is useful only when the query planner can use it and the index is selective enough to reduce work. For example, an index on `orders(customer_id, created_at)` may help retrieve one customer's recent orders. Column order matters: a composite index commonly supports predicates beginning with its leading columns, but may not efficiently serve a query filtering only on `created_at`. Expressions, type conversions, collation, null behavior, and query shape can also prevent use of an expected index.
+
+Indexes are not free. Every insert, update, and delete may need to update one or more indexes; indexes consume memory and disk, increase backup and replication volume, and can cause write amplification. A very wide index may displace useful pages from cache. Too many overlapping indexes can slow writes without meaningfully improving reads.
+
+In an interview, explain the evidence you would collect: the actual query plan, rows estimated versus rows actually examined, selectivity, index size, lock and I/O behavior, and p95/p99 latency under representative load. Do not say “add an index” as a universal fix. An index may not help a query that returns a large fraction of the table, and it will not fix an inefficient join, an N+1 query pattern, an overloaded connection pool, or a hot row lock.
+
+### Deep dive L. How do B-tree indexes differ from LSM-tree storage, and when does the distinction matter?
+
+A B-tree-based storage engine keeps data organized in pages that can be searched and updated in place, with a tree structure helping locate keys. This is a common fit for transactional databases that need efficient point lookups, range scans, and mixed read/write workloads. Actual engines add mechanisms such as write-ahead logs, buffer pools, and page management, so “in place” does not mean a write is always a single disk operation.
+
+An LSM-tree (Log-Structured Merge Tree) typically buffers writes in memory, writes immutable sorted files, and merges those files through compaction. This can make sustained write ingestion efficient, especially for workloads with many writes. The trade-offs can include read amplification (checking multiple structures), write amplification during compaction, temporary disk-space needs, and latency or resource spikes when compaction competes with foreground traffic.
+
+Neither structure is universally faster. B-tree systems can have substantial write costs when many pages and indexes must be updated; LSM systems can provide strong write throughput but require careful compaction and read-path management. Compare the actual engine and workload: read/write ratio, point versus range reads, update frequency, latency tails, data size, compaction behavior, durability settings, and operational constraints. Do not choose a database from the data-structure name alone.
+
+### Deep dive M. What should you understand about transaction isolation and concurrency control in HLD?
+
+Isolation describes what concurrent transactions are allowed to observe. The exact behavior depends on the database and isolation level; the SQL label alone does not always guarantee identical behavior across engines. Common anomalies include dirty reads, non-repeatable reads, phantom rows, and lost updates. Snapshot-based isolation can prevent some anomalies while still allowing write skew in certain cases.
+
+Choose the guarantee from the business invariant. If two users attempt to reserve the same seat, a unique constraint or conditional update in the authoritative database is often a clearer correctness boundary than “check availability, then insert” in application code. If a balance is updated by reading and writing a value, use an atomic update, a version check, an appropriate lock, or a ledger model rather than assuming concurrent requests cannot overlap.
+
+Stronger isolation may increase contention, lock waits, aborts, and retries. Weaker isolation can improve concurrency but requires the application to handle anomalies explicitly. Keep transactions short, avoid remote network calls while holding database locks, define lock ordering where practical, and treat serialization failures or deadlocks as expected outcomes that may need bounded retries.
+
+A senior-level answer should identify the invariant, show which database mechanism enforces it, explain what concurrent requests observe, and describe how failures and retries behave. “We use transactions” is not enough unless you can say what the transaction actually guarantees.
+
+### Deep dive N. What are consensus, leader election, quorum, and fencing—and why are they not interchangeable?
+
+**Leader election** is the process of choosing which node is currently allowed to coordinate some work. **Consensus** is a stronger distributed agreement problem: nodes agree on a value or sequence of decisions despite specified failures and communication delays. Protocols such as Raft use terms, logs, elections, and quorum rules to maintain a consistent replicated state under their assumptions. A service that merely chooses the node with the lowest ID has not implemented safe consensus.
+
+A **quorum** is a required subset of participants whose responses satisfy a protocol's rule. The simple formula (R+W>N) can ensure read and write sets intersect in some replicated-store designs, but it does not by itself guarantee linearizability, freshness, or conflict resolution. Those depend on the replication protocol, versioning, read repair, leader behavior, and what acknowledgements mean.
+
+**Fencing** prevents an old or paused owner from continuing to perform writes after its lease or leadership has expired. A lease timeout alone is not enough: a process may pause, lose connectivity, and later resume. A monotonically increasing fencing token or epoch must be checked by the protected resource so stale owners are rejected.
+
+These concepts solve different layers of the problem. Consensus may support a leader decision; a lease may limit its expected duration; fencing protects the resource against stale owners; and a quorum defines which replicas must participate in a particular operation. In an interview, explain the failure model and who validates write authority. Never assume a health check or distributed lock automatically prevents split brain.
+
+### Deep dive O. How do you choose between a relational database, key-value store, document store, wide-column store, search engine, and object storage?
+
+Start with the access patterns and correctness requirements rather than the product category. A relational database is a strong default for structured records, constraints, joins, and transactions. A key-value store fits direct key-based access with predictable operations. A document store can be useful when aggregates have flexible or evolving structures. Wide-column systems target distributed workloads with carefully designed partition keys and query patterns. Search engines provide text analysis and relevance ranking, but their indexes are often derived data rather than the authoritative transactional source. Object storage is suited to durable blobs and large files, not arbitrary low-latency row updates or relational joins.
+
+The choice also depends on scale and operational capability: data volume, write rate, read/write mix, latency target, consistency, query flexibility, retention, backup/restore, cost, team expertise, and the consequences of a vendor or engine failure. A “NoSQL” label does not automatically mean more scalable, and a relational database is not automatically limited to small systems.
+
+A common architecture deliberately uses more than one storage system: a relational database owns orders, an event or CDC pipeline updates a search index, and object storage holds uploaded documents. This creates data propagation and reconciliation work. State which system is authoritative, how derived stores are rebuilt, how quickly they may lag, and what the user sees if one is unavailable. Avoid distributed data duplication unless the read or operational benefit justifies the consistency and maintenance cost.
 
 ### Deep dive J. How should a senior engineer explain a design decision?
 
