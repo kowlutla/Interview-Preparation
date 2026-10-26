@@ -2,7 +2,7 @@
 
 **Audience:** Java backend engineers with 5–10 years of experience preparing for senior and staff-leaning backend/product-company interviews.  
 **Purpose:** A progressive guide to architecture reasoning, capacity estimation, data ownership, consistency, failure handling, operations, and cost.  
-**Status:** Rebuilding for the 5–10 year experience band. Restored the deep-dive section and expanded database, partitioning/sharding, proxy/gateway, distributed coordination, and storage-choice explanations; added five worked end-to-end designs. Full topic coverage, technical accuracy, readability, and rendered diagram validation remain in progress; not final sign-off.
+**Status:** Rebuilding for the 5–10 year experience band. Restored the deep-dive section, added five worked end-to-end designs, and expanded key scenario answers covering cache regressions, search staleness, retention, global routing, data inconsistency, business success signals, cache ordering, and outbox backlogs. Remaining scenarios, technical accuracy, readability, and rendered diagrams still require review.
 
 > **How to use this guide:** Learn fundamentals in order, then practise scenarios aloud. State assumptions, identify the critical business invariant, estimate scale, draw the simplest viable architecture, and deepen the part the interviewer challenges. Naming technologies is not the goal; explaining why the design satisfies requirements is.
 
@@ -3168,13 +3168,17 @@ For every scenario, state assumptions, identify the invariant, analyse evidence,
 
 ### Scenario 2 — Adding a cache increases latency
 
-**Problem:** Redis reduces database CPU, but p99 rises.
+**Problem:** Redis reduces database CPU, but p99 latency rises after the cache is introduced.
 
-**Clarify:** Does the path add a network hop? What are hit ratio, payload size, serialization cost, pool wait, Redis latency, and miss-path behavior?
+**Clarify:** Is the cache remote or local? What are hit ratio by endpoint, value size, serialization cost, connection-pool wait, Redis p99, origin query latency, miss/refill concurrency, and invalidation behavior? Did the rollout change request mix or only add the cache layer?
 
-**Answer:** Compare traces before and after. A remote cache can be slower than a small indexed database or local read. Large values, connection saturation, and stampedes can outweigh saved database work. Measure per endpoint, remove caching where it does not help, and test cold-cache behavior. If Redis fails, bounded fallback is required because unrestricted database fallback may overload the source.
+**Diagnosis:** Compare traces before and after and break latency into cache lookup, pool acquisition, serialization, database miss path, and downstream calls. A high hit ratio does not prove the cache improves end-to-end latency: a small indexed database read might be faster than a network round trip. Large values, hot-key contention, connection saturation, cache stampedes, and a miss path that performs duplicate reads can make p99 worse. Also verify whether cache failures are being retried inside the client library.
 
-**Follow-up:** A high hit ratio is not proof of benefit; compare end-to-end latency and backend work saved.
+**Design:** Cache only values with demonstrated reuse and a suitable freshness contract. Add request coalescing for hot misses, bounded origin concurrency, connection-pool sizing, TTL jitter, and an explicit stale-while-revalidate policy only for data that can safely be stale. Keep authorization and transactional inventory decisions on their authoritative paths. Use versioned values or safe invalidation for data that changes frequently.
+
+**Failure behavior:** Redis outage should not fan every request straight to the database without limits. Use bounded fallback, load shedding for noncritical reads, and gradual warm-up after recovery. Avoid unlimited retries and do not make every new application instance preload the entire keyspace simultaneously.
+
+**Signals and follow-up:** Track p50/p95/p99 by endpoint, hit ratio, cache latency, pool wait, origin QPS, refill concurrency, stale-read rate, and database saturation. Test cold cache, mass expiry, hot keys, and complete cache outage. The decision is based on net user latency and origin work saved—not hit ratio alone.
 
 ### Scenario 3 — Read replicas return stale order status
 
@@ -3378,13 +3382,17 @@ For every scenario, state assumptions, identify the invariant, analyse evidence,
 
 ### Scenario 23 — Search shows stale price after product update
 
-**Problem:** A product price changes, but search results still show the old price while a customer attempts checkout.
+**Problem:** A product price changes, but search results continue to show the old price while the customer attempts checkout.
 
-**Design:** Treat search as a derived read model with an explicit freshness SLO. Publish changes reliably through an outbox/CDC path, make index updates idempotent and version-aware, and monitor indexing lag and failed updates. The checkout/order path must revalidate price and availability against the authoritative source before committing the transaction; do not use stale search data to determine the amount charged.
+**Clarify:** Is the search index a derived projection? What freshness SLO is promised? Are updates published from the transaction through an outbox/CDC, and can events be duplicated or reordered? Is the displayed price informational, or is it reused as the amount charged?
 
-**User experience:** If the price changed between search and checkout, return a clear price-change result and ask for confirmation where required. Avoid silently charging a different amount.
+**Design:** Keep the authoritative price and checkout validation in the owning transactional store/service. Publish price changes reliably through an outbox or CDC pipeline; make index updates idempotent and version-aware. A projection update should not overwrite a newer document with an older event. Monitor outbox age, consumer lag, failed indexing, and source-to-index freshness.
 
-**Recovery:** Rebuild or replay the index from authoritative data when corruption or missed events occur. Verify counts and representative queries before switching index generations.
+**Correctness:** Treat search price as a discovery/display value, not authorization to charge. At checkout, revalidate current price and inventory against the authoritative owner. If the price changed, return an explicit price-change result and require confirmation when the product contract demands it; do not silently charge a different amount. If the business needs a quote that remains valid for a period, create an explicit versioned price quote or reservation with expiry rather than relying on cached search data.
+
+**Recovery:** Rebuild or replay the index from authoritative data if updates were lost or the schema changed. Use a consistent snapshot boundary, capture concurrent changes, validate document counts and representative queries, then switch index generations. Tombstones/version checks prevent delayed updates from resurrecting deleted or replaced products.
+
+**Signals:** Track index lag, stale-price reports, version regressions, update failures, source/index mismatches, and checkout price conflicts. In an interview, distinguish projection freshness from transaction correctness and explain how customers are protected while the index catches up.
 
 ### Scenario 24 — Regional failover creates a routing loop
 
@@ -3398,23 +3406,31 @@ For every scenario, state assumptions, identify the invariant, analyse evidence,
 
 ### Scenario 25 — Retention doubles storage requirements
 
-**Problem:** A compliance change doubles retention from 90 to 180 days, and the original storage budget no longer holds.
+**Problem:** A policy change doubles retention from 90 to 180 days, and the original storage budget no longer fits.
 
-**Approach:** Recalculate steady-state growth for each data class, including indexes, replicas, snapshots, logs, derived read models, and temporary migration space. Separate data that must remain low-latency and queryable from data that can be archived. Model retrieval, minimum-duration, and egress costs as well as raw storage.
+**Estimate the impact:** Recalculate steady-state growth for each data class using arrival rate × average physical bytes × retention, then account for indexes, replicas, snapshots, logs/WAL, derived read models, object versions, backups, and temporary space during migration. For example, doubling retention may nearly double raw retained payload, but total physical cost can grow by more or less depending on compression, indexes, compaction, and copy count. Measure actual bytes per record rather than assuming payload size equals disk usage.
 
-**Correctness and compliance:** Confirm retention and deletion obligations for primary data, downstream copies, caches, logs, and backups; legal holds may override normal deletion timing. Do not shorten retention or delete audit records merely to fit the budget without approval.
+**Separate storage tiers:** Identify which records must remain low-latency and queryable, which can be time-partitioned and archived, and which can move to cheaper object/archive storage. Include retrieval latency, minimum storage duration, egress, restore time, and the effect of archive access on product/API promises.
 
-**Follow-up:** Measure actual bytes per record and compression rather than extrapolating from logical payload size alone. Track storage growth, archive retrievals, and policy exceptions.
+**Correctness and compliance:** Confirm retention and deletion rules for primary data, replicas, caches, search indexes, analytics, logs, and backups. Legal holds may override ordinary expiry. Do not simply delete old audit records or shorten retention to fit budget without approval. For privacy deletion, define how data in backups eventually expires and how a restore avoids reintroducing data that should remain deleted.
+
+**Migration plan:** Estimate the one-time capacity needed to reindex, copy, or repartition data; throttling may be needed to protect production. Define checkpoints, validation, rollback, and the order in which lifecycle rules are activated.
+
+**Signals and follow-up:** Track storage growth forecast, partition/archive lag, retrievals, cost per retained GB, restore time, and policy exceptions. A senior answer balances storage cost with searchability, auditability, residency, and recoverability; raw storage is only one part of the decision.
 
 ### Scenario 26 — Global service needs low latency on multiple continents
 
-**Problem:** Users are distributed globally, and round trips to a single-region database dominate latency.
+**Problem:** Users are globally distributed, and round trips to one region's database dominate latency.
 
-**Clarify:** Which data is public and cacheable, which reads need freshness, which entities are written globally, and what regional outage behavior is required?
+**Clarify:** Which data is public/cacheable? Which reads need freshness? Which entities are written globally? What data-residency restrictions apply, and what RTO/RPO is required for regional failure? Does the workload need truly concurrent multi-region writes or only active-active compute?
 
-**Design:** Use CDN/edge caching for eligible content, deploy stateless compute near users, and maintain regional read models when their staleness is acceptable. Assign authoritative ownership for writes or use a datastore with explicit global consistency semantics. Avoid synchronous cross-region calls on every request unless the invariant requires them; they add latency and couple availability to inter-region connectivity.
+**Design:** Use CDN/edge caching for eligible content and stateless compute near users. Read-only or derived regional replicas can serve local requests when their freshness contract permits it. Assign an authoritative writer for each entity/partition or choose a datastore with documented global-consistency semantics. Avoid synchronous cross-region calls on every request unless the invariant requires coordination; those round trips add latency and tie availability to inter-region links.
 
-**Trade-off:** Regional copies reduce read latency but introduce replication lag, data-residency concerns, and failover complexity. Multi-region compute alone does not make data local. Measure user-perceived latency by region, replication lag, cross-region traffic, and failover correctness.
+**Write architecture:** Active-active compute can route writes for a particular account or inventory item to one owner region, preserving a single serialization point while allowing nearby reads. True multi-writer requires explicit conflict prevention/resolution and is unsafe for every domain. During a partition, the system may have to reject a payment/inventory write rather than accept conflicting state on both sides.
+
+**Failover:** DNS/global routing affects new connections and converges according to TTL/client behavior; it does not transfer write authority. Verify replica position, fence the old writer, promote a safe candidate, refresh routing, and reconcile uncertain in-flight operations. Failback must ensure the recovered region is current before ownership returns.
+
+**Trade-offs and signals:** Regional copies improve read latency but introduce lag, residency, cost, and recovery complexity. Measure p99 by region, cross-region traffic, replication lag, error budget by journey, routing convergence, and failover/failback correctness. In an interview, distinguish global traffic routing from data ownership and explain the consistency guarantee for each operation.
 
 ### Scenario 27 — External provider imposes a strict quota
 
@@ -3428,13 +3444,17 @@ For every scenario, state assumptions, identify the invariant, analyse evidence,
 
 ### Scenario 28 — Infrastructure is healthy but data is inconsistent
 
-**Problem:** CPU, memory, and availability dashboards are green, but users report missing or contradictory records.
+**Problem:** CPU, memory, availability dashboards, and health probes are green, but users report missing or contradictory records.
 
-**Approach:** Start with a concrete entity and expected invariant. Trace its version and operation ID through the authoritative database, outbox, broker, consumer, and read model. Check replication lag, consumer offsets, duplicate handling, schema changes, tombstones, and any backfill that may have overwritten newer data. Compare allowed staleness with the API's actual consistency contract.
+**Start from a concrete example:** Pick one affected entity and trace its operation ID/version through the authoritative database, transaction/outbox, broker, consumer, replica, cache, search index, and API response. Identify the expected invariant and the actual conflicting states. Do not begin by restarting services without evidence; a restart may hide a stuck queue or create more duplicate processing.
 
-**Signals:** Add write-to-read freshness, oldest event age, projection lag, duplicate/conflict counts, and reconciliation outcomes. Infrastructure health proves components are responding; it does not prove business state is correct.
+**Likely causes:** Replica lag, a stuck outbox publisher, consumer offsets committed before the side effect, duplicate/out-of-order events, stale backfills, missing tombstones, schema-version mismatch, cache refill races, or an unsafe failover with split write ownership. Check whether the API promised strong/read-your-writes behavior or allowed a bounded staleness window.
 
-**Follow-up:** If the issue affects a financial or authorization invariant, stop unsafe downstream decisions first, then repair from the authoritative source and verify the correction.
+**Containment and repair:** If the issue threatens payments, authorization, or inventory correctness, stop the unsafe decision path first. Identify the authoritative source and repair projections from it using version-aware idempotent updates. Reconcile unknown external outcomes rather than choosing whichever copy has the newest wall-clock timestamp. Preserve audit evidence and avoid re-running irreversible side effects during replay.
+
+**Signals:** Add source-to-read freshness, outbox age, oldest consumer event, replication position/lag, duplicate/conflict counts, version regressions, and reconciliation outcomes. Infrastructure health proves that components respond; it does not prove business state is correct.
+
+**Follow-up:** Explain which invariant was violated, how you found the first divergence, how the repair avoided overwriting newer state, and what alert/test would catch the problem earlier.
 
 ### Scenario 29 — Team wants a new database because it is popular
 
@@ -3558,13 +3578,17 @@ Then consider a failure: if one availability zone or a fraction of instances dis
 
 ### Scenario 41 — HTTP 200 responses hide business failures
 
-**Problem:** Dashboards report a high HTTP success rate, but customers report orders stuck in `PENDING` and downstream work is not completing.
+**Problem:** Dashboards report a high HTTP success rate, but customers report orders stuck in PENDING and downstream work is not completing.
 
-**Approach:** Separate transport success from business completion. A `2xx` response may mean the request was accepted, not that the workflow finished. Define valid state transitions and terminal outcomes, then instrument acceptance-to-completion latency, state age, rejected transitions, and per-stage success rates. Correlate an operation ID across synchronous requests, outbox records, broker events, and consumers.
+**Clarify the contract:** Does HTTP 200 mean the business operation finished, or merely that the request was accepted? For a long-running task, durable acceptance with HTTP 202 may be correct, but the workflow must expose a status and completion semantics. A message broker acknowledgement, worker acknowledgement, and business completion are three different milestones.
 
-**Recovery:** Alert on old nonterminal states and reconcile work that was accepted but never advanced. Do not blindly mark stuck operations complete; repair from authoritative evidence and make replay idempotent.
+**Diagnose:** Trace a stable operation ID through the request, database transaction, outbox, broker, consumer, external provider, and final state transition. Inspect the age/count of nonterminal states, state-transition failures, consumer lag, retries, DLQ, and outbox age. Check whether a consumer commits its offset before committing the database effect or whether a publisher is stuck.
 
-**Interview point:** State exactly what the API promises and which metric measures that promise. A green infrastructure dashboard cannot prove the business process is healthy.
+**Repair:** Reconcile accepted operations that did not advance. Do not blindly mark them complete or replay them with a new identity. Query authoritative state and external provider status, then apply an idempotent transition or escalate ambiguous cases. If the failure affects correctness, pause the unsafe path before increasing throughput.
+
+**Observability:** Add acceptance-to-completion latency, terminal-state success rate, age by workflow state, repeated transition failures, and unresolved unknown outcomes. Keep transport-level SLIs but pair them with business SLIs.
+
+**Interview point:** State exactly what the API promises, which durable event represents acceptance, and which metric measures the promised outcome. A green infrastructure dashboard cannot prove that the business process is healthy.
 
 ### Scenario 42 — Consumer offset commits before database transaction
 
@@ -3588,13 +3612,15 @@ Then consider a failure: if one availability zone or a fraction of instances dis
 
 ### Scenario 44 — Cache invalidation events arrive out of order
 
-**Problem:** Version 12 of a product is cached, then a delayed version 10 event arrives and overwrites it with stale data.
+**Problem:** Product version 12 is cached, then a delayed version 10 event arrives and overwrites it with stale data—or an older invalidation clears a newer value and creates a refill storm.
 
-**Design:** Prefer version-aware cache writes that reject an update older than the stored version. If the cache cannot enforce that safely, use events to invalidate and refill from the authoritative source, while guarding against an old refill racing with a newer update. Define how cache misses, source reads, and invalidation events interleave.
+**Clarify:** Are events ordered by entity key? Do cache values carry a source version? Is the cache populated on read or updated from the event stream? Can events arrive from several partitions or through both CDC and an application event path?
 
-**Ordering caveat:** Broker ordering is generally scoped to a partition, and only helps if related events use a consistent key and producer configuration. It does not solve out-of-order delivery across independent pipelines or stale backfills.
+**Design:** Prefer version-aware cache writes: only accept an update if its source version is newer than the version currently stored. If safe conditional writes are unavailable, use events to invalidate and refill from the authoritative source, while guarding against a stale reader racing with a fresh write. A timestamp alone may be unreliable if clocks skew; use a monotonic entity version or source log position where available.
 
-**Signals:** Track event age, entity-version regressions, invalidation lag, and cache/source mismatches. Test delayed, duplicated, and reordered events explicitly.
+**Ordering caveat:** Broker ordering is usually scoped to a partition and helps only if related events use a consistent key and processing is sequential. It does not solve reordered deliveries across independent pipelines or a backfill racing with live updates. For deletes, a versioned tombstone prevents older events from resurrecting the record.
+
+**Recovery and signals:** Track event age, per-key version regressions, invalidation lag, cache/source mismatches, duplicate events, and refill concurrency. Rebuild from a known snapshot plus subsequent changes when the cache/projection becomes suspect. Test delayed, duplicated, and reordered events explicitly.
 
 ### Scenario 45 — A distributed botnet bypasses IP rate limits
 
@@ -3680,13 +3706,17 @@ Then consider a failure: if one availability zone or a fraction of instances dis
 
 ### Scenario 53 — An outbox publisher is stuck but API requests succeed
 
-**Problem:** Business records commit, but downstream consumers stop receiving new events.
+**Problem:** Business records commit and the API returns success, but downstream consumers stop receiving new events.
 
-**Analysis:** The transactional outbox protects against losing the event at commit time, but it does not guarantee that the publisher continues making progress. Inspect oldest unpublished row, publish failures, database load, CDC connector health, broker availability, and schema errors.
+**Analysis:** The transactional outbox ensures that event intent commits with the business change; it does not guarantee that the publisher keeps making progress. Inspect oldest unpublished row, publish throughput/errors, broker availability, CDC connector state, database load, schema/serialization errors, and whether cleanup accidentally removes unpublished records.
 
-**Recommendation:** Alert on outbox age and publish throughput, retry transient errors with bounded backoff, isolate poison records, and make publication idempotent. Ensure outbox retention and cleanup do not delete unpublished rows. Define replay procedures and monitor end-to-end event freshness, not just API success.
+**Containment:** If downstream projections or workflows depend on these events, identify which user journeys are now stale or stuck. The API may continue accepting business writes only while the outbox has sufficient durable capacity and the business contract tolerates downstream delay. Alert or throttle admission if backlog threatens database growth or the maximum completion deadline.
 
-**Follow-up:** The outbox table can itself become a write/storage bottleneck; batch publishing, partition/retention strategy, and careful indexing may be needed at scale.
+**Recovery:** Retry transient failures with bounded backoff; isolate poison records so one bad payload does not block all progress; maintain idempotent publication and consumer processing because a crash after publish but before marking sent may duplicate an event. Do not delete or skip an event merely to make the queue look healthy. Replay after repair at a controlled rate and reconcile downstream projections.
+
+**Operations:** Alert on outbox age and backlog, not just API success. Track events produced versus business changes committed, publisher errors, consumer lag, and end-to-end freshness. The outbox table can itself become a bottleneck: batch reads, appropriate indexes, partition/retention strategy, and safe cleanup may be required at scale.
+
+**Follow-up:** Explain why the database transaction remains correct while the event pipeline is unhealthy and what condition would cause you to stop accepting more work.
 
 ### Scenario 54 — A provider callback arrives before the synchronous response
 
