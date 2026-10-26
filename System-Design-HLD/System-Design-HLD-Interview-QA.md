@@ -2,7 +2,7 @@
 
 **Audience:** Java backend engineers with 5–10 years of experience preparing for senior and staff-leaning backend/product-company interviews.  
 **Purpose:** A progressive guide to architecture reasoning, capacity estimation, data ownership, consistency, failure handling, operations, and cost.  
-**Status:** Rebuilding for the 5–10 year experience band. Recent rewrites deepen async operation APIs, cancellation, deadlines/leases, fallback safety, cascade prevention, retry budgets, graceful shutdown, scheduled jobs, and data consistency, in addition to capacity, database, messaging, security, and recovery topics. Full coverage, technical accuracy, readability, and rendered diagrams remain under review; not final sign-off.
+**Status:** Rebuilding for the 5–10 year experience band. Recent rewrites deepen async operation APIs, cancellation, deadlines/leases, fallback safety, cascade prevention, retry budgets, graceful shutdown, scheduled jobs, data consistency, inventory holds, payment ledger behavior, saga boundaries, and transactional inbox semantics. Full coverage, technical accuracy, readability, and rendered diagrams remain under review; not final sign-off.
 
 > **How to use this guide:** Learn fundamentals in order, then practise scenarios aloud. State assumptions, identify the critical business invariant, estimate scale, draw the simplest viable architecture, and deepen the part the interviewer challenges. Naming technologies is not the goal; explaining why the design satisfies requirements is.
 
@@ -2278,31 +2278,73 @@ A single system can use several consistency levels for different endpoints. Avoi
 
 ### Q224. What does bounded staleness mean?
 
-Bounded staleness promises that a read is no more than a defined amount behind the authoritative state, or behind a defined number of versions, under the system's documented assumptions. Eventual consistency alone provides no such time bound. A TTL on a cache does not necessarily provide a global staleness bound if invalidation, refill, or replication can lag longer.
+Bounded staleness promises that a read is no more than a specified amount behind authoritative state, under the system's documented assumptions. The bound may be expressed as elapsed time (for example, at most five seconds behind) or as a number of versions/operations. It is stronger than eventual consistency, which promises convergence if updates stop but gives no maximum time for convergence.
+
+A practical design must define what is being measured: source commit to replica visibility, event publication to projection update, or cache age. If source and consumer clocks differ, wall-clock timestamps can mislead; a replication log position or monotonic entity version may be a better basis when available. The promise must also specify what happens if the system cannot currently meet the bound.
+
+A cache TTL does not automatically guarantee bounded staleness. Invalidation may be delayed, a stale reader may refill the cache after a write, and a replica can already be behind before the value is cached. If the system cannot prove the bound, describe it as a target or best-effort behavior rather than a guarantee.
+
+Bounded staleness can suit dashboards, catalogues, and some status views. It is usually insufficient for authorizing a financial write or reserving the final inventory unit. When lag exceeds the bound, the system might wait within the deadline, route to an authoritative source, return an explicit stale/pending state, or reject the operation. Choose based on the user contract, not simply on the database's advertised consistency mode.
 
 ### Q225. How do you prevent lost updates in a read-modify-write flow?
 
-Two clients can read the same value and overwrite each other's change. Use a transaction, atomic update, compare-and-set with a version, or an operation that expresses the increment directly. A distributed lock may be unnecessary if the database can enforce the condition. Test concurrent interleavings and decide whether conflicts should be retried, merged, or returned to the client.
+A lost update occurs when two requests read the same value, compute independent changes, and one overwrites the other. If a counter starts at 10, both requests read 10 and each writes 11, the final value becomes 11 rather than 12. The fix is to make the intended update atomic or detect that the value has changed since it was read.
+
+Prefer a database operation that expresses the change directly, such as an atomic increment or conditional decrement. For more complex changes, use a transaction, row lock, unique constraint, or optimistic compare-and-set with a version column. A versioned update succeeds only if the stored version still matches the version read by the caller; on conflict, reread and make an explicit retry/merge decision.
+
+The right method depends on contention and invariant scope. Optimistic control works when conflicts are relatively uncommon; pessimistic locking can be appropriate for hot records but may block and deadlock. Multi-row rules may require serializable isolation or another explicit mechanism; a single row version does not automatically protect a cross-row invariant.
+
+Do not hold a database lock while calling a remote provider, and do not place an external side effect inside a transaction that may be retried unless that effect is idempotent. In an interview, demonstrate a concurrent interleaving and show which atomic mechanism prevents the incorrect final state, including what happens when the competing update wins.
 
 ### Q226. How do you design inventory for oversell-sensitive products?
 
-Keep the authoritative available quantity in a datastore that can atomically reserve or decrement stock only when sufficient inventory remains. Represent reservations with expiry and idempotent state transitions; release expired holds safely. Cache stock for display if useful, but validate during reservation. If overselling is an accepted business policy, state the limit and customer-remediation path explicitly.
+The authoritative inventory store must enforce a condition like “available quantity never becomes negative” at the write boundary. A safe pattern is an atomic conditional update that decrements stock only when sufficient quantity remains, checking the affected-row count. A prior read of availability is not sufficient because concurrent requests can observe the same stock.
+
+For scarce inventory, model explicit reservations/holds with unique IDs, ownership, expiry, and state transitions. Decide when a hold becomes committed, how it interacts with payment authorization, and what happens if payment succeeds after the hold expires. Release and confirmation must be idempotent, and expiry correctness cannot depend solely on a cleanup job running at the exact time.
+
+A cache or search index can show approximate availability for browsing, but the authoritative reservation must revalidate current state. Partitioning by SKU or event can localize updates, yet one highly popular item can become a hot key. Inventory buckets or preallocated stock slices can increase throughput, but allocation and reconciliation must prove that aggregate available stock never exceeds real inventory.
+
+If the business explicitly allows overselling or backorders, encode that as a deliberate policy instead of accidentally allowing negative stock. Monitor reservation conflicts, expired holds, stock reconciliation, and queue delay. In an interview, state the invariant, atomic enforcement mechanism, hot-key strategy, and failure behavior across the inventory/payment boundary.
 
 ### Q227. How do you model temporary holds and expiry safely?
 
-Persist hold ID, resource, owner, expiry instant, and status. Confirm only if the hold remains valid under an atomic condition, and make release idempotent. A cleanup job can be delayed, so correctness must not depend solely on a timer deleting expired rows. Use the datastore's current-time semantics or an explicit version/state transition to prevent confirming an expired hold.
+Represent a hold as a durable record containing a stable hold ID, resource ID, owner/order ID, expiry instant, and state such as ACTIVE, CONFIRMED, RELEASED, or EXPIRED. Enforce state transitions atomically. A hold should be confirmable only while it remains valid and has not already been released or consumed.
+
+Do not rely on a background job deleting expired rows precisely on time. Schedulers can lag or run twice. The confirmation command should check current state and expiry in the same transaction or conditional update that consumes the hold. The cleanup worker can then release inventory idempotently for expired holds. Use the datastore's time semantics where practical and handle clock skew explicitly.
+
+Expiry races with external actions. Payment may complete just as the hold expires; the workflow must decide whether to revalidate inventory, retry reservation, refund/void the payment, or send the order for review. Do not assume the expiry transition and external provider action are one atomic transaction. Use stable operation IDs and reconciliation to resolve uncertain outcomes.
+
+Hold IDs and owner IDs should be unique under the intended business scope; duplicate client requests must not create multiple holds. Measure active holds, expired-but-not-released records, confirmation conflicts, and oldest cleanup backlog. In interviews, explain the exact transition that wins when confirmation and expiry race, what the user sees, and how a stuck or duplicate cleanup job remains safe.
 
 ### Q228. How do you keep a payment ledger correct across retries and reconciliation?
 
-Represent each business operation with stable IDs and immutable or auditable entries, enforce uniqueness where required, and model reversals as explicit compensating entries rather than silently rewriting history. Provider callbacks and settlement files may be delayed or duplicated, so reconciliation should compare amounts, currencies, references, and terminal states. A successful HTTP response is not a substitute for settlement correctness.
+A ledger should preserve a durable, auditable history of financial movements rather than overwriting history to make the latest status look simple. Model stable IDs for the logical payment, provider attempt, authorization, capture, refund, reversal, and settlement reference as required by the domain. Enforce uniqueness and legal state transitions transactionally.
+
+Treat provider calls as uncertain distributed operations. A timeout can occur after the provider processed a charge; a webhook can be duplicated or delayed; a settlement file may arrive later than an API response. Use idempotency keys within the provider's documented scope and retention, store provider references, and record each state transition. Do not mark an operation definitively failed merely because an HTTP call timed out.
+
+Reconciliation compares internal records with provider status or settlement data using merchant/reference IDs, currency, amount, fees, and expected state. Mismatches need classification: missing callback, duplicate request, amount mismatch, delayed settlement, refund discrepancy, or an unknown external effect. Safe cases can be repaired automatically with an auditable action; ambiguous/high-impact cases should be held for review rather than “last write wins.”
+
+Keep accounting entries balanced and immutable where the domain requires it; model refunds/reversals as new entries instead of silently editing a prior ledger event. Protect reconciliation tooling with access control, rate limits, and audit trails. In an interview, explain how the ledger handles retries, how you find an unknown outcome, and how corrections preserve the evidence of what originally happened.
 
 ### Q229. How do you decide whether to use a saga or a single database transaction?
 
-If all state changes belong to one transactional datastore and the transaction can be short, a local ACID transaction is usually simpler. A saga is useful when a workflow spans independently owned services and cannot share one atomic transaction. It exposes intermediate states and compensation failure, so use durable orchestration/choreography state, idempotency, timeouts, and reconciliation. Do not introduce a saga merely because a flow has multiple classes.
+If all required state changes live in one transactional datastore and the transaction can be short, a local ACID transaction is usually simpler and easier to reason about. It can enforce invariants atomically using constraints, conditional updates, and appropriate isolation. Splitting a transaction into remote calls merely because the code has several services or classes adds failure modes without necessarily providing a benefit.
+
+Use a **saga** when the workflow spans independently owned data stores or external systems and cannot share one atomic transaction. A saga records progress across local transactions and defines compensation or recovery after failure. Intermediate states are observable; compensation is a new business action and may fail or be impossible. The design therefore needs durable workflow state, idempotent steps, deadlines, retry policy, and reconciliation.
+
+Example: reserving inventory and creating an order in the same database may fit a local transaction if ownership and scaling allow it. Charging a payment provider, booking a shipment, and reserving a stock item across distinct systems usually require a workflow that handles partial completion. Avoid a distributed transaction unless the participants and operational constraints genuinely support it and the coordination cost is justified.
+
+Ask which invariant must be atomic and where it can be enforced. If the system can make the invariant local by adjusting ownership boundaries, a simpler transaction may be preferable. In an interview, compare the failure windows, user-visible intermediate states, operational tooling, and compensation semantics rather than saying “sagas are for microservices.”
 
 ### Q230. What is a transactional inbox pattern?
 
-A consumer stores a received event ID and applies its database effect in the same transaction. A uniqueness constraint prevents the same event from applying twice after a retry. This is useful when the broker provides at-least-once delivery. It does not automatically deduplicate two distinct event IDs representing the same business action, and it cannot atomically cover an unrelated external side effect without additional protocol support.
+A transactional inbox lets a consumer safely handle at-least-once delivery by recording that a message was received and applying the local database effect in the same transaction. The inbox usually stores a stable message/event ID and may also record consumer identity, source, timestamp, or processing status. A uniqueness constraint prevents the same event ID from applying its database effect twice after redelivery.
+
+The important crash window is between the side effect and acknowledgement. If the consumer commits its database change and crashes before acknowledging the broker, the message is delivered again. Because the inbox record and business update committed together, the redelivery sees the existing event ID and avoids applying the local mutation again. If the transaction rolls back, neither the inbox marker nor the local effect is committed, so the consumer can retry.
+
+The inbox only covers effects inside that local atomic boundary. If processing also sends an email or calls a payment provider, the inbox transaction cannot make the remote effect atomic. Use an outbox for outgoing messages, provider idempotency keys, or reconciliation for unknown outcomes. Also define dedupe key scope: two event IDs may represent the same business action, while one event ID may be reused across different sources if producers are poorly specified.
+
+Retention must cover the realistic replay/redelivery window; pruning inbox rows too early can permit duplicates during old-event replay. In an interview, draw the process → local transaction (inbox + state) → acknowledgement sequence and explain each crash point.
 
 ### Q231. How do you handle schema changes when old and new application versions run simultaneously?
 
