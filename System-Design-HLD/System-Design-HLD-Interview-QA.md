@@ -24,9 +24,10 @@
 14. [Observability and operations](#14-observability-and-operations)
 15. [Multi-region and disaster recovery](#15-multi-region-and-disaster-recovery)
 16. [Cost and architectural evolution](#16-cost-and-architectural-evolution)
-17. [Senior-level scenario bank](#17-senior-level-scenario-bank)
-18. [End-to-end case-study index](#18-end-to-end-case-study-index)
-19. [Cross-references and authoritative reading](#19-cross-references-and-authoritative-reading)
+17. [Advanced HLD deep-dive Q&A](#17-advanced-hld-deep-dive-qa)
+18. [Senior-level scenario bank](#18-senior-level-scenario-bank)
+19. [End-to-end case-study index](#19-end-to-end-case-study-index)
+20. [Cross-references and authoritative reading](#20-cross-references-and-authoritative-reading)
 
 ---
 
@@ -573,7 +574,172 @@ Do not build hypothetical scale at the expense of delivery. Establish SLOs and l
 
 Include compute, storage operations, database capacity, egress, broker throughput, cache memory, observability, and idle headroom. Divide by successful business operations rather than raw HTTP attempts so retries and failures remain visible.
 
-## 17. Senior-level scenario bank
+## 17. Advanced HLD deep-dive Q&A
+
+This section adds cross-cutting architecture questions that interviewers use to test whether a candidate can connect requirements, component behavior, and operational consequences. It complements—not replaces—the dedicated Distributed Systems, Kafka, Redis, SQL, and Microservices guides.
+
+### Q119. How do you turn requirements into an architecture instead of jumping directly to components?
+
+Start by writing down user-visible operations and the invariant each operation must preserve. For each journey, identify its authoritative data, latency target, failure behavior, and dependencies. Estimate the load, then draw the smallest architecture that satisfies those constraints. For example, “place an order” might require a synchronous durable order record but allow email and analytics to happen asynchronously. The requirement—not a preference for Kafka or microservices—determines the boundary.
+
+### Q120. How do you distinguish a system boundary from a deployment boundary?
+
+A system boundary describes ownership, trust, data, and responsibility; a deployment boundary describes what is released and scaled together. They can align, but they do not have to. A modular monolith can enforce clear domain boundaries in one deployment. Splitting every module into a separate service adds network failures, versioning, observability, and operational burden. Extract a service when independent ownership, scaling, deployment, or isolation has measurable value.
+
+### Q121. How do you decide which work belongs on the synchronous request path?
+
+Keep synchronous work limited to what is necessary to produce a truthful response and preserve immediate business invariants. Move slow, retryable, or nonessential side effects—such as analytics, noncritical notifications, or media processing—to durable asynchronous workflows. However, asynchronous acceptance must be durable: if the API promises “accepted,” persist the job or outbox record before returning. Do not acknowledge work that exists only in process memory.
+
+### Q122. How do you identify the authoritative source of truth in a system with several databases?
+
+For each business fact, name one authoritative owner and distinguish it from caches, search indexes, analytics stores, and replicated read models. A product search index can be stale, but checkout should validate price and availability against their authoritative owners. If two services can independently overwrite the same fact, define conflict resolution or redesign ownership. “Both databases are the source of truth” is usually a warning that consistency responsibilities are unclear.
+
+### Q123. What is a materialized view, and when is it useful?
+
+A materialized view stores a precomputed representation of data for a read pattern. A social feed or customer dashboard may combine facts from several owners, making on-demand fan-out expensive. Build the view from reliable change events or periodic refreshes, track its freshness, and make updates idempotent. The trade-off is write amplification, extra storage, and eventual consistency. Rebuild and reconciliation procedures are part of the design.
+
+### Q124. How do you choose between request-time fan-out and precomputation?
+
+Request-time fan-out keeps data fresh and avoids storing every combination, but latency and availability depend on several services. Precomputation moves work to the write/update path and makes reads predictable, but introduces staleness and update complexity. Use request-time composition for low-volume or highly personalized data when latency permits; precompute hot, repeatable views when read volume is high and freshness can be bounded. A hybrid often works best.
+
+### Q125. What is the difference between a control plane and a data plane?
+
+The control plane configures and coordinates behavior—such as routes, policies, cluster membership, or tenant quotas. The data plane handles the actual requests or records. Separating them can protect request processing from slow administrative operations, but stale configuration and control-plane outages still need explicit behavior. Cache validated configuration, define safe defaults, and decide which policy changes must take effect immediately.
+
+### Q126. How do you choose between pushing and pulling work?
+
+With push, producers send work immediately to consumers; it can reduce latency but may overload consumers unless admission control and backpressure exist. With pull, consumers control their own pace, making load regulation simpler but potentially adding polling delay. Brokers often combine durable push-to-storage with consumer-controlled fetching. Choose based on latency, burstiness, consumer capacity, and how much control consumers need over throughput.
+
+### Q127. Why are bounded queues important?
+
+A queue absorbs short bursts; it cannot fix a permanent throughput deficit. If arrival rate stays above completion rate, backlog grows until retention, memory, disk, or latency limits are reached. Bound in-memory queues and define rejection, persistence, expiry, and priority policies. Monitor queue age and estimated drain time, not only depth. A million old low-priority jobs can be more damaging than a small queue of deadline-sensitive work.
+
+### Q128. How do you estimate whether a queue can recover from a burst?
+
+Calculate net drain rate as processing rate minus ongoing arrival rate. If 9,000 tasks/s can be processed while 6,000/s continue to arrive, a backlog of 1.8 million tasks takes roughly 600 seconds to drain. This assumes stable rates and homogeneous task cost. Include retries, poison messages, provider quotas, and worker failures. If net drain rate is zero or negative, adding retention only postpones the problem.
+
+### Q129. How do you select a partition key when both ordering and throughput matter?
+
+First define the ordering scope. If all events for an account must be ordered, account ID is a natural key, but a very active account may become a hot partition. Splitting one account across partitions improves throughput only by weakening ordering or requiring a later merge/coordination step. Measure skew and decide whether the business truly requires per-entity order, or only version checks and eventual convergence.
+
+### Q130. When is a global lock a design smell?
+
+A global lock serializes otherwise independent operations and can become a throughput ceiling and availability dependency. Ask whether the invariant can instead be enforced with a unique constraint, conditional write, version check, partition ownership, or per-entity lock. Global coordination may be justified for rare administrative operations, but it should not sit on every request without a clear correctness reason.
+
+### Q131. What is the difference between deduplication and idempotency?
+
+Deduplication recognizes that the same event or operation ID has been seen before. Idempotency means repeating an operation has the same intended effect as performing it once. Deduplication storage can expire or be unavailable, and two different event IDs can represent the same business action. Use stable business keys, idempotent state transitions, and database constraints where the invariant demands it.
+
+### Q132. How should you handle a request that depends on several downstream services?
+
+Draw the dependency graph and classify calls as required, optional, or conditionally required. Give each call a deadline within the overall request budget; parallelize independent calls where it helps. Bound concurrency and retries, and degrade only optional data. Fan-out increases the chance that at least one dependency is slow or failing, so precompute or consolidate calls when the user experience cannot tolerate the combined tail latency.
+
+### Q133. How do you reason about availability for a fan-out endpoint?
+
+If all N independent dependencies must succeed and each has availability A, a simplified estimate is A^N. For example, ten required dependencies each at 99.9% yield about 99.0% combined availability. This model assumes independence and ignores retries, caching, and fallback paths; real failures are often correlated. The architectural lesson is to reduce mandatory dependencies and define graceful behavior, not to treat the calculation as a production forecast.
+
+### Q134. How do you choose a cache consistency model?
+
+Start from the consequence of stale data. Stale recommendations may be harmless; stale authorization, inventory, or balances may not be. For tolerant reads, define maximum acceptable staleness, TTL, invalidation, and repair. For critical decisions, read from the authority or use a datastore guarantee that supports the invariant. A short TTL is a bound on cache residence, not proof of instantaneous consistency.
+
+### Q135. What should a cache key include?
+
+Every input that can change the response representation: entity ID, tenant, locale, currency, permission scope, relevant query parameters, and sometimes schema/version. Omitting tenant or authorization context can leak data across users. Including too many dimensions fragments the cache and reduces hit ratio. Document the cache-key contract and test isolation explicitly.
+
+### Q136. How should a design respond to a cold cache after deployment or failover?
+
+Assume a cold cache may expose the full source workload. Estimate miss traffic, use bounded concurrency and request coalescing, and warm only high-value keys when safe. Stagger expirations and rollouts. Avoid eagerly loading the entire dataset if it competes with production traffic. If the source cannot handle cold-cache load, keep spare capacity or temporarily shed optional traffic.
+
+### Q137. What is the difference between a replica, a backup, and a read model?
+
+A replica maintains another copy for availability or read scaling, often with limited lag. A backup is a retained recovery point for restoring earlier state after corruption or deletion. A read model is a representation optimized for particular queries and may be derived from events. These serve different purposes; none automatically substitutes for the others.
+
+### Q138. How do you choose a consistency boundary for a business workflow?
+
+Identify the smallest set of facts that must change atomically to preserve an invariant. Keep those changes in one transaction when possible. Coordinate later cross-service steps through a saga or durable events, making intermediate states explicit. For example, order creation and its outbox event can commit together, while notification delivery occurs later. Do not expand a transaction across every service just to make the diagram look atomic.
+
+### Q139. What is the dual-write problem?
+
+A service updates a database and separately publishes an event. If the database commit succeeds but publishing fails, downstream systems never learn about the change; if publishing succeeds but the transaction rolls back, consumers see a phantom event. The transactional outbox or a supported CDC approach closes this gap between the authoritative commit and publication. Consumers still need idempotency because publication and delivery can repeat.
+
+### Q140. When is event sourcing justified?
+
+Event sourcing stores state-changing events as the primary record and derives current state by replaying them. It can provide audit history and temporal reconstruction, but introduces event-schema evolution, replay cost, projection lag, correction strategies, and operational complexity. It is not synonymous with using Kafka or publishing domain events. Choose it when the event history itself is a core domain requirement, not merely because an event-driven architecture is desired.
+
+### Q141. How should API rate limits be distributed across multiple application instances?
+
+A local limiter is fast and resilient but allows aggregate traffic to multiply with instance count and can be uneven across instances. A shared limiter enforces a more global view but adds network latency and a new dependency. Hierarchical budgets can allocate a global quota to local instances and periodically reconcile it, trading exactness for speed. Choose based on abuse risk, quota semantics, traffic volume, and behavior during limiter failure.
+
+### Q142. How do token bucket and leaky bucket differ conceptually?
+
+A token bucket accumulates tokens up to a capacity; requests consume tokens, allowing controlled bursts while bounding long-term average rate. A leaky-bucket-style shaper releases work at a controlled rate, smoothing bursts; variants may instead reject excess work. Pick a model based on whether bursts should be permitted, whether requests can wait, and how strict the quota must be. State the exact algorithm rather than relying on the name alone.
+
+### Q143. What is admission control, and how does it differ from rate limiting?
+
+Rate limiting constrains traffic over a defined interval or budget. Admission control decides whether the system has enough current capacity to accept additional work, often using concurrency, queue length, deadlines, or resource saturation. A request may be within its rate quota but still be rejected because all workers are busy. Both can protect latency and prevent overload.
+
+### Q144. How should you design for a downstream provider's quota?
+
+Centralize or coordinate quota accounting at the scope the provider enforces. Queue requests, use priority classes, coalesce duplicate work, and schedule calls under the allowed rate. A per-instance limiter is insufficient if the provider applies one account-wide limit. Respect retry hints and expose pending state rather than silently dropping work. Ensure recovery does not create a quota-breaking replay storm.
+
+### Q145. What makes a multi-tenant architecture fair?
+
+Fairness requires explicit budgets for request rate, concurrent work, storage, queue use, and expensive operations. A single global limit protects total capacity but can let one tenant starve everyone else. Weighted fair scheduling, per-tenant queues, and dedicated pools can isolate workloads. Measure per-tenant latency and rejection rates, and account for contractual priority tiers.
+
+### Q146. How should service-to-service authentication influence the architecture?
+
+Use workload identity and least-privilege authorization instead of assuming that internal network access implies trust. Decide how identity is issued, rotated, propagated, and audited. Ensure gateways and service meshes do not become the only place where resource-level authorization is enforced. Background workers, replay tools, and administrative paths need the same data-isolation controls as public APIs.
+
+### Q147. How do you design observability for asynchronous workflows?
+
+Propagate correlation and causation identifiers across API requests, outbox rows, messages, retries, and callbacks. Record durable workflow state and attempt metadata. Measure queue age, processing duration, retry counts, dead-letter volume, and business completion rate. A single distributed trace may not remain open for a workflow lasting hours, so persist identifiers and link separate trace segments.
+
+### Q148. Why can infrastructure health checks miss business failures?
+
+A process can return HTTP 200 while a workflow is stuck, a provider callback is never reconciled, or a read model is stale. Monitor business outcomes and state transitions in addition to CPU, memory, and endpoint health. Define freshness and completion SLOs for asynchronous work. Alerts should identify actionable symptoms and include links to diagnostic context.
+
+### Q149. How do you set an RTO and RPO from business requirements?
+
+Ask how long the business can tolerate service interruption and how much committed data it can afford to lose. RTO is a recovery-time target; RPO is a data-loss-window target. Translate them into architecture and operating procedures: backup frequency, replication mode, failover readiness, restore time, and reconciliation. Validate with exercises; a documented target without measured recovery evidence is only an aspiration.
+
+### Q150. Why can active-active compute still use a single write leader?
+
+Requests can be served near users while each entity's writes route to one authoritative region or partition. This avoids conflicting concurrent updates while keeping read latency low. The trade-off is cross-region write latency and reduced write availability when the owner is unreachable. Active-active deployment and active-active writes are separate decisions.
+
+### Q151. What is a safe failover sequence for a stateful service?
+
+Detect and assess the failure, fence the old writer, verify the candidate's data and replication position, promote one authority, update routing, and ensure clients reconnect safely. Afterward, validate invariants and monitor replication and error rates. Failover must prevent both old and new leaders from accepting writes. DNS or health-check changes alone do not establish exclusive ownership.
+
+### Q152. How do you prevent a failover loop?
+
+Separate health detection from promotion policy. A region may fail a health check because a shared dependency is unavailable; promoting another region with the same dependency may not help and can cause repeated flips. Use hysteresis, explicit state transitions, minimum stable periods, and clear failback criteria. Test partial dependency failures and ensure the recovery region has enough capacity.
+
+### Q153. What is the role of a canary in reducing release risk?
+
+A canary exposes a small, controlled share of traffic to a new version, then expands only if preselected signals remain healthy. Choose both technical and business indicators: latency, errors, saturation, payment outcomes, and workflow completion. Account for traffic representativeness and delayed effects. A canary cannot protect against a schema change that irreversibly corrupts shared data; use compatible migrations and rollback planning too.
+
+### Q154. How should a system support backward-compatible event evolution?
+
+Assume old and new producers/consumers may run simultaneously during rollout and rollback. Prefer additive optional fields, stable meanings, tolerant readers, and explicit schema compatibility checks. Deploy consumers that can handle the new representation before producers emit it. Treat semantic changes and field reuse as breaking even if the schema registry accepts them.
+
+### Q155. How do you reduce cloud cost without creating reliability debt?
+
+Attribute cost to workloads and successful business outcomes, then inspect idle headroom, query inefficiency, egress, retention, over-replication, unnecessary logs, and retry amplification. Do not remove redundancy or lower capacity targets without quantifying the effect on SLOs, RTO/RPO, and failure tolerance. Run controlled changes and compare cost with p95/p99 latency, errors, and recovery behavior.
+
+### Q156. How do you evaluate a proposed new technology?
+
+State the unmet requirement first. Compare the candidate with the simplest existing option across performance under representative load, consistency guarantees, operational expertise, migration, observability, security, cost, and exit strategy. Prototype the riskiest assumption and test failure behavior. A benchmark that ignores realistic data skew, tail latency, or recovery is weak evidence.
+
+### Q157. What belongs in an architecture decision record?
+
+Record the context and constraints, decision, alternatives considered, consequences, assumptions, and signals that would trigger reconsideration. Include rejected alternatives and why they were rejected. This prevents a temporary choice from becoming an unquestioned rule and helps future engineers understand whether changed requirements justify a different design.
+
+### Q158. How do you explain the limits of your own design in an interview?
+
+Name the guarantees you provide, the failure modes you handle, and the ones you do not. For example: “The order write is durable before acceptance; notification delivery is asynchronous and at-least-once, with deduplication. A provider outage can delay delivery, and the queue-age SLO will alert us.” This is more credible than claiming “exactly once,” “zero downtime,” or “infinite scalability” without defining scope and assumptions.
+
+
+## 18. Senior-level scenario bank
 
 For every scenario, state assumptions, identify the invariant, analyse evidence, recommend a design, explain alternatives, describe failure behavior, and name operational signals. These are connected design discussions, not technology flashcards.
 
@@ -751,7 +917,99 @@ For every scenario, state assumptions, identify the invariant, analyse evidence,
 
 **Answer structure:** Use estimates and architecture to identify the likely bottleneck; explain how a node failure changes remaining capacity; describe protective controls and what degrades or is rejected. Discuss database headroom, connection limits, partition skew, queue growth, provider quotas, and recovery time. Name the metrics and load test that would validate the hypothesis.
 
-## 18. End-to-end case-study index
+
+
+### Scenario 51 — A dashboard endpoint fans out to many services
+
+**Problem:** The endpoint calls account, billing, usage, permissions, and recommendations services. Its p99 latency is poor even though most dependencies look healthy.
+
+**Clarify:** Which fields are required to render the page? Which data has a freshness requirement? What is the end-to-end latency objective, and do all calls execute serially?
+
+**Analysis and recommendation:** Draw the dependency graph and use traces to measure each span, including queue and connection wait. Parallelize independent calls under a bounded concurrency limit, but do not assume parallelism removes the slowest dependency's tail. Return a partial response only if the API contract explicitly permits it. For expensive, frequently requested combinations, consider a materialized read model with a freshness SLO. Keep authorization and other correctness-critical checks authoritative.
+
+**Trade-offs and signals:** A read model improves predictable latency but adds projection lag and operational work. Monitor per-dependency p95/p99, fan-out count, timeout rate, queue wait, and read-model age.
+
+**Follow-up:** If one field is optional, isolate its timeout and render the rest rather than allowing it to consume the entire request deadline.
+
+### Scenario 52 — A tenant exceeds its contracted API quota
+
+**Problem:** One tenant sends a burst that overwhelms shared application and database capacity.
+
+**Clarify:** Is the quota a hard contract or a soft target? Does it apply per second, minute, or concurrent request? Are certain endpoints much more expensive? Is burst allowance required?
+
+**Recommendation:** Enforce limits at the correct identity and scope, combine request-rate limits with concurrency and cost-aware admission control, and reserve capacity for critical operations. Use per-tenant metrics and fair scheduling; a global limiter alone can allow noisy-neighbor behavior. If a shared limiter is used, decide whether temporary limiter unavailability fails open or closed according to abuse and correctness risk.
+
+**Follow-up:** If each of 20 instances allows 100 requests/s locally, the aggregate can reach 2,000 requests/s. Local limits must be budgeted or coordinated if the provider contract is global.
+
+### Scenario 53 — An outbox publisher is stuck but API requests succeed
+
+**Problem:** Business records commit, but downstream consumers stop receiving new events.
+
+**Analysis:** The transactional outbox protects against losing the event at commit time, but it does not guarantee that the publisher continues making progress. Inspect oldest unpublished row, publish failures, database load, CDC connector health, broker availability, and schema errors.
+
+**Recommendation:** Alert on outbox age and publish throughput, retry transient errors with bounded backoff, isolate poison records, and make publication idempotent. Ensure outbox retention and cleanup do not delete unpublished rows. Define replay procedures and monitor end-to-end event freshness, not just API success.
+
+**Follow-up:** The outbox table can itself become a write/storage bottleneck; batch publishing, partition/retention strategy, and careful indexing may be needed at scale.
+
+### Scenario 54 — A provider callback arrives before the synchronous response
+
+**Problem:** A payment provider processes a request quickly and sends a webhook before the application has persisted its local provider response.
+
+**Recommendation:** Create the durable payment operation before making the provider call, using a stable operation ID. The callback handler should resolve the operation by provider reference or idempotency key, tolerate valid state transitions arriving in either order, and persist the callback for retry if correlation is not yet possible. Avoid assuming that network arrival order matches business processing order.
+
+**Failure handling:** Deduplicate provider event IDs, authenticate callbacks, validate transition legality, and reconcile unmatched events. Do not discard a valid callback simply because a local state has not caught up yet.
+
+### Scenario 55 — A database failover causes a burst of connection errors
+
+**Problem:** The database promotes a replica, but application instances keep using stale connections and retry aggressively.
+
+**Recommendation:** Understand driver and pool behavior during failover, use bounded connection and query timeouts, evict broken connections, and apply retry budgets with jitter. Reconnect gradually rather than allowing every instance to establish a synchronized connection storm. Keep request deadlines and idempotency in place because a connection failure can occur after a write reached the old primary.
+
+**Metrics:** Connection acquisition wait, broken-connection rate, reconnection rate, database recovery state, retry attempts, and uncertain write outcomes.
+
+### Scenario 56 — A data backfill competes with live production traffic
+
+**Problem:** A migration backfills hundreds of millions of records while production writes must remain within latency SLOs.
+
+**Recommendation:** Run bounded, resumable batches with checkpoints and idempotent updates. Throttle by observed database latency, lock waits, replication lag, and resource saturation; pause automatically when guardrails are breached. Use a stable high-water mark or CDC to account for concurrent writes, and verify counts/checksums before switching reads.
+
+**Trade-offs:** Faster backfills reduce migration duration but consume more resources and can increase replication lag. Never assume a successful job exit proves the new representation is correct.
+
+### Scenario 57 — A retry storm begins after a brief dependency outage
+
+**Problem:** The dependency has recovered, but request volume remains elevated and latency does not normalize.
+
+**Recommendation:** Inspect attempts per logical request, retry layers, synchronized schedules, queue age, and current dependency saturation. Apply retry budgets, capped exponential backoff with jitter, and concurrency limits. Stop retrying permanent failures and let noncritical work expire according to policy. Recover gradually to avoid immediately replaying all deferred work.
+
+**Follow-up:** Timeouts, retries, backoff, and jitter are complementary—not interchangeable—controls. Timeouts bound resource holding; retries may mask transient failures; backoff and jitter spread attempts over time. Cite the [AWS Builders' Library guidance](https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/) when explaining this trade-off.
+
+### Scenario 58 — A feature flag service becomes unavailable
+
+**Problem:** Services need flag values during a control-plane outage.
+
+**Recommendation:** Decide flag-by-flag whether the safe behavior is the last known value, a conservative default, or refusing the operation. Cache validated configuration locally with version and freshness metadata, and separate flag evaluation from a network call on every request. Security-sensitive flags and emergency kill switches need explicit propagation and expiry behavior.
+
+**Trade-off:** Local evaluation improves availability and latency but may delay rollout or revocation. Measure configuration age and propagation delay; do not treat all flags as having the same risk.
+
+### Scenario 59 — A CDN serves private content to the wrong user
+
+**Problem:** A personalized response was cached under a key that omitted authorization or tenant context.
+
+**Recommendation:** Treat cache-key construction and cache-control policy as security boundaries. Avoid shared caching for sensitive responses unless the cache is explicitly designed for the authorization model. Include all representation-changing dimensions where shared caching is safe, and test cross-tenant isolation. Purge affected objects and investigate logs without exposing sensitive values.
+
+**Follow-up:** A correct origin authorization check does not help if the CDN serves a cached response without contacting the origin.
+
+### Scenario 60 — A design review challenges a new microservice
+
+**Problem:** A team proposes extracting a service mainly to “make it scalable,” but the new service adds multiple network calls and shared database access.
+
+**Analysis:** Ask which bottleneck or ownership issue the extraction solves, whether the component needs independent deployment/scaling, and how data ownership changes. Estimate added network latency, retries, on-call burden, and cross-service transaction complexity.
+
+**Recommendation:** If the boundary is not cohesive or independently valuable, retain a module inside the monolith and improve internal interfaces. If extraction is justified, establish data ownership, contract compatibility, observability, deployment strategy, and rollback before migration.
+
+**Follow-up:** “Microservices are more scalable” is not a sufficient rationale. A poorly bounded service can make both scalability and reliability worse.
+
+## 19. End-to-end case-study index
 
 This section is an **index only**. Practise full designs separately; the Q&A above explains reusable principles.
 
@@ -823,7 +1081,7 @@ Additional problems worth practising: distributed lock service; webhook delivery
 
 Reference links are starting points, not claims that every linked page contains a complete solution for the exact prompt. Prefer a specific article when available and verify access before relying on it.
 
-## 19. Cross-references and authoritative reading
+## 20. Cross-references and authoritative reading
 
 The repository's focused guides provide implementation depth; this handbook retains the architectural reasoning.
 
