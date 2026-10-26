@@ -870,3 +870,85 @@ Before finishing a practice design, ask:
 ---
 
 *This is a living study resource. Technical guarantees vary by database, broker, service, configuration, and failure mode. Verify product-specific claims against official documentation and test behavior that matters to the design.*
+
+
+### Scenario 31 — Requirement changes from eventual to strong consistency
+
+A feature tolerated stale data, but now every successful read must reflect completed writes. Clarify which entity and journey need the guarantee; do not make analytics strongly consistent unnecessarily. Route critical reads to an authoritative store or use a documented consistency token, and keep derived views asynchronous. Stronger guarantees may increase latency and reduce availability during partitions. Cache invalidation events alone do not guarantee immediate consistency because they can be delayed or lost.
+
+### Scenario 32 — Global username uniqueness during a regional partition
+
+Two regions receive requests to claim the same username while cross-region connectivity is degraded. A local check-then-insert in each region races. Enforce uniqueness at one authoritative constraint boundary or use coordination that can guarantee one winner. If global uniqueness is mandatory, some requests must wait or fail during a partition. Eventual conflict resolution is acceptable only if duplicate identities and remediation are genuinely tolerable.
+
+### Scenario 33 — Connection pool saturated while database CPU is low
+
+API latency rises and connection acquisition waits increase, but database CPU remains modest. Connections may be held during external calls, long transactions, locks, or slow clients. Inspect connection hold time, active/idle/waiting counts, transaction duration, lock waits, and query latency. Keep transactions short, avoid network calls inside transactions, bound concurrency, and size pools against database capacity. Increasing pool size blindly can make overload worse.
+
+### Scenario 34 — Search indexing falls behind during a campaign
+
+Product writes succeed but search results become minutes stale. Measure event arrival rate, indexer processing rate, queue age, and indexing errors. Decide whether stale search is acceptable while checkout revalidates against the source of truth. Increase workers only if partitions and search-cluster capacity allow it; batch safely and prioritize important updates. Alert on freshness SLO, not only cluster health. Coalescing updates by product is safe only if intermediate states are irrelevant.
+
+### Scenario 35 — A scheduled job runs twice after failover
+
+A scheduler leader fails after triggering a job but before recording completion; the replacement triggers it again. Give each logical run a deterministic ID, persist run state, and make workers idempotent. Use leases/fencing for ownership but still protect business effects at the destination. Define misfire behavior, overlap policy, and retry limits. Exactly-once execution across arbitrary external effects is not generally guaranteed.
+
+### Scenario 36 — Queue retention expires before consumers recover
+
+A consumer is offline long enough that the broker may delete unprocessed records. Clarify whether the stream is the system of record or only transport. Size retention using outage duration, peak input rate, record size, replication factor, and safety margin. Alert on oldest unprocessed event and projected time to retention expiry. Irreplaceable business events need a durable source or archive and a tested replay plan.
+
+### Scenario 37 — Cached authorization remains valid after revocation
+
+A permission is revoked, but a cached authorization result still allows access. Treat authorization freshness as a security requirement. Use bounded caching, versioned permission records, reliable invalidation with a safe fallback, or authoritative checks for sensitive operations. Fail closed when authorization cannot be established for high-risk actions. Measure revocation propagation delay and test cache/event failure.
+
+### Scenario 38 — Rolling deployment duplicates scheduled work
+
+Two application versions overlap and both schedule the same periodic task. Do not rely on process-local timers for globally unique scheduling. Use a durable scheduler or lease, deterministic run IDs, uniqueness constraints, and idempotent execution. Make leader ownership visible and test deployment, crash, and failover overlap.
+
+### Scenario 39 — Writes slow after adding indexes
+
+Read queries improve, but write latency and storage use increase. Indexes add work to inserts, updates, deletes, and maintenance; they consume storage and affect cache locality. Examine query plans, selectivity, write amplification, lock waits, and index overlap. Keep indexes that support important workloads and remove redundant ones only after validating query usage, including seasonal traffic.
+
+### Scenario 40 — Fan-out request calls 20 downstream services
+
+The API's p99 is much worse than each dependency's median. Identify required versus optional calls. Parallelize independent calls where safe, but the request may inherit the slowest required dependency's tail. Set per-call deadlines under an overall deadline, limit concurrency, and return partial results only if the contract permits it. Reduce chatty boundaries or create a read model when the topology is fundamentally too expensive.
+
+### Scenario 41 — HTTP 200 responses hide business failures
+
+Infrastructure metrics show success, but orders are not progressing. Define business success separately from transport success. Instrument outcome codes, state-transition counts, and workflow age; validate response semantics rather than treating every 2xx as completion. Alert on stuck states and reconcile requests accepted by one service but not completed downstream.
+
+### Scenario 42 — Consumer offset commits before database transaction
+
+A consumer advances its offset, then crashes before the business update becomes durable, losing the event's effect. Align acknowledgement with durable processing. Commonly, commit the database effect before advancing the offset; a crash between these steps may cause duplicate processing, which idempotency must handle. Understand the exact scope of any broker/database transaction integration before claiming cross-system atomicity.
+
+### Scenario 43 — Consumer crashes after processing but before acknowledgement
+
+The event is delivered again after restart. This is the normal at-least-once duplicate window. Use an inbox/deduplication table keyed by event ID, unique business constraints, and idempotent state transitions. If the dedup record and business update share a database, commit them atomically. External effects need provider idempotency or reconciliation.
+
+### Scenario 44 — Cache invalidation events arrive out of order
+
+An older update overwrites a newer cached value. Store entity versions and reject updates older than the current version, or invalidate rather than applying an untrusted stale payload. Define refill semantics when cache and source updates race. Ordering is scoped to a key/partition and must be verified in the actual broker and producer configuration.
+
+### Scenario 45 — A distributed botnet bypasses IP rate limits
+
+Combine authenticated identity, account, API key, tenant quota, endpoint cost, and behavioral signals where appropriate. Apply cheap edge controls before expensive database work while avoiding false positives for legitimate users behind shared NAT. Use challenge/throttling strategies consistent with product needs and privacy obligations. No single signal is sufficient.
+
+### Scenario 46 — Backups exist but restore is untested
+
+Run scheduled restore exercises into an isolated environment, validate checksums and business invariants, measure recovery time, and verify keys, schemas, secrets, and configuration. Replication cannot replace historical backups. Document authorization, data-integrity checks, and how to avoid overwriting healthy data during recovery.
+
+### Scenario 47 — Multiple layers retry the same request
+
+SDK, gateway, application, and consumer each retry. Draw the complete attempt tree and calculate worst-case amplification. Choose one retry owner per operation where possible, propagate deadlines, use retry budgets, and distinguish safe reads from non-idempotent writes. Track attempts and reasons. Retries should not turn a partial outage into a traffic storm.
+
+### Scenario 48 — New service must extract data from a monolith safely
+
+Choose a narrow domain boundary, define source-of-truth ownership, add a compatibility API or event feed, backfill and validate data, then route a small flow first. Avoid dual authoritative writes. Use canary traffic, business-level metrics, rollback criteria, and an explicit retirement plan for the old path.
+
+### Scenario 49 — Tenant requires data residency
+
+Map all data paths: primary records, replicas, backups, logs, traces, search indexes, caches, analytics, support exports, and disaster-recovery copies. Enforce placement through policy and automation, and document exceptions such as global identity or control-plane metadata. Residency is not solved by placing only the primary database in-region.
+
+### Scenario 50 — Availability conflicts with correctness during a partition
+
+A partition prevents confirmation that inventory or a financial resource is still available. Identify the invariant. Accepting conflicting writes can create irreversible damage, so reject or queue uncertain writes while continuing safe reads and unrelated work. An availability-first policy may be acceptable for domains that tolerate overselling or later reconciliation, but it must be an explicit business decision.
+
