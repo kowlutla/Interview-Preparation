@@ -2,7 +2,7 @@
 
 **Audience:** Java backend engineers with 5–10 years of experience preparing for senior and staff-leaning backend/product-company interviews.  
 **Purpose:** A progressive guide to architecture reasoning, capacity estimation, data ownership, consistency, failure handling, operations, and cost.  
-**Status:** Rebuilding for the 5–10 year experience band. Includes eight worked designs and 15 core-concept deep dives; partitioning, hashing, schema migration, denormalization, TTL, PACELC, and poison-message answers now explain mechanisms, trade-offs, and operational failure modes in greater depth. Full coverage, technical accuracy, readability, and rendered diagram validation remain in progress; not final sign-off.
+**Status:** Rebuilding for the 5–10 year experience band. Includes eight worked designs and 15 core-concept deep dives; foundational answers are being audited for mechanism-level depth, trade-offs, capacity reasoning, recovery, and failure-window correctness. The first ten scenario answers now include clearer invariants, diagnosis, design options, migration/recovery considerations, and signals. Full coverage, technical accuracy, readability, and rendered diagram validation remain in progress; not final sign-off.
 
 > **How to use this guide:** Learn fundamentals in order, then practise scenarios aloud. State assumptions, identify the critical business invariant, estimate scale, draw the simplest viable architecture, and deepen the part the interviewer challenges. Naming technologies is not the goal; explaining why the design satisfies requirements is.
 
@@ -3300,17 +3300,21 @@ For every scenario, state assumptions, identify the invariant, analyse evidence,
 
 ### Scenario 1 — 100,000 requests/second, one hot database shard
 
-**Problem:** Overall traffic is high, but one shard is saturated while others are underused.
+**Problem:** The API receives 100,000 requests/second, but one database shard has high CPU and p99 latency while other shards are relatively idle. Adding application instances does not improve successful throughput.
 
-**Clarify:** Is the hotspot a popular key, poor shard key, expensive query, write hotspot, or skewed tenant? What is the read/write mix and is the hot key correctness-critical?
+**Clarify the shape of the hotspot:** Separate read hotness from write hotness, and distinguish one popular key, one oversized tenant, poor shard-key distribution, expensive queries, lock contention, and an undersized shard. Ask which request paths touch the shard, what fraction is cacheable, whether operations require per-key ordering, and whether the shard is saturated by CPU, storage, connections, or locks.
 
-**Analysis and design:** Inspect per-shard QPS, CPU, queueing, lock waits, query latency, and key distribution. For hot reads, use request coalescing and cache replicas/local caches if freshness allows. For hot writes, split the logical key into buckets only if business invariants permit it. If the shard key is poor, plan versioned repartitioning. More application instances do not fix one saturated partition.
+**Diagnose before changing topology:** Inspect per-shard QPS, bytes, CPU, lock waits, queue depth, query plans, connection-pool wait, and key/tenant skew. Compare rows stored with work served; row-count balance does not guarantee load balance. Check if retries or a cache miss storm are sending extra load. Establish whether the bottleneck is one logical key or a whole shard.
 
-**Trade-offs and signals:** Key salting complicates reads and aggregation; caching reduces reads, not writes; resharding requires migration correctness. Track per-shard p99, hot-key frequency, cache hit ratio, lock waits, and rebalance duration.
+**Design options depend on the cause:**
+- For a hot read key, use request coalescing, local/distributed caching, or replicated read paths if the freshness contract permits them. A cache reduces repeated reads but does not solve write contention.
+- For a large tenant, move it to dedicated capacity or split that tenant into buckets while keeping ordinary tenants shared. This needs a routing map and safe migration.
+- For a monotonically increasing range hotspot, consider hash/bucket distribution or a composite key—but confirm that range scans and ordering can tolerate the change.
+- For an expensive query, fix the plan, index, pagination, or data model before introducing more shards.
 
-**Follow-ups**
-- **Why not add shards?** A single hot key may still map to one shard.
-- **How migrate safely?** Version routing, backfill, capture concurrent changes, validate counts/checksums, switch reads, then retire the old layout.
+**Migration and correctness:** Sharding more broadly is a live data migration: copy a consistent baseline, capture concurrent changes, validate counts/checksums, switch routing with a version/epoch, and retain a defined rollback or forward-repair path. If operations must be atomic per account/order, colocate those records where practical. Avoid changing modulo-based routing without a controlled transition.
+
+**Trade-offs and signals:** Key salting spreads writes but complicates reads and aggregation; caching increases freshness/invalidation complexity; dedicated tenant placement costs more. Track per-shard p99, hot-key share, origin/cache hit ratio, lock waits, rebalance lag, and business errors. A good follow-up answer explains why adding shards alone may not divide a single hot key and how the design handles migration failures.
 
 ### Scenario 2 — Adding a cache increases latency
 
@@ -3328,83 +3332,115 @@ For every scenario, state assumptions, identify the invariant, analyse evidence,
 
 ### Scenario 3 — Read replicas return stale order status
 
-**Problem:** An order write succeeds, but the next GET returns “not found” because it is served by a lagging replica.
+**Problem:** A client successfully creates an order, then immediately calls GET /orders/{id}. The write transaction committed on the primary, but the read is routed to an asynchronous replica that has not applied it yet, so the API returns “not found” or an old state.
 
-**Diagnose:** Confirm the primary committed the order and inspect replica replay/replication position. Check whether routing is random, whether the API promises read-your-writes, and whether a failover has changed the authoritative node.
+**First distinguish failure from lag:** Check the primary's durable record and the replica's replay/commit position. Confirm whether this is normal replication lag or a failover where the new primary may be behind. Also verify that the read path is not using a stale cache or search index instead of the database replica.
 
-**Options:** Route the immediate follow-up read to the primary, carry a consistency token/commit position if the datastore supports it, or wait until the replica has applied the relevant position. Keep unrelated catalogue or recommendation reads on replicas when their freshness contract permits it. Do not insert an arbitrary sleep and call it a guarantee.
+**Choose a consistency contract:** If the product promises read-your-writes, route the immediate read to the primary, carry a database-supported commit/consistency token, or wait until the chosen replica has applied the needed log position. If the status page can tolerate a documented delay, expose a pending/processing state and refresh within the expected propagation window. An arbitrary fixed sleep is not a guarantee because lag is variable.
 
-**Trade-off:** Sending every read to the primary is simple but can reduce read scaling. Monitor replica lag and stale-read rate, and test behavior during replica failover as well as normal operation.
+**Do not make every read primary-bound without reason:** That is a simple fix but may erase the read-scaling benefit of replicas. Classify reads by correctness: post-create order lookup and payment status may need stronger freshness, while catalogue descriptions or analytics may tolerate staleness. Enforce the same rule in caches and derived read models, not just SQL routing.
+
+**Failover consideration:** A replica promoted after primary loss may lack recently acknowledged writes depending on replication guarantees. The service must establish a single authority, understand RPO, and handle in-flight write outcomes as uncertain. Read-your-writes routing cannot recover data that was lost during failover.
+
+**Signals and follow-up:** Track replica replay lag, stale-read rate, reads routed to the primary, cache age, and post-write request traces. Test normal lag and promotion under load. Be ready to explain how a consistency token works in the chosen datastore and why “use the primary” is a correctness policy with capacity implications.
 
 ### Scenario 4 — Payment provider times out after charging
 
-**Problem:** The payment provider may have charged the customer, but your API timed out before receiving the result.
+**Problem:** The payment provider may have successfully charged a customer, but the provider response timed out before the payment service received it. The client retries, creating a risk of duplicate charge or a false failure state.
 
-**Reason through the uncertainty:** A timeout tells you that your service did not receive a response within its deadline; it does not prove the provider failed to execute the charge. Treat the operation as `PENDING` or `UNKNOWN`, not as a definitive failure.
+**Invariant:** One logical payment operation must not produce multiple unintended charges, and the platform must not report a definite failure when the outcome is unknown.
 
-**Design:** Create a durable payment operation and stable idempotency key before calling the provider. Reuse the same provider key for retries, query provider status when supported, process authenticated callbacks idempotently, and reconcile unresolved operations against provider or settlement records. Never create a new logical payment just because the first request timed out.
+**Design:** Persist a payment operation and stable internal/provider idempotency identity before calling the provider. Atomically bind the client idempotency key to a canonical request fingerprint and payment record so concurrent duplicate requests converge on the same operation. Use explicit states such as CREATED, SUBMITTING, AUTHORIZED/CAPTURED, FAILED, and UNKNOWN/RECONCILIATION_REQUIRED; state transitions must be legal and durable.
 
-**Signals:** Track unknown outcomes, provider timeouts, callback delay, retry count, duplicate-charge indicators, and reconciliation mismatches. Explain to the interviewer which states the client can observe and how the system eventually resolves an uncertain result.
+After a timeout, do not create a new payment attempt with a new identity. Query provider status if supported, reuse the same provider idempotency key within its documented scope/retention window, process signed callbacks idempotently, and reconcile unresolved records against provider transaction/settlement reports. Provider idempotency is a useful guarantee, not a replacement for local operation identity or reconciliation.
+
+**Crash windows:** The service may crash before sending the provider request, after the provider charges but before the response, after receiving the response but before updating the database, or after committing state but before replying to the client. Each window needs a repeatable action: resend the same logical request, query status, consume a callback, or reconcile. Never assume a timeout means rollback.
+
+**API behavior:** Return a stable payment/operation ID and expose pending/unknown status where appropriate. Do not tell the user the payment failed until evidence supports that conclusion. A compensating refund is a new financial action, not erasure of the original charge.
+
+**Signals and follow-up:** Track unknown outcomes by age, provider timeouts, duplicate callbacks, retry counts, reconciliation mismatches, and charge/refund anomalies. Explain which guarantees depend on the provider and how support staff trace one payment end to end.
 
 ### Scenario 5 — Kafka consumers fall behind
 
-**Problem:** Input rate exceeds successful processing rate and consumer lag keeps growing.
+**Problem:** Producer rate has increased, consumer lag is growing, and events are now processed after their business deadline. Adding consumers has limited impact.
 
-**Diagnose:** Compare arrival rate with completion rate, oldest-record age, partition skew, per-record processing time, retry/DLQ rate, rebalance frequency, and downstream latency. Distinguish a temporary burst from a sustained throughput deficit. A hot key can remain serial even when more consumers are added, and consumer count cannot usefully exceed available partitions for one consumer group.
+**Diagnose the bottleneck:** Compare arrival and successful completion rates, oldest-record age, lag by partition, processing duration, rebalance frequency, retries/DLQ volume, downstream database latency, and provider throttling. Determine whether the problem is a temporary burst or sustainable throughput deficit. A hot key can serialize work in one partition; adding consumers cannot parallelize that key without changing the ordering model.
 
-**Design:** Fix the slowest stage first, batch only where semantics permit, increase partitions/consumers only after checking ordering and downstream capacity, and isolate slow event types. Apply bounded retries and poison-message policy. Ramp backlog replay gradually so a recovering dependency is not overwhelmed.
+**Quantify recovery:** If the backlog is 1.8 million records, workers complete 11,000 records/s, and new events arrive at 6,000/s, the net drain rate is 5,000/s and the ideal time to catch up is 360 seconds. If completion rate is at or below arrival rate, the backlog will not shrink. Use successful, committed processing—not dequeued attempts—as the service rate.
 
-**Estimate:** A backlog of 1.8 million records at a net drain rate of 5,000 records/s takes about 360 seconds to drain, assuming rates remain stable. Net drain rate means completion rate minus ongoing arrivals; if it is zero or negative, the backlog will not shrink.
+**Design:** Fix the slow stage first. Increase consumer parallelism only if there are enough partitions and the database/provider can accept more concurrent work. Consider batching to reduce overhead, improving query plans, isolating slow event types, adding partitions where ordering and remapping rules allow it, or moving expensive processing to a separate topic/worker pool. Use bounded retry delay and DLQ/quarantine handling for deterministic poison events.
 
-**Signals:** Track lag and oldest-event age, arrival/completion rates, rebalance count, processing latency, error rate, and projected drain time.
+**Recovery behavior:** Once the dependency recovers, ramp up consumption gradually to avoid overwhelming it with replay traffic. Preserve per-key ordering where required, keep processing idempotent, and check that event retention covers credible downtime plus repair and catch-up. If queued work has expired, follow the business policy rather than delivering obsolete notifications or applying stale commands.
+
+**Signals and follow-up:** Track per-partition lag, oldest age, successful completion, retry ratio, rebalance count, downstream saturation, and time-to-drain. Explain why increasing consumer count can worsen a downstream bottleneck and how you would prove the new capacity is sustainable.
 
 ### Scenario 6 — Autoscaling overloads the database
 
-**Problem:** CPU-driven autoscaling adds application instances, but database CPU, connection count, and query latency spike until the database becomes the bottleneck.
+**Problem:** CPU-based autoscaling adds application instances as traffic rises, but database connections, lock waits, and query latency spike. The system has more application capacity but lower successful throughput.
 
-**Diagnose:** Compare request rate, successful throughput, per-instance pool size, total open connections, pool-acquisition wait, database CPU, lock waits, and query latency. Check whether each new instance adds more concurrent queries than the database can serve. CPU on the application tier is not enough to decide when to scale.
+**Root cause hypothesis:** Every application instance may bring its own database pool. If 30 instances each permit 40 connections, the fleet could open 1,200 connections before batch workers or other services are counted. More instances also increase cache misses and simultaneous downstream calls. The database may be the limiting resource, not the application CPU.
 
-**Design:** Set a database connection budget across the whole fleet, including rolling-deployment surge and background workers. Bound in-flight requests and queue depth, optimize slow queries, and scale application instances only while the database has headroom. If the database is saturated, shed or defer noncritical work instead of adding more concurrent load.
+**Diagnose:** Compare offered requests with successful completions; inspect pool-acquisition wait, pool hold time, connection count, database CPU/IOPS, slow-query plans, transaction age, lock waits, replication lag, and request fan-out. Determine whether the database is overloaded by legitimate work, retries, N+1 queries, a hot row, or long transactions holding connections during network calls.
 
-**Trade-off and signals:** Smaller pools can increase application-side waiting but protect the database; larger pools can simply move the queue downstream. Validate capacity with load tests and a node-loss scenario. Monitor successful throughput, pool wait, database saturation, rejected work, and p99 latency.
+**Design:** Set a fleet-wide connection budget and account for rolling-deployment surge and failover. Bound concurrent requests per route/dependency, shorten transactions, remove unnecessary queries, batch where safe, and use read replicas only for reads that tolerate their consistency model. If the database is already saturated, reject/defer low-priority work, apply backpressure, and stop scaling the application tier beyond the safe concurrency limit. Scale the database only if its true bottleneck and supported scaling path justify it.
+
+**Trade-offs:** Smaller pools can shift queueing to the application, where it is bounded and observable; larger pools may multiply blocked sessions. Aggressive autoscaling may never react quickly enough to a spike and may create a connection storm on recovery. Any pooler/proxy needs testing against transaction/session semantics.
+
+**Signals and follow-up:** Monitor successful throughput, pool wait, DB queue/lock waits, p99, connection counts per instance and per database, and rejected work. Load-test scaling, node loss, and rolling deploys. Explain why “add replicas” or “increase pool size” is not a safe default.
 
 ### Scenario 7 — Notification provider unavailable for 45 minutes
 
-**Problem:** A provider is unavailable for 45 minutes while new notification requests continue to arrive.
+**Problem:** An external provider is unavailable for 45 minutes while new email, SMS, and push requests arrive. The design must avoid losing accepted notifications, flooding the provider on recovery, and delivering obsolete or duplicate messages.
 
-**Clarify the business contract:** Which notifications are urgent, which may expire, and what does the API promise when it accepts a request? A security alert and a promotional message should not necessarily share the same queue or retry policy.
+**Clarify semantics:** Distinguish “API request durably accepted,” “provider accepted the message,” and “recipient device received it.” Define per-message deadline and priority. A security OTP or fraud alert has different latency and expiry requirements from a promotional notification.
 
-**Design:** Durably record accepted work, separate queues by channel and priority, and use provider-specific circuit breakers with bounded exponential backoff and jitter. Apply tenant quotas and cap concurrency so retries do not overwhelm the provider when it recovers. Expire obsolete work according to an explicit policy; do not deliver time-sensitive marketing messages hours late simply because they were queued.
+**Design:** Persist the notification intent, preferably using an outbox with the triggering business state, then publish to durable queues partitioned by channel/priority. Maintain provider-specific quotas, concurrency limits, backoff with jitter, and circuit-breaker behavior. Record attempt state and use stable notification IDs so retries and consumer redelivery do not create multiple logical sends. If the provider offers an idempotency mechanism or delivery-status API, incorporate its actual scope and limits.
 
-**Recovery:** Ramp traffic gradually after the provider returns, monitor its quota and error rate, and preserve idempotency during replay. Track oldest-message age, queue growth, attempts per notification, delivery latency, and cost per successful delivery.
+**During outage:** Keep queue growth within storage and business-retention constraints. Expire work that can no longer be useful, retain urgent work within its deadline, and provide a visible pending status rather than claiming delivery. Separate channels so one provider outage does not block unrelated channels; failover to another provider only if content, consent, deliverability, and quota semantics are compatible.
+
+**Recovery:** Do not release the entire backlog at once. Ramp delivery rate according to provider quotas and reserve capacity for live urgent messages. Reconcile unknown outcomes where the provider may have accepted a request before the timeout. Preserve idempotency during redrive and avoid retrying permanent address/template/auth failures.
+
+**Signals and follow-up:** Track queue depth and oldest age by priority/channel, delivery success, attempt count, provider throttling, expiry, cost per successful delivery, and estimated drain time. Explain what the API promises and how the system behaves when a queued message becomes stale.
 
 ### Scenario 8 — Redis outage overloads the database
 
-**Problem:** Redis becomes unavailable and a read-heavy service sends the full request load to the database, which cannot sustain the cache-miss rate.
+**Problem:** Redis becomes unavailable or extremely slow. The application falls back to the origin database, which was sized for cache misses rather than full read traffic, and the fallback itself causes a cascading failure.
 
-**Diagnose:** Estimate the uncached request rate and compare it with tested database capacity. Check whether Redis failure is total or partial, whether connection timeouts are delaying requests, and whether repeated retries are amplifying traffic.
+**Diagnose:** Estimate uncached QPS and compare it with tested database capacity. Determine whether Redis has a total outage, partial network issue, connection exhaustion, hot-key problem, or elevated command latency. Inspect cache client timeouts/retries, miss/refill concurrency, application thread pools, DB pool wait, and whether all instances began retrying together.
 
-**Design:** Treat cache failure as a separate capacity scenario. Bound Redis timeouts and fallback concurrency, open a circuit when appropriate, shed low-priority reads, and serve stale data only for endpoints whose freshness and security requirements permit it. Use request coalescing to avoid many simultaneous misses for the same key. After recovery, warm high-value keys gradually rather than stampeding Redis and the database.
+**Design:** Treat cache failure as an explicit operating mode. Bound cache timeouts, cap concurrent origin reads, coalesce identical misses, open a circuit for a failing cache path where appropriate, and shed low-priority reads before the database is overwhelmed. Serve stale values only when the data's freshness, privacy, and correctness contract permits it. A cache holding session or lock state cannot simply be bypassed like a public catalogue cache.
 
-**Trade-off and signals:** Fail-open to the database is safe only if the database has headroom. Monitor cache error rate, miss rate, database QPS, pool wait, rejected requests, and recovery ramp. Test the complete cache-outage path in advance.
+**Recovery:** When Redis returns, avoid warming every key from every instance simultaneously. Ramp traffic gradually, prioritize hot keys, use TTL jitter, and monitor eviction/fill rates. If Redis failover can lose recent writes under the chosen persistence/replication settings, ensure the application does not treat lost coordination or workflow state as authoritative. Business state should remain in a durable source of truth when correctness matters.
+
+**Trade-offs and signals:** Fail-open to the database is safe only if the database can sustain it or the system has bounded degradation. Track Redis latency/errors, cache hit ratio, origin QPS, DB saturation, queue age, rejected requests, stale responses, and p99. Test the full outage and cold-cache path ahead of time. Explain why the cache is optional acceleration or, if not, how its semantics change the fallback decision.
 
 ### Scenario 9 — One tenant dominates the platform
 
-**Problem:** One customer sends a traffic burst or expensive queries that increase latency for every tenant in a shared SaaS platform.
+**Problem:** One customer sends a traffic burst or runs expensive queries, increasing latency for other customers in a shared SaaS platform. A global rate limit exists but does not sufficiently isolate tenants.
 
-**Diagnose:** Attribute request rate, concurrency, CPU/query cost, storage growth, queue depth, and error rate by tenant. Determine whether the problem is a burst, a hot key, an inefficient query, or a genuinely large tenant whose normal load exceeds the shared design.
+**Diagnose:** Attribute requests, CPU/query cost, concurrency, storage growth, queue depth, cache-hit rate, and errors by tenant. Determine whether the load is abusive, an expected burst within the contract, a query bug, a hot key, or a customer large enough to outgrow shared capacity. Count both request rate and cost per request: ten expensive exports can be worse than thousands of cache hits.
 
-**Design:** Apply tenant-aware rate and concurrency limits, fair scheduling, bounded per-tenant queues, and workload isolation. Consider a dedicated shard or pool for persistently large tenants, with an explicit routing and migration plan. Enforce tenant scope in authorization and cache keys, not merely in client-supplied filters.
+**Design:** Enforce tenant identity at the resource-owning service. Apply per-tenant rate and concurrency limits, bounded queues, weighted fair scheduling, query budgets, and separate pools for bulk jobs. Global limits protect platform capacity, while per-tenant budgets prevent a single customer from consuming all of it. Honor contractual burst allowances and reserve capacity for critical tasks such as recovery or security events.
 
-**Trade-off and signals:** Strict quotas protect neighbors but must honor contractual burst allowances and critical recovery operations. Track noisy-neighbor incidents, per-tenant p99, throttling, queue age, and resource consumption. Test that one tenant cannot read or overwrite another tenant's data.
+**Isolation tiers:** Shared database/shards are cost-efficient for ordinary tenants. Persistently large tenants may need dedicated shards, pools, or worker capacity; this requires a routing map, migration strategy, cost model, and a plan for tenant-wide queries. Splitting one tenant across buckets helps hot writes but complicates transactions and aggregation.
+
+**Security:** Tenant filtering must not depend only on client-supplied parameters. Include tenant and authorization scope in cache keys and ensure events, search indexes, object storage, exports, and administrative tools preserve the boundary. Test that one tenant cannot read or overwrite another tenant's data.
+
+**Signals and follow-up:** Track per-tenant p99, resource cost, throttling, queue age, and cross-tenant error rates. Explain how you decide between throttling, isolation, and a paid dedicated tier without creating unfairness or data leakage.
 
 ### Scenario 10 — Zero-downtime migration of a heavily written table
 
-**Problem:** A heavily written table must change shape without stopping writes or losing updates.
+**Problem:** A large, heavily written table must change schema or move to a new representation without blocking production traffic, losing updates, or leaving old and new application versions incompatible.
 
-**Approach:** Use an expand–migrate–contract sequence. Add the new schema compatibly, deploy code that can read and write the representations needed during transition, and backfill in small idempotent batches. Capture concurrent changes through a carefully designed dual-write mechanism or CDC stream, then compare versions and counts before switching reads. Avoid letting a stale backfill overwrite a newer live update; use version-aware conditional writes or a high-water mark.
+**Plan:** Use expand–migrate–contract. First add the new column/table/index in a backward-compatible way and deploy code that can coexist with both representations. Do not remove or reinterpret the old field while any supported process still reads it. For indexes or constraints that may lock large tables, use the database's online/concurrent facilities where supported and verify their operational limitations.
 
-**Operational safety:** Rate-limit the backfill so it does not starve production queries, monitor lock duration and replication lag, checkpoint progress, and define pause/rollback criteria. Keep the old representation until the new path has been validated in production and rollback no longer depends on it. “Zero downtime” still requires a tested plan for mixed application versions and partial migration failure.
+**Backfill with a boundary:** Take a consistent snapshot or capture a high-water mark/log position. Copy records in bounded, checkpointed, idempotent batches, then apply concurrent changes through CDC or a controlled dual-write protocol. A naive dual write can commit to one side and fail on the other, so its repair and authority model must be explicit. Use versions/conditional writes so an old backfill value cannot overwrite a newer production update. Capture deletes too.
+
+**Validate:** Compare counts and sampled/full checksums where feasible; check nulls, constraints, version mismatches, application-visible results, and replication lag. Shadow-read the new representation if practical. Rate-limit migration work to protect production query latency and define pause thresholds.
+
+**Cut over and rollback:** Shift reads to the new representation gradually, monitor correctness and p99, then shift writes once compatibility is proven. Keep the old representation until the rollback window is complete. After the new representation has accepted writes that the old one cannot understand, rollback may require reverse replication or forward repair rather than simply reverting application code.
+
+**Signals and follow-up:** Track backfill progress/lag, lock time, DB load, mismatch counts, errors, and versions still writing the old shape. “Zero downtime” means no planned user-visible interruption, not zero risk; explain how each crash window resumes safely.
 
 ### Scenario 11 — Distributed lock expires while work continues
 
