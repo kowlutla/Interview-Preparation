@@ -1391,11 +1391,13 @@ For every scenario, state assumptions, identify the invariant, analyse evidence,
 
 ### Scenario 3 — Read replicas return stale order status
 
-**Problem:** An order write succeeds but the next read returns “not found.”
+**Problem:** An order write succeeds, but the next GET returns “not found” because it is served by a lagging replica.
 
-**Answer:** The write committed on the primary, while the read hit a lagging replica. If the journey requires read-your-writes, route the immediate read to primary, use a supported consistency token, or wait for a replication position. Keep unrelated catalogue reads on replicas.
+**Diagnose:** Confirm the primary committed the order and inspect replica replay/replication position. Check whether routing is random, whether the API promises read-your-writes, and whether a failover has changed the authoritative node.
 
-**Trade-off:** Sending every read to primary is simple but sacrifices read scaling. Monitor replica lag; an arbitrary sleep is not a consistency guarantee.
+**Options:** Route the immediate follow-up read to the primary, carry a consistency token/commit position if the datastore supports it, or wait until the replica has applied the relevant position. Keep unrelated catalogue or recommendation reads on replicas when their freshness contract permits it. Do not insert an arbitrary sleep and call it a guarantee.
+
+**Trade-off:** Sending every read to the primary is simple but can reduce read scaling. Monitor replica lag and stale-read rate, and test behavior during replica failover as well as normal operation.
 
 ### Scenario 4 — Payment provider times out after charging
 
@@ -1407,11 +1409,15 @@ For every scenario, state assumptions, identify the invariant, analyse evidence,
 
 ### Scenario 5 — Kafka consumers fall behind
 
-**Problem:** Input rate exceeds processing rate and lag grows.
+**Problem:** Input rate exceeds successful processing rate and consumer lag keeps growing.
 
-**Answer:** Compare arrival and completion rates, oldest-event age, partition skew, processing time, retries, and downstream latency. Add consumers only up to partition and downstream capacity. A hot key may remain serial. Optimize I/O, batch safely, isolate slow event types, and route poison messages according to policy. During recovery, drain at a controlled rate.
+**Diagnose:** Compare arrival rate with completion rate, oldest-record age, partition skew, per-record processing time, retry/DLQ rate, rebalance frequency, and downstream latency. Distinguish a temporary burst from a sustained throughput deficit. A hot key can remain serial even when more consumers are added, and consumer count cannot usefully exceed available partitions for one consumer group.
 
-**Follow-up:** A 1.8-million-message backlog at a net drain rate of 5,000/second takes about 360 seconds, assuming rates remain stable.
+**Design:** Fix the slowest stage first, batch only where semantics permit, increase partitions/consumers only after checking ordering and downstream capacity, and isolate slow event types. Apply bounded retries and poison-message policy. Ramp backlog replay gradually so a recovering dependency is not overwhelmed.
+
+**Estimate:** A backlog of 1.8 million records at a net drain rate of 5,000 records/s takes about 360 seconds to drain, assuming rates remain stable. Net drain rate means completion rate minus ongoing arrivals; if it is zero or negative, the backlog will not shrink.
+
+**Signals:** Track lag and oldest-event age, arrival/completion rates, rebalance count, processing latency, error rate, and projected drain time.
 
 ### Scenario 6 — Autoscaling overloads the database
 
@@ -1539,7 +1545,13 @@ For every scenario, state assumptions, identify the invariant, analyse evidence,
 
 ### Scenario 20 — 10× spike with a limited budget
 
-**Answer:** Separate baseline from burst capacity. Cache immutable reads, precompute expensive results, queue deferrable work, reserve capacity for critical flows, and apply admission control. Test cache-cold and dependency-failure conditions. Autoscaling helps gradual growth; instant spikes may need pre-warming and traffic shaping.
+**Problem:** A campaign may create ten times normal traffic, but the budget does not allow every tier to be provisioned for the peak continuously.
+
+**Clarify:** How quickly does the spike arrive, how long does it last, which user journeys are revenue- or safety-critical, and what latency or rejection rate is acceptable for optional work?
+
+**Design:** Separate baseline from burst capacity. Cache immutable or safely stale reads, precompute expensive results, queue deferrable work with bounded retention, reserve capacity for critical operations, and use admission control or rate limits. Pre-warm capacity and test autoscaling lag; autoscaling cannot instantly create capacity for a sudden spike. Avoid letting a cold cache or dependency failure multiply the load.
+
+**Trade-off and validation:** Overprovisioning improves burst response but costs more; shedding load protects critical paths but rejects some work. Run a representative load test, including cold-cache and degraded-dependency cases, and monitor queue age, rejected traffic, p99, and cost per successful operation.
 
 ### Scenario 21 — Millions of queued events after an outage
 
@@ -1553,11 +1565,23 @@ For every scenario, state assumptions, identify the invariant, analyse evidence,
 
 ### Scenario 22 — Duplicate notifications after consumer rebalance
 
-**Answer:** Trace a notification ID from source event to outbox, broker, consumer attempt, provider request, and callback. A crash between side effect and offset/ack commit can repeat processing. Use durable deduplication and provider idempotency where available. If the provider lacks idempotency, acknowledge the remaining uncertain duplicate window.
+**Problem:** A Kafka consumer group rebalances during a deployment and users receive the same notification twice.
+
+**Trace:** Follow a stable notification ID through the source transaction, outbox, broker record, consumer attempt, provider request, and delivery callback. Determine whether the duplicate came from republishing, reprocessing after offset reset, concurrent ownership during a rebalance, or provider retry after an uncertain timeout.
+
+**Design:** Use durable deduplication keyed by logical notification ID and an idempotent state transition. Commit local notification state before acknowledging the record; if the consumer crashes in between, the repeated record can be recognized. Pass a stable provider idempotency key if supported, and persist provider references and outcomes.
+
+**Limit:** If the provider does not support idempotency and a request times out after it may have sent the message, a duplicate cannot always be ruled out. Document that residual window and use delivery callbacks/reconciliation where possible. Monitor duplicate rate, rebalance frequency, provider timeouts, and retry attempts.
 
 ### Scenario 23 — Search shows stale price after product update
 
-**Answer:** Search is a derived read model and may lag. Define freshness expectations; checkout must revalidate price against the authoritative source. Publish changes reliably, make indexing idempotent and version-aware, and monitor indexing lag. Never finalize a financial amount using stale search data.
+**Problem:** A product price changes, but search results still show the old price while a customer attempts checkout.
+
+**Design:** Treat search as a derived read model with an explicit freshness SLO. Publish changes reliably through an outbox/CDC path, make index updates idempotent and version-aware, and monitor indexing lag and failed updates. The checkout/order path must revalidate price and availability against the authoritative source before committing the transaction; do not use stale search data to determine the amount charged.
+
+**User experience:** If the price changed between search and checkout, return a clear price-change result and ask for confirmation where required. Avoid silently charging a different amount.
+
+**Recovery:** Rebuild or replay the index from authoritative data when corruption or missed events occur. Verify counts and representative queries before switching index generations.
 
 ### Scenario 24 — Regional failover creates a routing loop
 
@@ -1581,7 +1605,13 @@ For every scenario, state assumptions, identify the invariant, analyse evidence,
 
 ### Scenario 26 — Global service needs low latency on multiple continents
 
-**Answer:** Classify operations as global writes, region-local, or read-mostly. Use CDN/edge caching for eligible content and regional read models where consistency permits. Keep authoritative writes near their owner or accept coordination latency. Multi-region compute does not automatically make data local.
+**Problem:** Users are distributed globally, and round trips to a single-region database dominate latency.
+
+**Clarify:** Which data is public and cacheable, which reads need freshness, which entities are written globally, and what regional outage behavior is required?
+
+**Design:** Use CDN/edge caching for eligible content, deploy stateless compute near users, and maintain regional read models when their staleness is acceptable. Assign authoritative ownership for writes or use a datastore with explicit global consistency semantics. Avoid synchronous cross-region calls on every request unless the invariant requires them; they add latency and couple availability to inter-region connectivity.
+
+**Trade-off:** Regional copies reduce read latency but introduce replication lag, data-residency concerns, and failover complexity. Multi-region compute alone does not make data local. Measure user-perceived latency by region, replication lag, cross-region traffic, and failover correctness.
 
 ### Scenario 27 — External provider imposes a strict quota
 
@@ -1615,7 +1645,11 @@ For every scenario, state assumptions, identify the invariant, analyse evidence,
 
 ### Scenario 30 — Interviewer asks “What breaks first?”
 
-**Answer structure:** Use estimates and architecture to identify the likely bottleneck; explain how a node failure changes remaining capacity; describe protective controls and what degrades or is rejected. Discuss database headroom, connection limits, partition skew, queue growth, provider quotas, and recovery time. Name the metrics and load test that would validate the hypothesis.
+**Answer structure:** Start with the rough workload estimate and the capacity limit of each major tier: requests per instance, database throughput/connections, cache capacity, broker partitions, consumer throughput, and third-party quotas. Identify the most likely bottleneck and state the assumptions behind that prediction.
+
+Then consider a failure: if one availability zone or a fraction of instances disappears, can the remaining capacity handle peak traffic? Explain the protective response—queue bounded work, shed optional traffic, throttle tenants, or reject requests before the system enters an uncontrolled failure spiral. Include recovery behavior and the risk of replaying a backlog too quickly.
+
+**Validate:** Name the load test and metrics that would prove or disprove the hypothesis: successful throughput, p99, pool wait, hot-partition skew, queue age/drain time, dependency saturation, and error rate. A strong answer distinguishes a calculated estimate from a measured limit and says what would change the design.
 
 
 
