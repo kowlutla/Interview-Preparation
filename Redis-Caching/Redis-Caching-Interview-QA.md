@@ -515,6 +515,9 @@ Use the official documentation for version-sensitive behavior. For SQL fundament
 - [Redis Sentinel](https://redis.io/docs/latest/operate/oss_and_stack/management/sentinel/)
 - [Redis Cluster specification](https://redis.io/docs/latest/operate/oss_and_stack/reference/cluster-spec/)
 - [Redis Streams](https://redis.io/docs/latest/develop/data-types/streams/)
+- [Redis Pub/Sub delivery semantics](https://redis.io/docs/latest/develop/pubsub/)
+- [Redis Lua scripting](https://redis.io/docs/latest/develop/programmability/eval-intro/)
+- [Redis pipelining](https://redis.io/docs/latest/develop/using-commands/pipelining/)
 
 ## Java and Spring
 - [Spring Data Redis reference](https://docs.spring.io/spring-data/redis/reference/)
