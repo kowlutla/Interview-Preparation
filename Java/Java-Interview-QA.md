@@ -1016,11 +1016,34 @@ Java's `Thread` API abstracts thread behavior, while the runtime maps platform t
 
 `volatile` provides visibility and ordering for reads/writes to that variable but does not make compound read-modify-write operations atomic. A volatile flag can publish state safely under a well-defined protocol; a shared counter increment usually needs an atomic class or a lock. Choose based on whether the requirement is visibility alone or an indivisible multi-step state transition.
 
-### Q165. What does happens-before mean?
+### Q165. What does happens-before mean, and how do you reason about visibility?
 
-Happens-before is a memory-model relationship that guarantees visibility and ordering between actions. Program order within one thread contributes to it; synchronization constructs create cross-thread relationships. For example, actions before a thread starts happen-before actions in that thread, and a thread's actions happen-before another thread successfully returns from joining it.
+The Java Memory Model (JMM) defines which cross-thread observations are legal. **Happens-before** is a partial ordering of actions: if action A happens-before action B, B is guaranteed to observe the effects of A as required by the memory model. It is not a claim that every read physically fetches from a single shared “main memory”; compilers, the JIT, CPU caches, and hardware may optimize execution as long as the JMM contract is respected.
 
-A volatile write happens-before a subsequent read of that same variable under the specified rules, and unlocking a monitor happens-before a later lock of that monitor. These are contractual guarantees, not guesses about CPU caches. Reason about concurrency by identifying the synchronizing edge that makes one thread's writes visible to another.
+Important happens-before edges include:
+
+- **Program order:** earlier actions in one thread happen-before later actions in that thread.
+- **Monitor:** unlocking a monitor happens-before every subsequent lock of that same monitor.
+- **Volatile:** a write to a volatile variable happens-before subsequent reads of that same variable in the relevant synchronization order.
+- **Thread lifecycle:** actions before `Thread.start()` happen-before actions in the started thread; all actions in a thread happen-before another thread successfully returns from joining it.
+- **Concurrency utilities:** documented synchronizers and concurrent APIs specify their own memory-consistency effects.
+
+For example, the following is a data race: one thread writes ordinary fields and another reads them without a happens-before edge. Seeing the expected value in a local test does not prove correctness.
+
+```java
+// Thread A
+message = "ready";
+ready = true; // ready is volatile
+
+// Thread B
+if (ready) {   // ready is volatile
+    System.out.println(message);
+}
+```
+
+If `ready` is a volatile field, the volatile write/read establishes the required edge, so the prior write to `message` is visible when Thread B observes `ready == true`. This protocol works only if the read sees the publishing write (or the appropriate later write) and all relevant initialization occurs before publication. Making `ready` volatile does not make unrelated compound operations atomic.
+
+Do not use `Thread.sleep()` or assumptions about CPU timing as a substitute for a documented synchronization edge.
 
 ### Q166. Why is count++ not atomic, even if count is volatile?
 
@@ -1084,11 +1107,39 @@ Atomicity means an operation appears indivisible; visibility means one thread's 
 
 Use synchronization, volatile, atomics, or higher-level concurrency utilities according to the actual guarantee required. Avoid reasoning from how code appears to execute on one machine: the Java Memory Model defines which behaviors are permitted across threads.
 
-### Q176. What is safe publication, and why does it matter?
+### Q176. What is safe publication, and what special guarantees do final fields provide?
 
-Safe publication means making an object visible to other threads in a way that ensures they see its correctly initialized state. This can be achieved through mechanisms such as static initialization, a volatile reference, synchronization, or thread-safe concurrent utilities. Publishing an object before construction is complete can allow another thread to observe inconsistent state.
+Safe publication is making a reference available to other threads through a mechanism that gives the receiving thread the required visibility guarantees. Common techniques include static initialization, storing the reference in a volatile field, publishing it while holding and later acquiring the same monitor, or transferring it through a concurrency utility with a documented memory-consistency guarantee.
 
-Immutability simplifies safe sharing, especially when fields are final and the object does not leak its reference during construction. But final fields do not excuse leaking `this` from a constructor or using unsafe publication for mutable surrounding state.
+```java
+final class Config {
+    final String endpoint;
+    int retryLimit;
+
+    Config(String endpoint, int retryLimit) {
+        this.endpoint = endpoint;
+        this.retryLimit = retryLimit;
+    }
+}
+
+private volatile Config config;
+
+void publish() {
+    config = new Config("https://service", 3);
+}
+
+void use() {
+    Config snapshot = config;
+    if (snapshot != null) {
+        System.out.println(snapshot.endpoint);
+        System.out.println(snapshot.retryLimit);
+    }
+}
+```
+
+The volatile reference safely publishes the constructed object: the writes performed before the volatile publication become visible to a thread that reads that publication. The local snapshot also ensures this method uses one reference consistently. This does not make later unsynchronized mutations of `Config` safe; prefer immutable state when possible.
+
+Java also gives special **final-field semantics** when an object is constructed correctly: after the constructor completes, a thread that obtains the object reference can rely on the initialized values of its final fields under the JMM rules, even in cases where reference publication is otherwise racy. Those rules have limits and are not a substitute for safe publication of mutable fields or state reachable through mutable references. Do not let `this` escape during construction (for example, by registering a callback that can run before the constructor finishes), because another thread may then observe an incompletely constructed object.
 
 ### Q177. How do wait(), notify(), and notifyAll() work, and why should wait be in a loop?
 
