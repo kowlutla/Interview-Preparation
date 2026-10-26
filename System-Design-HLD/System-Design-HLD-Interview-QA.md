@@ -209,7 +209,9 @@ Use bounded retries with exponential backoff and jitter, stop when the end-to-en
 
 ### Q28. How do you estimate cache memory?
 
-Estimate active keys multiplied by average serialized value size, then add key/object overhead, metadata, fragmentation, and replication. Five million values averaging 2 KB need 10 GB for values alone; actual allocation may be much higher. Validate using representative data and memory metrics.
+Start with the number of simultaneously resident keys and the average serialized value size. Five million values averaging 2 KB require about 10 GB for payloads alone, using decimal units. Actual memory use can be substantially higher because Redis and similar systems also store keys, object metadata, allocator overhead, fragmentation, and internal data structures; replicas add further infrastructure memory.
+
+Do not size a cache using an average payload alone. Sample real key and value distributions, include peak key count and eviction policy, and load-test the expected access pattern. Monitor memory fragmentation, eviction rate, hit ratio, and latency. If the cache evicts hot keys continuously, adding memory may help—but a poor key design or low-reuse workload may mean the cache is not providing enough value.
 
 ### Q29. What changes when traffic grows 10×?
 
@@ -237,7 +239,9 @@ Layer 7 is useful for API routing, authentication integration, and request-aware
 
 ### Q33. Which load-balancing algorithms are common?
 
-Round robin distributes requests cyclically; least-connections prefers backends with fewer active connections; weighted methods account for unequal capacity; consistent hashing can preserve affinity for a key. No algorithm fixes an overloaded shared database. Choose based on request duration, backend heterogeneity, and locality.
+Common algorithms include **round robin** (rotate among backends), **weighted round robin** (send more traffic to higher-capacity backends), **least connections** (prefer backends with fewer active connections), and **consistent hashing** (preserve key affinity where possible). Each relies on assumptions: least-connections can be misleading when requests have very different costs, and round robin does not account for backend saturation unless health and weighting adapt.
+
+Choose based on request duration, backend capacity, connection behavior, locality, and whether affinity is required. Health checks and outlier handling help avoid sending traffic to unhealthy instances, but no balancing algorithm fixes a saturated shared dependency. Validate the policy with realistic traffic and observe successful throughput, tail latency, and per-backend imbalance.
 
 ### Q34. Are health checks enough for safe failover?
 
@@ -247,7 +251,9 @@ Use thresholds and time windows that avoid reacting to brief noise, and distingu
 
 ### Q35. What are the limitations of sticky sessions?
 
-Sticky sessions route a client repeatedly to one server. They can improve locality but create uneven load and complicate failover. If session state exists only in process memory, restart loses it. Prefer stateless services unless affinity is a measured requirement.
+Sticky sessions use a cookie or another affinity key to route a client repeatedly to the same backend. This can improve locality for stateful legacy applications, but it creates uneven load when some sessions are much busier than others and makes failover harder when the selected instance disappears.
+
+Affinity is not a substitute for durable session storage. If session state exists only in process memory, a restart or reschedule can lose it; a failover may also send the client to an instance that lacks that state. Prefer stateless application instances with shared or client-held session state when practical. Use sticky routing only when its benefit is measurable, and ensure session state and security do not depend on a particular instance surviving.
 
 ### Q36. How should timeout budgets be designed?
 
@@ -257,11 +263,15 @@ Check what each client library's timeout actually covers: connection-pool acquis
 
 ### Q37. When use WebSockets, Server-Sent Events, or long polling?
 
-WebSockets support bidirectional long-lived communication, useful for chat and collaboration. Server-Sent Events provide a server-to-client stream over HTTP. Long polling holds a request until data is available and can be simpler but adds repeated request overhead. Choose based on directionality, scale, reconnect behavior, and delivery needs.
+**WebSockets** provide a long-lived, bidirectional connection, useful for chat, collaboration, and interactive updates. They require connection lifecycle management, heartbeat/reconnect behavior, and capacity planning for many concurrent connections. **Server-Sent Events (SSE)** provide a server-to-client event stream over HTTP and are often simpler when clients only need updates from the server. **Long polling** holds an HTTP request until data is available or a timeout occurs, then the client opens another request; it is easier to support in some environments but adds request overhead.
+
+Choose based on directionality, client support, connection count, proxy behavior, and delivery semantics. None of these transports alone guarantees durable delivery: define event IDs, replay/reconnect behavior, authorization, and what happens when a client is offline.
 
 ### Q38. What does a CDN solve and not solve?
 
-A CDN caches eligible content near users, reducing origin load and geographic latency. It works well for static assets and carefully cacheable responses, but not automatically for personalized data, authorization, or writes. Cache keys must include every request dimension that changes the representation.
+A CDN caches eligible content at edge locations closer to users, reducing origin traffic and often improving latency for geographically distributed clients. It is especially effective for versioned static assets and public responses whose cache policy is well defined. Cache invalidation and TTLs determine how quickly changes become visible.
+
+A CDN does not automatically make personalized or authorized responses safe to share. The cache key and cache-control headers must reflect every dimension that changes the response, and sensitive user-specific data often should be private or non-cacheable. CDN caching also does not solve write consistency or an overloaded origin on cache misses. Monitor hit ratio, origin offload, stale-content incidents, and cache-miss latency.
 
 ## 5. APIs and service boundaries
 
@@ -305,7 +315,9 @@ The goal is clear ownership, not blindly giving every service a separate databas
 
 ### Q46. Vertical versus horizontal scaling?
 
-Vertical scaling increases resources on one machine and is operationally simple until hardware limits or single-node risks dominate. Horizontal scaling adds instances but requires distributing traffic and state. Stateful systems often need sharding, replication, or coordination before they scale horizontally.
+Vertical scaling adds CPU, memory, or I/O capacity to one machine. It is often simpler because the application may not need to distribute state, but it has hardware limits and may leave a larger single-node failure domain. Horizontal scaling adds more instances and can improve capacity and fault isolation, but requires traffic distribution and careful handling of state, coordination, and shared dependencies.
+
+Stateless application servers are usually straightforward to scale horizontally. Databases and other stateful components need additional design—replication, partitioning, consensus, or ownership boundaries—before extra nodes translate into useful capacity. Choose based on measured bottlenecks and failure objectives, not on a blanket rule that one scaling method is always better.
 
 ### Q47. Why might adding application instances not improve throughput?
 
@@ -315,15 +327,21 @@ Use traces and saturation metrics to locate the queue: application CPU, thread p
 
 ### Q48. What is backpressure?
 
-Backpressure prevents producers from overwhelming slower consumers through bounded queues, demand signals, concurrency limits, or rejection. Without bounds, a queue converts overload into memory growth and long latency. Decide whether to slow producers, reject work, or defer it based on business priority.
+Backpressure is a mechanism for preventing producers from overwhelming slower consumers. It may use bounded queues, demand signals, concurrency limits, rate limits, or explicit rejection. Without a bound, a queue can turn a short overload into growing memory use and very long waiting times.
+
+A queue absorbs bursts only when the arrival rate eventually falls below the processing rate. If incoming work remains faster than completed work, backlog keeps growing. Decide whether each operation should be slowed, durably deferred, or rejected quickly, and make the decision visible to callers. Monitor queue age and drain rate as well as queue depth; a large but rapidly shrinking queue is different from a smaller queue that is getting older.
 
 ### Q49. What is load shedding?
 
-Load shedding intentionally rejects lower-priority work when capacity is exhausted so critical work remains healthy. A fast overload response can be better than allowing every request to time out. Align the policy with product priorities and monitor rejected work.
+Load shedding deliberately rejects or drops lower-priority work when demand exceeds safe capacity, preserving resources for critical operations. For example, a platform may defer recommendation refreshes and bulk exports before allowing checkout requests to wait until they time out. Rejection should be fast and explicit, with a response that tells clients whether retrying later is appropriate.
+
+Define priority classes and admission limits before an incident. Ensure clients do not immediately retry rejected work in a synchronized loop, and avoid starving one tenant indefinitely. Monitor shed traffic by operation, priority, and tenant, alongside successful throughput and latency for the work the system is trying to protect.
 
 ### Q50. Why can autoscaling make an incident worse?
 
-If CPU is not the bottleneck, adding instances may increase database connections, cache misses, or downstream traffic. Aggressive thresholds can cause oscillation, and cold starts may worsen latency. Scale on the resource limiting useful throughput, cap concurrency, and reserve capacity for sudden bursts.
+Autoscaling can worsen an incident when the scaling signal does not represent the actual bottleneck. Adding application instances may multiply database connections, cache misses, queue consumers, or calls to a rate-limited provider. Aggressive thresholds can also cause oscillation as instances repeatedly start and stop; new instances may initially be cold and add little useful capacity.
+
+Scale on metrics that correlate with sustainable throughput—such as queue age, request concurrency, or a verified CPU bottleneck—and cap downstream concurrency. Account for provisioning and warm-up delay, use minimum warm capacity when spikes are sudden, and load-test scale-out and scale-in behavior. The goal is more successful work within the SLO, not simply more running instances.
 
 ### Q51. How do you isolate a noisy tenant?
 
@@ -331,13 +349,17 @@ Use per-tenant quotas, concurrency budgets, fair scheduling, workload pools, and
 
 ### Q52. How do you estimate queue drain time?
 
-With 3.6 million messages, 12,000 processed/second, and 4,000 new arrivals/second, net drain rate is 8,000/second, so drain time is about 450 seconds or 7.5 minutes. This assumes stable rates and no retries or variable processing costs. If arrivals match or exceed processing, the backlog will not drain.
+If there are 3.6 million queued messages, workers complete 12,000 messages per second, and new messages arrive at 4,000 per second, the net drain rate is 8,000 messages per second. Estimated drain time is (3{,}600{,}000 / 8{,}000 = 450) seconds, or 7.5 minutes.
+
+This is an approximation: it assumes stable arrival and completion rates, similar message costs, and no extra retry traffic. Use the successful completion rate rather than raw attempts, and include partition skew and downstream rate limits. If the arrival rate equals or exceeds successful completion, the backlog cannot shrink; adding consumers helps only if downstream dependencies can handle the additional concurrency.
 
 ## 7. Databases and data modelling
 
 ### Q53. How do you choose SQL versus NoSQL?
 
-Start with relationships, invariants, access patterns, transaction requirements, query flexibility, and operational expertise. Relational databases are strong defaults for structured data and multi-row transactions. Key-value or wide-column stores suit predictable high-volume patterns; document databases suit aggregate-oriented records; graph databases help relationship traversal. NoSQL does not automatically mean faster or more scalable.
+Choose based on data relationships, business invariants, access patterns, transaction boundaries, query flexibility, scale, and the team's ability to operate the technology. Relational databases are a strong default when entities are related and operations need transactions or constraints. Key-value and wide-column stores can suit predictable high-volume access patterns; document stores can suit aggregate-oriented records; graph stores can help when relationship traversal is central.
+
+These categories overlap, and no database type is automatically faster or more scalable. Ask how the system will query and update the data, what consistency it requires, how it will partition and recover, and how data will be migrated. A familiar relational database with a well-designed schema may outperform a poorly matched distributed store while being much easier to operate.
 
 ### Q54. OLTP versus OLAP?
 
@@ -349,11 +371,15 @@ It distributes load and storage while supporting common queries without excessiv
 
 ### Q56. What is a hot partition?
 
-A partition is hot when it receives disproportionate traffic or data. Causes include skewed keys, celebrity accounts, sequential keys, or uneven tenant load. Mitigations include key salting, sub-partitioning, caching, isolating hot tenants, or redesigning access patterns. Each can make reads or aggregation more complex.
+A hot partition receives a disproportionate share of requests or data, so one partition becomes the bottleneck while others remain underused. Common causes include a popular account or tenant, a sequential key that directs writes to the newest range, or a partition key that does not match the actual workload.
+
+Mitigations depend on the access pattern. Key salting or sub-partitioning can spread writes but makes reads and aggregation more complex; caching can reduce repeated reads for hot keys; a large tenant may need dedicated capacity. Before changing the key, measure skew and identify which operations must remain ordered or colocated. A more even distribution is not an improvement if it breaks the queries or invariants the design depends on.
 
 ### Q57. What is consistent hashing?
 
-Consistent hashing maps keys and nodes onto a logical ring so adding or removing a node typically remaps only a portion of keys. Virtual nodes can improve balance. It reduces movement but does not guarantee perfect distribution, eliminate hot keys, or solve replication correctness.
+Consistent hashing maps keys and nodes onto a logical ring so that adding or removing a node typically remaps only a portion of keys, rather than reshuffling nearly everything. Virtual nodes can improve distribution when physical nodes have different capacities or the key space is uneven.
+
+It is a placement technique, not a complete storage architecture. It does not guarantee perfectly balanced load, prevent a hot key, or define replication and consistency by itself. Real systems still need to specify replicas, membership changes, failure handling, and how clients discover the current ring. Use it when reducing remapping during topology changes is valuable, and verify distribution under realistic key skew.
 
 ### Q58. What are read replicas good for, and what can go wrong?
 
