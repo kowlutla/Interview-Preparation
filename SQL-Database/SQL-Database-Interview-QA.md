@@ -20,7 +20,7 @@ A focused interview handbook for Java backend engineers preparing for mid-level 
 ## Top 15 Questions to Master First
 
 1. [Q1. What is the difference between WHERE and HAVING?](#q1-what-is-the-difference-between-where-and-having)
-2. [Q2. What is the difference between DELETE, TRUNCATE, and DROP?](#q2-what-is-the-difference-between-delete-truncate-and-drop)
+2. [Q45. How do prepared statements prevent SQL injection, and what can they not parameterize?](#q45-how-do-prepared-statements-prevent-sql-injection-and-what-can-they-not-parameterize)
 3. [Q3. How do NULL values behave in SQL?](#q3-how-do-null-values-behave-in-sql)
 4. [Q8. What is the difference between INNER JOIN and LEFT JOIN, and how can ON versus WHERE change results?](#q8-what-is-the-difference-between-inner-join-and-left-join-and-how-can-on-versus-where-change-results)
 5. [Q13. How do you find the second-highest distinct salary?](#q13-how-do-you-find-the-second-highest-distinct-salary)
