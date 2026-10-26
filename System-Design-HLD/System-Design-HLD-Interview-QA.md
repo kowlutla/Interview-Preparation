@@ -2,7 +2,7 @@
 
 **Audience:** Java backend engineers with 5–10 years of experience preparing for senior and staff-leaning backend/product-company interviews.  
 **Purpose:** A progressive guide to architecture reasoning, capacity estimation, data ownership, consistency, failure handling, operations, and cost.  
-**Status:** Rebuilding for the 5–10 year experience band. Includes eight worked designs and 15 core-concept deep dives; scenarios 1–70 are being strengthened around invariants, diagnosis, capacity, failure windows, recovery, security boundaries, and operational signals. Full content coverage, technical accuracy, readability, and rendered-diagram validation remain in progress; not final sign-off.
+**Status:** Rebuilding for the 5–10 year experience band. Includes eight worked designs and 15 core-concept deep dives; all 80 scenarios are now being systematically checked and expanded around invariants, diagnosis, capacity, failure windows, recovery, security boundaries, and operational signals. Full content coverage, technical accuracy, readability, and rendered-diagram validation remain in progress; not final sign-off.
 
 > **How to use this guide:** Learn fundamentals in order, then practise scenarios aloud. State assumptions, identify the critical business invariant, estimate scale, draw the simplest viable architecture, and deepen the part the interviewer challenges. Naming technologies is not the goal; explaining why the design satisfies requirements is.
 
@@ -4340,63 +4340,89 @@ Do not solve the issue solely by adding a user ID to every cache key without che
 
 ### Scenario 74 — A cache key omission leaks tenant data
 
-**Problem:** A cache key omits the tenant identifier, so two tenants requesting the same resource ID can receive the same cached response.
+**Problem:** A cache key uses only a resource ID, omitting tenant or authorization context. Two tenants that request the same logical ID can receive the same cached response, potentially exposing private records.
 
-**Immediate response:** Stop shared caching for the affected response class or correct the key and purge vulnerable entries. Determine what data may have been exposed and follow the security incident process; do not treat this as merely a cache hit-ratio bug.
+**Containment:** Disable shared caching or bypass the affected route immediately, then purge vulnerable entries under the incident procedure. Preserve logs/metadata without copying sensitive response bodies into debug output. Determine the exposure window and affected tenants, and follow security/privacy response requirements rather than treating it as a mere cache correctness bug.
 
-**Corrective design:** Define response identity from every dimension that changes the representation, including tenant, user/authorization scope, locale, and relevant query parameters. For sensitive personalized responses, private or non-cacheable behavior may be safer than shared caching. Keep authorization checks on every path where required; a cache entry must not act as proof of permission.
+**Root cause analysis:** Reconstruct how the cache key was built, whether tenant identity was trusted, and whether cache hits bypass origin authorization. Review application cache, CDN, gateway, local cache, and read-model keys—one correct layer does not fix another unsafe layer. Check alternate representations where locale, role, permissions, query filters, or feature flags affect the response.
 
-**Validation:** Add automated cross-tenant tests across application caches and CDNs, and monitor cache-key variants and access anomalies. Review other cached response types for the same omission.
+**Corrective design:** Build keys from canonical, validated dimensions that change the representation: tenant, user/permission scope where required, resource, locale, filters, and schema version. Do not trust caller-controlled headers as authorization evidence. Personalized responses should generally be private/non-cacheable unless an explicit safe caching design exists. Authorization must still be enforced at the resource-owning service, and sensitive cached values need suitable TTL, encryption/access control, and invalidation semantics.
+
+**Validation:** Add automated cross-tenant and cross-role tests against the real cache/CDN configuration. Test anonymous versus authenticated requests, differing cookies/Authorization headers, cache-control/Vary behavior, and revocation. Stage policy changes and verify purge propagation.
+
+**Follow-up:** Explain why “the backend is secure” is insufficient when a cache hit can return a stored response without reaching the backend.
 
 ### Scenario 75 — A distributed ID generator returns duplicates after failover
 
-**Problem:** Two ID-generator nodes return duplicate IDs after failover because they use overlapping worker IDs or sequence ranges.
+**Problem:** A distributed ID generator returns duplicates after failover because two nodes reuse the same worker ID or sequence range. The collision may cause overwritten records, broken references, or a unique-constraint failure well after the original incident.
 
-**Root cause:** The generator's uniqueness assumption depended on exclusive allocation that was not preserved during restart, promotion, or network partition. A standby cannot safely take over just because the old node is unreachable; the old process may still be running.
+**Root cause:** The uniqueness guarantee depended on exclusive allocation that was not preserved across restart, promotion, or network partition. An unreachable old generator may still be alive and issuing IDs. Promoting a standby based only on a heartbeat timeout can create split-brain allocation.
 
-**Design:** Allocate worker identities or sequence ranges durably and exclusively, and fence stale owners where the allocation system supports it. If IDs combine time and worker bits, define clock rollback, skew, restart, and worker-ID reuse behavior. Random IDs can avoid centralized coordination but require a sufficiently large namespace and collision handling.
+**Design:** For range allocation, persist each range and owner, mark it consumed/retired, and never reuse a range while an old owner might still issue from it. For time/worker/sequence schemes, allocate worker IDs durably and define fencing/epoch semantics. Handle clock rollback, skew, sequence exhaustion, and restart within the same time window. If using random IDs, size the namespace for the collision probability and keep uniqueness constraints where feasible.
 
-**Validation:** Test crash/restart and split-brain scenarios, not only steady-state generation. Check uniqueness across regions and generator epochs, and keep a repair plan for collisions if the system's guarantee is probabilistic.
+**Containment and repair:** Stop unsafe generation or route allocations through the single proven authority until ownership is restored. A unique constraint can detect duplicates but does not decide which already-created record should win; preserve audit data and define referential repair. Do not silently overwrite an existing entity because an ID collided.
+
+**Validation:** Run tests for concurrent allocator promotion, process pauses, VM/host cloning, worker-ID reuse, clock rollback, and multi-region partition. Monitor duplicate-key violations, allocation leases/epochs, clock drift, and generator failover.
+
+**Follow-up:** Distinguish guaranteed uniqueness by coordination/exclusive allocation from probabilistic uniqueness by a large random namespace. Also explain why uniqueness does not imply a global chronological order.
 
 ### Scenario 76 — A read model rebuild disagrees with production results
 
-**Problem:** A rebuilt read model produces different totals or search results from the current production projection.
+**Problem:** A rebuilt read model has different totals, statuses, or search results from the current production projection. The rebuild job completes and the index responds, but the data may be incomplete or semantically different.
 
-**Diagnose:** Compare the snapshot boundary, event offsets, schema versions, tombstones, event ordering, deduplication rules, and projection code version. A row-count match does not prove the domain result is correct; totals may differ because of duplicate events or missing deletes.
+**Diagnose from one entity outward:** Select an affected record and trace its authoritative state, event/outbox record, broker offset, schema version, consumer logic, and projected document. Check the snapshot boundary, replay offsets, tombstones, duplicate handling, event ordering, timezone/currency semantics, and transformation-code version. Row counts alone will not detect a double-counted aggregate or a missing delete.
 
-**Design:** Rebuild from a consistent point and capture concurrent changes, then replay them into the new projection. Compare domain-level aggregates and representative records, explain all discrepancies, and define an acceptance threshold before switching traffic. Keep the old projection available for rollback until the new one is verified.
+**Rebuild safely:** Use a consistent snapshot and capture changes that occur after it. Apply version-aware, idempotent projection writes so older snapshot data cannot overwrite newer events. Keep the candidate projection separate from the active one, replay up to a defined position, and ensure historical events remain readable by the current consumer. If CDC/log retention expires during rebuild, restart from a new snapshot rather than silently skip the gap.
 
-**Recovery:** If the mismatch is unexplained, do not cut over. Trace a specific entity from the authoritative source through its event history to the projection. Monitor rebuild progress, replay lag, mismatch counts, and freshness.
+**Validate before cutover:** Compare counts, checksums where meaningful, domain totals, representative entities, deleted records, and critical queries. Define an acceptance threshold and require explanations for all mismatches. Shadow-read the candidate and compare results without exposing it to users. Do not cut over while the discrepancy is unexplained.
+
+**Recovery and rollback:** Preserve the old projection until the candidate is verified. If the candidate has already received new updates, rollback must account for those updates. Track rebuild progress, replay lag, mismatch counts, projection freshness, and errors.
+
+**Follow-up:** Explain the exact snapshot/event boundary and how you prove the new projection includes every required update and delete.
 
 ### Scenario 77 — A rate limiter allows bursts after instance scaling
 
-**Problem:** The permitted rate increases when autoscaling adds instances because each instance has its own full-sized token bucket.
+**Problem:** A rate limiter allows a sudden burst after autoscaling because every new instance starts with a full local token bucket. What was intended as a global 1,000 requests/second limit becomes the sum of local allowances.
 
-**Diagnosis:** If every instance independently allows the entire global quota, adding ten instances can permit roughly ten times the intended aggregate rate. A local limiter may be valid for protecting one process, but it does not enforce an account-wide contract by itself.
+**Diagnose:** Confirm the quota scope (process, tenant, account, provider, or platform) and compare accepted request rate with instance count. If each instance can independently grant the full quota, adding ten instances can permit roughly ten times the configured allowance. Repeated restarts can also mint fresh local budgets, and uneven load balancing may cause unfairness between tenants.
 
-**Design:** Use a shared atomic limiter when exact coordination is necessary, or allocate bounded local token budgets from a global quota to reduce per-request coordination. Define the tolerated overshoot during allocation refresh, and ensure instance restarts or scale-in do not mint fresh unaccounted tokens. Apply a separate local concurrency cap to protect each instance.
+**Design options:** A shared atomic limiter can enforce a more accurate global budget but adds latency and a central dependency. A hierarchical design allocates bounded token budgets/leases from a global controller to local instances; this reduces per-request coordination but trades exactness for bounded overshoot and potentially stranded tokens. A local limiter is still useful as a per-instance safety cap, but do not treat it as the global contractual limiter.
 
-**Validation:** Test scale-out, scale-in, restarts, and limiter-service failure. Monitor aggregate accepted rate, quota consumption, rejections, limiter latency, and provider throttling.
+Define refill rate, burst capacity, token lease lifetime, allocation on scale-out, and how unused tokens are reclaimed safely. Ensure rate semantics and concurrency admission are separate: a request rate may be acceptable while long-running operations exhaust workers. Decide behavior if the shared limiter fails according to the abuse/billing risk.
+
+**Validation:** Test scale-out/in, restarts, region failover, limiter partition, and hot tenant keys. Monitor aggregate accepted rate, quota overshoot, provider throttling, limiter latency, rejection rate, and token allocation.
+
+**Follow-up:** Explain how the design prevents each newly created instance from independently resetting the platform's global budget.
 
 ### Scenario 78 — A scheduled workflow misses several intervals
 
-**Problem:** A scheduler was unavailable for two hours and must decide what to do with missed runs.
+**Problem:** A scheduler was unavailable for two hours and must decide what to do with missed runs. Blindly replaying every missed interval can cause duplicate work or overwhelm dependencies; blindly skipping them can violate business requirements.
 
-**Clarify:** Are the jobs independent snapshots, billing periods, cleanup tasks, or time-sensitive notifications? A missed hourly snapshot may be coalesced into one current snapshot; a billing run for every period may need every occurrence to be processed or explicitly reconciled.
+**Define a policy per job type:** A dashboard snapshot may be coalesced into one current run, cache refreshes may be skipped, and billing or compliance workflows may require every logical period to be processed or explicitly reconciled. State whether a missed occurrence expires, catches up, coalesces, or requires manual intervention. Do not apply one global scheduler policy to every job.
 
-**Design:** Define a misfire policy per job class: skip, coalesce, or replay each missed interval. Give each scheduled occurrence a deterministic ID and make its effects idempotent so recovery does not duplicate work. Bound catch-up concurrency and prioritize jobs with deadlines; an unbounded catch-up can overload dependencies and delay current work.
+**Durable identity and safety:** Give each occurrence a deterministic ID such as job name + scheduled instant + tenant/partition. Record started/progress/completed/failed/skipped states durably and enforce uniqueness for the occurrence. Make steps idempotent and use fencing where stale workers could continue after lease expiry. For external side effects, preserve operation IDs and reconcile unknown outcomes before retrying.
 
-**Auditability:** Record which intervals ran, were skipped, or were coalesced, and why. Monitor missed-run count, oldest overdue run, catch-up rate, and duplicate effects.
+**Catch-up control:** Bound concurrency and rate-limit replay. Prioritize jobs by business deadline and dependencies; catch-up must not starve live interactive traffic or exceed a provider quota. For time-windowed jobs, define whether calculations use the original scheduled interval or the current time.
+
+**Auditability:** Keep a record of every interval and why it ran, was coalesced, skipped, or failed. Use versioned configuration to make the misfire policy visible and reviewed.
+
+**Signals and tests:** Track missed-run count, oldest overdue occurrence, catch-up rate, duplicate effects, lease/fencing errors, and duration. Test scheduler downtime, rolling deployment, time-zone/DST changes, and concurrent failover.
+
+**Follow-up:** Explain how the product chooses between skip, coalesce, and replay based on the business meaning of the task.
 
 ### Scenario 79 — A region is healthy but cannot reach the identity provider
 
-**Problem:** Compute and database health checks pass in one region, but authentication fails because that region cannot reach the identity provider or refresh its signing keys.
+**Problem:** Compute, database, and basic network health checks pass in one region, but authentication fails because the region cannot reach the identity provider or refresh signing keys. A basic health check says the region is healthy even though the user journey is broken.
 
-**Diagnose:** Separate infrastructure health from the actual user journey. Determine whether tokens can be verified locally using cached public keys, how old those keys may be, and whether token revocation or policy updates must take effect immediately. Do not assume that routing every request to another region is safe; the target region may lack capacity or have different data access.
+**Diagnose:** Separate process health, dependency reachability, and end-to-end authentication. Determine whether the service verifies signed tokens locally using cached public keys, whether it requires remote token introspection on every request, and whether identity/policy changes must take effect immediately. Also check whether key rotation is expected during the outage and whether cached keys have exceeded their permitted freshness window.
 
-**Design:** Cache validated key material with a defined refresh and expiry policy where the security model permits it. Fail closed for operations when identity cannot be established safely, and avoid accepting tokens based on stale or untrusted configuration. If regional failover is used, test authentication, authorization, and downstream data access end to end.
+**Design:** For self-contained signed tokens, cache validated public keys with a documented refresh/expiry policy and validate issuer, audience, signature, algorithm, and expiration. This can keep the hot path available during a brief identity-provider outage, but revocation and policy changes may be delayed. Remote introspection can provide fresher status but creates a synchronous dependency and latency/failure coupling. Choose per operation's risk; privileged/high-risk actions may need to fail closed if identity cannot be established safely.
 
-**Signals:** Monitor authentication success, key-refresh age, identity-provider latency/errors, and user-journey synthetic checks.
+**Regional routing:** Do not automatically send all requests to another region unless that region has capacity and can reach the required identity/data services. Routing cannot correct stale token policy by itself. Ensure fallback does not cross data-residency boundaries or bypass tenant authorization.
+
+**Recovery:** Re-establish key/config freshness, handle tokens that expired during the outage, and restore routing gradually. Test whether local caches can safely serve existing tokens without accepting revoked or forged credentials.
+
+**Signals:** Monitor authentication success, identity-provider latency/errors, key age/rotation failures, authorization denial changes, and synthetic user journeys. In an interview, distinguish authentication availability from general infrastructure health and explain the fail-closed boundary.
 
 ### Scenario 80 — A new storage engine benchmarks faster but raises operational risk
 
