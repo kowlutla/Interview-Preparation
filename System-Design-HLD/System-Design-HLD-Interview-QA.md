@@ -24,7 +24,7 @@
 14. [Observability and operations](#14-observability-and-operations)
 15. [Multi-region and disaster recovery](#15-multi-region-and-disaster-recovery)
 16. [Cost and architectural evolution](#16-cost-and-architectural-evolution)
-16a. [Core concept deep dives: partitioning, sharding, and traffic infrastructure](#core-concept-deep-dives-partitioning-sharding-and-traffic-infrastructure)
+16a. [Core concept deep dives: databases, distributed coordination, and traffic infrastructure](#core-concept-deep-dives-partitioning-sharding-and-traffic-infrastructure)
 17. [Advanced HLD deep-dive Q&A](#17-advanced-hld-deep-dive-qa)
 18. [Senior-level scenario bank](#18-senior-level-scenario-bank)
 19. [End-to-end case-study index](#19-end-to-end-case-study-index)
