@@ -2,7 +2,7 @@
 
 **Audience:** Java backend engineers with 5+ years of experience preparing for senior backend and product-company interviews.  
 **Purpose:** A progressive guide to architecture reasoning, capacity estimation, data ownership, consistency, failure handling, operations, and cost.  
-**Status:** Rebuilding for the 5–10 year experience band. Recent rewrites deepen capacity estimation, idempotency, service boundaries, multi-tenant isolation, caching, consistency, and distributed failure handling, alongside dedicated database and traffic-infrastructure deep dives. Coverage, technical accuracy, readability, and rendered diagrams still require review; not final sign-off.
+**Status:** Rebuilding for the 5–10 year experience band. Recent rewrites cover capacity calculations, idempotency, service boundaries, noisy-tenant isolation, caching, consistency, transactions, retries, bulkheads, health checks, and outage recovery, alongside database and traffic-infrastructure deep dives. Remaining coverage, technical accuracy, readability, and rendered diagrams still require review; not final sign-off.
 
 > **How to use this guide:** Learn fundamentals in order, then practise scenarios aloud. State assumptions, identify the critical business invariant, estimate scale, draw the simplest viable architecture, and deepen the part the interviewer challenges. Naming technologies is not the goal; explaining why the design satisfies requirements is.
 
@@ -715,7 +715,13 @@ Track the trend in lag, the age of the oldest unprocessed event, arrival and com
 
 ### Q83. How should retries and dead-letter queues work?
 
-Retry transient failures with bounded attempts and backoff. Do not retry permanent validation errors forever. A dead-letter queue stores messages that exceed policy for investigation and safe replay. Preserve payload, error context, attempt count, and correlation IDs; assign ownership so the DLQ is not a silent graveyard.
+Retries are useful for transient faults, but every retry consumes capacity and may repeat a side effect. Classify failures first. A timeout, connection reset, or throttling response may be transient; schema validation errors, authorization failures, and business-rule rejections are usually permanent. Respect provider retry hints where supported, and do not retry every failure indiscriminately.
+
+Use bounded attempts, exponential backoff, and jitter so many clients do not retry at the same moment. Apply an overall deadline or retry budget in addition to a per-attempt timeout. The retry policy should have one clear owner where possible; retries in the client, gateway, service, SDK, and broker can multiply. Most importantly, retry only when the operation is safe to repeat or uses a stable idempotency identity. A timeout means the result may be unknown, not that the operation definitely failed.
+
+A dead-letter queue (DLQ) isolates messages that have exhausted the normal policy or are known to be unprocessable. It is not a substitute for error classification or a place to discard important work silently. Store the original payload or a safe reference, failure reason, attempt history, schema/version metadata, and correlation IDs. Alert on oldest age and count, define ownership and retention, and provide controlled replay after the cause is fixed.
+
+Replay is another production workload: rate-limit it, preserve ordering where the domain requires it, and make consumers idempotent. A poison message may repeatedly break a partition or block later events; moving it aside changes processing semantics and must be an explicit business decision.
 
 ### Q84. What is the transactional outbox pattern?
 
@@ -736,7 +742,13 @@ The important property is that the business change and outbox row commit togethe
 
 ### Q85. Saga choreography versus orchestration?
 
-In choreography, services react to events and each knows how to continue or compensate. It avoids a central coordinator but complex workflows become hard to understand. In orchestration, a coordinator tracks state and commands participants, improving visibility while adding a component whose availability and state matter. Both need idempotency, timeouts, durable state, and compensation.
+A saga coordinates a long-running business workflow whose steps commit in separate local transactions. Since there is no single ACID transaction spanning all services, the design records progress and defines what happens when a step fails or the workflow times out. A saga is not a database rollback: a compensation is a new business action that attempts to counteract an earlier action and may itself fail or be impossible.
+
+In **choreography**, each service reacts to events and publishes the next event. It avoids a central coordinator and can keep services loosely coupled at runtime, but the end-to-end flow is distributed across handlers. It becomes hard to understand which step comes next, detect a stuck workflow, or change event contracts when there are many branches.
+
+In **orchestration**, a workflow coordinator issues commands to participants, records state, applies deadlines, and decides which step or compensation follows. The control flow is easier to inspect and operate, but the orchestrator becomes a critical component and needs durable state, high availability, versioned workflow definitions, and idempotent command handling.
+
+Example: an order saga may reserve inventory, authorize payment, and arrange shipment. If payment authorization fails, inventory reservation may be released. If shipment was already dispatched, compensation may require a return or refund rather than reversing the external action. Each step needs a stable operation ID, explicit success/failure/unknown states, timeout policy, and reconciliation. Choose choreography for simple event reactions; prefer orchestration when the workflow has branching, long waits, human intervention, compensation, or strict operational visibility.
 
 ### Q86. How do you handle poison messages?
 
@@ -774,25 +786,53 @@ The operation record is created before the external side effect. A timeout moves
 
 ### Q88. How do you prevent double booking a seat?
 
-The invariant is that at most one active reservation owns a seat for a show. Enforce it in the authoritative datastore with a unique constraint, conditional update, or transactionally guarded state transition. A cache or distributed lock alone is insufficient. Holds need expiry and an atomic transition to confirmed.
+The invariant is that at most one active booking may own a seat for a given event. An application-side check such as “query whether the seat is available, then insert a booking” is not sufficient: two concurrent requests can both read “available” before either writes. The invariant must be enforced atomically by the authoritative store.
+
+One approach is a unique constraint on `(event_id, seat_id)` for active reservations, possibly using a supported partial/filtered index where the database allows it. Another is a conditional update such as changing a seat from AVAILABLE to HELD only if its current state is still AVAILABLE and checking that exactly one row was updated. The transaction then records the hold/booking and its expiry. The loser sees a conflict and must return a clear sold-out/already-held result.
+
+For high-demand events, design the hold lifecycle carefully: a hold has an owner, expiry, and state transition; expiry is not simply a background delete based on an arbitrary worker clock. Use conditional transitions and a durable scheduler/reconciliation process. Payment can complete after the hold has expired, so the workflow must define whether it revalidates inventory, compensates/refunds, or uses a stronger reservation protocol.
+
+A cache can show an approximate availability view, but it should not authorize the final booking. Add request idempotency so client retries do not create duplicate booking attempts. Load-test contention on the same hot seat/event, inspect lock waits, and define how the system behaves if the database response times out after the commit.
 
 ### Q89. Optimistic versus pessimistic concurrency control?
 
-Optimistic control allows concurrent work and checks for conflict at commit, often using a version. It works when conflicts are uncommon. Pessimistic control locks data during the transaction and may suit high contention, but can reduce throughput and introduce deadlocks. Choose based on conflict frequency, transaction duration, and invariant.
+**Optimistic concurrency control** assumes conflicting updates are relatively uncommon. A read includes a version or expected value, and the write succeeds only if that version is unchanged. For example, `UPDATE inventory SET quantity = quantity - 1, version = version + 1 WHERE sku = ? AND version = ? AND quantity > 0`; if zero rows are updated, the caller must reread and decide whether to retry or report a conflict. This avoids holding a lock throughout application thinking time but can cause repeated conflicts under heavy contention.
+
+**Pessimistic concurrency control** acquires a lock before modifying a contested record, so conflicting transactions wait or fail. It can be appropriate for very hot resources or short critical sections, but long transactions, inconsistent lock ordering, and remote calls while holding locks can create blocking and deadlocks.
+
+Do not choose based only on a slogan such as “optimistic is faster.” Estimate conflict rate, transaction duration, number of hot keys, and the cost of failed attempts. Use atomic conditional updates or constraints when they naturally express the invariant. If stronger isolation is required to protect a multi-row rule, a single row version may not be sufficient.
+
+Both strategies need explicit retry limits and error handling. A serialization failure or deadlock should usually be retried only after rolling back the full transaction and only if repeating the transaction is safe. External side effects should not occur inside a retryable database transaction unless they are separately idempotent. Explain how the database enforces the invariant, what the loser observes, and how retries affect tail latency under contention.
 
 ### Q90. What happens when a request times out after a successful write?
 
-The client sees an uncertain outcome. It should retry with the same idempotency key or query operation status, not create a new logical operation. The server must persist enough state to return the original result. Distinguish accepted, in progress, succeeded, failed, and unknown where relevant.
+A timeout after a mutation creates an **uncertain outcome**. The server or database may have committed the operation, but the response may have been lost on the network. The client cannot infer “failed” solely from not receiving a response. Retrying with a new identity can duplicate the side effect.
+
+For mutation APIs, create a stable operation identity (often an idempotency key or resource ID) and persist the status through a defined state machine. The retry should return the same logical operation or its current state, not start a second operation. For long-running actions, return an operation ID and expose a status endpoint or callback. Distinguish ACCEPTED/PENDING, SUCCEEDED, FAILED, and UNKNOWN/RECONCILIATION_REQUIRED when those states are meaningful to the contract.
+
+The server must coordinate the operation record with the durable business mutation. A separate idempotency table updated independently can still leave a crash window; place both changes in one transaction or design a recoverable workflow that reconciles them. If the write called an external provider, query provider status or reconcile by a stable merchant/reference ID before deciding whether to retry.
+
+Clients should use bounded retries with backoff, but the API contract must be safe even when retries are delayed or repeated by intermediaries. Include correlation IDs and audit records so support can determine what happened. In interviews, draw the crash points before and after commit and explain the client-visible response at each point.
 
 ### Q91. Why is a saga not a distributed ACID transaction?
 
-A saga coordinates local transactions and compensating actions; the whole workflow is not atomic at every instant. Intermediate states are visible, compensation can fail, and some effects cannot truly be undone. Model the workflow explicitly and provide retry and manual-recovery paths.
+A local ACID transaction gives atomicity at its transaction boundary: either its changes commit or they do not. A saga is a sequence of separate local transactions across services. Intermediate results can be visible while the workflow is still running, and compensation does not erase history or guarantee that the original effect can be perfectly undone.
+
+For example, an order service may create an order, inventory may reserve a unit, and a payment provider may authorize a card. If shipment later fails, the system may release inventory and void or refund the payment. A refund is a new financial event, not a time machine that makes the authorization never have happened. If the external action is irreversible, the business may need manual resolution or a different workflow.
+
+A saga therefore needs a durable state machine: unique workflow/step IDs, explicit transitions, idempotent participants, timeouts, retry policy, compensation rules, and a reconciliation path. It must handle a crash after a participant commits but before the coordinator records the response; the participant's command should be safe to repeat or queryable by operation ID. Compensation itself can fail and may need retry or escalation.
+
+Use a single database transaction when the invariant can be protected within one database and the transaction can remain short. Use a saga when the business process spans independently owned systems or long-running work. Do not choose a saga simply to avoid transaction design; it deliberately trades atomic visibility for independent progress and operational complexity.
 
 ### Q92. How should webhook consumers handle duplicate callbacks?
 
-Verify authenticity, persist the provider event ID under a uniqueness constraint, and make state transitions idempotent. Acknowledge after durable acceptance according to the provider contract. Callbacks may be duplicated or out of order; validate legal state transitions and reconcile when necessary.
+Assume webhooks can be delivered more than once, delayed, retried out of order, or sent again after the sender fails to observe the acknowledgement. The receiver should return a prompt acknowledgement only after it has durably accepted responsibility for the event. Performing a long business workflow synchronously in the callback handler increases timeout and redelivery risk.
 
-## 12. Resilience and failure handling
+Use the provider's event ID as a deduplication identity where its uniqueness scope is documented. In one local transaction, record that event ID in an inbox/processed-event table and apply the corresponding state transition. If the same event arrives again, recognize it and return success without repeating the side effect. If the event ID may only be unique per account or event type, include that scope in the key. Validate the request signature, timestamp/replay protections, and relevant account/resource identity before trusting the payload.
+
+Deduplication alone does not solve out-of-order events. An old “payment pending” event might arrive after “payment succeeded.” Prefer querying the provider's current status or using monotonic state-transition/version rules rather than applying callbacks blindly. If the event is accepted to a queue, make the enqueue durable before acknowledging; otherwise the provider may stop retrying after the application loses the event.
+
+Provide retry-safe downstream actions, dead-letter handling for invalid payloads, observability by event ID, and a reconciliation job for missing callbacks. Never assume that receiving a success webhook is the only proof of business completion or that HTTP delivery exactly once is guaranteed.
 
 ### Q93. How should retries be designed?
 
@@ -806,23 +846,45 @@ A circuit breaker temporarily stops calls to a dependency that appears unhealthy
 
 A breaker complements timeouts and concurrency limits; it does not replace them. Thresholds that are too sensitive can cause unnecessary outages, while thresholds that react too slowly may not prevent overload. Define what callers receive when the breaker is open, ensure recovery probes do not all fire at once, and monitor open duration, rejected calls, and probe results.
 
-### Q95. What is a bulkhead?
+### Q95. What is a bulkhead, and how is it different from a circuit breaker?
 
-A bulkhead isolates resources so one failing workload cannot consume all capacity. Separate thread pools, concurrency limits, queues, or connection pools can help. Separate application pools do not help if all of them wait on the same exhausted database.
+A bulkhead isolates resource consumption so a failing or slow workload cannot consume the capacity needed by unrelated work. It can mean separate thread/connection pools, per-dependency concurrency limits, separate queues, independent worker pools, or dedicated capacity for critical tenants. The analogy is a ship's compartments: flooding one compartment should not sink the whole vessel.
+
+For example, if a service uses one shared pool for recommendations and checkout, slow recommendation calls may occupy every worker and prevent checkout from completing. A dedicated pool or concurrency limit for recommendations caps the damage. However, bulkheads consume resources and can leave capacity idle in one pool while another is saturated; sizing and prioritization must reflect the workload.
+
+A **circuit breaker** observes failures or slow calls and temporarily stops sending calls to an unhealthy dependency, typically moving through closed, open, and half-open states. A bulkhead limits how much resource is exposed; a circuit breaker limits calls while failure is observed. They are complementary, not substitutes. A breaker alone may still allow too many concurrent calls before it opens, and a bulkhead alone may keep issuing calls that will all fail.
+
+Use bulkheads where dependency latency, tenant load, or task class can vary independently. Set queue and pool bounds, define rejection/fallback behavior, and measure wait time, concurrency, and rejected work. Avoid proliferating tiny pools without evidence, since they add tuning complexity and can reduce aggregate utilization.
 
 ### Q96. Why can retries cause cascading failures?
 
-A slow dependency causes timeouts; callers retry, increasing load; the dependency slows further; queues and connection pools fill; unrelated requests fail. Break the loop with deadlines, retry budgets, jitter, circuit breakers, bounded concurrency, load shedding, and reduced optional work.
+Retries turn one logical request into multiple physical attempts. When a dependency becomes slow, callers may time out and retry while the original work is still running. The dependency now has more concurrent requests, becomes slower, triggers more retries, and may fail completely. This positive feedback loop is a common route from a small incident to a system-wide outage.
+
+For example, 1,000 requests/s with an average of two extra attempts can create up to 3,000 attempts/s at the dependency while the original request rate is unchanged. If each attempt fans out to more services, the multiplication can be larger. Multiple retrying layers multiply policies: three client attempts combined with three gateway attempts and three service attempts can theoretically produce up to 27 downstream attempts for one original request, depending on the exact path and early failures.
+
+Mitigate this with bounded attempts, exponential backoff with jitter, an end-to-end deadline, retry budgets, concurrency limits, circuit breakers, bulkheads, and load shedding. Retry only transient failures and only when repeated execution is safe. Prefer a single well-defined retry owner for a given operation. During overload, drop or reject retries as well as new requests; otherwise retries can consume the capacity needed for fresh work and recovery.
+
+Instrument original request rate separately from attempt rate, plus retry count, timeout rate, queue age, active concurrency, and successful throughput. A lower error rate after the system is saturated may require reducing traffic sharply before capacity returns, because only a fraction of instances may remain healthy. Validate the policy under dependency latency and partial-failure tests.
 
 ### Q97. Liveness versus readiness?
 
-Liveness asks whether a process should continue or be restarted. Readiness asks whether it should receive traffic. Restarting every instance because a shared database is temporarily down can worsen an outage. Probes should not turn dependency failure into a restart storm.
+A **liveness** check answers whether a process is functioning well enough that restarting it may help. A **readiness** check answers whether the instance should receive new traffic right now. They are not synonyms and should not be tied blindly to the same dependencies.
+
+If liveness depends on a remote database, one database outage can cause every application instance to restart at once. The restart storm does not repair the database and may increase connection churn. Readiness can reasonably consider whether the instance can serve critical work, but if every instance becomes unready because of one shared dependency, the load balancer may remove all capacity. Separate optional capabilities from those required for each route.
+
+Keep probes cheap, bounded, and stable. Use thresholds/hysteresis to avoid flapping, ensure readiness is updated before shutdown, and drain ongoing requests. A process-level probe can be healthy while a business journey is broken because of a bad dependency response or incorrect data; synthetic checks and service-level indicators complement health endpoints.
+
+For stateful writers, neither liveness nor readiness proves exclusive write ownership. Promotion needs an explicit protocol, epoch, or fencing rule. In an interview, describe the consequence of each probe failure: restart, stop new traffic, alert only, or mark a dependency degraded. The action should fit the failure, not create a synchronized system-wide reaction to a shared outage.
 
 ### Q98. How should a service recover after a long downstream outage?
 
-Protect the recovering dependency from a sudden flood. Limit concurrency, drain queues at a controlled rate, prioritize time-sensitive work, and preserve idempotency. Monitor queue age and net drain rate. Expire work only according to explicit business policy.
+Recovery is often more dangerous than the initial outage because a backlog, retry queue, and many waiting clients can all resume at once. Simply marking the dependency healthy and releasing all traffic may recreate the overload. The service needs a controlled recovery plan, not just automatic retries.
 
-## 13. Security and abuse prevention
+Before resuming, determine whether queued work is still valid, whether ordering matters, whether any items have expired, and whether the downstream quota or capacity has changed. Use a bounded replay rate, concurrency limits, exponential backoff with jitter, and priority classes that reserve capacity for live critical traffic. Drain oldest or most urgent work according to the business objective, not necessarily FIFO for every queue.
+
+Make consumers idempotent and reconcile uncertain operations before replaying them. A message may have succeeded downstream before the response was lost; replaying with a new operation identity can duplicate the side effect. For external providers, check retry-after signals and account-level quotas. If the backlog cannot drain before its business deadline, expire or reject stale work with a visible reason rather than spending capacity on useless attempts.
+
+Track queue depth and age, successful drain rate, provider throttling, duplicate/conflict count, and live-traffic latency. Estimate time-to-drain using net throughput (mu-lambda), and communicate the estimate as conditional on stable rates. Increase capacity gradually and monitor the impact; a dependency returning to health does not mean it is ready for peak traffic immediately.
 
 ### Q99. Authentication versus authorization?
 
