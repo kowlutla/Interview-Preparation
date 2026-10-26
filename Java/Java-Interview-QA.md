@@ -1057,15 +1057,21 @@ Use `AtomicInteger.incrementAndGet()` for a simple atomic counter, `LongAdder` f
 
 ### Q167. What is the difference between Runnable, Callable, Future, and CompletableFuture?
 
-`Runnable` represents work that does not return a result through its method signature; `Callable<V>` can return a value and throw checked exceptions. `Future<V>` represents a result that may become available later and supports waiting and cancellation, but its basic API can be awkward for composing multiple asynchronous stages.
+`Runnable` describes a task that does not return a result through its `run()` method. `Callable<V>` can return a value and throw a checked exception. An `ExecutorService` can execute either kind of task; submitting a `Callable` typically gives you a `Future<V>`.
 
-`CompletableFuture` supports composition, combining results, and explicit completion. Methods ending in `Async` may use a default or supplied executor, depending on the overload. Always handle failures and understand which executor runs each stage; otherwise, blocking work can occupy the common pool or exceptions can remain hidden until a result is observed.
+A `Future<V>` is a handle to a result that may not be ready yet. You can wait with `get()`, check completion, or request cancellation, but the basic API does not provide a fluent way to compose dependent stages.
+
+`CompletableFuture<V>` also represents a future result, but it lets you transform results, combine independent operations, and describe success and failure handling. For example, `thenApply` transforms a value, while `thenCompose` chains an operation that itself returns a future.
+
+A common trap is assuming that every continuation runs on a new thread. Non-async stages may run on the thread that completes the preceding stage; async stages use a default or supplied executor depending on the overload. Choose executors deliberately for blocking work, and make sure failures are observed rather than silently discarded.
 
 ### Q168. Why use ExecutorService instead of creating threads directly?
 
-An `ExecutorService` separates task submission from execution policy and provides lifecycle management, result tracking, and controlled concurrency. A bounded platform-thread pool can cap active work and queue tasks, but its queue and rejection policy must be chosen deliberately. An unbounded queue can turn overload into growing latency and memory use.
+Creating a `Thread` for every task mixes two decisions: what work should happen and how the application should schedule it. `ExecutorService` separates those concerns. Callers submit tasks, while the executor controls how they run and provides lifecycle methods, result tracking through `Future`, and a defined shutdown process.
 
-Use a suitable executor for the workload, propagate cancellation and interruption correctly, and shut it down gracefully. A pool is not just a performance setting: it is part of the service's capacity and backpressure design. Avoid creating a new platform thread for every task under high load without understanding the cost and concurrency limits.
+For a platform-thread pool, think about three settings together: **worker count**, **queue capacity**, and **rejection policy**. A large pool with an unbounded queue can still accumulate a huge backlog; a bounded queue forces the service to decide what to do when capacity is reached.
+
+For example, if requests arrive faster than a database can process them, simply increasing the worker count may create more concurrent database calls and make the bottleneck worse. Pool configuration is part of capacity management, not just a performance tweak. Choose an executor for the workload, propagate interruption and cancellation correctly, expose queue and rejection metrics, and shut it down deliberately.
 
 ### Q169. What causes deadlocks, and how can they be prevented or diagnosed?
 
@@ -1075,9 +1081,19 @@ Prevent them by enforcing a global lock order, keeping critical sections small, 
 
 ### Q170. What are race conditions, and how do concurrent collections help?
 
-A race condition occurs when a result depends on the timing or interleaving of operations. A data race is a more specific Java Memory Model concept involving conflicting unsynchronized accesses. Not every race is a data race, and both can lead to incorrect application behavior.
+A **race condition** exists when correctness depends on how concurrent operations interleave. A **data race** is a narrower Java Memory Model term: threads access the same variable concurrently, at least one access is a write, and the accesses are not ordered by a happens-before relationship. A program can have a race condition even when each individual access is properly synchronized—for example, when two individually thread-safe calls form a non-atomic check-then-act sequence.
 
-Concurrent collections provide thread-safe operations and specified visibility guarantees for their own data structures. They do not automatically make multi-operation workflows atomic or protect mutable objects stored inside them. Use atomic compound methods such as `compute` where applicable, external locks for larger invariants, or immutable values and clear ownership boundaries.
+Concurrent collections protect their own structure and provide documented memory-consistency guarantees. They do not make a sequence of calls atomic, and they do not automatically protect mutable objects stored as values.
+
+For example, this is still racy even if `users` is a `ConcurrentHashMap`:
+
+```java
+if (!users.containsKey(id)) {
+    users.put(id, createUser(id));
+}
+```
+
+Two threads can both observe the key as absent. If the map is the right coordination boundary, use a compound operation such as `computeIfAbsent`; if the invariant spans a database, remote service, or multiple records, use a coordination mechanism appropriate to that larger scope.
 
 ### Q171. What are virtual threads, and when should they be used?
 
@@ -1087,9 +1103,11 @@ They improve scalability/throughput for suitable workloads, not the speed of CPU
 
 ### Q172. How should interruption and cancellation be handled?
 
-Interruption is a cooperative cancellation signal, not a mechanism that forcibly kills arbitrary code. Blocking methods may throw `InterruptedException`, typically clearing the interrupt status when they do. Code that cannot propagate the exception should usually restore the status with `Thread.currentThread().interrupt()` after performing any necessary cleanup.
+Interruption is a cooperative request for a thread to stop or change what it is doing; it does not forcibly terminate arbitrary Java code. Some blocking methods, such as `Thread.sleep`, `Object.wait`, and many interruptible concurrency operations, throw `InterruptedException`. When they throw it, the interrupted status is cleared.
 
-Cancellation must be designed through the call chain: tasks need to notice the signal, release resources, and avoid committing partial results incorrectly. Cancelling a Future does not guarantee that underlying I/O or a remote operation has stopped. Treat timeout, cancellation, and unknown remote outcome as distinct states when deciding whether retry is safe.
+If your method can propagate `InterruptedException`, usually let it propagate so the caller can decide how to stop. If the method cannot propagate it, perform necessary cleanup and normally restore the signal with `Thread.currentThread().interrupt()` before returning or throwing an appropriate application exception. Do not catch the exception and continue an endless loop as if nothing happened.
+
+Cancellation also has to be cooperative through the whole call chain. A task should stop when appropriate, release resources, and avoid committing an invalid partial result. `Future.cancel(true)` requests interruption; it does not prove that a database driver, HTTP client, or remote service has stopped processing. In distributed systems, a timeout may leave the outcome unknown, so retry only when the operation is idempotent or you can safely reconcile the result.
 
 ### Q173. What are CountDownLatch, Semaphore, and BlockingQueue used for?
 
@@ -1159,15 +1177,28 @@ The remedies differ: deadlock prevention often focuses on lock ordering and redu
 
 ### Q179. How should CompletableFuture exception handling and composition work?
 
-Use `thenApply` to transform a completed result, `thenCompose` to chain an asynchronous operation that itself returns a future, and `thenCombine` when combining independent futures. Exception paths can be handled with methods such as `exceptionally`, `handle`, or `whenComplete`, but these have different semantics: some recover with a value, some transform the outcome, and some observe completion.
+Choose the continuation that matches the shape of the work:
 
-Do not block carelessly with `get()` or `join()` inside constrained executor threads; this can cause thread starvation or deadlock-like behavior. Consider the executor, timeout policy, cancellation behavior, and whether failures are propagated or converted into fallback results.
+- **`thenApply`** transforms a value produced by the previous stage.
+- **`thenCompose`** chains an operation that itself returns a `CompletableFuture`, avoiding a nested future.
+- **`thenCombine`** combines the successful results of two independent futures.
+- **`exceptionally`** recovers from exceptional completion by supplying a replacement value.
+- **`handle`** receives either the result or the failure and can transform the outcome in either case.
+- **`whenComplete`** is mainly for observing completion; it normally preserves the original result or failure unless the observer itself throws.
+
+Be deliberate about fallbacks. If an optional recommendation service fails, an empty recommendation list might be acceptable. If an account or payment service fails, returning a success-shaped default could hide a business failure. Recover only from failures for which the fallback is part of the business contract.
+
+Also understand where each continuation executes. Non-async stages may run on the thread completing the previous stage, while async overloads use a default or supplied executor. Avoid blocking every worker in a small pool on another task queued to that same pool. Set an end-to-end deadline, configure client-level timeouts, and remember that timing out a future does not necessarily stop the underlying operation.
 
 ### Q180. How do you choose an ExecutorService and prevent thread-pool exhaustion?
 
-Choose pool sizing and queue behavior based on the workload, resource limits, and latency target. CPU-bound tasks often benefit from a pool near the number of available processors; blocking I/O workloads need a different approach because workers spend time waiting. These are starting points, not universal formulas—measure the actual workload.
+Start by identifying what limits progress:
 
-Unbounded queues can hide overload while latency and memory grow. Unbounded thread creation can exhaust memory or operating-system resources. Define rejection or backpressure behavior, track active threads and queue depth, bound task duration where possible, and shut down executors deliberately. For blocking task-per-request workloads on Java 21+, virtual threads may simplify concurrency, but they do not remove database connection limits or downstream capacity constraints.
+- **CPU-bound work:** a pool near the number of available processors is a reasonable baseline to measure, because additional workers may mainly add scheduling and context-switching overhead.
+- **Blocking I/O:** platform-thread workers may spend much of their time waiting, so a larger pool can sometimes help. The safe limit is still constrained by memory and the capacity of databases, HTTP clients, and remote services.
+- **High-concurrency blocking work on Java 21+:** virtual threads can simplify a thread-per-task design, but they do not make downstream resources unlimited.
+
+Then decide how much work may be active, how much may wait in a queue, and what happens when capacity is exhausted. An unbounded queue can turn overload into rising latency and memory use; unbounded thread creation can exhaust resources. Monitor active workers, queue depth, task wait time, duration, rejections, and downstream latency together. Tune under representative load rather than relying on a single formula, and include shutdown and cancellation behavior in the design.
 
 ### Q181. What are structured concurrency and scoped values, and what should you know about their status?
 
@@ -1195,45 +1226,73 @@ Coordinate threads through synchronized state, volatile/atomic variables, latche
 
 ### Q185. How do you start a virtual thread?
 
-    Thread.startVirtualThread(() -> processRequest());
+You can start one directly:
 
-Or create a named thread:
+```java
+Thread.startVirtualThread(() -> processRequest());
+```
 
-    Thread worker = Thread.ofVirtual()
+Or create a named virtual thread:
+
+```java
+Thread worker = Thread.ofVirtual()
         .name("request-worker")
         .start(this::processRequest);
+```
 
-Virtual threads make blocking task-per-thread code more scalable for I/O-bound work. They do not increase database capacity, remove downstream bottlenecks, or make CPU-heavy tasks infinitely faster.
+These APIs are final in Java 21. Virtual threads are useful when a task spends much of its time waiting, such as on blocking I/O. They do not make CPU-bound work faster, and they do not increase the capacity of a database, remote API, or other limited resource. In application code, an executor is often convenient when you need to manage a group of tasks and their lifecycle.
 
 ### Q186. How do you run tasks with a virtual-thread-per-task executor?
 
-    try (ExecutorService executor =
-             Executors.newVirtualThreadPerTaskExecutor()) {
-        Future<Result> result = executor.submit(this::loadResult);
-        Result value = result.get();
-    }
+```java
+try (ExecutorService executor =
+         Executors.newVirtualThreadPerTaskExecutor()) {
+    Future<Result> result = executor.submit(this::loadResult);
+    Result value = result.get();
+}
+```
 
-Use deadlines, cancellation, and explicit error handling in production. A virtual thread per task is not the same as an unbounded amount of downstream capacity; use bounded resource pools and backpressure where needed.
+The executor creates a virtual thread for each submitted task rather than reusing a fixed pool of virtual threads. In Java 21+, `ExecutorService` supports try-with-resources; closing the executor waits for submitted tasks to finish. That behavior is convenient for bounded task groups, but it can also make shutdown wait for a task that never returns.
+
+In production, give blocking operations real timeouts, handle `InterruptedException` and task failures deliberately, and define what happens if a request deadline expires. A virtual thread per task does not imply unlimited downstream capacity: use connection pools, admission control, or semaphores to protect scarce resources.
 
 ### Q187. How do you combine two independent asynchronous tasks with CompletableFuture?
 
-    CompletableFuture<Result> a = loadA();
-    CompletableFuture<Result> b = loadB();
+```java
+CompletableFuture<ResultA> a = loadA();
+CompletableFuture<ResultB> b = loadB();
 
-    CompletableFuture<Combined> combined =
+CompletableFuture<Combined> combined =
         a.thenCombine(b, Combined::new);
+```
 
-thenCombine waits for both stages and combines their results. The tasks are independent only if their creation starts the work independently. Consider failure propagation, deadlines, executor choice, and whether one failed result should cancel or merely affect the combined outcome.
+`thenCombine` runs the combining function after both futures complete successfully. It is useful when two calls can be made independently—for example, loading a customer profile and a list of recent orders—then assembling one response.
+
+The calls only run concurrently if `loadA()` and `loadB()` actually start independent work; `thenCombine` does not start them by itself. Decide how to handle either call failing, set a shared request deadline, and choose the executor used by the upstream operations. A combined future completing exceptionally also does not automatically cancel every other operation that is still running.
 
 ### Q188. What is the difference between thenApply and thenCompose?
 
-thenApply transforms a result synchronously into another value. thenCompose is used when the transformation itself returns a CompletableFuture, flattening the nested asynchronous result. Use thenCompose to chain dependent asynchronous operations without producing CompletableFuture<CompletableFuture<T>>.
+Use `thenApply` when the next step takes a value and returns an ordinary value. Use `thenCompose` when the next step takes a value and starts another asynchronous operation that returns a `CompletableFuture`.
+
+```java
+CompletableFuture<User> user = loadUser(userId);
+
+CompletableFuture<List<Order>> orders =
+        user.thenCompose(u -> loadOrders(u.id()));
+```
+
+Here, `loadOrders` already returns a future. `thenCompose` flattens that result into `CompletableFuture<List<Order>>`. With `thenApply`, the type would instead become `CompletableFuture<CompletableFuture<List<Order>>>`, which is usually not what you want for a dependent asynchronous pipeline.
 
 ### Q189. How do you handle an exceptional CompletableFuture result?
 
-    future.exceptionally(error -> fallbackValue);
+```java
+CompletableFuture<Response> safeResponse =
+        future.exceptionally(error -> fallbackResponse());
+```
 
-exceptionally can recover from a failure by producing a fallback result. handle can inspect either success or failure and transform both; whenComplete is intended for observation while preserving the original outcome. Do not silently convert every error into a default value if doing so hides a business failure.
+`exceptionally` recovers from exceptional completion by supplying a replacement value. `handle` can inspect either the successful result or the failure and return a transformed result. `whenComplete` is useful for logging or metrics because it observes the outcome without intentionally replacing it.
+
+Be careful about where recovery happens. If an optional recommendation service fails, an empty recommendation list might be an acceptable fallback. If an account or payment service fails, inventing a default success-shaped response could hide a real business failure. Log or report the original cause where appropriate, and do not assume a fallback means the underlying operation was cancelled.
 
 ### Q190. What are the lifecycle states of a Java thread?
 
@@ -1468,7 +1527,7 @@ Use `thenCombine` for two independent typed results, `allOf` when a group must f
 
 ### Q334. How do you test concurrent code without flaky Thread.sleep() assertions?
 
-Do not use a sleep to guess when another thread has reached a state. Use synchronization primitives to control the test schedule, and use bounded waits so a failure becomes a test failure rather than a hung build.
+Do not sleep for an arbitrary duration and assume another thread has reached a particular state. Use a latch, barrier, queue, or future to express the event the test is waiting for, and use a timeout so a broken test fails instead of hanging the build.
 
 ```java
 @Test
@@ -1485,13 +1544,22 @@ void workerPublishesResult() throws Exception {
     });
 
     worker.start();
-    assertTrue(finished.await(2, TimeUnit.SECONDS));
-    worker.join(2_000);
-    assertEquals("done", result.get());
+    try {
+        assertTrue(finished.await(2, TimeUnit.SECONDS),
+                "worker did not finish in time");
+        worker.join(2_000);
+        assertFalse(worker.isAlive(), "worker should have terminated");
+        assertEquals("done", result.get());
+    } finally {
+        worker.interrupt();
+        worker.join(2_000);
+    }
 }
 ```
 
-This example uses JUnit 5 assertions and Java concurrency APIs. For production-grade tests, also assert that the worker has terminated and arrange cleanup in `finally` if assertions can fail before cleanup. Test invariants under repeated interleavings; stress tests and [OpenJDK jcstress](https://openjdk.org/projects/code-tools/jcstress/) are more suitable than a single unit test for exploring low-level memory-model outcomes. A deterministic unit test, a stress test, and a production diagnostic answer different questions.
+The latch gives the test a clear completion signal, and the bounded waits prevent an indefinite hang. The `finally` block attempts cleanup even if an assertion fails. This example uses JUnit 5 and Java concurrency APIs; import the corresponding assertions and concurrency types.
+
+A passing unit test shows that one controlled execution behaved as expected; it does not prove the absence of all interleavings. For low-level memory-model behavior, use repeated stress testing or [OpenJDK jcstress](https://openjdk.org/projects/code-tools/jcstress/). Use deterministic tests, stress tests, and production diagnostics for different purposes.
 
 ### Q335. How do you diagnose a concurrency incident in production?
 
