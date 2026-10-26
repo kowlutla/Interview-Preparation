@@ -9,7 +9,7 @@ A focused interview handbook for Java backend engineers preparing for mid-level 
 - [Top 15 Questions to Master First](#top-15-questions-to-master-first)
 - [SQL Fundamentals and Query Logic](#sql-fundamentals-and-query-logic)
 - [Joins, Aggregation, and Query Composition](#joins-aggregation-and-query-composition)
-- [Window Functions and Practical SQL](#window-functions-and-practical-sql)
+- [Practical SQL Query Patterns](#practical-sql-query-patterns)
 - [Indexes and Query Performance](#indexes-and-query-performance)
 - [Transactions and Concurrency](#transactions-and-concurrency)
 - [MySQL in Practice](#mysql-in-practice)
@@ -296,17 +296,16 @@ HAVING COUNT(*) > 1;
 
 Before deleting anything, preview the rows and decide which record should survive. The following examples assume `user_id` is a unique, non-NULL key and that only repeated, non-NULL email addresses count as duplicates. Change the survivor rule if the business requirement differs.
 
-**Preview the rows that would be removed:**
+**Preview the rows that would be removed (keeping the smallest `user_id` per email):**
 
 ```sql
 SELECT u1.user_id, u1.email, u1.created_at
 FROM users u1
 JOIN users u2
   ON u1.email = u2.email
- AND (u1.created_at > u2.created_at
-      OR (u1.created_at = u2.created_at AND u1.user_id > u2.user_id))
+ AND u1.user_id > u2.user_id
 WHERE u1.email IS NOT NULL
-ORDER BY u1.email, u1.created_at, u1.user_id;
+ORDER BY u1.email, u1.user_id;
 ```
 
 This preview assumes the row with the earliest `created_at` and then smallest `user_id` should survive. The delete example below keeps the smallest `user_id` instead; use matching survivor rules for preview and deletion in production.
@@ -388,20 +387,13 @@ Start with evidence: identify the exact SQL, bind values, frequency, latency, ro
 A quick MySQL syntax reminder:
 
 ```sql
--- Estimated plan
 EXPLAIN
-SELECT order_id
-FROM orders
-WHERE customer_id = ?;
-
--- MySQL 8.0.18+: executes the SELECT and reports actual iterator timing/rows
-EXPLAIN ANALYZE
 SELECT order_id
 FROM orders
 WHERE customer_id = 123;
 ```
 
-The first example uses a prepared-statement placeholder. The second uses a literal value to keep the example directly runnable; `EXPLAIN ANALYZE` executes the statement, so use it only with a safe SELECT and suitable environment. A practical sequence is:
+Use a representative value and inspect the estimated access type, chosen index, join order, and estimated rows. A practical sequence is:
 
 1. Reproduce with representative data and parameter values.
 2. Inspect the plan and database metrics; check table/index statistics.
@@ -410,7 +402,7 @@ The first example uses a prepared-statement placeholder. The second uses a liter
 5. Measure before and after under comparable conditions.
 6. Roll out safely and monitor latency, load, and regressions.
 
-Use MySQL `EXPLAIN` for the optimizer's estimated plan and `EXPLAIN ANALYZE` (introduced in MySQL 8.0.18) to execute supported statements and inspect actual iterator timing and row counts. Be careful with `EXPLAIN ANALYZE` because it executes the statement. An execution plan is evidence to interpret, not a score where any full scan is automatically bad.
+Use MySQL `EXPLAIN` to inspect the optimizer's estimated plan. Compare it with query latency, the slow query log, and application/database metrics to understand real workload behavior. An execution plan is evidence to interpret, not a score where any full scan is automatically bad.
 
 ### Q26. What are covering indexes and index selectivity?
 
