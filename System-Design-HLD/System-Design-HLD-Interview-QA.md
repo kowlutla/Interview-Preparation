@@ -4075,7 +4075,7 @@ flowchart LR
 
 This section includes worked end-to-end designs for five frequently used interview prompts, followed by an index of additional systems to practise. These are reference designs, not one-size-fits-all answers. In an interview, clarify the prompt, state assumptions, adapt the capacity model, and explain which requirement would change each major choice.
 
-## Worked design 1: URL shortener
+### Worked design 1: URL shortener
 
 ### Requirements and assumptions
 
@@ -4130,7 +4130,7 @@ If the cache is unavailable, protect the database with bounded concurrency and c
 
 In an interview, explain what happens when two requests choose the same code, a link expires while cached, a popular code receives a burst, or a user asks to revoke a link that was returned as a permanent redirect.
 
-## Worked design 2: News feed / social timeline
+### Worked design 2: News feed / social timeline
 
 ### Requirements and consistency boundary
 
@@ -4185,7 +4185,7 @@ Cache timeline slices for active users, but use short/appropriate freshness rule
 
 In an interview, be ready to discuss celebrity skew, follow/unfollow consistency, delete propagation, a feed read during fan-out lag, timeline rebuild, cursor stability, and how a viral event changes capacity.
 
-## Worked design 3: Chat / messaging platform
+### Worked design 3: Chat / messaging platform
 
 ### Requirements and delivery semantics
 
@@ -4233,7 +4233,7 @@ Use TLS, secure authentication, conversation-level authorization, rate limits, s
 
 If a gateway fails, clients reconnect with jitter and recover history. If the broker is delayed, messages remain persisted but delivery latency rises; alert on oldest undelivered age. If a message is stored but response lost, idempotency returns the same message on retry. In an interview, explain connection churn, hot group scaling, ordering scope, reconnect replay, and how online status differs from durable delivery.
 
-## Worked design 4: Ticket booking with seat holds and payment
+### Worked design 4: Ticket booking with seat holds and payment
 
 ### Requirements and invariants
 
@@ -4275,7 +4275,7 @@ Monitor hold conflicts, inventory lock wait, payment unknown outcomes, queue age
 
 In an interview, walk through two users requesting the same seat, payment success with a lost response, hold expiry racing with confirmation, and a 10× traffic burst. Explain which checks are cached and which must be authoritative.
 
-## Worked design 5: Multi-channel notification platform
+### Worked design 5: Multi-channel notification platform
 
 ### Requirements and workload model
 
@@ -4320,7 +4320,7 @@ Track queue depth/age, accepted-to-provider latency, delivery confirmation laten
 
 The platform trades fast API acceptance for asynchronous completion. Separate per-channel adapters isolate provider-specific policies, but increase operational surface. A multi-provider strategy improves resilience only if the secondary has compatible semantics, capacity, and idempotency behavior. The interviewer may ask what happens when preferences change after queueing, the provider callback arrives before the synchronous response, the retry budget is exhausted, or the user requests deletion while messages remain queued.
 
-## Worked design 6: Distributed API rate limiter
+### Worked design 6: Distributed API rate limiter
 
 ### Requirements and policy
 
@@ -4362,7 +4362,7 @@ Estimate checks per second at all policy scopes. If 50,000 requests/s require th
 
 In an interview, be ready to explain why a token bucket fits the policy, how the counter update is atomic, how quotas behave when the fleet doubles, and whether correctness or availability takes priority if the limiter backend fails.
 
-## Worked design 7: Search and autocomplete service
+### Worked design 7: Search and autocomplete service
 
 ### Requirements and query model
 
@@ -4406,7 +4406,7 @@ Partition the index according to query locality and data volume; more shards can
 
 To rebuild, create a new index generation, load a consistent snapshot, replay changes from the snapshot/log position, validate counts/samples/deletes, shadow-query, then switch an alias or routing pointer. Track index lag, indexing errors, shard health, query p99, cache hit ratio, zero-result rate, and result-quality metrics. In an interview, explain why a database index is not enough, how prefix search differs from full-text search, how deletes/updates propagate, and how a rebuild avoids losing live changes.
 
-## Worked design 8: Large file storage and synchronization
+### Worked design 8: Large file storage and synchronization
 
 ### Requirements and metadata model
 
@@ -4545,7 +4545,7 @@ The repository's focused guides provide implementation depth; this handbook reta
 - [Envoy documentation](https://www.envoyproxy.io/docs) — proxy and traffic management.
 - [Designing Data-Intensive Applications](https://dataintensive.net/) — foundational data-system architecture.
 
-## Revision checklist
+### Revision checklist
 
 Before finishing a practice design, ask:
 - What are the key functional requirements and business invariant?
