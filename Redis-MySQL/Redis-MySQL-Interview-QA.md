@@ -32,11 +32,11 @@ This is a backend developer's guide, not a Redis administrator or MySQL DBA manu
 
 1. [How does cache-aside work, and what consistency gaps remain?](#q19-how-does-cache-aside-work-and-what-consistency-gaps-remain)
 2. [Why is Redis described as single-threaded?](#q2-why-is-redis-described-as-single-threaded)
-3. [How do expiration and eviction differ?](#q13-how-do-expiration-and-eviction-differ)
+3. [How do expiration and eviction differ?](#q12-what-is-the-difference-between-expiration-and-eviction)
 4. [How do composite indexes work?](#q38-how-do-composite-indexes-work)
 5. [How do you investigate a slow MySQL query?](#q43-how-do-you-investigate-a-slow-mysql-query)
 6. [What does InnoDB REPEATABLE READ mean?](#q48-what-does-innodb-repeatable-read-mean)
-7. [How do you diagnose deadlocks?](#q51-how-do-you-diagnose-deadlocks)
+7. [How do you diagnose deadlocks?](#q51-how-do-you-diagnose-and-reduce-deadlocks)
 8. [Why can database update plus cache invalidation still leave stale data?](#q61-why-can-database-update-plus-cache-invalidation-still-leave-stale-data)
 9. [How do you protect MySQL during a Redis outage?](#q68-redis-is-down-and-mysql-load-surges-how-do-you-respond)
 10. [How do you enforce uniqueness under concurrent requests?](#q78-two-concurrent-requests-create-duplicates-how-do-you-fix-it)
@@ -345,6 +345,8 @@ WHERE salary < (SELECT MAX(salary) FROM employees);
 ~~~
 
 It returns NULL if no lower distinct salary exists. For the highest-paid employee(s) in each department, use DENSE_RANK() OVER (PARTITION BY department_id ORDER BY salary DESC) and keep rank 1 to preserve ties. To find duplicates, GROUP BY the business key and HAVING COUNT(*) > 1. Deleting duplicates requires deciding which row survives and protecting the operation with a transaction/backup and a unique constraint afterward.
+
+## Indexes and query optimization
 
 ### Q38. How do composite indexes work?
 
