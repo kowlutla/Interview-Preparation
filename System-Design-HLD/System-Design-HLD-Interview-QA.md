@@ -2,7 +2,7 @@
 
 **Audience:** Java backend engineers with 5–10 years of experience preparing for senior and staff-leaning backend/product-company interviews.  
 **Purpose:** A progressive guide to architecture reasoning, capacity estimation, data ownership, consistency, failure handling, operations, and cost.  
-**Status:** Rebuilding for the 5–10 year experience band. Recent rewrites deepen tenant partitioning, hot global counters, clock skew and fencing, replicated infrastructure guarantees, audit logging, retry-safe APIs, partial completion, service boundaries, and BFF patterns, alongside cache, networking, migration, and transaction topics. Full topic coverage, technical accuracy, readability, and rendered diagrams remain under review; not final sign-off.
+**Status:** Rebuilding for the 5–10 year experience band. Recent rewrites deepen failback, regional writes, provider fallback, priority fairness, incident diagnosis, diagramming, and interview decision defense, alongside tenant partitioning, leases/fencing, audit, API boundaries, cache and transaction guarantees. Coverage, technical accuracy, readability, and rendered diagrams remain under review; not final sign-off.
 
 > **How to use this guide:** Learn fundamentals in order, then practise scenarios aloud. State assumptions, identify the critical business invariant, estimate scale, draw the simplest viable architecture, and deepen the part the interviewer challenges. Naming technologies is not the goal; explaining why the design satisfies requirements is.
 
@@ -2950,44 +2950,107 @@ Avoid one BFF per screen unless the operational cost is justified. Use it when c
 
 ### Q291. How do you design a system for graceful regional failback?
 
-Failback is not simply reversing DNS. Verify the recovered region's data freshness, fence old ownership, synchronize missing changes, and decide which region becomes authoritative. Gradually shift traffic, monitor error and latency signals, and retain a rollback path. Avoid oscillating between regions due to transient health checks. Define how in-flight workflows and clients reconnect.
+Failback is the controlled return to a preferred region after it recovers. It is not simply reversing DNS or routing back to the old primary. The recovered region may be behind, may contain outdated configuration, or may not have enough capacity to serve peak traffic. Returning too soon can create split brain or lose writes accepted in the surviving region.
+
+First verify that the original region is healthy at the business-path level, not just reachable. Synchronize or reconcile missing data, confirm replication position and schema compatibility, and establish exclusive write ownership using the appropriate leader/fencing protocol. Ensure queues, timers, and background jobs will not run twice when ownership changes.
+
+Shift traffic gradually and monitor end-to-end SLOs, replication lag, errors, latency, connection churn, queue backlog, and business invariants. Maintain a rollback option if the recovered region destabilizes. Avoid automatic oscillation by requiring sustained health and using cooldown/hysteresis. Long-lived connections may remain in the surviving region until clients reconnect.
+
+Define what happens to in-flight and unknown operations that began during the outage. Reconcile payment/booking status before replaying or moving them. In an interview, distinguish restoring infrastructure from restoring authoritative ownership and user traffic, and explain how failback is tested with realistic data volume.
 
 ### Q292. How do you decide whether to queue a write during a regional outage?
 
-Queue only if the operation can be durably accepted, its ordering and expiry semantics are clear, and delayed execution remains valid. A queued “reserve this seat” may be invalid after the event sells out; a queued analytics event may be harmless. Do not claim success for an in-memory queued write. Expose pending status and reconcile conflicts when the authoritative system returns.
+Queue a write only if the system can durably accept the command, define its ordering and expiry semantics, and execute it later without violating the business rule. An in-memory queue or a 202 response before durable recording does not establish reliable acceptance. The API must communicate pending status and provide an operation ID.
+
+Some work is safe to defer: analytics events, report generation, or an email that remains useful later. Other work is time-sensitive or conflict-prone: reserving the last seat, buying an expiring offer, or authorizing a payment may not remain valid when the region recovers. Revalidate business state before execution and define whether conflict means rejection, compensation, or manual review.
+
+If both regions accept writes during a partition, the design needs a conflict-free model or a deliberate consistency trade-off. For a strongly consistent balance, inventory, or globally unique name, it may be safer to reject writes where authoritative ownership cannot be established. Queuing must not become an implicit promise that every request will eventually succeed.
+
+Use durable workflow state, idempotency, deadlines, fair backlog processing, and reconciliation. When service returns, throttle replay so it does not overwhelm the recovered region or provider. In an interview, explain the operation's deadline, authority model, acceptance guarantee, and user-visible result for a write that cannot be safely completed during the outage.
 
 ### Q293. How should a system respond when a replica is too far behind?
 
-Route freshness-sensitive reads elsewhere, reduce replica load, or temporarily stop sending those read classes to the lagging replica. Identify whether lag comes from write volume, long transactions, network limits, or replica saturation. Do not wait a fixed arbitrary duration and assume it caught up. Define freshness thresholds and monitor replication position/lag.
+Define a freshness threshold based on the operation's contract. A catalogue read may tolerate seconds of lag; a financial or inventory decision may require the authoritative source. Monitor lag as time and, where possible, log/sequence position. A green connectivity status does not mean the replica has applied recent writes.
+
+When lag exceeds the threshold, route freshness-sensitive reads to the primary or another eligible replica, wait within a bounded deadline, or return an explicit stale/pending response if the API permits it. Do not sleep for an arbitrary duration and assume the replica has caught up. If the primary is overloaded, redirecting every read to it may worsen the incident; preserve capacity for critical writes and use controlled load shedding.
+
+Find the cause: write rate exceeding apply capacity, large transactions, replica CPU/IO, network saturation, long-running queries, schema/index maintenance, or storage contention. Fix the bottleneck before simply adding replicas; read replicas can compete with replication for resources.
+
+Failover is a separate decision. Promoting a lagging replica may lose acknowledged writes depending on commit policy. Verify RPO and election rules before promotion and prevent the old primary from continuing to write. In an interview, describe both read routing under lag and the data-safety criteria for failover.
 
 ### Q294. How do you design an API gateway's rate limiting for authenticated and anonymous traffic?
 
-Anonymous traffic may need IP/network and abuse signals, while authenticated traffic can be limited by account, API key, tenant, and endpoint cost. Shared NAT makes IP-only limits unfair, and distributed attackers make them insufficient. Apply inexpensive edge limits before expensive work and keep privileged operations under stronger controls. Define behavior when identity or limiter infrastructure is unavailable.
+Anonymous traffic needs coarse limits and abuse signals such as IP/network, connection rates, request size, and bot patterns. Authenticated traffic can use account, API key, tenant, route, and operation-cost budgets. IP-only limits are often unfair behind shared NAT and insufficient against distributed attackers; identity-only limits can be bypassed if identity creation is cheap.
+
+Apply inexpensive limits at the edge before authentication or expensive parsing, then enforce stricter resource-aware quotas after identity is known. A search request, bulk export, and simple read consume different capacity, so use operation-cost or concurrency limits in addition to requests per second. Prevent clients from selecting another tenant's quota key or claiming elevated priority.
+
+The gateway fleet must enforce limits at the scope promised. Per-instance local counters can allow aggregate traffic to multiply with instance count; a shared atomic limiter is more accurate but adds latency and a potential hot-key/store bottleneck. Hierarchical token allocation may trade exactness for lower hot-path coordination. Define behavior if the limiter or identity provider is unavailable.
+
+Return clear 429 responses and retry guidance where safe, but assume clients may ignore it. Measure allow/reject rates, limiter latency, key cardinality, and quota overshoot during autoscaling/failover. In an interview, define quota scope, fairness policy, abuse model, failure behavior, and how the gateway avoids becoming the bottleneck.
 
 ### Q295. How do you evaluate a fallback provider for critical traffic?
 
-Verify semantic compatibility, regional availability, rate limits, data handling, latency, cost, idempotency, and whether failover can duplicate effects. Provider switching may require different credentials, request formats, or reconciliation. Test health-based switching and failback. Having a second provider on a diagram does not establish that it can safely take over.
+A fallback provider must be evaluated for semantic compatibility, not just availability and price. Check whether it supports the same operation types, currencies/regions, idempotency behavior, status lookup, error model, rate limits, security requirements, and reconciliation interfaces. The alternate provider may define accepted/succeeded differently or settle at a different time.
+
+Capacity matters. If the primary provider fails and all traffic moves instantly to the secondary, that provider may be overwhelmed or hit account-wide quotas. Use pre-agreed capacity, health/circuit-breaker criteria, traffic limits, and controlled ramp-up. A health endpoint is not proof that the provider can process production volume of critical writes.
+
+For a mutation such as payment, a timeout outcome may be unknown at the primary. Do not automatically send the same logical payment to another provider unless you can establish that the primary did not process it or both providers share a safe operation-identity protocol. Otherwise failover can double-charge. Maintain a durable attempt record and reconcile status across providers before retrying.
+
+Define activation/deactivation, data mapping, audit trail, customer experience, and rollback. Test timeout-after-success, partial outages, quota exhaustion, and duplicate callbacks. In an interview, explain which requests are safe to fail over transparently and which require status resolution or an explicit pending state.
 
 ### Q296. How do you prevent queue starvation across priorities?
 
-Use separate queues or weighted fair scheduling rather than a strict high-priority queue that can starve lower classes indefinitely. Set reserved capacity or aging rules and measure wait time per class. Critical work should remain responsive without making normal work permanently unserviceable. The policy should be explicit and tested under sustained overload.
+Strict priority always processes high-priority work first, but sustained high-priority traffic can leave lower-priority work waiting forever. Pure FIFO creates the opposite problem when slow bulk work blocks urgent tasks. Choose a scheduling policy that matches the business contract and define the fairness objective.
+
+Common approaches include weighted fair queues, reserved capacity per class, round-robin among priorities, aging (raising priority as work waits), and separate pools for critical workloads. A weighted policy can guarantee low-priority work receives a fraction of capacity while allowing critical work to borrow unused capacity. The right values depend on deadlines, resource consumption, and service objectives.
+
+Priority must be based on trusted metadata and cannot be freely chosen by clients. Consider tenant fairness as well as task priority; otherwise one tenant can fill the high-priority queue. Work with variable costs may need cost-aware scheduling rather than counting messages equally.
+
+Monitor queue age and completion SLO by class, not just aggregate depth. Ensure retries and replays do not jump ahead forever and starve new work. In an interview, explain what each priority receives under sustained load and what happens when critical demand alone exceeds capacity—because no scheduler can make an overloaded system complete every task on time.
 
 ### Q297. How do you distinguish a capacity problem from a correctness problem during an incident?
 
-Capacity problems typically show saturation, queue growth, timeouts, or rising latency; correctness problems show invariant violations, mismatched state, duplicate effects, or impossible transitions. They can co-occur: overload can trigger retries and duplicate work. Use traces and resource metrics alongside business-level reconciliation and state-transition logs. Mitigation must not improve availability by weakening critical correctness guarantees.
+A capacity problem means the system cannot complete enough correct work within its resource or latency limits; a correctness problem means it is producing or accepting the wrong state/result. They can coexist: overload causes timeouts and retries, which may expose duplicate side effects or stale updates. Incident response must protect business invariants even while restoring throughput.
+
+For capacity, look for queue growth, saturation, connection-pool wait, CPU/memory/IO pressure, rising p95/p99, throttling, and successful throughput flattening while offered traffic rises. For correctness, inspect invariant violations, duplicate IDs/effects, conflicting versions, ledger imbalances, missing/duplicated events, authorization bypass, or divergence between authoritative and derived stores. HTTP 200 and healthy CPU do not prove correct business behavior.
+
+Mitigate differently. Capacity may require admission control, load shedding, reducing fan-out, pausing backfills, or fixing a query. Correctness may require stopping a write path, disabling a feature, fencing an owner, preserving evidence, and running reconciliation. Do not increase throughput on a path that is corrupting data; do not perform a risky failover before establishing write authority.
+
+Use traces/logs for context and durable operation IDs/state transitions for reconstruction. In an interview, state which signals distinguish the failure classes, which action limits damage first, and what validates recovery. Business invariants should be included in alerts and runbooks, not checked only after customers report a problem.
 
 ### Q298. How do you decide what should be included in a design diagram?
 
-Include components that own data, enforce a critical invariant, create a network boundary, process asynchronous work, or define a failure domain. Show the main request and event flows, data stores, and trust boundaries. Omit implementation details that do not change the architecture discussion. Add deeper diagrams only when a critical path, transaction boundary, or failure sequence needs explanation.
+Include components and boundaries that affect correctness, capacity, latency, security, failure recovery, or team ownership. A useful HLD diagram normally shows clients/edge, gateways or proxies, stateless services, authoritative stores, caches/read models, brokers/workers, external providers, region/failure-domain boundaries, and the main synchronous/asynchronous flows. Mark where data is persisted and which component owns each important fact.
+
+Do not draw every class or cloud product. Add detail when it explains a decision: primary/replica relationships, shard routing, outbox/event flow, partition key, writer ownership, or trust boundary. Use separate diagrams for system context, request/data flow, deployment/failure domains, and a deep-dive workflow when one drawing becomes unreadable.
+
+Label arrows with semantics where it matters: HTTP/RPC, event, replication, cache invalidation, or provider callback. Distinguish synchronous request paths from asynchronous work and show what durable acceptance means. For multi-region designs, mark which data is replicated, which writes have one owner, and how failover changes routing.
+
+A diagram is not complete without a verbal walkthrough of the happy path and at least one failure path. In an interview, keep it legible, state assumptions, and use the diagram to explain trade-offs rather than treating boxes as an architecture by themselves.
 
 ### Q299. How should a senior candidate respond when an interviewer challenges a technology choice?
 
-Return to the requirement and compare alternatives against measurable constraints. Acknowledge the cost and failure modes of your chosen option, explain what evidence would change the decision, and simplify if the added component is not justified. Do not defend a technology by popularity or claim universal superiority. The interviewer is evaluating your reasoning and adaptability, not loyalty to a stack.
+Treat the challenge as an invitation to expose assumptions, not as a debate to win. Restate the requirement the choice was meant to satisfy, then explain the mechanism and trade-off. For example: “I chose a relational database because this workflow relies on transactional uniqueness and joins. If write throughput exceeds a single primary's capacity, I would measure the bottleneck and consider sharding, which makes cross-shard transactions and global uniqueness harder.”
+
+A strong defense names the best alternative and explains why it was not chosen under the current assumptions. Avoid popularity arguments (“Kafka is standard,” “NoSQL scales better”) and avoid pretending the design has no weaknesses. If the interviewer changes a requirement, trace its impact on data model, latency, consistency, cost, capacity, operations, and migration.
+
+You do not need every vendor-specific detail from memory. State which guarantee needs verification and how you would test it: load test, failure injection, restore exercise, query-plan check, or proof of the concurrency invariant. Be precise about what is known, assumed, and unresolved.
+
+In an interview, revise a decision when the facts change. Senior-level judgment is not always choosing the right component on the first attempt; it is making a defensible choice, recognizing the conditions under which it fails, and evolving the design without losing correctness.
 
 ### Q300. What is the final checklist for defending an HLD design?
 
-Be ready to state the requirements and assumptions; core business invariant; rough traffic/storage/throughput estimates; authoritative data owner; request and event flows; consistency and idempotency guarantees; scaling bottleneck; timeout/retry/overload behavior; failure-domain and recovery plan; security and tenant boundaries; operational signals; cost drivers; and the simplest viable alternative. Clearly state which guarantees are provided, which are best-effort, and what remains out of scope.
+Before calling an HLD complete, be able to explain:
 
+1. **Requirements and success:** primary user journeys, business invariants, measurable latency/availability/freshness targets, retention, geography, security, and cost assumptions.
+2. **Capacity:** average/peak QPS, traffic mix, storage growth, network bandwidth, fan-out, cache hit/miss behavior, queue drain, connection budgets, provider quotas, and headroom after a failure.
+3. **Architecture and ownership:** component responsibilities, authoritative owner for each fact, API/event contracts, synchronous versus asynchronous boundaries, trust boundaries, and failure domains.
+4. **Data and consistency:** schema/index/query model, partition/shard key, hot-key strategy, transaction isolation, replication semantics, uniqueness, ordering scope, cache consistency, and read-model rebuild.
+5. **Failure behavior:** timeouts, deadlines, retries, idempotency, partial failure, overload, backpressure, load shedding, DLQ/poison messages, compensation, and reconciliation.
+6. **Operations:** SLI/SLO and alerts, tracing/logging, load/failure tests, schema rollout/rollback, backup restore, RTO/RPO, regional failover/failback, access controls, and runbooks.
+7. **Trade-offs and evolution:** why this is the simplest viable design, what breaks first, which assumptions could change the architecture, and how to migrate safely as load or requirements grow.
+
+Finally, walk through one successful request and at least two failure paths—such as a timeout after commit and a regional partition. State what the caller sees, which component owns recovery, and how you verify no business invariant was violated. A senior design is not one with no failure; it is one whose failure behavior is deliberate, observable, and recoverable.
 
 ## 18. Senior-level scenario bank
 
