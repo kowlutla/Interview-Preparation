@@ -2,7 +2,7 @@
 
 **Audience:** Java backend engineers with 5–10 years of experience preparing for senior and staff-leaning backend/product-company interviews.  
 **Purpose:** A progressive guide to architecture reasoning, capacity estimation, data ownership, consistency, failure handling, operations, and cost.  
-**Status:** Rebuilding for the 5–10 year experience band. Includes eight worked end-to-end designs and 15 core-concept deep dives; the quality-attribute and capacity-estimation answers are being expanded with quantitative reasoning and realistic failure trade-offs. Full coverage, technical accuracy, readability, and rendered diagram validation remain in progress; not final sign-off.
+**Status:** Rebuilding for the 5–10 year experience band. Includes eight worked designs and 15 core-concept deep dives; networking, API evolution, health checks, quality attributes, and capacity answers now receive fuller mechanism and failure analysis. Full coverage, technical accuracy, readability, and rendered diagram validation remain in progress; not final sign-off.
 
 > **How to use this guide:** Learn fundamentals in order, then practise scenarios aloud. State assumptions, identify the critical business invariant, estimate scale, draw the simplest viable architecture, and deepen the part the interviewer challenges. Naming technologies is not the goal; explaining why the design satisfies requirements is.
 
@@ -388,9 +388,13 @@ In an interview, state the assumption behind the choice. For ordinary stateless 
 
 ### Q34. Are health checks enough for safe failover?
 
-No. A health check is a signal, not a complete failover protocol. **Liveness** asks whether a process should be restarted; **readiness** asks whether it should receive new traffic. A process can be alive but not ready, and a shared database outage can make every instance fail a dependency check even though restarting those instances will not fix the database.
+No. A health check is a signal, not a complete failover protocol. **Liveness** asks whether a process should be restarted; **readiness** asks whether it should receive new traffic. A process can be alive but not ready, and a shared database outage can make every instance fail a dependency check even though restarting the instances will not fix the database.
 
-Use thresholds and time windows that avoid reacting to brief noise, and distinguish process health from dependency health. During planned removal, mark the instance unready and drain existing requests before shutdown. For stateful systems, a health check alone must never decide write ownership or prove that the old leader has stopped accepting writes.
+Health checks have limits. A TCP probe may show that a port accepts connections while every business request fails. A deep readiness probe can be too expensive or depend on a shared service; if every instance becomes unready at once, the load balancer can remove all capacity and make the outage worse. Use cheap bounded probes, thresholds/hysteresis, and separate diagnostic signals from routing/lifecycle decisions.
+
+Planned removal needs a sequence: mark the instance unready, stop assigning new work, drain in-flight requests, and terminate within a deadline. Long-lived WebSockets and message consumers need protocol-specific drain/reconnect behavior. A health probe also cannot prove that a stateful writer has lost authority. Leader promotion requires an explicit ownership protocol and fencing at the protected resource.
+
+Failover should evaluate data safety, not just reachability: is the candidate sufficiently caught up, what RPO is promised, and can the old writer still commit? In an interview, distinguish traffic health from business-path health and explain the action triggered by each signal. Test shared dependency failure, flapping health, and stale leaders—not only a process crash.
 
 ### Q35. What are the limitations of sticky sessions?
 
@@ -404,31 +408,51 @@ Start with the time the user journey can tolerate, then set an end-to-end deadli
 
 Check what each client library's timeout actually covers: connection-pool acquisition, DNS, TLS, network transfer, server processing, or only some of these. Propagate the remaining deadline to downstream calls where possible. Retries consume the same budget, so a retry is useful only if enough time remains for a successful attempt. Too-short timeouts create unnecessary retries; too-long timeouts tie up threads and connections while users wait.
 
-### Q37. When use WebSockets, Server-Sent Events, or long polling?
+### Q37. When should you use WebSockets, Server-Sent Events, or long polling?
 
-**WebSockets** provide a long-lived, bidirectional connection, useful for chat, collaboration, and interactive updates. They require connection lifecycle management, heartbeat/reconnect behavior, and capacity planning for many concurrent connections. **Server-Sent Events (SSE)** provide a server-to-client event stream over HTTP and are often simpler when clients only need updates from the server. **Long polling** holds an HTTP request until data is available or a timeout occurs, then the client opens another request; it is easier to support in some environments but adds request overhead.
+**WebSockets** provide a persistent, bidirectional connection, making them useful for chat, collaboration, games, and interactive applications where client and server both send frequent messages. They require connection lifecycle management, heartbeats, authentication refresh, reconnect behavior, fan-out routing, and capacity planning for concurrent sockets and outbound buffers.
 
-Choose based on directionality, client support, connection count, proxy behavior, and delivery semantics. None of these transports alone guarantees durable delivery: define event IDs, replay/reconnect behavior, authorization, and what happens when a client is offline.
+**Server-Sent Events (SSE)** provide a server-to-client event stream over HTTP. They are often simpler when the server pushes updates but the client sends commands through ordinary HTTP requests. Support for reconnect/event IDs makes resumption convenient, but you still need retention and replay semantics if events must not be lost. **Long polling** holds an HTTP request until data is available or a timeout occurs, after which the client reopens the request. It is easier in some environments but creates more request/connection churn and can produce synchronized polling spikes.
+
+Choose based on directionality, expected concurrent connections, update frequency, client/proxy support, network behavior, and the required delivery guarantee. Mobile push notifications serve a different role: they can alert or wake an offline device, but should not be treated as a durable record of application state.
+
+None of these transports alone guarantees durable delivery. Persist important events/state, use stable event IDs or cursors, handle duplicate replay, and provide a snapshot when a reconnect cursor has expired. Apply backpressure and bound per-client buffers so a slow client cannot consume unbounded memory.
+
+In interviews, distinguish transport from delivery semantics. Explain what happens during disconnect, reconnect storm, missed events, authorization expiry, and gateway failure—and what data remains authoritative when the connection itself disappears.
 
 ### Q38. What does a CDN solve and not solve?
 
-A CDN caches eligible content at edge locations closer to users, reducing origin traffic and often improving latency for geographically distributed clients. It is especially effective for versioned static assets and public responses whose cache policy is well defined. Cache invalidation and TTLs determine how quickly changes become visible.
+A Content Delivery Network (CDN) caches eligible assets or HTTP responses at edge locations closer to users. It can reduce geographic latency, origin request volume, and bandwidth costs, especially for versioned static assets and public content whose cache policy is clear. A CDN can also provide edge TLS termination, DDoS protection, and request filtering depending on the service.
 
-A CDN does not automatically make personalized or authorized responses safe to share. The cache key and cache-control headers must reflect every dimension that changes the response, and sensitive user-specific data often should be private or non-cacheable. CDN caching also does not solve write consistency or an overloaded origin on cache misses. Monitor hit ratio, origin offload, stale-content incidents, and cache-miss latency.
+It does not automatically make personalized or authorized responses safe to share. Cache keys, cache-control headers, cookies, query parameters, and variation dimensions must reflect everything that changes the response. Omitting tenant/user/authorization context can leak private data. Sensitive responses should be private/non-cacheable unless the architecture deliberately provides safe isolation.
+
+A CDN also does not solve write consistency, an overloaded origin on cache misses, or stale business-critical decisions. TTL and purge behavior determine how quickly content changes become visible, but invalidation may be delayed and different edge locations can converge at different times. A cold cache or large purge can create an origin stampede unless request coalescing, rate limits, or origin shields are used.
+
+Choose CDN caching for content with reuse and acceptable freshness, and keep authoritative writes at the owning service/database. Versioned URLs are often safer than purging immutable assets. Measure hit ratio alongside origin offload, cache-miss latency, stale-content incidents, purge duration, and origin saturation. In interviews, describe the cache key and invalidation contract, not just the geographic benefit.
 
 ## 5. APIs and service boundaries
 
 ### Q39. REST versus RPC/gRPC: how do you choose?
 
-REST over HTTP is often a good fit for public, resource-oriented APIs because it is broadly supported by browsers, gateways, debugging tools, and client libraries. gRPC provides generated typed contracts, compact Protocol Buffers messages, and first-class streaming, which can be useful for internal service calls or high-volume communication.
+REST over HTTP is often a good fit for public, resource-oriented APIs because browsers, gateways, debugging tools, and client libraries support it widely. It uses familiar HTTP semantics and works well when clients need independent evolution, cacheable reads, and straightforward interoperability.
 
-Do not choose based only on claims that one protocol is faster. Network topology, payload size, connection reuse, serialization cost, proxy support, observability, and team tooling all affect end-to-end performance. Choose the contract and operational model that fit the clients and workload, and benchmark realistic traffic if performance is the deciding factor.
+gRPC uses generated, strongly typed service contracts and Protocol Buffers, with streaming support and efficient binary serialization. It can fit internal service-to-service calls or high-volume communication where contract generation and streaming are valuable. But browser support may require a gateway/bridge, and operational debugging or proxy compatibility can differ from ordinary JSON/HTTP.
+
+Do not choose based only on claims that one protocol is faster. End-to-end latency depends on network round trips, payload size, connection reuse, serialization/deserialization, concurrency, proxy behavior, and downstream work. A chatty gRPC call graph can be slower than a coarse-grained REST API; compact serialization will not fix a slow database or a saturated connection pool.
+
+Also consider deadlines, cancellation, idempotency, API versioning, authentication, observability, and how clients handle partial failure. gRPC deadlines are useful only if they are propagated and enforced; the server still needs safe handling of a side effect after the caller times out. Benchmark representative traffic if performance is the deciding factor.
+
+In interviews, state who the consumers are, which capabilities matter (streaming, browser compatibility, cacheability, generated contracts), and what the team can operate. Prefer the protocol that fits the contract and topology, not the one that sounds more advanced.
 
 ### Q40. How do you change an API without breaking clients?
 
-Prefer additive changes that preserve existing field meanings and behavior—for example, adding an optional response field that old clients can ignore. Treat a semantic change as potentially breaking even if the JSON shape remains the same; changing `amount` from gross to net is a contract break without a schema change. Avoid reusing a removed field name for a different meaning.
+Treat API compatibility as both a schema and behavior contract. Prefer additive changes that preserve existing field meanings—for example, adding an optional response field that old clients can ignore. A change can still be breaking when the JSON shape remains valid: changing `amount` from gross to net, changing ordering, altering pagination semantics, or making an optional field suddenly required can break consumers.
 
-When an incompatible change is unavoidable, use a versioning or migration plan, publish a deprecation window, measure which clients still use the old contract, and remove it only when the agreed policy allows. Test old and new clients against mixed-version deployments and ensure rollback does not leave incompatible data behind.
+For incompatible changes, use a versioning or migration plan, publish deprecation timelines, measure which clients still use the old contract, and remove it only when the agreed policy permits. Versioning may use paths, headers, media types, or a new endpoint, but version labels alone do not protect against incompatible shared database writes or event schemas.
+
+Rolling deployments require old and new versions to coexist. Deploy backward-compatible readers before new writers, use additive schema changes, backfill gradually, and retire old fields only after no supported code path needs them. For event APIs, account for delayed messages and replay: a new consumer may read an event published months ago, and old consumers may receive a new payload during rollout.
+
+Use consumer/provider contract tests, mixed-version integration tests, deprecation telemetry, and rollback tests. Keep semantic guarantees documented: idempotency scope, error codes, rate limits, ordering, freshness, and whether HTTP 202 means durable acceptance or final completion. In an interview, explain the coexistence window and how you know when it is safe to remove the old behavior.
 
 ### Q41. Offset versus cursor pagination?
 
