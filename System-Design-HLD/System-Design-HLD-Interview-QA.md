@@ -41,7 +41,9 @@ Start with user journeys and business invariants, not a list of fashionable tech
 
 ### Q2. How is HLD different from LLD?
 
-HLD explains major components, responsibilities, communication paths, data ownership, scaling, and reliability. LLD explains classes, interfaces, methods, object collaboration, and implementation-level patterns. The boundary is not absolute: an HLD discussion may need a concrete schema, API contract, partition key, or transaction boundary when it determines correctness.
+High-Level Design (HLD) explains the system's major building blocks: what each component owns, how requests and events move between components, where data lives, and how the design scales and recovers from failure. Low-Level Design (LLD) zooms into implementation: classes, interfaces, method contracts, object collaboration, and design patterns.
+
+The boundary is not absolute. If a database constraint determines whether two users can book the same seat, it matters in HLD even though it is a low-level detail. A useful rule is to discuss any detail that can change correctness, capacity, reliability, or the choice of architecture; leave details that do not affect those decisions for LLD.
 
 ### Q3. How should you structure a 45–60-minute design interview?
 
@@ -55,7 +57,9 @@ Prioritize questions that could change the design. For example, a notification s
 
 ### Q5. How do functional and non-functional requirements differ?
 
-Functional requirements describe what the system does, such as create an order or send a notification. Non-functional requirements describe how well it must work, such as latency, availability, durability, privacy, throughput, recovery time, and cost. Functional requirements define the features; non-functional requirements often determine the architecture.
+Functional requirements describe **what the system does**: create an order, reserve a seat, publish a message, or let a user search products. Non-functional requirements describe the constraints and quality of that behavior: how fast it responds, how much traffic it handles, how reliably it operates, how long it retains data, and what it costs.
+
+The distinction matters because the same feature can lead to different architectures under different quality targets. A report generated once per day can run as a batch job; a dashboard that must update within a second may need streaming updates and a materialized read model. Capture measurable targets wherever possible instead of writing vague requirements such as “fast” or “highly available.”
 
 ### Q6. How do you handle an ambiguous prompt such as “design a notification system”?
 
@@ -65,7 +69,9 @@ Then identify which work must be synchronous. A request can return an operation 
 
 ### Q7. How do you avoid overengineering?
 
-Start with the simplest architecture that satisfies requirements and leaves credible growth paths. A modular monolith and relational database may be ideal at modest scale. Add a broker, cache, search index, or service boundary only when a requirement or measured bottleneck justifies its operational cost.
+Begin with the simplest design that meets the stated requirements, then identify which limits are likely to appear first. A modular monolith with a relational database may be the right answer for a small team and moderate traffic. A broker is useful when work must be durably deferred or independently retried; a cache helps when repeated reads are expensive; a search engine helps when the query needs exceed the database's practical strengths.
+
+Every component adds failure modes, deployment work, monitoring, and operational ownership. Explain what requirement justifies each component and what evidence would trigger the next step. A credible evolution path is usually stronger than starting with a large architecture “just in case.”
 
 ### Q8. What makes an architecture diagram useful?
 
@@ -89,7 +95,9 @@ The synchronous path should own the user-visible acceptance guarantee. The async
 
 ### Q9. How should you respond when the interviewer changes a requirement?
 
-Restate the new constraint, identify assumptions it invalidates, and update only affected parts. If notifications now have a two-second deadline, priority queues and reserved capacity may be needed; the entire system does not automatically require a rewrite.
+Restate the new requirement and explain which existing assumption it changes. Then trace the impact through the architecture: data model, request path, consistency, capacity, failure behavior, and cost. Update only the components affected instead of starting the whole design again.
+
+For example, if notifications that previously could take several minutes must now arrive within two seconds, you may need priority queues, reserved provider capacity, stricter deadlines, and a different retry policy. You should also explain what happens when the provider is unavailable, because a tighter latency target does not make external dependencies more reliable.
 
 ### Q10. Why do candidates underperform in HLD interviews?
 
@@ -97,7 +105,9 @@ Common problems include designing before clarifying requirements, skipping estim
 
 ### Q11. How do you know the design is complete enough?
 
-You can explain the main user flow, data ownership, critical invariant, expected load, likely bottleneck, dependency-failure behavior, security boundary, and recovery strategy. State what remains out of scope. Complete enough means adequate for the requirements and time, not every implementation detail.
+You should be able to walk through the main user journey from request to response, identify the authoritative owner of each important fact, and state the invariant the design protects. You should also have a plausible capacity estimate, a likely bottleneck, a plan for dependency failure, a security boundary, and a recovery approach.
+
+You do not need to specify every class or configuration value. Instead, name the important unresolved questions and explain how you would validate them—for example, with a load test, a failover exercise, or a database-specific consistency review. A design is complete enough when its major decisions and limitations are explicit.
 
 ### Q12. How should you communicate a trade-off?
 
@@ -155,7 +165,9 @@ First classify dependencies as critical or optional for each user journey. If re
 
 ### Q20. How do you prioritize conflicting quality attributes?
 
-Identify the business invariant and rank requirements by impact and risk. For a financial ledger, correctness and durability usually outrank accepting every write during a partition. For a public catalogue, availability and low latency may justify slightly stale data. State the boundary explicitly.
+Start with business impact rather than trying to maximize every attribute at once. Identify which errors are reversible, which are costly, and which would violate a contractual, safety, or financial invariant. Then make the trade-off explicit and apply it to the specific operation—not necessarily to the entire system.
+
+For example, a product catalogue may serve slightly stale descriptions during a regional outage, while checkout must revalidate price and inventory. A payment service may reject a write when it cannot establish the authoritative owner instead of risking a duplicate debit. State the degraded behavior users will see and the recovery path.
 
 ### Q21. What is blast radius?
 
@@ -173,7 +185,9 @@ These are illustrative assumptions, not measured production facts. The estimate 
 
 ### Q23. Why is average traffic insufficient?
 
-Traffic is uneven: campaigns, commute times, and viral events create peaks. A system sized exactly to average load queues work during peaks, increasing latency and triggering retries. Estimate peak-to-average ratio, burst duration, and whether excess work can be queued or must be rejected.
+Average traffic hides how demand is distributed over time. A service averaging 1,000 requests per second may receive 5,000 requests per second during a campaign or flash sale. If it is provisioned only for the average, requests queue, latency rises, clients time out, and retries can create even more load.
+
+Estimate peak-to-average ratio and burst duration, then decide whether the excess work can wait. A report export may be queued; an interactive seat reservation may need a quick rejection rather than a long wait that ends in failure. Load tests should include realistic bursts and dependency degradation, not just a steady average rate.
 
 ### Q24. How do you estimate storage?
 
@@ -203,7 +217,9 @@ Find the limiting resource rather than multiplying every server count by ten. St
 
 ### Q30. What is capacity headroom?
 
-Headroom is spare capacity beyond expected demand. It absorbs bursts, node failures, deployments, and estimation error. The right amount depends on burst duration, scaling delay, failure tolerance, and cost. Autoscaling is not instantaneous, so sudden spikes may require warm capacity or admission control.
+Headroom is the unused capacity available above expected demand. It gives the system room to absorb traffic bursts, a node or availability-zone failure, rolling deployments, and uncertainty in capacity estimates. The right amount depends on how quickly demand can spike, how fast new capacity becomes ready, and whether the system must continue serving peak load after a failure.
+
+Do not treat autoscaling as instant capacity: provisioning, startup, cache warming, and connection establishment all take time. A service with sudden traffic spikes may need warm instances, reserved critical-path capacity, admission control, or load shedding in addition to autoscaling. Validate the chosen headroom with load and failure tests.
 
 ## 4. Networking and request delivery
 
@@ -281,7 +297,9 @@ Split when independent ownership, deployment, scaling, security, or fault isolat
 
 ### Q45. Why is database-per-service not an automatic win?
 
-Independent data ownership reduces coupling, but cross-service queries and transactions become harder. Duplicated read models may be needed and are often eventually consistent. Start from domain ownership and access patterns, not a slogan.
+Giving each service ownership of its data can reduce schema coupling and let teams evolve independently. The cost is that cross-service joins and atomic transactions become harder; the system may need APIs, events, or denormalized read models to combine data. Those projections can lag behind the source, and a multi-service business workflow may need a saga and reconciliation.
+
+The goal is clear ownership, not blindly giving every service a separate database server. Several cohesive modules may safely share one database while keeping table ownership and access boundaries explicit. Choose the separation that improves independent evolution without creating unnecessary network calls and distributed consistency problems.
 
 ## 6. Scaling and traffic management
 
@@ -291,7 +309,9 @@ Vertical scaling increases resources on one machine and is operationally simple 
 
 ### Q47. Why might adding application instances not improve throughput?
 
-The bottleneck may be the database, a global lock, a connection pool, downstream quota, network, or serialized critical section. More instances can increase contention and connection pressure. Use latency breakdowns, saturation metrics, traces, and load tests before scaling.
+Horizontal scaling helps only when the added instances contribute capacity to the limiting part of the system. If the database is saturated, a global lock serializes work, or a third-party provider enforces a fixed quota, adding application instances can simply send more concurrent work into the bottleneck. It may make the incident worse by multiplying database connections or retries.
+
+Use traces and saturation metrics to locate the queue: application CPU, thread pools, connection acquisition, database locks, network, and downstream latency. Then fix or isolate the actual limit. Compare successful throughput and tail latency before and after a scaling change; instance count alone is not a measure of capacity.
 
 ### Q48. What is backpressure?
 
