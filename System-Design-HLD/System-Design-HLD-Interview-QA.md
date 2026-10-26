@@ -2,7 +2,7 @@
 
 **Audience:** Java backend engineers with 5–10 years of experience preparing for senior and staff-leaning backend/product-company interviews.  
 **Purpose:** A progressive guide to architecture reasoning, capacity estimation, data ownership, consistency, failure handling, operations, and cost.  
-**Status:** Rebuilding for the 5–10 year experience band. Recent rewrites deepen async operation APIs, cancellation, deadlines/leases, fallback safety, cascade prevention, retry budgets, graceful shutdown, scheduled jobs, data consistency, inventory holds, payment ledger behavior, saga boundaries, and transactional inbox semantics. Full coverage, technical accuracy, readability, and rendered diagrams remain under review; not final sign-off.
+**Status:** Rebuilding for the 5–10 year experience band. Recent rewrites deepen async operation APIs, tenant-aware sharding/migration, cache security, CDN invalidation, regional routing, connection draining, TLS trust boundaries, and HTTP/2/HTTP/3 trade-offs, alongside transactional correctness and reliability. Full coverage, technical accuracy, readability, and rendered diagrams remain under review; not final sign-off.
 
 > **How to use this guide:** Learn fundamentals in order, then practise scenarios aloud. State assumptions, identify the critical business invariant, estimate scale, draw the simplest viable architecture, and deepen the part the interviewer challenges. Naming technologies is not the goal; explaining why the design satisfies requirements is.
 
@@ -2348,31 +2348,73 @@ Retention must cover the realistic replay/redelivery window; pruning inbox rows 
 
 ### Q231. How do you handle schema changes when old and new application versions run simultaneously?
 
-Use additive changes first, keep both representations readable during migration, and avoid changing field meaning in place. Deploy compatible readers before new writers, backfill gradually, and remove the old schema only after all callers and rollback paths no longer need it. Test rolling deployment and rollback with mixed versions. Database compatibility and event compatibility should be reviewed separately.
+Assume a rolling deployment will run old and new code at the same time, while background workers, delayed messages, analytics jobs, and rollback versions may continue using old assumptions. A schema migration that works for the newest binary can still break these callers.
+
+Use expand–migrate–contract. First add a backward-compatible column/table/index without removing the old representation. Deploy code that can read both old and new forms and, if necessary, write both in a controlled manner. Backfill existing rows in bounded batches while capturing concurrent changes. Validate counts and business invariants, switch reads to the new representation, observe it under production traffic, and only then remove old fields in a later release.
+
+Mixed-version writes require care. Dual-writing two fields in one local transaction can preserve local consistency, but it adds write cost and demands a clear authority rule. Two services writing separate stores is a dual-write problem and needs an outbox/CDC, workflow coordination, or reconciliation. Do not allow the new version to write data the old version cannot interpret until rollback is no longer required.
+
+Test rollback with data written by the new code, queued events, cached schemas, and scheduled jobs. The compatibility window should be explicit: which code versions and payload versions must continue to work, and for how long. In an interview, describe the phases, the safe rollback point, and how you prove the backfill is complete despite concurrent writes.
 
 ### Q232. How do you prevent cache poisoning or cache-key confusion?
 
-Validate inputs before caching, normalize keys consistently, include all representation-changing dimensions, and ensure untrusted headers cannot alter a shared cache entry unexpectedly. Keep authorization-aware responses private unless shared caching is explicitly safe. Test tenant boundaries and variants such as locale, encoding, and query parameters. Cache invalidation must also be authenticated and scoped.
+Cache poisoning occurs when untrusted request input causes a cache to store a response that is incorrect or unsafe for later users. Cache-key confusion occurs when two requests that should produce different responses map to the same key, or equivalent requests map inconsistently and bypass intended controls. These are correctness and security issues, not merely cache-efficiency concerns.
+
+Build keys from canonical, validated inputs and every dimension that changes the representation: tenant, authorization scope, locale, content encoding, query parameters, API version, and feature cohort where relevant. Be careful with request headers that influence content; a CDN must honor the correct cache variation and cache-control rules. A shared cache should not store a personalized or privileged response unless the cache partition and policy are designed to make that safe.
+
+Validate hostnames, forwarded headers, URL normalization, encodings, and redirects before caching. Do not trust arbitrary client-supplied identity headers. Ensure cache invalidation endpoints are authenticated and properly scoped so an attacker cannot poison or purge other tenants' entries. Apply size limits and avoid caching error responses or redirects unless their behavior is intentional.
+
+Test with adversarial combinations: same URL under different tenants, languages, authorization states, query orderings, and content types. Verify that responses never cross trust boundaries. Monitor suspicious cache-key cardinality, unexpected cache hits for private data, and mismatches between origin and cached responses. In interviews, explain both the key construction and the cache-control contract across browser, CDN, gateway, and application cache layers.
 
 ### Q233. How do you decide between local cache and distributed cache?
 
-A local cache has very low access latency and avoids a network dependency, but each instance has its own copy and invalidation can be difficult. A distributed cache shares entries across instances but adds network latency, capacity limits, and an outage mode. Frequently reused immutable or versioned data may suit local caching; large shared working sets may suit a distributed cache. Layered caching can work if consistency semantics are explicit.
+A **local cache** is held inside each application process. Lookups are very fast and need no network call, but each instance has its own copy and can see a different value until expiry or invalidation. A **distributed cache** is shared by many instances and can hold a larger common working set, but adds network latency, serialization, capacity planning, key-hotspot risk, and an outage mode. Neither one is automatically more consistent.
+
+Use local caching for small, frequently reused data that changes infrequently or can be versioned, such as immutable configuration bundles or public reference metadata. Use a distributed cache when the working set is shared and too large to duplicate in every process, or when a centrally managed cache reduces repeated source reads. A two-level cache can reduce latency, but the design must coordinate invalidation/versioning across the local and shared layers.
+
+Freshness requirements decide the invalidation method. Time-to-live is simple but permits staleness. Pub/sub invalidation can reduce staleness but messages may be delayed or missed; versioned entries and periodic refresh can provide additional safety. A local cache can also survive a distributed cache outage, but stale authorization or tenant-specific content must not be served beyond its contract.
+
+Calculate memory multiplied by instance count, hit ratio, network costs, and origin offload. Measure p99 latency, hit/miss rate, local-cache divergence, eviction, and origin load during cold start. In an interview, explain which copy is authoritative, how an update becomes visible, and what happens during a cache outage.
 
 ### Q234. How do you plan a CDN cache invalidation strategy?
 
-Prefer versioned or content-addressed URLs for immutable assets so updates create new keys rather than requiring global purge. For mutable content, define TTL, purge scope, propagation expectations, and behavior when purge fails. Purges can be expensive and may create origin traffic spikes. Monitor cache hit ratio and origin load during release and invalidation events.
+For immutable assets, prefer content-hashed or versioned URLs: a new asset has a new cache key, so clients can safely cache it for a long time. For mutable content, define TTL, purge scope, propagation expectations, and what the user sees while different edge locations may still hold old data. Purging can be rate-limited or asynchronous, and invalidating too much can produce an origin traffic spike.
+
+The cache key and headers must reflect every dimension that changes the response. Personalized or authorization-sensitive content should generally use private/non-cacheable semantics unless the cache explicitly partitions it safely. Do not rely on a purge to correct an unsafe shared cache key; fix the policy first. For HTML that references versioned assets, use different TTLs for the HTML document and immutable JavaScript/CSS files.
+
+Plan for purge failure or delay. A deployment may need to keep old objects available until stale HTML is unlikely to reference them. If an origin change is security-critical, such as revoked content, consider whether CDN invalidation latency is an acceptable risk or whether a stronger authorization check is needed at the edge/origin.
+
+Monitor cache hit ratio, origin offload, purge latency/error rate, stale-content incidents, and origin p99 during rollout. Use gradual traffic release and warm high-value keys if appropriate. In an interview, distinguish cache expiry from invalidation, explain versioned URLs, and state how correctness and cost behave when edge locations converge at different times.
 
 ### Q235. How do you prevent an origin stampede when a CDN key expires?
 
-Use origin request coalescing where supported, staggered TTLs, stale-while-revalidate for safe content, and rate limits at the origin. Prewarm only the highest-value keys when it is cost-effective. Ensure stale serving is not used for authorization or other correctness-critical responses. A CDN does not automatically prevent all concurrent misses, especially across regions or cache nodes.
+A CDN does not guarantee that every cache node or region will coordinate the same miss. When a popular object expires or is purged, many edge locations can request it from the origin at once. An origin stampede can overwhelm the application even though the CDN normally shields it from most reads.
+
+Use origin request collapsing/coalescing where supported so concurrent misses for one key share a fetch, plus stale-while-revalidate for content whose staleness is acceptable. Add TTL jitter where applicable, protect the origin with concurrency/rate limits, and warm only high-value objects before a large rollout. If using multiple CDN layers, understand whether their miss coordination works across points of presence or only locally.
+
+Protect correctness and security in the fallback. Stale product descriptions may be acceptable; stale authorization or private content may not be. Purging an object that has just been revoked should not trigger a stale response that bypasses the intended policy. Use explicit cache-control and avoid leaking credentials or tenant data in cache keys/headers.
+
+Load-test cold-cache, global purge, regional CDN failure, and origin slowdown. Observe origin request rate, collapsed requests, cache fill latency, 5xx/timeout rates, and cache hit ratio during recovery. The origin should have enough protection that a temporary CDN miss storm results in bounded delay or deliberate load shedding rather than a cascading outage.
 
 ### Q236. How do you design tenant-aware data partitioning?
 
-Compare tenant size distribution, query patterns, residency constraints, and isolation requirements. Shared tables with tenant IDs are operationally efficient but require strict query isolation and may create noisy-neighbor issues. Dedicated databases or shards improve isolation for large tenants but increase cost and management overhead. Plan for tenant migration between placements and measure per-tenant storage and latency.
+Start with tenant size and traffic distribution, not only the number of tenants. A `tenant_id` shard key can make tenant-scoped queries efficient and help isolate data placement, but one very large or hot tenant can still dominate a shard. Conversely, partitioning only by record ID may distribute writes well while making tenant-level queries expensive.
+
+Choose between shared tables with tenant predicates, schema-per-tenant, database-per-tenant, or a hybrid based on scale, isolation, residency, compliance, and operations. Shared storage is efficient but requires defense-in-depth tenant filtering and resource quotas. Dedicated databases/shards can isolate large or regulated tenants but increase deployment, backup, restore, capacity, and schema-migration costs.
+
+For a shared-shard design, include tenant identity in relevant indexes and cache keys, and ensure async jobs, search queries, object storage, logs, exports, and administrative tools preserve tenant scope. For geographic residency, routing must keep primary data and potentially replicas/backups in permitted regions; telemetry and control-plane metadata need separate analysis.
+
+Design a placement map and migration process before tenants outgrow the initial layout. Use per-tenant metrics for storage, QPS, latency, queue use, and expensive queries without creating unbounded monitoring cardinality. In an interview, explain the access patterns served by the key, the response to tenant skew, and how a tenant can be moved without split ownership or cross-tenant exposure.
 
 ### Q237. How do you handle a tenant that outgrows its original shard?
 
-Use a controlled migration to a dedicated shard or new placement: establish routing ownership, copy a snapshot, capture concurrent writes, validate, and switch routing. Keep tenant-aware metrics and ensure cache keys and background jobs follow the new placement. Avoid moving a tenant by simply changing a routing table while writes are in flight; stale routing can split ownership.
+A tenant outgrowing its shard is a data placement migration and a load-isolation problem. First verify what is hot: storage volume, write rate, a few popular keys, long-running queries, or cross-tenant shared dependencies. A larger dedicated shard helps a tenant that is too big for the shared shard, but it may not help a single hot key or global lock.
+
+Keep a routing abstraction that maps tenant IDs to a shard and supports versioned ownership. Prepare the destination schema/indexes, copy a consistent baseline, capture concurrent changes through CDC or another reliable change stream, and validate counts, checksums, deletes, and business invariants. Then switch writes with an ownership epoch or routing version so stale application instances cannot keep writing to the old shard.
+
+Avoid naive dual-writes to two shards without a defined authority and repair protocol. Read shadowing can compare results safely; shadow writes may create real side effects. The cutover plan must cover background jobs, caches, search indexes, tenant-specific quotas, backups, and administrative tools. Retain the old copy until reconciliation and rollback criteria are met.
+
+After migration, verify that the former shard's hot spot is resolved and that tenant-level latency and resource use improved. A dedicated shard can still become hot, so sub-sharding may be required for some access patterns. In an interview, explain the trigger for migration, live-write capture, routing change, rollback boundary, and long-term monitoring.
 
 ### Q238. How do you know when a system needs sharding rather than a larger database?
 
@@ -2386,23 +2428,53 @@ Use load testing and growth projections to compare the simpler option and the sh
 
 ### Q239. How do DNS-based global routing and application-level routing differ?
 
-DNS-based routing influences which endpoint a client resolves, often using geography, health, or policy. It is not an immediate per-request switch because resolvers and clients cache answers, and existing connections remain open. Application-level routing can make decisions per request but adds a routing hop and requires visibility into request identity and health. Neither mechanism alone guarantees data consistency or prevents an old region from continuing to accept writes.
+DNS-based global routing returns one or more endpoints according to policy such as geography, health, latency, or failover priority. It is useful for steering new connections toward a region, but it is not an instantaneous per-request switch. Resolver/client caching and existing TCP, HTTP/2, WebSocket, or gRPC connections can continue using an old endpoint after the DNS record changes.
+
+Application-level routing makes a decision at a gateway, proxy, or application for each request or connection. It can consider identity, path, tenant, route policy, or current health and can shift traffic more precisely. The trade-off is an extra routing layer, operational state, and a component that needs capacity and resilience of its own. It only helps when the routing layer has correct and sufficiently fresh information.
+
+Neither method guarantees safe data ownership. During regional failover, steering traffic to a new region can produce conflicting writes if the old region still accepts them or if the new region's replica is behind. Stateful services need a leader/epoch/fencing and promotion protocol, not merely DNS health checks.
+
+Use DNS/global routing for coarse regional choice and failover where its convergence delay is acceptable; use application routing for finer-grained traffic decisions. Define health signals, TTL/convergence expectations, connection draining, session/reconnect behavior, and how failback is handled. In an interview, distinguish traffic routing from data replication and write-authority transfer.
 
 ### Q240. What does connection draining accomplish during deployment?
 
-Connection draining stops assigning new work to an instance while allowing existing requests or streams to finish within a deadline. It reduces interrupted requests during rolling updates. Long-lived WebSockets and slow requests may not drain quickly, so define maximum drain time, reconnect behavior, and safe termination. Draining is most effective when readiness changes before the process exits and clients retry only operations that are safe to repeat.
+Connection draining stops assigning new requests or connections to an instance while allowing existing in-flight work to finish within a configured grace period. The instance should generally become unready before shutdown, so load balancers and service discovery stop selecting it. Draining reduces deployment-induced errors, but cannot guarantee that every request finishes; the deadline eventually forces termination.
+
+Different protocols need different handling. Short HTTP requests may drain quickly. Long-running HTTP responses, gRPC streams, and WebSockets can remain open much longer, so clients may need a reconnect signal and a resume cursor. Requests blocked on a dependency should not be allowed to hold the instance forever; propagate deadlines and enforce a maximum drain duration.
+
+For message consumers, stop fetching new records, finish work that can complete within the grace period, and acknowledge/commit only after effects are durable. Otherwise the broker may redeliver work after termination, so idempotency is necessary. For leased jobs, coordinate ownership so a second worker cannot take over while the old worker still commits stale effects.
+
+Test rolling deploys, forced termination, node loss, long-lived connections, and slow dependencies. Observe termination timeouts, in-flight cancellation, retry amplification, and duplicate operations. In an interview, describe the sequence of readiness update, drain, safe progress/acknowledgement, and shutdown—and explain how the service behaves when the graceful window expires.
 
 ### Q241. What is the architectural role of TLS termination?
 
-TLS termination decrypts client traffic at a gateway, load balancer, or proxy. It can centralize certificate management and policy, but the path from that point to backend services may need TLS or mutual TLS depending on trust boundaries. Decide where identity is authenticated, how original client context is propagated safely, and how certificates rotate. Encrypting only the external hop does not automatically secure east-west traffic.
+TLS termination is the point where encrypted transport is decrypted, often at a CDN, load balancer, ingress, or API gateway. Centralizing termination can simplify certificate provisioning, renewal, protocol policy, and edge inspection. It also creates a security boundary: after termination, the proxy can see plaintext unless it re-encrypts traffic downstream.
+
+Decide whether the proxy-to-service hop requires TLS or mutual TLS based on the network trust model, threat model, regulatory obligations, and whether traffic crosses shared or untrusted infrastructure. In zero-trust designs, internal network location is not treated as sufficient proof of identity. mTLS can authenticate workloads, but authorization still must decide whether that workload may perform the action.
+
+If a proxy forwards client IP, scheme, or identity through headers, strip untrusted incoming copies and generate trusted headers at the edge. Otherwise clients can spoof their address or authentication context. Define who validates user tokens, how the authenticated identity is propagated, and whether downstream services can verify it. Plan certificate rotation and key revocation so a control-plane problem does not expire every connection simultaneously.
+
+TLS also has capacity costs: handshake CPU, connection churn, session resumption, and certificate validation. HTTP/2 connection reuse can reduce setup overhead but changes multiplexing behavior. In an interview, draw the trust boundaries, explain where plaintext exists, and state how transport identity, end-user authentication, and resource authorization differ.
 
 ### Q242. When does HTTP/2 help, and what are its limits?
 
-HTTP/2 multiplexes multiple streams over one connection and compresses headers, reducing connection overhead for many request patterns. It does not remove server queueing, dependency latency, or application bottlenecks. Because streams share a TCP connection, packet loss can affect progress across streams at the transport layer. Measure real workloads; protocol choice is less important than eliminating unnecessary round trips and managing concurrency.
+HTTP/2 supports multiplexing multiple request/response streams over one TCP connection and compresses headers, reducing repeated connection setup and header overhead for many API patterns. It can be useful for browser traffic and service-to-service calls with many concurrent requests. Connection reuse can reduce TLS handshakes and socket count.
+
+Multiplexing does not remove server-side queueing, database latency, payload serialization, or downstream fan-out. Because HTTP/2 runs over TCP, packet loss can block progress for multiple streams at the transport layer until lost data is recovered. One long-lived connection can also concentrate traffic onto a particular backend, so connection-level load balancing may not evenly distribute individual requests.
+
+Client and proxy limits matter: max concurrent streams, flow control, buffer sizes, connection lifetimes, and server worker capacity affect performance. A single connection can carry many outstanding streams, so counting connections alone may understate concurrency. Conversely, opening excessive connections can increase handshake and resource costs.
+
+Benchmark end-to-end behavior with realistic request sizes, concurrency, loss, and proxy configuration. Measure p95/p99, successful throughput, active streams, connection reuse, and CPU. In an interview, explain the specific overhead HTTP/2 reduces and the bottlenecks it does not fix, rather than saying it is automatically faster than HTTP/1.1.
 
 ### Q243. What problem does HTTP/3 attempt to address?
 
-HTTP/3 uses QUIC over UDP and can reduce some connection-establishment and transport head-of-line blocking costs compared with HTTP/2 over TCP. It can improve behavior on changing or lossy networks, but adoption depends on clients, intermediaries, observability, and operational support. It does not guarantee faster application execution or fix slow databases. Evaluate end-to-end measurements rather than assuming a protocol upgrade solves latency.
+HTTP/3 maps HTTP semantics onto QUIC, which runs over UDP and integrates transport security. One motivation is to reduce transport head-of-line blocking across independent streams: packet loss affecting one QUIC stream does not necessarily stop delivery progress for other streams, unlike multiple HTTP/2 streams sharing one TCP byte stream. QUIC can also support connection migration and faster handshakes in supported cases.
+
+These properties can improve behavior on lossy or changing networks, especially mobile clients. They do not make application code, DNS, database queries, or downstream calls faster by themselves. Performance depends on RTT, loss patterns, payload, congestion control, implementation, proxy support, and the client population. UDP connectivity and network policy can also affect adoption.
+
+HTTP/3 introduces operational considerations: observability and packet capture differ from TCP-based traffic, network middleboxes may behave differently, and deployments need fallback/negotiation behavior. Security and load balancing must understand connection migration and the relevant QUIC/TLS configuration.
+
+Choose the protocol from measurements on the actual path and clients rather than assuming a protocol upgrade is a general latency fix. In an interview, identify the transport-level limitation it is intended to address, the workload likely to benefit, and what metrics or experiment would validate the change.
 
 ### Q244. How should an API gateway avoid becoming a single point of failure or a bottleneck?
 
