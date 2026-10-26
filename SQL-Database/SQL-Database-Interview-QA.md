@@ -57,7 +57,7 @@ Only employees earning more than 50,000 contribute to each count; departments wi
 - `TRUNCATE` removes all rows using a database-specific DDL operation; it generally cannot filter rows and has different logging, trigger, identity, and rollback behavior from `DELETE`.
 - `DROP` removes the table object itself, including its definition and associated dependent objects subject to database rules.
 
-Do not assume the three commands have identical transaction semantics. In Oracle, DDL statements such as `TRUNCATE` and `DROP` cause implicit commits. In MySQL, `TRUNCATE TABLE` is DDL and causes an implicit commit; transactional rollback should not be expected to restore the table contents. `DELETE` on an InnoDB table can be rolled back before commit. Check foreign keys, triggers, privileges, and backup/recovery implications before destructive operations.
+Do not assume the three commands have identical transaction semantics. In MySQL, `TRUNCATE TABLE` is DDL and causes an implicit commit; transactional rollback should not be expected to restore the table contents. `DELETE` on an InnoDB table can be rolled back before commit. Check foreign keys, triggers, privileges, and backup/recovery implications before destructive operations.
 
 ### Q3. How do NULL values behave in SQL?
 
@@ -122,7 +122,7 @@ LEFT JOIN orders o
  AND o.status = 'PAID';
 ```
 
-Moving `o.status = 'PAID'` into `WHERE` filters out the NULL-extended rows and effectively turns this condition into an inner-style result for that predicate. Put match criteria in `ON` when unmatched left rows must remain; put final row filters in `WHERE` when excluding rows is intended. Oracle and MySQL support these join forms; FULL OUTER JOIN availability differs, and MySQL does not directly support the standard `FULL OUTER JOIN` syntax.
+Moving `o.status = 'PAID'` into `WHERE` filters out the NULL-extended rows and effectively turns this condition into an inner-style result for that predicate. Put match criteria in `ON` when unmatched left rows must remain; put final row filters in `WHERE` when excluding rows is intended. MySQL supports `INNER JOIN` and `LEFT JOIN`, but does not directly support the standard `FULL OUTER JOIN` syntax. To produce a full-outer-join-like result in MySQL, combine a left join with the unmatched rows from the other side using `UNION ALL`, taking care not to duplicate matched rows.
 
 ### Q9. Why can a join unexpectedly multiply rows or inflate aggregates?
 
@@ -240,7 +240,7 @@ WHERE rn <= 3
 ORDER BY customer_id, created_at DESC, order_id DESC;
 ```
 
-The unique `order_id` tie-breaker makes the choice deterministic when timestamps match. `ROW_NUMBER` returns at most N rows per group; `RANK` or `DENSE_RANK` can return more than N rows when ties qualify. Window functions are available in modern Oracle and MySQL 8.0+; older MySQL versions need a different approach.
+The unique `order_id` tie-breaker makes the choice deterministic when timestamps match. `ROW_NUMBER` returns at most N rows per group; `RANK` or `DENSE_RANK` can return more than N rows when ties qualify. MySQL window functions require MySQL 8.0 or later.
 
 ### Q16. How do you find customers who have never placed an order?
 
@@ -366,7 +366,7 @@ An equivalent window-function solution uses `AVG(salary) OVER (PARTITION BY depa
 
 An index is an auxiliary data structure that helps the database locate rows without scanning every row. Common B-tree indexes support equality lookups, ranges, and ordered access. The optimizer decides whether an index is cheaper than alternatives based on selectivity, table size, statistics, required columns, and estimated I/O.
 
-Indexes speed up some reads but consume storage and add work to inserts, updates, and deletes because index entries must be maintained. Too many indexes can hurt write throughput and increase maintenance cost. In MySQL InnoDB, the primary key is the clustered index and secondary indexes include the primary-key value; Oracle's heap-table organization and index structures differ. An index is not automatically beneficial: a full scan can be cheaper when a query needs a large fraction of the table.
+Indexes speed up some reads but consume storage and add work to inserts, updates, and deletes because index entries must be maintained. Too many indexes can hurt write throughput and increase maintenance cost. In MySQL InnoDB, the primary key is the clustered index and secondary indexes include the primary-key value. An index is not automatically beneficial: a full table scan can be cheaper when a query needs a large fraction of the table.
 
 ### Q22. How do composite indexes work, and why does column order matter?
 
@@ -540,7 +540,7 @@ WHERE rn <= 3
 ORDER BY department_id, rn;
 ```
 
-Use `ROW_NUMBER()` when you need exactly up to N rows per group, with ties broken by a deterministic column. Use `RANK()` or `DENSE_RANK()` instead when tied salaries should share a rank. Unlike Oracle's `ROWNUM` pseudocolumn, MySQL's `ROW_NUMBER()` makes the window ordering explicit.
+Use `ROW_NUMBER()` when you need exactly up to N rows per group, with ties broken by a deterministic column. Use `RANK()` or `DENSE_RANK()` instead when tied salaries should share a rank. In MySQL 8.0+, `ROW_NUMBER()` makes the window ordering explicit and is usually clearer than relying on user variables or implicit row order.
 
 ### Q35. How does COALESCE handle NULL values in MySQL?
 
@@ -627,7 +627,7 @@ A useful conceptual order is:
 5. The `SELECT` list computes output expressions.
 6. `DISTINCT` removes duplicate output rows when requested.
 7. `ORDER BY` sorts the result.
-8. The database applies the row-limiting operation, such as `LIMIT` or `FETCH FIRST`, according to the dialect.
+8. MySQL applies the row-limiting operation, commonly `LIMIT`, after sorting the result with `ORDER BY`.
 
 This is a logical model for understanding query semantics, not a promise about the physical execution plan. The optimizer can reorder joins, push predicates, and choose indexes while preserving the query's required result.
 
@@ -734,7 +734,7 @@ Before considering this handbook mastered, make sure you can do each of the foll
 - [ ] Explain index trade-offs and walk through a measured slow-query investigation.
 - [ ] Describe a lost update, a deadlock, and how optimistic locking or an atomic update addresses them.
 - [ ] Explain why pagination needs a deterministic order and when keyset pagination is preferable.
-- [ ] Name at least two Oracle/MySQL differences that could affect correctness.
+- [ ] Explain MySQL-specific behavior for `LIMIT`, `AUTO_INCREMENT`, InnoDB indexes, and transaction boundaries.
 
 ## Revision strategy
 
