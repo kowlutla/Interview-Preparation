@@ -1,8 +1,8 @@
 # SQL & Database Engineering Interview Q&A Handbook
 
-A focused interview handbook for Java backend engineers preparing for mid-level and senior software engineering interviews. Examples use broadly supported SQL and call out Oracle Database and MySQL differences where they matter.
+A focused interview handbook for Java backend engineers preparing for mid-level and senior software engineering interviews. All runnable SQL examples use MySQL syntax, targeting MySQL 8.0+ unless stated otherwise. Engine-specific behavior is called out in prose where it affects interview answers.
 
-> **Compatibility note:** Unless marked otherwise, examples use common SQL supported by modern Oracle Database and MySQL 8.x. Check the target database/version and schema constraints before using a query in production. The examples are explanatory; they have not been executed against a live database as part of this handbook.
+> **Compatibility note:** SQL examples use MySQL 8.0+ syntax. Check the deployed MySQL version, SQL mode, schema constraints, and bind-parameter conventions before using a query in production. The examples are explanatory; they have not been executed against a live database as part of this handbook.
 
 ## Table of contents
 
@@ -12,7 +12,7 @@ A focused interview handbook for Java backend engineers preparing for mid-level 
 - [Window Functions and Practical SQL](#window-functions-and-practical-sql)
 - [Indexes and Query Performance](#indexes-and-query-performance)
 - [Transactions and Concurrency](#transactions-and-concurrency)
-- [MySQL in Practice](#oracle-and-mysql-in-practice)
+- [MySQL in Practice](#mysql-in-practice)
 - [Backend Production Scenarios](#backend-production-scenarios)
 - [Additional High-Value Backend Questions](#additional-high-value-backend-questions)
 - [References](#references)
@@ -33,7 +33,7 @@ A focused interview handbook for Java backend engineers preparing for mid-level 
 12. [Q27. What are ACID properties?](#q27-what-are-acid-properties)
 13. [Q28. Explain transaction isolation levels and common anomalies.](#q28-explain-transaction-isolation-levels-and-common-anomalies)
 14. [Q30. What causes deadlocks, and how should an application handle them?](#q30-what-causes-deadlocks-and-how-should-an-application-handle-them)
-15. [Q33. How should pagination be implemented in Oracle and MySQL?](#q33-how-should-pagination-be-implemented-in-oracle-and-mysql)
+15. [Q33. How should pagination be implemented in MySQL?](#q33-how-should-pagination-be-implemented-in-mysql)
 
 ## SQL Fundamentals and Query Logic
 
@@ -397,7 +397,7 @@ Use correctly typed bind parameters and half-open time ranges. Function-based in
 
 A sargable predicate lets the optimizer use an index access path to narrow candidate rows efficiently. Equality and range conditions directly on an indexed column are common examples. Applying a function or arithmetic operation to the column can prevent ordinary index use unless a matching expression index or optimizer transformation applies.
 
-Prefer `created_at >= :start AND created_at < :end` over converting every timestamp to a date in the predicate. Avoid leading wildcards such as `LIKE '%term'` when expecting a conventional B-tree index to perform a prefix lookup. Sargability is not a guarantee of index use; selectivity and cost still decide the plan.
+Prefer `created_at >= ? AND created_at < ?` over converting every timestamp to a date in the predicate. Avoid leading wildcards such as `LIKE '%term'` when expecting a conventional B-tree index to perform a prefix lookup. Sargability is not a guarantee of index use; selectivity and cost still decide the plan.
 
 ### Q25. How do you investigate and optimize a slow SQL query?
 
@@ -542,22 +542,20 @@ ORDER BY department_id, rn;
 
 Use `ROW_NUMBER()` when you need exactly up to N rows per group, with ties broken by a deterministic column. Use `RANK()` or `DENSE_RANK()` instead when tied salaries should share a rank. Unlike Oracle's `ROWNUM` pseudocolumn, MySQL's `ROW_NUMBER()` makes the window ordering explicit.
 
-### Q35. What are the differences between NVL and COALESCE?
+### Q35. How does COALESCE handle NULL values in MySQL?
 
-Oracle's `NVL(expr1, expr2)` returns `expr2` when `expr1` is NULL; otherwise it returns `expr1`. `COALESCE(expr1, expr2, ...)` returns the first non-NULL expression and is supported by both Oracle and MySQL.
+`COALESCE(expr1, expr2, ...)` returns the first non-NULL expression. In MySQL, it is useful when a result should fall back through several optional values. It does not make `NULL = NULL` evaluate to true; SQL's three-valued logic still applies.
 
 ```sql
 SELECT COALESCE(nickname, preferred_name, 'Unknown') AS display_name
 FROM users;
 ```
 
-`COALESCE` is more portable and handles more than two alternatives. Oracle's type conversion rules for `NVL` and `COALESCE` differ in some cases, so mixed types can produce unexpected conversions or errors. Use explicit casts where appropriate and avoid relying on implicit conversion. Do not assume every function has identical type and evaluation semantics across database engines.
+Use compatible expression types or explicit casts when needed, and avoid relying on implicit conversion. For example, the following MySQL query returns the first available display name:
 
-### Q36. How do Oracle sequences differ from MySQL AUTO_INCREMENT?
+### Q36. How does AUTO_INCREMENT work in MySQL, and why can IDs have gaps?
 
-Oracle sequences are independent database objects that generate numeric values using `NEXTVAL`; they can be used by multiple tables or callers and are not inherently tied to one table. Sequence values can have gaps because values may be consumed by rolled-back transactions, caching, or concurrent activity. A sequence is not a guarantee of gapless business numbering.
-
-MySQL commonly uses `AUTO_INCREMENT` on a table column, with generated values associated with inserts into that table. Allocation and persistence behavior depends on engine and version. Neither mechanism should be used as proof of transaction order or as a gapless invoice number without a separately designed business process. Use generated IDs for identity, and use constraints to enforce uniqueness.
+In MySQL, an integer column can be declared `AUTO_INCREMENT` so inserts can generate identifiers without the application supplying each value. Generated IDs can have gaps because transactions may roll back, rows may be deleted, and allocation behavior is designed for concurrency rather than gapless numbering. Do not use an auto-increment ID as proof of commit order or as a gapless invoice number. Use it for identity, and use constraints to enforce uniqueness.
 
 ### Q37. How do you inspect MySQL execution plans?
 
@@ -667,9 +665,9 @@ Add foreign keys to both parent tables when their integrity and lifecycle requir
 
 If the relationship has attributes such as enrollment date, role, quantity, or status, those attributes belong on the junction table. Choose delete behavior deliberately: cascading deletion may be appropriate for pure association rows, but should not accidentally delete independently meaningful business records. In Java/JPA, model the association explicitly when it has its own lifecycle or attributes rather than hiding important business behavior behind a bare many-to-many mapping.
 
-### Q47. How do upsert operations differ between MySQL and Oracle, and what concurrency issue remains?
+### Q47. How do you implement an upsert in MySQL, and what concurrency issue remains?
 
-An upsert attempts to insert a row and update an existing row when a defined uniqueness conflict occurs. In MySQL, a common form is `INSERT ... ON DUPLICATE KEY UPDATE`. The operation relies on a primary-key or unique-key conflict; the application should still handle its exact retry and update semantics intentionally.
+An upsert attempts to insert a row and update an existing row when a defined uniqueness conflict occurs. In MySQL, use `INSERT ... ON DUPLICATE KEY UPDATE`. The operation relies on a primary-key or unique-key conflict; the application should still handle its exact retry and update semantics intentionally.
 
 The conflict must be based on a real database uniqueness rule, such as a primary key or unique business key. An application-level “SELECT first, then INSERT” is racy: two requests can both observe that the row is absent. A unique constraint is the durable arbiter under concurrency; the application should handle a duplicate-key outcome intentionally.
 
