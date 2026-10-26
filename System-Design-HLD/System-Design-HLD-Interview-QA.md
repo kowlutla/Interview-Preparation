@@ -2,7 +2,7 @@
 
 **Audience:** Java backend engineers with 5+ years of experience preparing for senior backend and product-company interviews.  
 **Purpose:** A progressive guide to architecture reasoning, capacity estimation, data ownership, consistency, failure handling, operations, and cost.  
-**Status:** Targeted technical and scenario-depth review completed for key failure modes; structural checks pass. Full line-by-line audit and rendered diagram validation remain.
+**Status:** Targeted technical and scenario-depth review completed for key failure modes; the systematic accuracy, depth, and readability audit is in progress. Structural checks pass; full line-by-line verification and rendered diagram validation remain.
 
 > **How to use this guide:** Learn fundamentals in order, then practise scenarios aloud. State assumptions, identify the critical business invariant, estimate scale, draw the simplest viable architecture, and deepen the part the interviewer challenges. Naming technologies is not the goal; explaining why the design satisfies requirements is.
 
@@ -103,13 +103,15 @@ Use: “Given requirement X, I choose A because it provides Y. The cost is Z. If
 
 ### Q13. Explain scalability, availability, reliability, durability, and fault tolerance.
 
-- **Scalability:** capacity can grow as workload grows.
-- **Availability:** requests can receive a usable response when needed.
-- **Reliability:** the system continues to behave correctly over time.
-- **Durability:** acknowledged data survives the failures covered by the design.
-- **Fault tolerance:** the system continues operating, perhaps in degraded form, despite specified failures.
+These terms describe different properties, so avoid using them as synonyms:
 
-A system may be highly available while returning stale data. A durable database may be unavailable during failover.
+- **Scalability** is the ability to handle more work by adding resources or changing the design without unacceptable degradation. Adding application instances helps only if the database or another shared dependency is not already the bottleneck.
+- **Availability** is the likelihood that a request receives a usable response within the promised conditions and time. A process returning HTTP 200 is not enough if the response violates the business contract.
+- **Reliability** is the broader ability to keep performing the intended function correctly over time. It includes more than whether an endpoint is reachable.
+- **Durability** means acknowledged data survives the failures the design claims to tolerate. The guarantee depends on the database's commit and replication settings, not merely on having multiple copies.
+- **Fault tolerance** is the ability to continue providing an acceptable level of service despite specified failures, often through redundancy, isolation, or graceful degradation.
+
+For example, a catalogue can remain available while showing a slightly stale product description. A payment service should not preserve availability by returning an unverified balance or accepting conflicting debits. A durable database may still be temporarily unavailable during failover.
 
 ### Q14. Latency versus throughput: what is the difference?
 
@@ -121,7 +123,9 @@ P95 is the latency below which 95% of observations fall; P99 is the correspondin
 
 ### Q16. What are SLI, SLO, and SLA?
 
-An SLI is a measured indicator such as successful-request ratio or p99 latency. An SLO is the target for that indicator over a defined window. An SLA is an external commitment, often with consequences if breached. Request-based and time-based availability are different measurements; define the denominator precisely.
+An **SLI** (service-level indicator) is the measurement, such as the percentage of eligible requests that succeed or the p99 latency of successful requests. An **SLO** (service-level objective) is the target for that measurement over a stated window—for example, 99.9% of eligible requests succeed over 30 days. An **SLA** (service-level agreement) is an external commitment to customers and may define service credits or other consequences if the commitment is missed.
+
+Be precise about the measurement. “99.9% availability” could mean the fraction of time the service is usable or the fraction of eligible requests that succeed; those are not interchangeable. Define which requests count, what counts as success, the observation window, and how planned maintenance or client errors are treated. Otherwise, a team can report a healthy SLI while users experience a broken critical journey.
 
 ### Q17. What is an error budget?
 
@@ -129,11 +133,15 @@ For a time-based 99.9% availability target over a 30-day month, the nominal unav
 
 ### Q18. How do you estimate end-to-end availability across dependencies?
 
-If a request requires all independent components to succeed, approximate availability by multiplying their availabilities. Three required components each at 99.9% yield 0.999³, or about 99.70%. This is only an approximation: failures may be correlated and fallbacks can change user-visible success.
+If a request succeeds only when every required dependency succeeds, and their failures are independent, multiply their availability estimates. For example, three serial dependencies each available 99.9% of the time give approximately \(0.999^3 = 99.70\%\) end-to-end availability. The request path is less available than any one dependency because any required component can make it fail.
+
+Treat this as a first-order model, not a production forecast. Failures are often correlated: several services may share a database, network, identity provider, or deployment. Conversely, caching, retries within a deadline, and valid fallback behavior can improve user-visible success. Model only dependencies that are truly required for the response, and explain what the system does when each one is unavailable.
 
 ### Q19. What is graceful degradation?
 
-It preserves valuable functionality when optional dependencies fail. A shopping page may show product details while recommendations are unavailable. Never replace a correctness-critical balance check with a stale cache merely to keep an endpoint green.
+Graceful degradation means preserving the most valuable, correct parts of a service when some capabilities are unavailable or overloaded. A shopping page might continue to show product details while hiding recommendations; a video service might lower resolution instead of failing playback. The degraded behavior should be deliberate, documented, and measurable—not a collection of accidental fallbacks.
+
+First classify dependencies as critical or optional for each user journey. If recommendations fail, omitting them may be safe. If the inventory check fails, accepting a reservation based on stale data may violate the core business invariant. Define what can be omitted, what can be stale, and what must fail closed; then test those behaviors under dependency failure.
 
 ### Q20. How do you prioritize conflicting quality attributes?
 
@@ -141,7 +149,9 @@ Identify the business invariant and rank requirements by impact and risk. For a 
 
 ### Q21. What is blast radius?
 
-Blast radius is the amount of the system or number of users affected by a failure. Tenant isolation, bulkheads, bounded queues, regional isolation, and independent deployment units can reduce it. Redundancy alone does not help if all replicas depend on the same overloaded database.
+Blast radius is the scope of impact when something fails: how many users, tenants, regions, or business functions are affected. A bad release that breaks one optional feature has a smaller blast radius than a shared authentication failure that prevents every service from accepting requests.
+
+Reduce blast radius through bulkheads, bounded queues, tenant quotas, separate capacity for critical workloads, staged rollouts, and genuinely independent failure domains. Redundancy alone is not enough if every replica shares the same overloaded database, credentials, or control plane. In an interview, identify the common dependency that could turn a local problem into a platform-wide incident.
 
 ## 3. Capacity estimation
 
@@ -187,7 +197,9 @@ Headroom is spare capacity beyond expected demand. It absorbs bursts, node failu
 
 ### Q31. What happens when a client makes an HTTPS request?
 
-The client resolves a hostname through DNS, establishes a transport connection, negotiates TLS, sends an HTTP request, and receives a response through proxies or load balancers to the application. Connection reuse can avoid repeated handshakes. DNS, TLS, network hops, queueing, and server work all contribute to latency.
+At a high level, the client resolves the hostname through DNS, opens or reuses a transport connection, negotiates TLS when needed, sends the HTTP request, and receives a response from the server. In a typical web architecture, the request may pass through a CDN, WAF, load balancer, or API gateway before reaching the application and its dependencies.
+
+Each step has costs and failure modes. DNS can return a stale endpoint; connection establishment and TLS add latency; a proxy can queue requests; the application can wait for a database connection; and the response can be delayed by downstream work. Persistent connections and TLS session resumption can reduce setup overhead, but they do not fix application bottlenecks. When diagnosing latency, break down the end-to-end timeline rather than assuming the application code is responsible for all of it.
 
 ### Q32. Layer 4 versus Layer 7 load balancing?
 
@@ -207,7 +219,9 @@ Sticky sessions route a client repeatedly to one server. They can improve locali
 
 ### Q36. How should timeout budgets be designed?
 
-Set an end-to-end deadline and allocate smaller budgets to downstream calls. A request with a one-second deadline should not wait two seconds on one dependency. Include connection acquisition, DNS, TLS, queueing, and processing. Retries must not exceed the caller's useful time budget.
+Start with the time the user journey can tolerate, then set an end-to-end deadline and allocate part of that budget to each required step. If the API has a one-second deadline, a downstream call must not independently wait two seconds. Leave time for the application to validate the result, commit its own state, and return a response.
+
+Check what each client library's timeout actually covers: connection-pool acquisition, DNS, TLS, network transfer, server processing, or only some of these. Propagate the remaining deadline to downstream calls where possible. Retries consume the same budget, so a retry is useful only if enough time remains for a successful attempt. Too-short timeouts create unnecessary retries; too-long timeouts tie up threads and connections while users wait.
 
 ### Q37. When use WebSockets, Server-Sent Events, or long polling?
 
@@ -229,7 +243,9 @@ Prefer additive compatible changes: optional fields and preserved meanings. Vers
 
 ### Q41. Offset versus cursor pagination?
 
-Offset pagination is easy but may become expensive at large offsets and can skip or repeat records as data changes. Cursor pagination uses a stable ordering key, often timestamp plus unique ID, to continue from the last position. It suits large changing datasets but requires a well-defined sort order and cursor contract.
+**Offset pagination** asks for a page after skipping a number of rows, such as `LIMIT 50 OFFSET 50000`. It is simple for clients and supports jumping to a page number, but the database may need to scan or discard many rows at large offsets. If rows are inserted or deleted between requests, later pages can contain duplicates or miss records.
+
+**Cursor pagination** carries a position from the previous page, often based on a stable sort key plus a unique tie-breaker such as `(created_at, id)`. The next query can seek from that position instead of skipping thousands of rows, which is often more efficient for large datasets. The API must define how sorting and filtering work and how cursors are validated. A cursor alone does not create a consistent snapshot; for exports or audits that need a fixed view, use an explicit snapshot boundary or asynchronous export workflow.
 
 ### Q42. What is an idempotency key?
 
