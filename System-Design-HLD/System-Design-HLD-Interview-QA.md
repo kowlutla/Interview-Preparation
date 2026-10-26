@@ -2,7 +2,7 @@
 
 **Audience:** Java backend engineers with 5–10 years of experience preparing for senior and staff-leaning backend/product-company interviews.  
 **Purpose:** A progressive guide to architecture reasoning, capacity estimation, data ownership, consistency, failure handling, operations, and cost.  
-**Status:** Rebuilding for the 5–10 year experience band. Includes eight worked designs and 15 core-concept deep dives; all 80 scenarios are now being systematically checked and expanded around invariants, diagnosis, capacity, failure windows, recovery, security boundaries, and operational signals. Full content coverage, technical accuracy, readability, and rendered-diagram validation remain in progress; not final sign-off.
+**Status:** Rebuilding for the 5–10 year experience band. Includes eight worked designs and 15 core-concept deep dives; the full 300-question bank and 80 scenarios have received substantial depth rewrites, with the remaining audit focused on topic coverage, technical verification, readability, and rendered diagrams. Not a final sign-off yet.
 
 > **How to use this guide:** Learn fundamentals in order, then practise scenarios aloud. State assumptions, identify the critical business invariant, estimate scale, draw the simplest viable architecture, and deepen the part the interviewer challenges. Naming technologies is not the goal; explaining why the design satisfies requirements is.
 
@@ -116,9 +116,11 @@ Senior-level pragmatism is neither “keep everything in one service forever” 
 
 ### Q8. What makes an architecture diagram useful?
 
-Show major components, ownership boundaries, synchronous calls, asynchronous events, persistent stores, and trust boundaries. Label critical flows and identify the authoritative owner of each data item. A clear six-component diagram with explained trade-offs is better than twenty unexplained boxes.
+A useful HLD diagram makes the important architectural choices visible. It should show the main actors and trust boundaries, major components, synchronous calls, asynchronous events, authoritative data stores, caches/read models, and any important third-party dependencies. Draw the critical user journey first, then add components only when they represent a responsibility or constraint worth discussing. A diagram with six named boxes can be stronger than one with twenty generic boxes because the interviewer can follow the flow and understand ownership.
 
-A generic backend flow might look like this; a real interview diagram should be tailored to the requirements.
+Use visual conventions consistently. For example, solid arrows can represent request/response calls and dashed arrows can represent asynchronous events; label arrows with the operation or event, and annotate important guarantees such as “durable acceptance,” “read replica; eventual,” or “authoritative reservation.” Do not imply a synchronous guarantee merely by drawing a line. Show where authentication/authorization occurs and where untrusted input crosses a boundary.
+
+A generic backend flow might look like this; it is a starting point, not a design to paste into every problem.
 
 ```mermaid
 flowchart LR
@@ -132,7 +134,9 @@ flowchart LR
   W --> X[External Provider]
 ```
 
-The synchronous path should own the user-visible acceptance guarantee. The asynchronous path is useful for work that can complete later, but it needs durable events, idempotent consumers, and observable backlog.
+Annotate the request's critical path and the failure behavior. If the cache is unavailable, where does traffic go? If the broker is down, can the API still accept durable work? If the provider times out after doing the side effect, where is the operation identity stored? These questions make the diagram useful as an architecture argument instead of decoration.
+
+Keep data ownership explicit. A service should have one authoritative owner for each important business fact, even if several read models contain copies. Include regional boundaries, replication directions, queues, or sharding only when they change correctness, capacity, or recovery. In an interview, draw the simplest viable baseline and then deepen the specific bottleneck or failure mode the interviewer probes.
 
 ### Q9. How should you respond when the interviewer changes a requirement?
 
@@ -210,9 +214,13 @@ Use traces to decompose the slow path and metrics to track trends. A useful inve
 
 ### Q16. What are SLI, SLO, and SLA?
 
-An **SLI** (service-level indicator) is the measurement, such as the percentage of eligible requests that succeed or the p99 latency of successful requests. An **SLO** (service-level objective) is the target for that measurement over a stated window—for example, 99.9% of eligible requests succeed over 30 days. An **SLA** (service-level agreement) is an external commitment to customers and may define service credits or other consequences if the commitment is missed.
+An **SLI (service-level indicator)** is the actual measurement of a service outcome—for example, the percentage of eligible requests that return a correct response within 300 ms, or the percentage of accepted export jobs that finish within ten minutes. An **SLO (service-level objective)** is the target for that indicator over a defined window, such as 99.9% of eligible requests succeeding over 30 days. An **SLA (service-level agreement)** is an external commitment to customers and may specify remedies, service credits, and how availability is measured if the commitment is missed.
 
-Be precise about the measurement. “99.9% availability” could mean the fraction of time the service is usable or the fraction of eligible requests that succeed; those are not interchangeable. Define which requests count, what counts as success, the observation window, and how planned maintenance or client errors are treated. Otherwise, a team can report a healthy SLI while users experience a broken critical journey.
+The distinction is useful because teams can meet an infrastructure metric while failing the user's journey. If HTTP 200 responses are returned while orders remain stuck in PENDING, an availability SLI based only on status codes can look healthy while business completion is broken. For asynchronous APIs, measure both durable acceptance and end-to-end completion if both matter. For a search system, response latency and freshness may be separate indicators.
+
+Define the denominator carefully: which requests are eligible, what counts as success, whether client errors are excluded, whether retries count as additional attempts, and what observation window applies. Time-based uptime and request-based success are not interchangeable; an outage during a high-traffic campaign can consume many more failed requests than an outage at a quiet time.
+
+SLOs should guide engineering decisions. Track error-budget burn rate, set actionable alerts, and agree how risky releases or reliability work change when the budget burns too quickly. Avoid setting targets without understanding the cost of meeting them: a more stringent SLO may require redundancy, better capacity headroom, stronger consistency, or less feature work. A senior answer explains how the SLI reflects business value, how it is measured, and what action the team takes when it misses the objective.
 
 ### Q17. What is an error budget, and how should teams use it?
 
@@ -328,9 +336,13 @@ Measure original requests separately from physical attempts, retry success rate,
 
 ### Q28. How do you estimate cache memory?
 
-Start with the number of simultaneously resident keys and the average serialized value size. Five million values averaging 2 KB require about 10 GB for payloads alone, using decimal units. Actual memory use can be substantially higher because Redis and similar systems also store keys, object metadata, allocator overhead, fragmentation, and internal data structures; replicas add further infrastructure memory.
+Estimate the number of keys that must be resident at the same time, then use measured key/value sizes and the cache engine's memory overhead. If five million values average 2 KB, the payload alone is about 10 GB in decimal units. The provisioned memory needs to be higher because keys, object metadata, allocator overhead, fragmentation, data structures, expiry metadata, and replication all consume resources. Actual overhead depends on the cache engine, key distribution, and data types, so sample real entries rather than relying only on application payload size.
 
-Do not size a cache using an average payload alone. Sample real key and value distributions, include peak key count and eviction policy, and load-test the expected access pattern. Monitor memory fragmentation, eviction rate, hit ratio, and latency. If the cache evicts hot keys continuously, adding memory may help—but a poor key design or low-reuse workload may mean the cache is not providing enough value.
+Not every key must be cached simultaneously. Identify the active working set and reuse distribution, then choose an eviction policy consistent with access patterns. A cache that is too small may repeatedly evict popular keys; a cache that is too large may waste money, while a low-reuse workload may not benefit from a cache at all. Large values can dominate capacity even when they represent a small share of requests.
+
+Treat TTL as part of the sizing model. A 15-minute TTL does not imply a fixed 15-minute working set if entries are refreshed, invalidated, or expire in bursts. Add TTL jitter for many similar keys and include the memory spike during warm-up or bulk refresh. If the cache is replicated or deployed across zones, estimate memory per node and total fleet memory separately.
+
+Load-test with realistic keys, values, concurrency, and expiration behavior. Monitor used memory, fragmentation, evictions, hit ratio, origin load, and p99 latency. A high hit ratio does not guarantee value if cached values are expensive to maintain or if misses produce a stampede. In an interview, show the payload arithmetic, list the omitted overheads, and identify what evidence would change the capacity estimate.
 
 ### Q29. What changes when traffic grows 10×?
 
@@ -356,9 +368,15 @@ Measure successful throughput and latency under normal peak and at least one fai
 
 ### Q31. What happens when a client makes an HTTPS request?
 
-At a high level, the client resolves the hostname through DNS, opens or reuses a transport connection, negotiates TLS when needed, sends the HTTP request, and receives a response from the server. In a typical web architecture, the request may pass through a CDN, WAF, load balancer, or API gateway before reaching the application and its dependencies.
+At a high level, the client resolves the hostname through DNS, opens or reuses a transport connection, negotiates TLS when needed, sends the HTTP request, and receives a response. In a typical system, the request may pass through a CDN, WAF, public load balancer, API gateway, and one or more application services before reaching a database or external dependency. The exact path depends on DNS, network topology, connection reuse, and where TLS is terminated.
 
-Each step has costs and failure modes. DNS can return a stale endpoint; connection establishment and TLS add latency; a proxy can queue requests; the application can wait for a database connection; and the response can be delayed by downstream work. Persistent connections and TLS session resumption can reduce setup overhead, but they do not fix application bottlenecks. When diagnosing latency, break down the end-to-end timeline rather than assuming the application code is responsible for all of it.
+**DNS and connection:** DNS maps the hostname to an address or routing endpoint, but answers can be cached, so changes are not an instantaneous global failover mechanism. The client may need a TCP handshake (for HTTP/1.1 or HTTP/2 over TCP) or use QUIC for HTTP/3. Persistent connections reduce setup overhead but can remain tied to a backend or region after DNS changes.
+
+**TLS:** During the TLS handshake, the endpoints negotiate cryptographic parameters and authenticate the server through its certificate chain; optional client certificates can authenticate the client. Session resumption can reduce handshake cost. If TLS terminates at a proxy, the proxy becomes a trust boundary; the proxy-to-backend hop still needs protection where the network is not inherently trusted. TLS protects data in transit but does not replace application authorization.
+
+**HTTP routing and processing:** The proxy/load balancer selects an eligible target, potentially based on L4 connection state or L7 HTTP attributes. The application authenticates/authorizes the request, validates input, and performs synchronous work or durably accepts asynchronous work. It may wait on thread pools, connection pools, locks, storage, or downstream calls. Those waits often dominate application execution time.
+
+**Response and diagnosis:** The response returns through the same logical path, and each hop can add queueing, retries, buffering, or timeout behavior. Persistent connections, TLS resumption, compression, CDN caching, and HTTP/2 multiplexing can reduce costs but do not fix a saturated database or unsafe retry policy. When diagnosing latency, break down DNS, connect, TLS, server wait, upstream calls, and response transfer rather than blaming application code by default.
 
 ### Q32. Layer 4 versus Layer 7 load balancing?
 
@@ -398,15 +416,27 @@ Failover should evaluate data safety, not just reachability: is the candidate su
 
 ### Q35. What are the limitations of sticky sessions?
 
-Sticky sessions use a cookie or another affinity key to route a client repeatedly to the same backend. This can improve locality for stateful legacy applications, but it creates uneven load when some sessions are much busier than others and makes failover harder when the selected instance disappears.
+Sticky sessions use a cookie, source IP, or other affinity key to route a client repeatedly to the same backend. Affinity can help a legacy application that stores session state in process memory or benefits from local caches, but it makes traffic distribution less flexible. A few very active users can overload one instance while other instances remain idle, and the instance becomes a hidden dependency for those sessions.
 
-Affinity is not a substitute for durable session storage. If session state exists only in process memory, a restart or reschedule can lose it; a failover may also send the client to an instance that lacks that state. Prefer stateless application instances with shared or client-held session state when practical. Use sticky routing only when its benefit is measurable, and ensure session state and security do not depend on a particular instance surviving.
+If the selected backend fails or is removed during deployment, a new backend may not have the session state. The user may be logged out, lose workflow progress, or encounter inconsistent behavior. IP-based affinity is especially brittle for mobile clients and users behind NAT, where one IP can represent many users and a user’s IP can change. Cookie affinity is more precise but depends on correct cookie/security behavior and load-balancer support.
+
+Prefer stateless application instances where practical, with session state in a shared durable store or a properly protected client token. This improves failover and horizontal scaling, but shared session storage introduces its own latency and availability considerations. Client-held tokens should not contain mutable secrets or become a substitute for server-side revocation when immediate invalidation is required.
+
+Sticky routing can still be justified for long-lived connections or cache locality, but isolate the stateful behavior and plan draining/failover. For WebSockets, affinity may preserve the live connection, but after reconnect the client may land on another instance and needs a mechanism to recover missed events. Monitor per-instance load, session migration/failure, reconnect rate, and imbalance.
+
+In an interview, explain the specific benefit of affinity and the failure mode it introduces. “Sticky sessions solve state” is incomplete unless the state and recovery contract are explicit.
 
 ### Q36. How should timeout budgets be designed?
 
-Start with the time the user journey can tolerate, then set an end-to-end deadline and allocate part of that budget to each required step. If the API has a one-second deadline, a downstream call must not independently wait two seconds. Leave time for the application to validate the result, commit its own state, and return a response.
+Start from the user-visible latency objective and set one **end-to-end deadline** for the operation. Allocate part of that budget to each required step—queueing, connection acquisition, downstream calls, database work, commit, and response serialization—while keeping enough time for the caller to receive a result. If an API deadline is one second, a downstream call should not independently wait two seconds. Nested operations should use the remaining budget rather than restart the clock.
 
-Check what each client library's timeout actually covers: connection-pool acquisition, DNS, TLS, network transfer, server processing, or only some of these. Propagate the remaining deadline to downstream calls where possible. Retries consume the same budget, so a retry is useful only if enough time remains for a successful attempt. Too-short timeouts create unnecessary retries; too-long timeouts tie up threads and connections while users wait.
+Understand what each timeout actually covers. A client-library “read timeout” may exclude DNS, connection-pool acquisition, TLS, or request upload time. A connection timeout may only cover opening a socket, not the full server operation. An idle timeout for a long-lived connection has different semantics again. Misunderstanding these differences can leave requests waiting much longer than expected.
+
+Set timeouts from observed latency distributions and the cost of waiting. A timeout that is too short creates false failures and retries for work that would have completed; a timeout that is too long ties up threads, connections, and queue slots while users wait. Use per-dependency timeouts and circuit breakers as part of the same policy, and propagate deadlines across HTTP/RPC and async workflows where supported.
+
+Retries consume the same budget. Before retrying, ask whether enough time remains for another attempt and whether repeating the operation is safe. A timeout means the outcome may be unknown for mutations; use an idempotency key or status query rather than assuming the remote operation failed. For asynchronous jobs, use a separate business deadline and retry/expiry policy instead of keeping the HTTP request alive.
+
+Monitor timeout rate, time spent waiting at each hop, attempts per logical request, cancellation propagation, and late completion after caller timeout. In an interview, show the full budget across the call graph and explain what happens when the deadline expires at each layer.
 
 ### Q37. When should you use WebSockets, Server-Sent Events, or long polling?
 
@@ -456,9 +486,13 @@ Use consumer/provider contract tests, mixed-version integration tests, deprecati
 
 ### Q41. Offset versus cursor pagination?
 
-**Offset pagination** asks for a page after skipping a number of rows, such as `LIMIT 50 OFFSET 50000`. It is simple for clients and supports jumping to a page number, but the database may need to scan or discard many rows at large offsets. If rows are inserted or deleted between requests, later pages can contain duplicates or miss records.
+**Offset pagination** asks for a page after skipping a number of rows, such as `LIMIT 50 OFFSET 50000`. It is simple for clients, can support direct page-number navigation, and may be adequate for small or mostly static result sets. But the database may have to scan or discard many rows at large offsets; latency can grow with page number. Concurrent inserts/deletes before the offset can also make later pages contain duplicates or skip records.
 
-**Cursor pagination** carries a position from the previous page, often based on a stable sort key plus a unique tie-breaker such as `(created_at, id)`. The next query can seek from that position instead of skipping thousands of rows, which is often more efficient for large datasets. The API must define how sorting and filtering work and how cursors are validated. A cursor alone does not create a consistent snapshot; for exports or audits that need a fixed view, use an explicit snapshot boundary or asynchronous export workflow.
+**Cursor/keyset pagination** carries a position from the previous page, typically based on a stable sort key plus a unique tie-breaker such as `(created_at, id)`. The next query seeks from that position instead of skipping a large prefix, which can be more efficient when a matching index exists. The order must be deterministic, and the cursor should be opaque or integrity-protected so clients cannot alter filters, tenant context, or position. Revalidate authorization on every page; a cursor is not an access token.
+
+Cursor pagination is not automatically a consistent snapshot. If sort keys change or records are inserted between requests, the result set can still evolve. That may be acceptable for a feed, but exports, billing reports, and audit jobs may need a fixed snapshot/version boundary or an asynchronous export from a consistent point in time. Long-running database snapshots can themselves create storage/retention pressure, so define the operational cost.
+
+Choose from access pattern and user experience: offset for small/static datasets and random page access; cursor for large, changing datasets with sequential navigation. Define tie-breaking, filters, cursor expiry, deleted-item behavior, and page-size limits. In an interview, show the query/index that supports the cursor and state whether the API promises stable snapshot semantics or only efficient continuation.
 
 ### Q42. What is an idempotency key?
 
@@ -591,9 +625,15 @@ Track queue age alongside depth and estimate whether work will finish before bus
 
 ### Q53. How do you choose SQL versus NoSQL?
 
-Choose based on data relationships, business invariants, access patterns, transaction boundaries, query flexibility, scale, and the team's ability to operate the technology. Relational databases are a strong default when entities are related and operations need transactions or constraints. Key-value and wide-column stores can suit predictable high-volume access patterns; document stores can suit aggregate-oriented records; graph stores can help when relationship traversal is central.
+Start from the business invariants, data relationships, query shapes, transaction boundaries, and operational constraints. A relational database is a strong default when records have meaningful relationships, joins and flexible queries are useful, and transactions/constraints must protect correctness. Many relational engines can also scale to substantial workloads with indexing, partitioning, replicas, and careful connection/query management.
 
-These categories overlap, and no database type is automatically faster or more scalable. Ask how the system will query and update the data, what consistency it requires, how it will partition and recover, and how data will be migrated. A familiar relational database with a well-designed schema may outperform a poorly matched distributed store while being much easier to operate.
+NoSQL is not one category with one consistency or scalability model. A key-value store fits predictable key-based access; a document database suits aggregate-shaped records with flexible schemas; a wide-column store targets high-volume workloads with carefully chosen partition keys and known queries; a graph store fits relationship traversal; search engines optimize full-text relevance and facets. Each system's partitioning, consistency, transactions, and failure behavior differ, so read the specific product guarantees.
+
+Use concrete access patterns to compare choices. What are the top reads/writes? Is there a global unique constraint? Must updates across records be atomic? Will queries require arbitrary joins or only lookups by a known key? What happens when one tenant/key is hot? How are indexes rebuilt, data backed up/restored, and shards rebalanced? What is the team capable of operating at 3 a.m.?
+
+Polyglot persistence can be appropriate—for example, a relational order store, search index, and object store for files—but it creates synchronization and reconciliation work. Keep the source of truth explicit, define propagation lag and delete handling, and never treat a derived search/analytics view as authoritative for a transaction-critical decision unless the architecture explicitly guarantees it.
+
+A senior answer should say why one store matches the workload, which limits were measured, what trade-offs are accepted, and why simpler alternatives are insufficient. “NoSQL scales better” or “SQL is always consistent” are not precise architectural arguments.
 
 ### Q54. OLTP versus OLAP?
 
@@ -1201,18 +1241,17 @@ Derive objectives from business impact and test them end to end. Run restore and
 
 ### Q111. How do you handle a regional outage without conflicting financial writes?
 
-Define a single authoritative write owner per financial entity or use a datastore with the required global consistency. If regions cannot coordinate and correctness is mandatory, reject writes whose ownership cannot be established. Queue a write only when the queue itself durably records the request, preserves its idempotency identity, and does not falsely promise that the financial operation has committed; otherwise return a retryable response. Fence the old leader and reconcile before restoring normal writes. Double-charging customers is not an acceptable availability trade-off.
+First distinguish a region being unavailable from a network partition in which both regions can still accept requests but cannot coordinate. The latter is more dangerous: both regions may believe they are allowed to write. The design's first obligation is to preserve the financial invariant—no duplicate debit, inconsistent ledger transition, or falsely confirmed payment.
 
-```mermaid
-flowchart TD
-  R[Request arrives in either region] --> O{Can authoritative owner be confirmed?}
-  O -->|Yes| W[Route write to owner]
-  W --> C[Commit under business invariant]
-  O -->|No| Q[Reject or durably queue write]
-  Q --> X[Reconcile ownership after recovery]
-```
+**Single-writer or globally consistent store:** Route writes for an account/ledger to one authoritative owner, or use a datastore whose documented transaction/consensus semantics provide the needed global guarantee. During failover, establish that the old writer cannot commit and verify the candidate's replication position against the RPO. Use an epoch/fencing token or the database's supported leadership protocol; a health check or DNS change alone does not transfer write authority safely.
 
-Serving reads from both regions can remain possible, but accepting conflicting writes is a separate decision. Routing a request to a healthy region is not proof that the region owns the right to commit it.
+**When ownership cannot be established:** Reject the financial mutation, or durably record a pending command only if the API explicitly promises deferred processing and the operation is still valid when executed. A queued command is not a completed debit. Preserve the original idempotency/operation identity and revalidate authoritative account state once service recovers. For payment-provider calls, reconcile with provider status before retrying any uncertain operation.
+
+**Trade-off:** Strong coordination can reduce write availability and increase cross-region latency. If the business requires no conflicting financial writes, accepting independent writes in both regions is not an acceptable default. Active-active compute and local reads can still provide availability without allowing active-active writes for every entity.
+
+**Recovery:** Fence the old region, promote one authority, verify ledger invariants, reconcile in-flight payment attempts and pending commands, refresh routing gradually, and rebuild derived views. Ensure failback does not make the recovered region a second writer.
+
+**Signals:** Track owner epochs, rejected/pending writes, unknown payment outcomes, replication lag, ledger mismatches, routing convergence, and recovery time. In an interview, explain precisely what the client sees during the outage and what proof permits writes to resume.
 
 ### Q112. What is split brain, and how do you prevent it?
 
