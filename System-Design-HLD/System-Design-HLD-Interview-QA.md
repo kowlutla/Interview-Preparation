@@ -1947,19 +1947,23 @@ Then consider a failure: if one availability zone or a fraction of instances dis
 
 ### Scenario 55 — A database failover causes a burst of connection errors
 
-**Problem:** The database promotes a replica, but application instances keep using stale connections and retry aggressively.
+**Problem:** After database failover, many application requests fail because clients continue using old connections or reconnect simultaneously.
 
-**Recommendation:** Understand driver and pool behavior during failover, use bounded connection and query timeouts, evict broken connections, and apply retry budgets with jitter. Reconnect gradually rather than allowing every instance to establish a synchronized connection storm. Keep request deadlines and idempotency in place because a connection failure can occur after a write reached the old primary.
+**Diagnose:** Confirm whether the new primary is writable and whether the old primary is fenced. Inspect connection errors by type, pool acquisition wait, DNS/service-discovery freshness, and how many clients reconnect at once. A successful promotion does not automatically reset every application's pooled connection.
 
-**Metrics:** Connection acquisition wait, broken-connection rate, reconnection rate, database recovery state, retry attempts, and uncertain write outcomes.
+**Design:** Use bounded connection and request timeouts, invalidate broken connections, and reconnect with jitter rather than an immediate fleet-wide retry. Ensure the application can discover the current authority and does not write to a stale endpoint. Keep pool sizes within the database's total connection budget, including rollout surge and background workers.
+
+**Recovery:** Ramp traffic back carefully and protect the database from a reconnect storm. Monitor connection churn, pool wait, write errors, replication state, and successful transaction rate.
 
 ### Scenario 56 — A data backfill competes with live production traffic
 
-**Problem:** A migration backfills hundreds of millions of records while production writes must remain within latency SLOs.
+**Problem:** A large data backfill competes with live production queries and causes latency to rise.
 
-**Recommendation:** Run bounded, resumable batches with checkpoints and idempotent updates. Throttle by observed database latency, lock waits, replication lag, and resource saturation; pause automatically when guardrails are breached. Use a stable high-water mark or CDC to account for concurrent writes, and verify counts/checksums before switching reads.
+**Diagnose:** Measure database CPU and I/O, lock waits, replication lag, query latency, batch size, and the backfill's write amplification. Confirm whether the backfill holds long transactions or overwrites newer live updates.
 
-**Trade-offs:** Faster backfills reduce migration duration but consume more resources and can increase replication lag. Never assume a successful job exit proves the new representation is correct.
+**Design:** Run bounded, checkpointed, idempotent batches with throttling and pause/resume controls. Use version-aware writes or a captured change stream so stale snapshot data cannot replace newer values. Schedule lower-priority work when capacity is available, but do not rely only on a quiet time window if traffic can spike unexpectedly. Keep a reconciliation query to compare the new representation with the authoritative source.
+
+**Trade-off and signals:** Slower migration takes longer but protects user-facing SLOs. Monitor backfill throughput, mismatch counts, lock duration, production p99, and replication lag. Define an automatic pause threshold before running the migration.
 
 ### Scenario 57 — A retry storm begins after a brief dependency outage
 
@@ -1971,19 +1975,23 @@ Then consider a failure: if one availability zone or a fraction of instances dis
 
 ### Scenario 58 — A feature flag service becomes unavailable
 
-**Problem:** Services need flag values during a control-plane outage.
+**Problem:** A feature-flag service becomes unavailable during a rollout, leaving applications unable to fetch the latest configuration.
 
-**Recommendation:** Decide flag-by-flag whether the safe behavior is the last known value, a conservative default, or refusing the operation. Cache validated configuration locally with version and freshness metadata, and separate flag evaluation from a network call on every request. Security-sensitive flags and emergency kill switches need explicit propagation and expiry behavior.
+**Clarify:** Which flags control cosmetic behavior, which enable risky business logic, and which enforce security or emergency shutdown? The correct fallback depends on the consequence of using stale configuration.
 
-**Trade-off:** Local evaluation improves availability and latency but may delay rollout or revocation. Measure configuration age and propagation delay; do not treat all flags as having the same risk.
+**Design:** Avoid a remote flag lookup on every request. Cache validated configuration locally with version and freshness metadata, and define a per-flag fallback: last known value, conservative default, or fail-closed behavior. Include an expiry/freshness policy so an old flag value cannot remain active indefinitely without detection. Emergency kill switches need a tested propagation path and a safe behavior when the control plane is unavailable.
+
+**Validation:** Test both service outage and stale configuration. Track configuration age, propagation delay, evaluation errors, and flag changes by version. A generic “default to false” policy is not safe for every flag.
 
 ### Scenario 59 — A CDN serves private content to the wrong user
 
-**Problem:** A personalized response was cached under a key that omitted authorization or tenant context.
+**Problem:** A CDN returns one user's private response to a different user because the cached representation did not vary by tenant or authorization context.
 
-**Recommendation:** Treat cache-key construction and cache-control policy as security boundaries. Avoid shared caching for sensitive responses unless the cache is explicitly designed for the authorization model. Include all representation-changing dimensions where shared caching is safe, and test cross-tenant isolation. Purge affected objects and investigate logs without exposing sensitive values.
+**Immediate response:** Disable shared caching for the affected response class or purge the vulnerable cache entries while investigating exposure. Do not assume the origin's authorization check prevented the leak; a cache hit may bypass the origin entirely.
 
-**Follow-up:** A correct origin authorization check does not help if the CDN serves a cached response without contacting the origin.
+**Corrective design:** Treat cache key and cache-control policy as security controls. Sensitive personalized responses should generally be private/non-cacheable unless the caching layer is explicitly designed for the authorization model. For safe shared caching, include every representation-changing dimension, and prevent untrusted headers from influencing shared keys or responses unexpectedly.
+
+**Validation:** Add automated cross-user and cross-tenant tests at the CDN and application layers. Review logs without copying sensitive response bodies into incident notes, assess the exposure scope, and follow the security incident process.
 
 ### Scenario 60 — A design review challenges a new microservice
 
@@ -1999,35 +2007,51 @@ Then consider a failure: if one availability zone or a fraction of instances dis
 
 ### Scenario 61 — A search-index rebuild must not lose live updates
 
-**Problem:** A new index schema is required while product updates continue arriving.
+**Problem:** A new search index is being rebuilt while live product updates continue. If the rebuild switches to the new index without capturing concurrent changes, some updates may disappear.
 
-**Approach:** Build a separate index generation from a consistent snapshot, then replay changes from a captured position so updates that occur during the backfill are included. Validate counts, versions, and representative queries before switching traffic. Retain the old index for rollback. Make index updates version-aware so replayed older data cannot overwrite newer state.
+**Approach:** Build a separate index generation from a consistent source snapshot and capture the change-stream position associated with that snapshot. Replay all later changes into the new index, using entity versions so older updates cannot overwrite newer documents. Compare counts, versions, important queries, and domain-level aggregates before switching traffic.
 
-**Operational signals:** Backfill progress, change-stream lag, indexing errors, mismatch counts, query latency, and index freshness.
+**Cutover:** Pause or coordinate writes only if the system cannot safely capture concurrent changes. Otherwise, track replay lag and switch when the new index has caught up to a defined position. Keep the old index for rollback until the new generation is verified.
+
+**Signals:** Monitor snapshot progress, change-stream lag, indexing errors, mismatch counts, freshness, and query latency.
 
 ### Scenario 62 — A deleted account reappears in a downstream system
 
-**Problem:** The primary database shows an account deleted, but an old event later recreates it in a read model.
+**Problem:** A deleted account reappears in a downstream read model because a delayed create/update event was applied after the deletion.
 
-**Analysis:** A delayed create/update event was applied after deletion, or the deletion was not propagated as a durable tombstone. Add entity versions or lifecycle epochs and reject updates older than the deletion version. Ensure consumers and rebuild processes preserve tombstones long enough to prevent resurrection. Reconcile the read model and audit all derived stores.
+**Root cause:** Deleting a row from the source does not automatically erase derived copies, and a late older event can resurrect an entity if the consumer treats every message as an unconditional upsert.
+
+**Design:** Publish a durable tombstone or deletion event with the entity identity and a version/lifecycle epoch. Consumers should apply updates only when their version is newer than the last applied version, and retain deletion metadata long enough to reject delayed events and replayed history. Ensure rebuild pipelines, caches, search indexes, and analytics respect deletion semantics.
+
+**Recovery:** Reconcile derived stores against the authoritative source and verify the account is absent from all required locations. Track deletion propagation lag, resurrection attempts, and failed downstream deletes.
 
 ### Scenario 63 — Global ID generation fails during a network partition
 
-**Problem:** Two regions cannot reach the central ID allocator.
+**Problem:** A central ID allocator becomes unreachable during a network partition, and services in two regions need to continue creating records.
 
-**Approach:** Determine whether ID allocation must continue in both regions and whether IDs need ordering or only uniqueness. Preallocated disjoint ranges or region/worker bits can allow local generation, but require safe allocation and handling of worker identity and clock assumptions. A central allocator is simpler but can become an availability bottleneck. Never claim a time-based scheme is collision-free without stating its assumptions.
+**Clarify:** Does the system require only uniqueness, or also monotonic ordering, approximate time ordering, and compact IDs? Those requirements change the design.
+
+**Options:** Preallocated disjoint ranges or region/worker bits can allow local generation without contacting a central allocator for every ID. These approaches require durable exclusive allocation, safe worker identity, and restart/failover rules. A random identifier avoids coordination but needs a sufficiently large space and collision handling. A central sequence is simple but makes allocation availability depend on the allocator.
+
+**Correctness:** Never let two regions reuse the same range or worker identity. If the scheme relies on time, specify clock rollback and skew behavior. Test allocator failover and process restart, not only normal generation.
 
 ### Scenario 64 — A data backfill silently overwrites current values
 
-**Problem:** A backfill started from yesterday's snapshot writes records after newer live updates have already committed.
+**Problem:** A backfill reads an older snapshot and writes it after a newer live update, silently reverting current state.
 
-**Approach:** Use entity versions, conditional writes, a captured change stream, or a high-water mark so older backfill data cannot overwrite newer state. Make batches resumable and idempotent. Validate the new model against the authoritative source and stop the migration automatically when mismatch or replication lag exceeds defined limits.
+**Design:** Make each backfilled record carry a source version or timestamp governed by a clear ordering rule, and apply it with a conditional write that rejects older versions. For large migrations, combine a consistent snapshot with a captured change stream or high-water mark so writes that occur during the copy are replayed before cutover. Batches should be idempotent and checkpointed.
+
+**Validation:** Compare versions and domain-level values between source and target, not just row counts. Set thresholds for mismatches and replication lag that pause the migration automatically. Keep a rollback path and do not switch reads until the concurrent-update window has been accounted for. A backfill is a concurrent production writer and should be rate-limited accordingly.
 
 ### Scenario 65 — A provider returns throttling errors after scaling workers
 
-**Problem:** Worker throughput decreases when more instances are added because the provider enforces an account-wide quota.
+**Problem:** Increasing worker instances reduces throughput because a third-party provider enforces a fixed account-wide rate limit.
 
-**Approach:** Centralize or coordinate quota budgets, use a bounded queue, and schedule calls at the permitted rate. More workers should increase local processing capacity only up to the provider's sustainable rate. Use jittered retries and priority classes, and expose backlog age to product teams. Keep per-tenant fairness if one tenant can consume the entire provider quota.
+**Diagnose:** Compare the provider's quota scope with the limiter scope. If each instance independently permits the full account limit, aggregate traffic rises with instance count and triggers throttling. Retries can consume the same quota and make the effective throughput worse.
+
+**Design:** Coordinate a shared account-level budget or allocate bounded local token budgets from a global allowance. Queue deferrable work, use priority classes, coalesce duplicate requests, and honor provider retry hints such as Retry-After. Scale workers only until they can sustain the provider's permitted rate; additional instances may help local preparation but cannot raise the external quota.
+
+**Signals:** Track provider 429s, attempts per logical operation, quota consumption, queue age, and successful completion rate.
 
 ### Scenario 66 — An emergency kill switch is needed during a rollout
 
