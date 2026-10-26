@@ -2,7 +2,7 @@
 
 **Audience:** Java backend engineers with 5+ years of experience preparing for senior backend and product-company interviews.  
 **Purpose:** A progressive guide to architecture reasoning, capacity estimation, data ownership, consistency, failure handling, operations, and cost.  
-**Status:** Rebuilding for the 5–10 year experience band. Recent rewrites deepen capacity calculations, data ownership, materialized views, queues/backpressure, cache correctness, Kafka semantics, authentication, observability, event evolution, multi-region failover, identifiers/clocks, CDC, backfills, replication guarantees, and database connection management. Coverage, technical accuracy, readability, and rendered diagrams still require review; not final sign-off.
+**Status:** Rebuilding for the 5–10 year experience band. Recent rewrites deepen capacity calculations, data ownership, queue/backpressure design, cache correctness, Kafka semantics, security, async observability, event evolution, multi-region failover, identifiers/clocks, CDC/backfills, database connections, search-index rebuilds, webhooks, retention, and poison-message handling. Coverage, technical accuracy, readability, and rendered diagrams still require review; not final sign-off.
 
 > **How to use this guide:** Learn fundamentals in order, then practise scenarios aloud. State assumptions, identify the critical business invariant, estimate scale, draw the simplest viable architecture, and deepen the part the interviewer challenges. Naming technologies is not the goal; explaining why the design satisfies requirements is.
 
@@ -1776,47 +1776,113 @@ Use the symptom to test the hypothesis. If acquisition wait rises while the data
 
 ### Q176. How do you choose a storage model for time-series data?
 
-Consider write rate, timestamp ordering, retention, aggregation windows, cardinality, late-arriving data, and query patterns. Time partitioning and compression can improve retention and scans, but a timestamp-only partition key may create write hotspots. Downsampling or rollups reduce cost but lose detail. Separate raw retention from aggregate retention, and define how corrections and late events update aggregates.
+Start with the query and retention shape: append rate, points per second, number of distinct series, time-range queries, downsampling, late arrivals, and how often old data is updated or deleted. Time-series data often benefits from partitioning by time so queries can prune irrelevant ranges and retention can remove old data efficiently. If all writes target the newest range on one node, combine time partitioning with a distribution strategy that avoids a hot write target.
 
-### Q177. How do you design a search index rebuild?
+Choose the storage engine based on ingestion rate, compression, cardinality, aggregation/query patterns, and operational needs. A relational database can be sufficient at moderate scale, particularly with appropriate indexes and time partitions. A specialized time-series database or columnar store may be better for high-ingest metrics and range aggregations; object storage can retain raw historical data cheaply but generally has different query latency and access patterns.
 
-Build a new index generation alongside the current one, backfill from a consistent snapshot or replayable change stream, and continue applying concurrent changes. Validate document counts and representative query results, then switch an alias or routing pointer atomically where supported. Retain the old index for rollback until the new generation is healthy. Rebuild capacity must not starve production queries or ingestion.
+Series cardinality can dominate storage and index cost. Labels such as unique user IDs or request IDs may create millions of distinct series, overwhelming a metrics-oriented store. Define allowed dimensions, aggregation/downsampling, and separate detailed event logs from high-cardinality metrics. For late or corrected samples, decide whether to update historical buckets, write correction records, or accept a watermark/lateness window.
+
+Retention is part of the design: raw data may stay for days, downsampled aggregates for months, and long-term archives for years. Include compression, replication, indexes, ingestion buffers, backups, and query concurrency in estimates. In an interview, map the access pattern to storage layout and explain how partitions, cardinality, late events, and retention affect cost and performance.
+
+### Q177. How do you design a search index rebuild without losing live updates?
+
+A search index is usually a derived projection, so rebuilding it must account for writes and deletes that happen while the bulk load is running. Deleting the old index and loading a new one directly can expose an empty or partially populated search experience and can miss concurrent updates.
+
+A safer pattern is to build a **new versioned index** beside the live one. Establish a consistent source boundary, such as a snapshot tied to a database log position or CDC offset. Bulk-load the snapshot in bounded batches, then replay changes after that boundary in the correct per-entity order. Track consumer lag and retain enough source-log history to finish the rebuild. If the log expires before catch-up completes, the process needs a new snapshot or a defined restart.
+
+Validate record counts, sampled documents, key fields, analyzer behavior, versions, and deletes/tombstones. Shadow queries can compare the new index against the old index without changing user-visible responses. During catch-up, use version-aware writes so an older bulk-load record cannot overwrite a newer event. Then switch an alias or routing pointer atomically where supported, monitor search latency and result quality, and retain the old index for a bounded rollback window.
+
+Do not confuse infrastructure success (index exists and responds) with search correctness. A rebuild can silently omit documents or resurrect deleted records. Plan for schema/analyzer version changes, rollback after new updates, capacity for two indexes during migration, and privacy/deletion requirements. In an interview, identify the source of truth, snapshot boundary, live-change capture, validation gates, and cutover mechanism.
 
 ### Q178. How do you make pagination stable while records are changing?
 
-Use a deterministic ordering with a unique tie-breaker and cursor based on the last seen values. Offset pagination can shift as records are inserted or deleted. Cursor pagination reduces this drift but does not automatically provide a consistent snapshot across pages. If snapshot semantics matter, use a supported snapshot/version boundary or explain that pages reflect a changing dataset.
+Offset pagination can skip or repeat records when rows are inserted or deleted before the offset between page requests. Keyset/cursor pagination avoids the growing cost of large offsets by continuing from the last sort key, but it is only stable if the ordering is deterministic and the cursor includes enough information to resume correctly.
+
+Use a stable order with a unique tie-breaker, for example `(created_at, id)`, and encode the last observed key in an opaque cursor. Protect or sign the cursor if clients must not alter filters, tenant context, or page position; validate it against the request's sort/filter schema. The query should use a matching index so it can seek from the cursor rather than scan from the beginning.
+
+Cursor pagination does not automatically provide a snapshot. If rows change their sort key, records can move across page boundaries. For a live feed, that may be acceptable; for an audit export or billing report, use a snapshot/version boundary, a database snapshot transaction where operationally practical, or an asynchronous export built from a fixed dataset. Avoid long-running database snapshots that retain old versions or lock resources for too long.
+
+Define deletion behavior, filtering changes, maximum page size, cursor expiry, and what happens when the underlying resource is deleted. A cursor is a continuation token, not an authorization grant. Revalidate authorization on each page. In an interview, explain the ordering/index choice and whether the API promises a stable snapshot or simply efficient continuation over a changing dataset.
 
 ### Q179. How do you design a webhook delivery system?
 
-Persist the event and delivery attempt state, sign requests, use bounded retries with backoff and jitter, and expose delivery status. The receiver may time out after processing, so delivery is generally at-least-once and the receiver should deduplicate. Isolate endpoints so one slow receiver cannot block others; enforce quotas and per-endpoint concurrency limits. Provide safe replay and protect against SSRF and secret leakage when users configure destinations.
+Treat each webhook as durable outbound work. When a business event occurs, record the delivery intent transactionally with the source change—often through an outbox—then enqueue or publish the delivery. The delivery worker signs the payload, sends it with a bounded timeout, records the response and attempt, and retries eligible failures with exponential backoff and jitter. A slow customer endpoint must not block the business transaction.
+
+Use a stable event/delivery ID so receivers can deduplicate repeats. At-least-once delivery is common because the sender can time out after the receiver processes the event but before it receives the acknowledgement. Sign payloads with a timestamp and a secret or asymmetric key, use TLS, support secret rotation, and document replay protection. The receiver should verify the signature and use the event ID to make its handler idempotent.
+
+Classify responses: success codes acknowledge delivery; timeouts, connection failures, and some 5xx/429 responses may be retryable; permanent 4xx failures often require pausing, alerting, or endpoint correction. Respect retry-after where appropriate, but keep a bounded retry horizon. Make delivery order explicit: per-destination order may be needed for state changes, but global order across all customers is usually expensive.
+
+Protect the platform with per-customer concurrency and rate limits, bounded queues, dead-letter/failed-delivery views, manual redrive, and endpoint disablement after sustained failure. Monitor success ratio, oldest undelivered event, attempts, latency, and customer-specific failures. Provide a delivery log and event replay interface with audit controls. Never assume a webhook is delivered exactly once or that HTTP 2xx proves the customer completed its downstream business workflow.
 
 ### Q180. How should a system handle poison records without violating ordering?
 
-First determine whether later records depend on the failed record. If strict per-key order is required, pausing that key/partition may be necessary while other partitions continue. If records are independent, quarantine the failed item and continue under an explicit policy. Preserve the original payload and error details, alert owners, and make replay controlled and idempotent. Automatically skipping a record can silently corrupt state.
+A poison record cannot be processed successfully under the current consumer code or data contract. Moving it to a dead-letter queue lets the partition progress, but may violate the business requirement if later records depend on the missing state transition. The design must choose between blocking that key/partition, quarantining the record and accepting a gap, or applying a domain-specific skip/repair.
 
-### Q181. What is the difference between a queue's depth and age?
+For per-entity ordering, isolate by key where possible. Pause or defer only the affected key/partition rather than every unrelated workload if the broker and consumer architecture allows it. Preserve the original record, offset/sequence, schema version, failure reason, and trace context. Fix the cause, then replay the record before later dependent events. If skipping is permitted, record an explicit gap/compensation decision and reconcile the resulting state.
 
-Depth counts pending items; age measures how long the oldest or representative item has waited. A large backlog of low-priority work may be tolerable if deadlines are distant, while a small queue of time-critical events may already violate an SLO. Track both, plus arrival rate, completion rate, retries, and estimated drain time. Queue depth alone does not describe user impact.
+Automatic retries should be bounded for deterministic failures; repeated deserialization or validation failure will not improve with faster retry. Use delayed retries for transient dependencies and a quarantine/DLQ for poison payloads, while protecting the retry topic from the same failure. Manual replay must be rate-limited and idempotent, and it should not change event identity unless the business action is genuinely new.
+
+Measure blocked partition time, oldest poison record, DLQ age, and entities affected. In an interview, identify whether ordering is global, per partition, or per entity; then explain why your chosen remediation preserves or deliberately relaxes that guarantee.
+
+### Q181. What is the difference between a queue's depth and age, and which is more useful?
+
+**Depth** tells how many items are waiting (sometimes also measured in bytes). **Age** tells how long the oldest or typical waiting item has been pending. Both matter, but they answer different questions. A large queue may be draining quickly with enough capacity; a small queue can still violate an SLA if one critical item is stuck behind a poison message or blocked partition.
+
+For example, a queue contains 500,000 events and workers complete 40,000/s while arrivals are 20,000/s. It has high depth but strong net drain. Another queue contains only 2,000 jobs, but the oldest job is 45 minutes old and the completion target is five minutes; the service objective is already violated. Track both with successful completion rate, arrival rate, retry count, and per-partition skew.
+
+For deadlines, record enqueue time and, where relevant, the business expiry time. Avoid relying solely on consumer clocks for ordering or lease decisions; define timestamp semantics and use monotonic/versioned identifiers when needed. If old work is no longer useful, expire it deliberately and report the reason rather than processing it indefinitely.
+
+Use depth to plan capacity and storage, age to detect customer impact and stuck work. Alert on time-to-drain versus the business deadline, not just one absolute item count. In an interview, explain what each metric tells you and how it changes the response—scale, throttle, repair a blocked consumer, or expire stale work.
 
 ### Q182. How do you prevent one slow consumer from affecting others?
 
-Use independent consumer groups or subscriptions when consumers need separate progress, bounded per-consumer concurrency, and workload isolation. In a shared queue where each task is assigned to one worker, one slow worker can still hold a task or partition. Use visibility timeouts/leases carefully, poison-message policy, and separate queues for different service-level objectives. Isolation increases storage and operational cost but limits blast radius.
+Isolation starts with understanding what the consumers share: a process/thread pool, broker partition, queue, database connection pool, provider quota, or a shared lock. A single slow consumer can block others if work is serialized behind one partition, if all messages use one ordered key, or if one destination monopolizes shared concurrency. Adding more workers may not help if the ordering or external dependency is the actual limit.
+
+Use separate consumer groups for independent subscribers, bounded concurrency and queues, per-tenant or per-destination quotas, and dedicated pools for high-cost work where justified. For a shared queue, weighted fair scheduling can prevent one tenant from consuming all available workers. For Kafka-style partitioning, parallelism is bounded by partitions in a group and ordering is per partition; a hot key cannot simply be spread across consumers without changing semantics.
+
+Use deadlines and circuit breakers around slow external calls, and avoid holding broker partitions or database transactions unnecessarily while waiting on network operations. Some brokers use visibility timeouts or per-message leases; make lease duration and redelivery semantics safe for long jobs. Consumers should commit/ack only according to the durability boundary promised by the workflow.
+
+Observe per-consumer throughput, per-partition lag, queue age, active concurrency, throttling, and error rates. In an interview, name the shared resource and explain which isolation boundary prevents one slow consumer from delaying critical unrelated work without breaking ordering or fairness.
 
 ### Q183. How do you choose a message retention period?
 
-Estimate the longest realistic consumer outage, recovery and replay duration, event rate, record size, replication overhead, and safety margin. Include legal retention constraints and the cost of keeping records. If events are needed to rebuild a projection, retention must cover rebuild time or an archive/source-of-truth must exist. Retention is a recovery design choice, not just a broker setting.
+Retention is determined by recovery, replay, audit, and business-expiry requirements—not by picking an arbitrary number of days. Ask how long consumers may be unavailable, how long a schema bug might go unnoticed, whether new consumers need historical events to build projections, what audit/regulatory obligations apply, and how much storage the retained volume requires.
+
+For an event stream, retention must be long enough for the worst credible consumer outage plus detection, repair, and catch-up time, with margin. If a consumer can be offline for seven days but the broker retains only three, it may need a full snapshot/rebuild from another source. For a work queue, retention also interacts with expiry: processing a notification two weeks after its deadline may be worse than dropping it with an explicit outcome.
+
+Estimate storage from incoming bytes per second, retention duration, replication factor, compression, segment/index overhead, and peak bursts. Longer retention increases disk and recovery/replay volume. Backups, object-storage archives, and compacted topics may offer different trade-offs but have distinct guarantees. Tombstones and compaction rules must be understood if deletes or latest-state reconstruction matter.
+
+Document what happens on expiry, who owns replay, how schemas stay compatible over the retention window, and whether payloads contain data subject to deletion or residency requirements. Monitor retention headroom and consumer lag so the system does not silently delete the history a slow consumer still needs. In an interview, connect retention directly to the recovery plan and the system's rebuild capability.
 
 ### Q184. How do you avoid retrying permanent failures forever?
 
-Classify errors by semantics: validation or unsupported schema errors are usually permanent until data/code changes; throttling, transient network errors, and temporary unavailability may be retryable. Use bounded retries, backoff, a dead-letter or quarantine path, and clear ownership for remediation. Error classification must be based on actual provider contracts rather than assuming all 4xx or 5xx responses have universal meaning.
+Classify failure categories and give each a policy. Network timeouts, temporary service unavailability, and throttling may be retryable; malformed payloads, schema incompatibility, invalid credentials, and business-rule violations generally need correction rather than repeated attempts. Some responses—such as 429 or 5xx—require reading the specific provider contract rather than applying one universal rule.
+
+Bound attempts and total retry age, use exponential backoff and jitter, honor retry-after signals, and stop retrying when the operation's business deadline expires. Send exhausted or deterministic failures to a DLQ/quarantine with enough context to investigate and safely replay. Alert on increasing DLQ age/count and repeated failure reasons; a DLQ that no one owns is silent data loss from the business's perspective.
+
+Do not discard events without understanding ordering and state impact. A poison event may block dependent events for the same entity. A human or automated remediation path should repair the schema/data or mark an explicit compensation, then replay with the original event identity so deduplication still works.
+
+External calls require idempotency because a timeout can hide a successful side effect. Before retrying a payment or webhook delivery, use a stable downstream operation ID or query/reconcile the provider state. In an interview, define transient versus permanent failure, the retry budget, escalation path, and what evidence proves a failed operation was safely resolved.
 
 ### Q185. What should happen when a circuit breaker opens?
 
-Stop sending calls that are unlikely to succeed, fail fast or use an allowed fallback, and probe recovery in a controlled half-open state. Ensure callers do not all resume at once. Keep timeout and concurrency limits because breaker thresholds can lag behind sudden failures. Monitor open duration, rejected calls, probe success, and whether fallback is serving valid data.
+When a breaker opens, new calls to the dependency should fail fast or use a documented fallback instead of waiting on a dependency that is currently failing or too slow. The desired behavior is route-specific: an optional recommendation call may return an empty result, while a payment authorization cannot safely claim success without confirmation.
+
+A breaker needs defined failure categories, a measurement window/minimum sample count, thresholds, open duration, and a half-open probe policy. Network/timeouts and selected 5xx/slow calls may count; client validation errors should not normally be treated as dependency unavailability. Thresholds that are too sensitive can turn transient noise into avoidable outage, while thresholds that are too lax let requests pile up.
+
+Opening the breaker is only one protection. Bound concurrent calls with a bulkhead, use deadlines, and cap retries so callers do not continue consuming resources while the breaker evaluates failures. At scale, synchronize-free or per-instance breakers may transition at different times; half-open probes should not overwhelm a recovering dependency. Do not add a fallback that returns semantically incorrect or stale data without defining the tolerance.
+
+Monitor breaker state transitions, rejected calls, fallback frequency, dependency latency/error rate, and the time to recovery. Test open, half-open, and recovery states. In an interview, explain what users receive while the breaker is open and how the system determines that the dependency is safe to receive traffic again.
 
 ### Q186. How do you choose between fail-open and fail-closed behavior?
 
-Fail-open prioritizes continued operation when a control or dependency is unavailable; fail-closed prioritizes safety or enforcement. A recommendation service may fail open by omitting recommendations. Authorization, fraud controls, or a strict quota may need to fail closed. Make the choice per operation and risk, document the user-visible behavior, and test the failure path instead of letting it emerge accidentally.
+**Fail-open** means continuing the operation when a control or dependency is unavailable; **fail-closed** means rejecting or pausing the operation because the required decision cannot be made. The correct choice depends on what an incorrect allow or incorrect deny costs. Neither is universally safer.
+
+For a payment or sensitive authorization check, allowing access because the policy service is unavailable can violate security or financial invariants, so fail-closed may be appropriate. For noncritical analytics or a recommendation service, failing open by omitting the optional capability may preserve the main user journey. A rate limiter can have mixed requirements: coarse abuse protection may use a bounded local fallback, while a hard account-wide billing quota may require strict enforcement.
+
+Specify the failure mode and scope. “Fail-open” should not mean unbounded work; local concurrency caps or conservative cached policy can provide a controlled degraded mode. “Fail-closed” should not unintentionally take down all routes when only one optional feature needs the dependency. Use cached decisions only with explicit freshness and revocation rules.
+
+For every dependency, define the safe default, maximum time allowed in degraded mode, monitoring, and recovery behavior. In an interview, map the choice to the business invariant, explain abuse/correctness risks, and state how clients observe rejection or degraded responses. The policy should be tested during dependency outages, not decided during an incident.
 
 ### Q187. How should a feature degrade during overload?
 
