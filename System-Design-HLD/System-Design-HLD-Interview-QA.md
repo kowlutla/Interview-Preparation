@@ -1,8 +1,8 @@
 # System Design HLD Interview Handbook
 
-**Audience:** Java backend engineers with 5+ years of experience preparing for senior backend and product-company interviews.  
+**Audience:** Java backend engineers with 5–10 years of experience preparing for senior and staff-leaning backend/product-company interviews.  
 **Purpose:** A progressive guide to architecture reasoning, capacity estimation, data ownership, consistency, failure handling, operations, and cost.  
-**Status:** Rebuilding for the 5–10 year experience band. Recent rewrites include quantitative estimates for storage, network, connection pools, fan-out, error budgets, replication bandwidth, cache outages, rate limiting, and object storage, plus resumable large-file flows. Core data, messaging, reliability, security, and recovery coverage is still under review; not final sign-off.
+**Status:** Rebuilding for the 5–10 year experience band. Substantive rewrites have expanded capacity calculations, partitioning/sharding, traffic infrastructure, data consistency, transaction patterns, messaging, security, observability, and recovery. This is still a working draft; topic coverage, technical accuracy, readability, and rendered diagrams require further review.
 
 > **How to use this guide:** Learn fundamentals in order, then practise scenarios aloud. State assumptions, identify the critical business invariant, estimate scale, draw the simplest viable architecture, and deepen the part the interviewer challenges. Naming technologies is not the goal; explaining why the design satisfies requirements is.
 
@@ -411,6 +411,8 @@ Choose the boundary around a cohesive business capability and its invariants, no
 
 If the data is split, define the authoritative owner for each fact, APIs/events for access, consistency lag, deletion propagation, and reconciliation. Plan schema evolution and data migration with backward compatibility. The success measure is independent evolution with manageable operational cost—not the number of database instances.
 
+## 6. Scaling and traffic management
+
 ### Q46. Vertical versus horizontal scaling?
 
 Vertical scaling adds CPU, memory, or I/O capacity to one machine. It is often simpler because the application may not need to distribute state, but it has hardware limits and may leave a larger single-node failure domain. Horizontal scaling adds more instances and can improve capacity and fault isolation, but requires traffic distribution and careful handling of state, coordination, and shared dependencies.
@@ -559,6 +561,8 @@ For corruption, accidental deletion, or malicious modification, replication can 
 
 During recovery, protect against a thundering herd of reconnects and retries. Restore service gradually, validate critical invariants, compare source and derived stores, and keep the system in read-only or degraded mode when correctness cannot yet be guaranteed. Record a runbook for promotion, fencing, connection refresh, validation, and rollback. A dashboard that says a replica is healthy is not equivalent to a proven recoverable system.
 
+## 8. Caching and content delivery
+
 ### Q63. When does caching help, and when can it make a system worse?
 
 Caching helps when data is read repeatedly, expensive to compute or fetch, and has a freshness tolerance that the cache design can honor. Typical wins include public content, product metadata, expensive configuration reads, authorization metadata with an appropriate revocation model, and derived views. The benefit depends on reuse and locality—not simply on having a lot of requests.
@@ -622,6 +626,8 @@ For many read-heavy domains, the authoritative database plus cache-aside invalid
 A classic race is: reader reads old value, writer commits new value and deletes cache, reader then repopulates the old value. A version check, conditional fill, or coordination mechanism can prevent some variants. A transactional outbox can ensure the invalidation intent is durably recorded with the database mutation, but the consumer may be delayed or redeliver the event, so invalidation processing must be idempotent and lag observable.
 
 For payments, balances, inventory allocation, or permissions that require immediate revocation, do not rely on cache TTL as the only correctness mechanism. Use the source of truth for the decision, or define a token/version/lease contract that bounds stale authorization explicitly. Document stale-read tolerance, cache outage behavior, invalidation latency objective, and reconciliation plan.
+
+## 9. Distributed systems and consistency
 
 ### Q70. What is a partial failure, and why is it more dangerous than a simple error?
 
@@ -718,6 +724,8 @@ A reconciler compares authoritative state with derived or external state using s
 Reconciliation needs idempotent repair operations, bounded batch sizes, rate controls, auditability, and observability. It should distinguish safe automatic repairs from conflicts requiring human review. Avoid “last write wins” when the discrepancy is about a financial or inventory invariant. Use source versions, event IDs, timestamps with explicit semantics, and status-transition rules to prevent a stale repair from overwriting newer state.
 
 Measure mismatch count, oldest unresolved discrepancy, repair success, and repeated oscillation. Reconciliation does not excuse poor transactional design; it is the safety net for failures that cannot be prevented atomically across boundaries. Design it alongside the initial workflow, including access controls for repair tools and a way to explain every automated state change.
+
+## 10. Messaging and event-driven architecture
 
 ### Q80. Queue versus event stream?
 
@@ -847,6 +855,8 @@ Deduplication alone does not solve out-of-order events. An old “payment pendin
 
 Provide retry-safe downstream actions, dead-letter handling for invalid payloads, observability by event ID, and a reconciliation job for missing callbacks. Never assume that receiving a success webhook is the only proof of business completion or that HTTP delivery exactly once is guaranteed.
 
+## 12. Resilience and failure handling
+
 ### Q93. How should retries be designed?
 
 A retry policy must specify **which failures**, **how many attempts**, **how long to wait**, **the overall deadline**, and **what makes repeating the operation safe**. Retrying every error is dangerous: validation and authorization errors are usually permanent, while timeouts, connection resets, and throttling may be transient. The exact decision depends on the dependency contract.
@@ -907,6 +917,8 @@ Make consumers idempotent and reconcile uncertain operations before replaying th
 
 Track queue depth and age, successful drain rate, provider throttling, duplicate/conflict count, and live-traffic latency. Estimate time-to-drain using net throughput (mu-lambda), and communicate the estimate as conditional on stable rates. Increase capacity gradually and monitor the impact; a dependency returning to health does not mean it is ready for peak traffic immediately.
 
+## 13. Security and abuse prevention
+
 ### Q99. Authentication versus authorization?
 
 **Authentication** establishes who or what is making a request. **Authorization** decides whether that authenticated identity may perform a specific action on a particular resource under the current policy. Authentication might validate a user session, signed token, client certificate, or workload identity; authorization evaluates permissions, ownership, tenant boundaries, resource state, and requested action.
@@ -946,6 +958,8 @@ Model tenant identity as a trusted part of the request context, not an arbitrary
 Test isolation with adversarial cases, not only happy paths. Try changing object IDs, tenant headers, cursor tokens, cache keys, event routing keys, and background-job parameters. For async processing, persist the tenant identity with the job and revalidate authorization when appropriate. Ensure global administrators and support tooling have audited, time-bounded access.
 
 Tenant isolation also includes resource fairness and operational blast radius. Per-tenant quotas prevent one tenant from starving others, but quota controls are not a substitute for data access controls. A shared table may be cost-efficient; dedicated database or encryption-key boundaries may be required for particularly sensitive workloads or contractual requirements. Document what isolation level is promised and verify it in tests, logs, backup/restore, and incident response.
+
+## 14. Observability and operations
 
 ### Q103. What should you monitor in a distributed service?
 
@@ -1007,6 +1021,8 @@ Document ownership and access paths, dependencies on external providers, emergen
 
 Runbooks should be tested in game days and updated after incidents. Record the last validation date and the telemetry needed to make the procedure work. Avoid hard-coded assumptions that become stale; commands and thresholds should be verified against current operational tooling. A senior candidate should explain how the runbook limits secondary damage while the team diagnoses the root cause.
 
+## 15. Multi-region and disaster recovery
+
 ### Q109. Active-passive versus active-active regions?
 
 In **active-passive**, one region serves the primary workload while another is warm or ready to take over. This simplifies write ownership and can reduce conflict handling, but failover takes time and the standby may have capacity, configuration, or data lag that is not visible during normal operation. The failover plan needs a known promotion procedure, routing change, and validation.
@@ -1061,6 +1077,8 @@ If an application issues a destructive update or an attacker deletes records, sy
 Define backup frequency, retention, encryption, immutability/access separation, point-in-time recovery coverage, and the target restore granularity. Consider whether backups include schema/configuration and how to rebuild derived data such as search indexes. Legal deletion and data residency requirements must also account for backup retention and restore procedures.
 
 A backup is only useful if it can be restored. Regularly restore into an isolated environment, validate record counts and business invariants, measure restore time, and rehearse how to prevent restored data from overwriting newer valid data. Record RPO/RTO from the measured exercise. In an interview, say what failures replication handles, what failures backups handle, and how you would prove recovery works.
+
+## 16. Cost and architectural evolution
 
 ### Q114. How do you reduce cost without violating latency or reliability?
 
