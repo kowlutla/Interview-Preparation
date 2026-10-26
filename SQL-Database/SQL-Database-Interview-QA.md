@@ -302,10 +302,13 @@ Before deleting anything, preview the rows and decide which record should surviv
 ```sql
 SELECT u1.user_id, u1.email, u1.created_at
 FROM users u1
-JOIN users u2
-  ON u1.email = u2.email
- AND u1.user_id > u2.user_id
 WHERE u1.email IS NOT NULL
+  AND EXISTS (
+    SELECT 1
+    FROM users u2
+    WHERE u2.email = u1.email
+      AND u2.user_id < u1.user_id
+  )
 ORDER BY u1.email, u1.user_id;
 ```
 
