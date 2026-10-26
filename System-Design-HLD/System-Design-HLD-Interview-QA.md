@@ -2,7 +2,7 @@
 
 **Audience:** Java backend engineers with 5–10 years of experience preparing for senior and staff-leaning backend/product-company interviews.  
 **Purpose:** A progressive guide to architecture reasoning, capacity estimation, data ownership, consistency, failure handling, operations, and cost.  
-**Status:** Rebuilding for the 5–10 year experience band. Recent rewrites deepen async operation APIs, tenant-aware sharding/migration, cache security, CDN invalidation, regional routing, connection draining, TLS trust boundaries, and HTTP/2/HTTP/3 trade-offs, alongside transactional correctness and reliability. Full coverage, technical accuracy, readability, and rendered diagrams remain under review; not final sign-off.
+**Status:** Rebuilding for the 5–10 year experience band. Recent rewrites deepen async APIs, cache security and consistency, tenant-aware placement, CDN invalidation, real-time reconnects, database constraints/isolation, API contracts, and fleet-wide provider quota control, alongside transaction and reliability topics. Full topic coverage, technical accuracy, readability, and rendered diagrams remain under review; not final sign-off.
 
 > **How to use this guide:** Learn fundamentals in order, then practise scenarios aloud. State assumptions, identify the critical business invariant, estimate scale, draw the simplest viable architecture, and deepen the part the interviewer challenges. Naming technologies is not the goal; explaining why the design satisfies requirements is.
 
@@ -2500,63 +2500,153 @@ Monitor endpoint age, resolution errors, connection failures, per-endpoint load,
 
 ### Q246. When should sticky sessions be used for WebSockets?
 
-A WebSocket connection is inherently attached to a server for the life of that connection, but new connections do not necessarily need sticky routing if session state is externalized. Sticky routing may help with connection ownership or locality, but it can create uneven load and complicate reconnects. Design reconnect tokens, presence state, and message delivery so a client can reconnect to another instance after failure.
+A WebSocket is a long-lived connection, so once the handshake is upgraded, that TCP connection remains attached to one backend until it closes or fails. The load balancer does not normally redistribute individual messages from an established connection. Sticky routing is therefore often a consequence of connection lifetime rather than an application requirement.
+
+Affinity can be useful when connection state—subscriptions, room membership, or unacknowledged messages—is kept in process memory. However, instance failure loses that local state, and uneven connection duration or activity can create imbalance. Prefer keeping authoritative chat/session state in shared or partitioned storage and treating the connection as a transport, not the durable owner of the user session.
+
+Scale by tracking active connections, messages per connection, fan-out, outbound buffers, and per-instance memory/CPU—not just requests per second. Use connection draining and reconnect signals during deployment; clients need backoff/jitter so an instance failure does not cause a reconnect storm. After reconnecting, the client should authenticate again, re-establish subscriptions, and resume from a durable cursor or fetch a state snapshot.
+
+If affinity is required, choose a stable routing key and define what happens when the target disappears. Service discovery updates will not move established sockets. In an interview, distinguish connection affinity from state ownership and explain reconnect recovery, missed-message handling, backpressure, and how one noisy room or tenant is isolated.
 
 ### Q247. How do you scale presence tracking in a chat system?
 
-Treat presence as ephemeral state with a lease or heartbeat rather than a permanent record. Clients can disconnect without a clean logout, so expiry and last-seen semantics matter. Partition presence by user or region, coalesce rapid changes, and avoid broadcasting every heartbeat to all contacts. Distinguish “online” as a best-effort indicator from durable message delivery guarantees.
+Presence—online, typing, last seen, or active session count—is usually best-effort, ephemeral state rather than a permanent source of truth. A client can disappear without a clean logout, so presence needs heartbeat/lease expiry and a definition of how long a user may be idle before being considered offline. “Online” should not imply that message delivery is guaranteed.
+
+Partition presence by user ID or another stable key, and store connection/session metadata so multiple devices can be represented. Heartbeats should be coalesced and rate-limited; broadcasting every heartbeat to all contacts would create an enormous fan-out. A presence event stream can publish meaningful transitions (online/offline) rather than every refresh. TTL/leases help remove stale entries, but expiry and reconnect can race, so versioned updates or session IDs prevent an old disconnect event from marking a newly connected session offline.
+
+Avoid a single global presence counter or lock. Use regional aggregation or sharded counters for counts that can be approximate. Privacy settings should determine who may see presence, and the fan-out path needs authorization and abuse controls.
+
+On failover, presence may briefly be stale or reset; the client should be able to re-register. Measure heartbeat rate, stale-session count, propagation delay, fan-out backlog, and per-tenant connections. In an interview, define the semantics, partitioning strategy, handling of multiple devices and stale disconnects, and why this state can tolerate different consistency from durable chat messages.
 
 ### Q248. How should a real-time system handle reconnects and missed events?
 
-Persist durable events or provide a cursor/sequence number that lets the client resume from its last acknowledged position. On reconnect, validate the cursor, replay retained events, and fall back to a state snapshot if history has expired. A live socket alone is not durable delivery. Deduplicate replayed events and document how clients detect a gap.
+Treat the live connection as a delivery channel, not the durable record of what happened. A connection can drop after the server sends an event but before the client processes it, or the client can be offline while important events are produced. To recover, persist relevant events or maintain a durable state model and give the client a sequence/cursor from which it can resume.
+
+On reconnect, authenticate the client again, validate the cursor and authorization, and replay retained events after the last acknowledged position. Stable event IDs allow the client to deduplicate repeats; per-entity sequence numbers or stream offsets can reveal gaps. If the cursor has expired or history is too large, send a state snapshot and then resume from a known position, avoiding a race between snapshot creation and new event delivery.
+
+Exactly-once delivery to the client is generally not something a socket alone can guarantee. Design for at-least-once replay and idempotent client application where possible. For state-changing actions, the server's authoritative state must remain correct even if clients miss or reorder notifications. Do not use a push event as the only record of a payment or message.
+
+Connection recovery can create a surge in subscriptions and replay. Apply jitter, pagination/batching, rate limits, bounded outbound buffers, and per-tenant quotas. Monitor reconnect rate, replay backlog, cursor expiry, duplicate/gap count, and event delivery lag. In an interview, explain what the cursor means, how the snapshot/replay boundary is chosen, and what happens when history is no longer available.
 
 ### Q249. What is the difference between a CDN cache and an application cache?
 
-A CDN cache sits near clients and can reduce origin traffic and geographic latency for cacheable HTTP responses or assets. An application cache sits closer to service logic and can store domain objects or computed results. Their keys, invalidation, access control, and freshness rules differ. A response may pass through both, so define which layer owns cache policy and prevent one layer from accidentally preserving data after another has invalidated it.
+A **CDN cache** sits near clients and typically caches HTTP assets or responses at edge locations. It reduces geographic latency and origin traffic for content that can be safely shared under HTTP cache rules. An **application cache** sits closer to service logic and stores domain objects, query results, or computed data—often in process memory or a distributed cache such as Redis. Its key schema and invalidation behavior are controlled by the application.
+
+The layers can be stacked. A browser may cache an asset, a CDN may cache the response, an API gateway may cache a route, and the application may cache the underlying product. Each layer can have a different TTL and invalidation mechanism; purging one does not necessarily invalidate the others. Define which layer owns freshness and how a change propagates through every layer.
+
+CDNs are excellent for versioned static assets and carefully designed public responses. Application caches are more flexible for domain-specific reuse and may be needed when source queries are expensive. Neither should share private or tenant-specific results under an incomplete key. A CDN misconfigured to cache authorization-sensitive content can leak data across users; an application cache can make the same mistake if it omits identity/tenant dimensions.
+
+Measure hit ratio, origin offload, staleness, request coalescing, and origin behavior during a purge or cold cache. In an interview, explain the hierarchy, cache-control/key rules, the source of truth, and how the architecture prevents stale or private responses from surviving longer than permitted.
 
 ### Q250. How should you cache personalized responses safely?
 
-First decide whether shared caching is appropriate at all. If the response depends on identity, tenant, role, locale, or entitlement, those dimensions must be represented in the cache policy and key—or the response should be private/non-cacheable. Authorization must not be skipped merely because an entry exists. Test cross-user and cross-tenant requests, and consider revocation delay when cached permissions influence the response.
+First ask whether the personalized response should be shared-cacheable at all. If it depends on user identity, tenant, role, permissions, locale, currency, feature flag, or entitlement, every dimension that changes the result must be represented in the cache policy/key—or the response should be private and not shared. Do not assume the URL uniquely identifies a response.
+
+Authentication and authorization must not be bypassed because an entry exists. A key should be constructed from trusted, canonicalized identity/context rather than arbitrary client-supplied headers. For CDN caching, configure cache-control and variation correctly and be especially careful with cookies, Authorization headers, query parameters, and redirects. A cache-key omission can become a cross-user or cross-tenant data leak.
+
+Revocation and permission changes make freshness a security property. Define how quickly a cached decision must expire and whether high-risk requests must re-check authoritative policy. Short TTLs can reduce, but do not eliminate, stale authorization; event-based invalidation can be delayed or lost without a reliable mechanism. Sensitive data should not appear in cache keys or telemetry in plaintext unnecessarily.
+
+Test cross-user, cross-tenant, privilege-change, locale, and feature-cohort combinations. Monitor suspicious cache hits, stale authorization incidents, and key cardinality. In an interview, distinguish content caching from authorization caching and explain how the design proves that the same cache entry cannot be returned to an unauthorized principal.
 
 ### Q251. How do you prevent cache invalidation from racing with a refill?
 
-A reader may miss the cache, load old database data, then repopulate the cache after a writer has committed and invalidated the key. Possible mitigations include versioned values, write-through coordination, delayed refill, or invalidation protocols tied to source versions. The right choice depends on staleness tolerance. A simple delete-after-write pattern is common but is not an atomic transaction across database and cache.
+A common race is: reader A misses the cache and reads old value (v1) from the database; writer B commits (v2) and invalidates the cache; reader A then writes (v1) into the now-empty cache. The cache is stale immediately after a successful write even though the writer did invalidate it. A simple “update database, then delete cache” sequence is not atomic across two systems.
+
+One mitigation is versioned cache values. Every source record has a monotonically increasing version, and a cache fill is accepted only if it is not older than the version already known for the key. Conditional writes or compare-and-set can reject stale refill. A delayed refill or single-flight mechanism can reduce races and stampedes but may add coordination and still need version correctness.
+
+Reliable change propagation (outbox/CDC) can deliver invalidation after commit, while TTL acts as a safety net. However, the propagation delay remains a staleness window. If deletion events can arrive after older updates, retain tombstones/versions long enough to prevent resurrection. For critical decisions, bypass cache rather than trying to eliminate every cross-system race.
+
+Test interleavings explicitly: stale read, concurrent write, invalidation delivery delay, reader refill, cache node restart, and out-of-order events. Measure invalidation lag, stale-read detection, and origin load. In an interview, describe the concrete race and identify which mechanism closes it—not just that you use a shorter TTL.
 
 ### Q252. How do you choose between time-based and event-based cache invalidation?
 
-TTL is simple and bounds cache residence under ordinary operation, but it may serve stale values until expiry. Event-driven invalidation can reduce staleness but depends on reliable event delivery and correct ordering. A hybrid uses events for prompt updates and TTL as a safety net. For critical invariants, neither should replace an authoritative read or a datastore consistency guarantee.
+**Time-based expiry (TTL)** is simple: an entry stops being reused after a configured interval. It bounds ordinary cache residence, but a value can remain stale until expiry and many keys can expire together. TTL alone does not prevent stale refill races or guarantee a global staleness bound if source replication is already delayed.
+
+**Event-based invalidation** reacts to a source change and can reduce staleness. But the invalidation event can be delayed, duplicated, lost, or processed out of order; therefore, delivery and consumer behavior need a reliability design. An outbox/CDC pipeline can make the change intent durable, and versioned invalidations can prevent an older event from removing a newer value.
+
+A hybrid is common: events provide prompt invalidation, while TTL bounds the effect of missed or delayed invalidations. Add jitter to prevent synchronized expiry, request coalescing for hot keys, and reconciliation/periodic refresh for important projections. For a high-risk authorization or inventory decision, neither TTL nor event invalidation should replace the authoritative check required by the business invariant.
+
+Set a measurable freshness objective and instrument it. The key question is not “which technique is modern?” but “what is the maximum stale window, what happens if the event pipeline is down, and what data can safely be served during that period?” In an interview, compare latency, origin load, correctness, and operational complexity.
 
 ### Q253. What does a Bloom filter help with in a high-volume lookup service?
 
-A Bloom filter can quickly indicate that a key is definitely absent or might be present, reducing expensive lookups for nonexistent keys. It has false positives but, under its standard design, no false negatives for inserted items. It does not return the value or guarantee freshness after updates/deletes without maintenance. Use it when negative lookups are common and filter memory/refresh costs are justified.
+A Bloom filter is a space-efficient probabilistic structure that answers whether an item is **definitely absent** or **possibly present** in a set. Under the standard design, inserted items do not produce false negatives, but an item not in the set can produce a false positive. A positive result must still be verified against the authoritative store.
+
+It is useful when negative lookups are common and each miss would otherwise trigger an expensive database or distributed-store request—for example, checking whether a URL short code exists or whether a username might already be allocated. The filter can sit in front of the datastore: if it says absent, skip the lookup; if it says maybe present, do the real lookup.
+
+The false-positive rate depends on filter size and number of inserted items. A filter sized too small becomes less selective as the set grows, so capacity planning and rebuild/update strategy matter. Standard Bloom filters do not support arbitrary deletion because clearing bits could incorrectly affect other elements; counting Bloom filters or rebuilds have different memory/correctness trade-offs.
+
+A filter can become stale after inserts or deletes. If a newly inserted item is not reflected in the filter, a “definitely absent” result could be wrong, so update sequencing and rebuild consistency are critical. Use it only where that false-negative risk is controlled and where an extra positive lookup is safe. In an interview, state the probability trade-off, the authoritative verification step, and how the filter stays synchronized with the data source.
 
 ### Q254. How should you choose between normalized data and a denormalized read model in an interview?
 
-Explain the write invariant first. Normalize authoritative transactional data to avoid conflicting copies, then denormalize for high-value read paths if measured query cost justifies it. Define how derived copies are updated, what staleness is allowed, and how to rebuild them. Avoid denormalizing the same fact into multiple independently writable authoritative stores.
+Start with the write-side invariant and which component owns each fact. Normalize authoritative transactional data where duplication would create update anomalies or inconsistent business state. Then add a denormalized read model when a high-value read path repeatedly joins/aggregates data or needs a shape that is expensive to compute from the write model.
+
+The read model can be updated synchronously, through an outbox/domain event, through CDC, or by periodic batch. Synchronous maintenance adds work to the write path and may couple availability; asynchronous maintenance makes the read model eventually consistent and needs lag monitoring, idempotent upserts, ordering/version checks, delete handling, replay, and rebuild. A denormalized copy should not quietly become independently writable authority.
+
+Example: an order table remains authoritative for order state, while a customer order-history projection combines order status, product summary, and shipment status for fast reads. If the projection is behind, the UI may show a stale status; checkout or refund decisions should consult the authoritative owner where necessary.
+
+Use measurements: query latency, read/write ratio, join cost, cacheability, update frequency, and the acceptable freshness window. Avoid denormalizing just because “reads are more common”; the cost of propagation and repair may outweigh the benefit. In an interview, identify the source of truth, projection update path, staleness contract, rebuild strategy, and what happens when the projection disagrees with the source.
 
 ### Q255. How do database isolation levels influence HLD?
 
-Isolation determines which concurrent transaction effects can be observed and which anomalies may occur. A system must choose isolation and constraints based on business invariants, not merely accept defaults. Stronger isolation may increase contention or retries; weaker isolation can be safe when updates are independent or guarded by constraints. Verify the chosen database's actual semantics because isolation names and implementation details vary.
+Isolation defines what concurrent transactions may observe and which anomalies are possible. Common phenomena include dirty reads, non-repeatable reads, phantoms, lost updates, and write skew, but the exact behavior depends on the database engine and implementation. Names such as READ COMMITTED, REPEATABLE READ, and SERIALIZABLE should not be assumed to mean identical behavior across every product.
+
+Choose isolation from the invariant. A seat booking needs an atomic uniqueness/conditional transition; a balance update may need a ledger or serialized account-level operation; a reporting query may tolerate a snapshot that is slightly behind. A transaction alone does not guarantee correctness if the rule spans rows or the application performs a non-atomic read-modify-write outside the transaction.
+
+Stronger isolation may block or abort concurrent work, increasing lock waits, deadlocks, and retry pressure. Weaker isolation can improve concurrency but requires explicit constraints, version checks, or a merge policy. Keep transactions short, avoid network calls while holding locks, and define bounded retry behavior for deadlocks/serialization failures. Retries must replay the whole local transaction safely and should not duplicate external side effects.
+
+Test concurrent interleavings, not just sequential unit tests. In an interview, name the anomaly you are preventing, the database mechanism that prevents it, the expected behavior for the losing transaction, and the throughput/latency cost. For vendor-specific behavior, verify documented semantics and test the actual isolation level in use.
 
 ### Q256. When is a unique constraint better than application-level validation?
 
-A prior “does this row exist?” query races with another request performing the same check. A unique constraint enforces the invariant at the authoritative storage boundary even under concurrency. The application should translate the conflict into a meaningful response and handle retries safely. Application validation remains useful for user experience but cannot replace a database-enforced uniqueness rule when duplicates are forbidden.
+Application validation improves user experience, but a check such as “does this username already exist?” followed by an insert is vulnerable to a race: two transactions can both observe no row and then both attempt to create it. A unique constraint or unique index at the authoritative database boundary serializes the conflict and guarantees that duplicates cannot commit under that key.
+
+Use constraints for invariants such as unique usernames, one booking per seat, one idempotency key per scope, or one event inbox record per consumer/event ID. The application should catch the constraint violation and translate it into a meaningful response. Do not expose raw database errors, and do not blindly retry the same insert when the conflict is definitive.
+
+The key must represent the real business scope. For example, username uniqueness may be global or only within a tenant; including tenant ID in the index changes the guarantee. Null/case-insensitive behavior, collation, soft deletes, and partial/filtered unique indexes vary by engine and must be considered. A unique constraint across shards may not be enforceable with only a local index, so global uniqueness may require a routing scheme or dedicated coordination.
+
+Keep the application-level check if it avoids an unnecessary failed write, but treat it as an optimization, not the final correctness mechanism. In an interview, explain the race, define the uniqueness scope, and state what happens when two requests compete.
 
 ### Q257. How should an API handle idempotency-key expiration?
 
-The key's retention must exceed the realistic client retry window and the time required to resolve uncertain outcomes. Expiring it too early can allow a late retry to create a duplicate operation. Retaining keys forever can grow storage, so use durable operation history or a documented retention policy and reject ambiguous replays when safe. The TTL must match the business operation's lifecycle, not just a convenient cache setting.
+Idempotency-key retention is part of the API contract. Keep the key and operation record longer than the realistic retry window, including mobile offline retries, delayed network responses, provider uncertainty, and reconciliation. If the record expires too early, a late retry can be interpreted as a new command and duplicate an operation. Keeping every request forever, however, creates storage and privacy costs.
+
+Separate the idempotency cache from durable business uniqueness. For a low-impact operation, a documented retention period may be sufficient. For payments or bookings, the underlying business object and provider reference should often preserve enough history to prevent duplicate execution after the idempotency key expires. A repeated key after expiry should have a deliberate response, not accidental behavior.
+
+Scope keys by principal/tenant and operation, and store a request fingerprint. A repeated key with the same payload should return the existing operation or its status; the same key with a different payload should be rejected. Coordinate the record with the business transition in a transaction or durable workflow. If the operation outcome is unknown, do not remove the record merely because the request timed out.
+
+Document the retention window and status-query behavior, and test retries just before and after expiration. In an interview, explain what storage persists, what guarantee ends at expiry, and what additional business key prevents a late retry from creating a duplicate high-impact side effect.
 
 ### Q258. How do you design API pagination when the underlying data changes frequently?
 
-Use stable sort fields and a unique tie-breaker, and make the cursor opaque or integrity-protected so clients cannot alter internal query state. Decide whether pages represent a live view or a snapshot. A cursor avoids expensive large offsets but does not itself guarantee snapshot consistency or freeze the result set. For audit or export workflows, a snapshot boundary or asynchronous export job may be more appropriate.
+Use deterministic ordering and a unique tie-breaker, such as `(created_at, id)`, so two records with the same timestamp still have a clear order. A cursor can encode the last sort key plus any filter/sort context required to continue. Make it opaque or integrity-protected so clients cannot alter internal query state, and revalidate authorization on each page.
+
+Cursor/keyset pagination is usually more efficient than a large offset because the database can seek from an indexed position. It does not automatically provide a snapshot. Rows inserted after the cursor may appear later; deleted or updated rows can move between pages if the sort key changes. This is acceptable for a live activity feed in many cases but not necessarily for audit, billing, or export jobs.
+
+If the caller needs a stable view, define a snapshot boundary—such as a dataset version, immutable cutoff, or database snapshot where practical—and ensure all pages use it. For large exports, an asynchronous job can create a consistent output artifact without holding a long-running database transaction. Long-lived snapshots can retain old row versions and create operational cost, so consider that trade-off.
+
+Define max page size, cursor lifetime, behavior when the underlying record is deleted, and what happens when the filter or API schema changes. Cursors are continuation tokens, not authorization grants. In an interview, state whether pagination is live or snapshot-consistent and how the index/query plan supports it.
 
 ### Q259. What is an API compatibility contract?
 
-It specifies which request/response shapes and semantics clients can rely on, including field meaning, error codes, ordering, pagination, and idempotency. A change can be breaking even if the JSON schema remains valid—for example, changing a field from gross to net amount. Use contract tests, deprecation telemetry, and mixed-version deployment tests. Document behavioral guarantees as carefully as field names.
+An API compatibility contract includes more than JSON fields. It defines request/response shape and semantics, required versus optional fields, error codes, authentication, pagination, idempotency, ordering, rate limits, timeout behavior, and which guarantees clients may rely on. A change can be breaking even if the schema still parses—for example, changing a field's meaning from gross amount to net amount.
+
+Prefer additive, backward-compatible changes where possible. New optional fields should have defined defaults; clients should handle unknown response fields where the format permits it, and servers should not silently reinterpret an existing field. For incompatible changes, define a version/deprecation strategy, a support window, usage telemetry, and a migration path for clients that are not under your control.
+
+Contract tests can check structural and behavior compatibility between consumers and providers. Rolling deployments require old and new versions to coexist, including messages or long-running workflows that may call older behavior later. Do not remove a field until supported callers and stored data no longer need it. Rollback is safe only if the previous version can interpret the data written by the new version.
+
+Include SLO/error semantics and async states: does HTTP 202 mean durable acceptance or full completion, and how does a client retrieve the result? Document retry safety and unknown-outcome behavior. In an interview, describe how the contract evolves without synchronized deployment and how you detect remaining clients before removing the old behavior.
 
 ### Q260. How should a system manage external API quotas across retries and failover?
 
-Count attempts at the same scope the provider counts them, including retries and requests from multiple regions. A failover must not reset a local quota budget if the provider's quota is account-wide. Central coordination, preallocated budgets, or a durable scheduler may be appropriate. Respect retry-after instructions and avoid immediate catch-up traffic after an outage.
+Model the provider's quota exactly: per account, credential, endpoint, region, operation type, concurrent request count, or time window. A per-instance rate limiter is insufficient when the provider enforces a shared account-wide budget; autoscaling from 5 to 20 instances can multiply outbound attempts even though the provider's quota has not changed.
+
+Coordinate outbound work with a global limiter, a durable scheduler, or hierarchical token allocations. Reserve capacity for critical traffic, coalesce duplicate calls where safe, and use bounded queues for deferrable work. Count retry attempts against the same budget and honor retry-after signals. If the provider has multiple quota classes, allocate by operation cost rather than treating every request equally.
+
+Failover can make this worse: traffic from several regions may suddenly use the same credential/account, and a replayed backlog may compete with live requests. Share quota state or allocate budgets so regional recovery does not reset the counter. If exact coordination is too expensive, define the allowed overshoot and use conservative local budgets.
+
+Monitor request/attempt rate, 429s, latency, queue age, quota utilization, and provider success rate. Define what happens when the quota is exhausted: defer, reject, use an approved fallback provider, or return pending status. A fallback provider may have different semantics and may not support the same idempotency key, so verify before switching critical writes. In an interview, connect quota enforcement to fleet-wide concurrency and outage recovery.
 
 ### Q261. How should a service mesh affect application design, and what should remain in the application?
 
