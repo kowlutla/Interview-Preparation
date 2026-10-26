@@ -2,7 +2,7 @@
 
 **Audience:** Java backend engineers with 5–10 years of experience preparing for senior and staff-leaning backend/product-company interviews.  
 **Purpose:** A progressive guide to architecture reasoning, capacity estimation, data ownership, consistency, failure handling, operations, and cost.  
-**Status:** Rebuilding for the 5–10 year experience band. Recent rewrites deepen interview structure, cost modeling, partition/queue control, tenant fairness, canary strategy, ADRs, delete/retention lifecycle, time-based IDs, stale updates, and reconciliation, alongside traffic infrastructure, consistency, transaction, and recovery topics. Full coverage, technical accuracy, readability, and rendered diagrams remain under review; not final sign-off.
+**Status:** Rebuilding for the 5–10 year experience band. The guide now includes five worked end-to-end designs (URL shortener, news feed, chat, ticket booking, and notifications) in addition to deepened Q&A and scenarios. Full topic coverage, technical accuracy, readability, and rendered diagram validation remain in progress; not final sign-off.
 
 > **How to use this guide:** Learn fundamentals in order, then practise scenarios aloud. State assumptions, identify the critical business invariant, estimate scale, draw the simplest viable architecture, and deepen the part the interviewer challenges. Naming technologies is not the goal; explaining why the design satisfies requirements is.
 
@@ -3852,7 +3852,252 @@ flowchart LR
 
 ## 19. End-to-end case-study index
 
-This section is an **index only**. Practise full designs separately; the Q&A above explains reusable principles.
+This section includes worked end-to-end designs for five frequently used interview prompts, followed by an index of additional systems to practise. These are reference designs, not one-size-fits-all answers. In an interview, clarify the prompt, state assumptions, adapt the capacity model, and explain which requirement would change each major choice.
+
+## Worked design 1: URL shortener
+
+### Requirements and assumptions
+
+A URL shortener accepts a long URL and returns a short URL. A redirect request resolves the code and sends the client to the destination. Before designing, clarify whether links are public or private, whether users can choose aliases, whether links expire, whether click analytics must be real time, and whether abusive destinations need moderation. For the baseline design, assume anonymous creation, random short codes, optional expiration, high read-to-write ratio, and analytics that may be delayed.
+
+The correctness properties are simple but important: a code must map to one canonical destination during its lifetime; code generation must handle collisions; disabled/expired links must not redirect; and redirects should be low-latency. Analytics must not make the redirect path depend on a slow analytics store.
+
+### Capacity estimate
+
+Use explicit assumptions rather than presenting the following values as universal. Suppose the service creates 10 million links/day and handles 100 million redirects/day. That is roughly 116 creates/s and 1,157 redirects/s on average. If peak redirects are 10 times average, plan initially for about 11,600 redirects/s, then account for hot links, bots, retries, and regional skew.
+
+If each link record averages 300 bytes of logical payload and metadata, one year of 10 million new links/day is about 1.095 TB of raw logical data before indexes, database/page overhead, replicas, backups, and analytics. Use measured row/index sizes before sizing production storage. The service is likely read-heavy, so cache effectiveness and hot-link behavior will matter more than create QPS.
+
+### Architecture and request flows
+
+```mermaid
+flowchart LR
+  C[Client] --> E[Edge / Rate Limit]
+  E --> G[API Service]
+  G --> D[(Link Database)]
+  G --> O[Outbox / Event]
+  O --> B[Analytics Stream]
+  B --> A[Analytics Workers]
+  A --> W[(Analytics Store)]
+  R[Redirect Request] --> E
+  E --> L[Redirect Service]
+  L --> K[(Cache)]
+  K -->|Miss| D
+  K -->|Hit| H[HTTP Redirect]
+  D --> H
+```
+
+**Create flow:** authenticate or rate-limit the caller, validate and canonicalize the destination, generate a candidate code, insert the mapping under a unique constraint, and return the short URL only after the mapping is durably committed. If the code collides, generate another candidate and retry within a bounded limit. If a user-selected alias is supported, reserve it atomically and return a conflict if it already belongs to another active link.
+
+**Redirect flow:** extract and validate the code, check cache, then read the authoritative mapping on a miss. Check expiry/status and apply redirect policy before returning the redirect response. Emit click telemetry asynchronously; if analytics is unavailable, the redirect should normally still work. Do not block every redirect on a synchronous analytics write.
+
+### Data model, APIs, and code generation
+
+A link record may include `code` (unique), `destination`, `owner_id` (nullable for anonymous links), `created_at`, `expires_at`, `status`, and a version. The main API can be `POST /links`, returning `201` with the code and short URL, plus `GET /{code}` for redirect resolution and `DELETE /links/{code}` to disable a link when the caller is authorized.
+
+Code-generation approaches have different trade-offs. A central numeric ID encoded in Base62 produces compact codes but requires safe ID allocation and can reveal approximate creation order. Random codes avoid centralized sequencing but require enough entropy and a unique constraint to handle collisions. A distributed time/worker ID can improve coordination characteristics but adds worker-ID and clock assumptions. Do not rely on “collision is unlikely” without a datastore uniqueness check.
+
+### Scaling, caching, and correctness
+
+Cache popular code-to-destination mappings with TTLs aligned to expiry and revocation requirements. Hot links may need local caching or request coalescing. A disable/delete must invalidate caches and consider CDN/browser caching: a permanent 301 may be cached by clients and difficult to revoke, while a 302/307-style temporary redirect gives more control but may add repeat load. The right HTTP status depends on product semantics and client behavior.
+
+Prevent abuse with creation quotas, destination validation, malware/phishing checks where appropriate, enumeration protection, safe redirect policy, and limits on response amplification. Do not allow an open redirector to become a security problem. Store click events in an event stream partitioned by a suitable key, then aggregate asynchronously. Define whether analytics can be approximate and how lost telemetry is detected.
+
+### Failure modes and trade-offs
+
+If the cache is unavailable, protect the database with bounded concurrency and coalesced fills; do not allow all traffic to stampede the origin. If the database is unavailable, redirects may be served from a still-valid cache only if the revocation/expiry contract permits it. If code generation fails, do not return a URL until its mapping is durable. If analytics backs up, measure queue age and apply retention or sampling policy without blocking redirects.
+
+In an interview, explain what happens when two requests choose the same code, a link expires while cached, a popular code receives a burst, or a user asks to revoke a link that was returned as a permanent redirect.
+
+## Worked design 2: News feed / social timeline
+
+### Requirements and consistency boundary
+
+Clarify whether the system needs a home feed, profile timeline, ranked recommendations, or all three; how many users one account can follow; whether privacy/block rules must apply immediately; how fresh posts must be; and whether the feed is strictly chronological or ranked. The baseline design returns a personalized, ranked feed with eventual freshness, but privacy and deletion decisions must not be bypassed by stale precomputed data.
+
+The important split is between **candidate generation** and **final eligibility/ranking**. Candidate posts can be precomputed for speed, while current visibility, deletion, block, and authorization state must be checked before returning content when the product requires it.
+
+### Architecture
+
+```mermaid
+flowchart LR
+  U[Client] --> A[Feed API]
+  A --> T[(Timeline Cache)]
+  T -->|Miss| R[Timeline Read Service]
+  R --> C[(Candidate Timeline Store)]
+  R --> P[Post / Visibility Service]
+  P --> D[(Authoritative Post Store)]
+  W[Post Write API] --> D
+  D --> O[Outbox / CDC]
+  O --> B[Event Stream]
+  B --> F[Fan-out Workers]
+  F --> C
+  A --> S[Ranking Service]
+  S --> A
+```
+
+A post-write path durably stores the post and publishes a post-created event through an outbox or equivalent reliable mechanism. Fan-out workers place the post ID into followers' candidate timelines for users where write-time fan-out is reasonable. A feed-read path loads candidate IDs, filters current visibility/deletion constraints, fetches necessary post data, ranks candidates, and returns a page cursor.
+
+### Fan-out on write versus fan-out on read
+
+**Fan-out on write** pre-populates a follower's timeline when a post is created. Reads are fast because candidate lists already exist, but one post by a celebrity with tens of millions of followers can generate enormous write amplification and queue delay. It also means a follower's timeline can temporarily lag the source post.
+
+**Fan-out on read** stores posts by author and merges recent posts from followed authors when the feed is requested. It avoids massive fan-out work for celebrities but makes reads more expensive, especially for users following many high-volume authors. A hybrid is common: precompute for ordinary authors, but include high-follower authors at read time or through a separate candidate path.
+
+Estimate the trade-off using follower distribution, post rate, feed read rate, and desired freshness—not only total users. If a normal post goes to 500 followers but a celebrity post goes to 20 million, the system needs an explicit strategy for the skewed tail.
+
+### Data model and APIs
+
+Typical entities include users/follow relationships, posts, visibility rules, and candidate timeline entries keyed by `user_id` and ordered by score/time plus a stable tie-breaker. APIs might include `POST /posts`, `GET /feed?cursor=...`, `POST /users/{id}/follow`, and mutation endpoints for delete/privacy changes. Cursor pagination should be stable and opaque; offset pagination becomes costly and unstable at scale.
+
+Timeline entries should reference post IDs rather than duplicate every field if minimizing fan-out storage is important. Denormalized content snapshots can reduce reads but require update/delete propagation. Decide which fields must be fresh at read time and which may be stale.
+
+### Ordering, privacy, and deletion
+
+A feed often needs order per user timeline, not one global order across all users. Use a score/time key and unique tie-breaker. Wall-clock timestamps alone do not establish strict causal order; events can be delayed or replayed. Versioned/tombstone updates prevent stale events from restoring deleted posts or old visibility. If a user blocks another user or makes a post private, the read path must prevent unauthorized content from being returned even if an old timeline entry remains.
+
+Feed freshness is usually eventual: the post may appear after some delay. Make this visible in telemetry through outbox lag, fan-out queue age, and timeline propagation delay. Reconciliation can repair missing candidate entries by comparing source posts/follow relationships or replaying retained events.
+
+### Scaling, failure, and trade-offs
+
+Cache timeline slices for active users, but use short/appropriate freshness rules and avoid caching a visibility decision that can become invalid. Separate write fan-out from feed reads, apply backpressure, and make workers idempotent. A queue backlog after an outage may take time to drain; do not replay it without capacity planning. Ranking can degrade to a simpler chronological feed if a noncritical ranking service is unavailable, but privacy filtering cannot be skipped.
+
+In an interview, be ready to discuss celebrity skew, follow/unfollow consistency, delete propagation, a feed read during fan-out lag, timeline rebuild, cursor stability, and how a viral event changes capacity.
+
+## Worked design 3: Chat / messaging platform
+
+### Requirements and delivery semantics
+
+Clarify one-to-one versus group chat, group-size limits, message history, online presence, media attachments, search, encryption, delivery/read receipts, retention, and offline delivery. A useful baseline supports one-to-one and group messages, durable history, real-time delivery to online users, and replay after reconnect. Distinguish the states **accepted**, **persisted**, **delivered to a device**, and **read**; they are not synonymous.
+
+The key invariant is that an acknowledged durable message must remain retrievable within the promised retention, and per-conversation ordering must be well defined. Do not promise globally ordered messages across all conversations unless the product truly needs that.
+
+### Architecture
+
+```mermaid
+flowchart LR
+  C[Clients] <-->|WebSocket| G[Connection Gateways]
+  G --> R[Session / Routing Service]
+  R --> M[Message Service]
+  M --> D[(Durable Message Store)]
+  M --> O[Outbox / Event Stream]
+  O --> B[Conversation Partitions]
+  B --> W[Delivery Workers]
+  W --> G
+  W --> P[Push Notification Service]
+  G --> X[Presence Service]
+```
+
+Gateways maintain connections, authenticate clients, and route outbound messages. The message service validates sender membership and conversation permissions, assigns a stable message ID and per-conversation sequence/version where needed, persists the message, and publishes delivery work. The durable store remains the source of history; gateways and presence are transient routing aids.
+
+### Data model and write flow
+
+A message record may contain `conversation_id`, `message_id`, `sender_id`, `sequence` or version, `created_at`, `payload_reference`, and status/retention metadata. Store large media in object storage and keep metadata/reference in the message database. Access control must be checked for reads and writes, not only when the socket is opened.
+
+The sender submits a message with an idempotency/client message ID. The service validates access, writes the message durably, and only then acknowledges persistence. It then dispatches to recipient gateways and offline push mechanisms. If the publisher crashes after persistence but before dispatch, an outbox or CDC pipeline eventually resumes delivery. If the recipient is offline, the message stays in durable storage for later sync.
+
+For duplicate sends, the client message ID plus sender/conversation scope should resolve to the original message. Consumer redelivery must not create duplicate message rows or repeated side effects. A delivered receipt means a device acknowledged receipt according to the protocol; a read receipt is a separate user/application signal.
+
+### Ordering, scaling, and presence
+
+Partitioning messages by `conversation_id` can preserve per-conversation order and make history queries efficient, but a very large group can become a hot partition. A message sequence may be allocated by a conversation owner or transactional store; define how sequence assignment behaves during failover. Global total order is usually unnecessary and costly.
+
+Connection gateways scale based on active sockets, messages per second, outbound buffer size, and fan-out—not just HTTP QPS. Maintain a session map from user/device to gateway with leases/heartbeats, but treat it as ephemeral. Presence should tolerate stale status after disconnect and should not broadcast every heartbeat to all friends. Group messages may need fan-out-on-write or read-time delivery depending on group size.
+
+Reconnect should authenticate again, resume from a durable cursor/sequence, replay retained messages, and fall back to a recent-history snapshot if the cursor expired. Deduplicate replayed message IDs. Use bounded outbound queues and backpressure so a slow client cannot consume unbounded gateway memory.
+
+### Security and failure modes
+
+Use TLS, secure authentication, conversation-level authorization, rate limits, spam/abuse controls, and careful media access. If end-to-end encryption is required, key management and multi-device history become major requirements that change the architecture. Presence, typing indicators, and read receipts may be best-effort; message persistence and authorization cannot be silently degraded.
+
+If a gateway fails, clients reconnect with jitter and recover history. If the broker is delayed, messages remain persisted but delivery latency rises; alert on oldest undelivered age. If a message is stored but response lost, idempotency returns the same message on retry. In an interview, explain connection churn, hot group scaling, ordering scope, reconnect replay, and how online status differs from durable delivery.
+
+## Worked design 4: Ticket booking with seat holds and payment
+
+### Requirements and invariants
+
+Clarify seat inventory, hold duration, payment flow, refund behavior, queue/waiting-room requirements, ticket issuance, cancellation, and traffic burst. The critical invariant is **one seat cannot be sold to two orders**. A high-traffic ticket drop also needs fairness and overload control; simply autoscaling the API can overwhelm the database before it can safely allocate seats.
+
+Separate browsing/search from the authoritative booking path. Event pages and seat maps can be cached and slightly stale; the final hold/booking decision must be made atomically against authoritative inventory.
+
+### Architecture and flow
+
+```mermaid
+flowchart TD
+  C[Client] --> W[Waiting Room / Admission]
+  W --> A[Booking API]
+  A --> I[Inventory Service]
+  I --> D[(Authoritative Inventory DB)]
+  A --> O[(Order / Workflow State)]
+  O --> P[Payment Orchestrator]
+  P --> X[Payment Provider]
+  P --> E[Outbox / Event Bus]
+  E --> N[Ticket / Notification Workers]
+  S[Search / Seat Map Read Model] --> C
+```
+
+A typical flow: the client passes admission control, requests a hold, the inventory service atomically changes a seat from AVAILABLE to HELD with a unique hold/owner/expiry, then the order workflow requests payment. After confirmed payment, the workflow commits the booking and issues the ticket. If payment fails definitively, it releases the hold. If provider status is unknown after a timeout, it queries/reconciles before retrying or releasing inventory.
+
+### Data correctness and API design
+
+A table might include `event_id`, `seat_id`, `state`, `hold_id`, `order_id`, `expires_at`, and version. Enforce uniqueness/conditional state transitions in the database; an application check that reads “available” then inserts is vulnerable to concurrent races. Use idempotency keys for hold/order/payment commands. The hold confirmation path must atomically verify the hold is still valid and owned by the order.
+
+Potential APIs include `POST /holds`, `POST /orders`, `POST /payments`, `GET /operations/{id}`, and cancellation/confirmation endpoints. Long-running payment should return pending state and a durable operation ID where needed rather than keeping an HTTP request open indefinitely.
+
+Expiry jobs should release holds idempotently, but correctness must not rely on a cleanup timer executing exactly on time. A delayed job should not release a seat already confirmed; use conditional version/state checks. Payment may succeed after a hold expires, so the workflow needs a defined compensation—reserve alternative inventory, refund/void, or escalate for review.
+
+### Peak-load strategy and failure modes
+
+Use a virtual waiting room or admission-control token to bound concurrent checkout requests. Apply fair limits per identity/device/account, while guarding against bots and account abuse. Cache event pages and seat-map reads, but never treat cached availability as final booking authority. Shard or partition inventory by event/venue when it fits access patterns, but one very hot event can still overload its shard; partitioning alone cannot split a strict per-seat invariant arbitrarily.
+
+Monitor hold conflicts, inventory lock wait, payment unknown outcomes, queue age, admission rejection, ticket issuance delay, and reconciliation mismatches. If the payment provider times out after charging, keep the payment operation UNKNOWN/PENDING and reconcile with a stable provider key; do not create a new charge just because the response was lost. If the database fails, reject or queue only those operations that can be durably accepted without violating inventory correctness.
+
+In an interview, walk through two users requesting the same seat, payment success with a lost response, hold expiry racing with confirmation, and a 10× traffic burst. Explain which checks are cached and which must be authoritative.
+
+## Worked design 5: Multi-channel notification platform
+
+### Requirements and workload model
+
+Clarify supported channels (email, SMS, push, in-app), priority classes, delivery deadlines, personalization/templates, user preferences, quiet hours, provider quotas, deduplication, and delivery-status semantics. Define what “delivered” means: durably accepted by your API, sent to the provider, accepted by a carrier, or acknowledged by the recipient's device. These are different milestones.
+
+A useful baseline durably accepts notification requests, processes them asynchronously, respects preferences and provider quotas, retries transient failures, and exposes status. Notifications vary in urgency: a security alert should not be trapped behind a bulk campaign.
+
+### Architecture
+
+```mermaid
+flowchart LR
+  C[Product Services] --> A[Notification API]
+  A --> D[(Notification DB + Outbox)]
+  D --> O[Outbox Publisher]
+  O --> Q[Priority / Channel Queues]
+  Q --> W[Workers]
+  W --> P[Preference / Template Service]
+  W --> L[Provider Quota Limiter]
+  L --> X[Email / SMS / Push Providers]
+  X --> R[Receipt / Callback Handler]
+  R --> D
+  Q --> DLQ[DLQ / Quarantine]
+```
+
+The API validates request, tenant, template, and idempotency identity, then commits a notification record and outbox event in a local transaction. It returns an operation/notification ID only after durable acceptance. Workers select the correct channel and priority, check preferences/quiet hours, render templates, send through the provider limiter, and persist attempts and outcome. Provider callbacks are verified and processed idempotently.
+
+### Data model and state machine
+
+A notification record may include `notification_id`, `business_event_id`, `recipient`, `channel`, `priority`, `template_version`, `scheduled_at`, `expires_at`, `status`, and attempt history/reference. Model states such as ACCEPTED, QUEUED, SENDING, PROVIDER_ACCEPTED, DELIVERED, FAILED, EXPIRED, and NEEDS_REVIEW according to channel semantics. A single mutable status without attempt history can hide important retries or uncertain outcomes.
+
+Deduplication should be scoped to a business notification identity—for example, event + recipient + channel + template/purpose—so retrying the same upstream event does not send duplicate messages. Do not deduplicate two genuinely distinct reminders just because the recipient and template match. Idempotency depends on business semantics, not simply identical payloads.
+
+### Quotas, retries, and recovery
+
+The provider may enforce an account-wide quota across all workers/regions. Use a coordinated limiter or hierarchical token budget; a per-instance limiter can exceed the contract as autoscaling increases instance count. Reserve capacity for critical notifications, split bulk and urgent queues, use backoff/jitter for transient failure, honor Retry-After, and send exhausted or invalid payloads to a monitored DLQ. Avoid retrying permanent errors such as invalid recipient or template schema forever.
+
+A provider timeout can be an uncertain outcome: it may have accepted the message even if the service received no response. Use provider idempotency/delivery references where supported, query status if available, and reconcile unknown attempts. Avoid automatically retrying with a new identity when duplicate messages would be harmful.
+
+Track queue depth/age, accepted-to-provider latency, delivery confirmation latency, provider throttling, attempt count, DLQ age, expiration, and cost per successful delivery. If provider capacity returns after a long outage, throttle catch-up so the backlog does not cause another quota incident. In an interview, explain priority fairness, durability before 202 acceptance, duplicate handling, and the precise guarantee represented by each delivery status.
+
+### Trade-offs and follow-up probes
+
+The platform trades fast API acceptance for asynchronous completion. Separate per-channel adapters isolate provider-specific policies, but increase operational surface. A multi-provider strategy improves resilience only if the secondary has compatible semantics, capacity, and idempotency behavior. The interviewer may ask what happens when preferences change after queueing, the provider callback arrives before the synchronous response, the retry budget is exhausted, or the user requests deletion while messages remain queued.
 
 ### Core systems
 
