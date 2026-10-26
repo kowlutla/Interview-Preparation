@@ -225,13 +225,34 @@ Cache warming preloads hot keys after startup or deployment. It can reduce cold-
 
 ### Q23. How would you implement a distributed rate limiter?
 
-A fixed-window counter is simple but can allow bursts at window boundaries. Sliding-window counters/logs smooth boundaries at extra cost. A token bucket supports a refill rate and burst capacity. Concurrent updates must be atomic, typically using a suitable Redis command or a bounded Lua script.
+A fixed-window counter is simple but can allow bursts at window boundaries. Sliding-window counters/logs smooth boundaries at extra cost. A token bucket supports a refill rate and burst capacity. Concurrent updates must be atomic; otherwise separate clients can race between incrementing a counter and setting its expiry.
+
+For a basic first-hit-expiring fixed window, a bounded Lua script can increment and set the TTL atomically:
+
+~~~lua
+local count = redis.call('INCR', KEYS[1])
+if count == 1 then
+  redis.call('PEXPIRE', KEYS[1], ARGV[1])
+end
+return count
+~~~
+
+Pass the counter key in `KEYS[1]` and the window duration in milliseconds in `ARGV[1]`. The application compares the returned count with the limit. This is a simple window anchored to the first request, not a token bucket or a clock-aligned fixed window. In Redis Cluster, the script's keys must obey hash-slot rules.
 
 Choose the key identity carefully, set expiry and cardinality limits, and decide whether to fail open or closed if Redis is unavailable. For important limits, measure rejected requests and test the outage policy.
 
 ### Q24. Are Redis distributed locks safe?
 
-A basic lease can be acquired with SET lock:resource random-token NX PX 10000. Release must compare the stored token to the owner's token before deleting; plain DEL is unsafe because the lease may expire and another owner may acquire the lock.
+A basic lease can be acquired with `SET lock:resource <random-token> NX PX 10000`. The token must be unique to the owner. Release must compare the stored token to the owner's token before deleting; plain `DEL` is unsafe because the lease may expire and another owner may acquire the lock.
+
+A compare-and-delete Lua script makes the release conditional and atomic:
+
+~~~lua
+if redis.call('GET', KEYS[1]) == ARGV[1] then
+  return redis.call('DEL', KEYS[1])
+end
+return 0
+~~~
 
 Token-safe release does not prevent stale work. The original process may pause beyond the lease, resume after another owner acquired it, and still modify the protected resource. For correctness-critical operations, use fencing tokens validated by the resource, database constraints/transactions, or a coordination system with guarantees that fit the requirement. Treat a Redis lease as best-effort coordination unless the full design proves otherwise.
 
@@ -316,11 +337,17 @@ public class ProductService {
         Product product = repository.findById(id)
             .orElseThrow(() -> new ProductNotFoundException(id));
         ProductDto dto = ProductDto.from(product);
+        final String serialized;
         try {
-            redis.opsForValue().set(key, objectMapper.writeValueAsString(dto),
-                                    Duration.ofMinutes(5));
-        } catch (Exception cacheWriteFailure) {
-            // Log/measure safely; do not log the full payload.
+            serialized = objectMapper.writeValueAsString(dto);
+        } catch (JsonProcessingException serializationFailure) {
+            throw new IllegalStateException("Unable to serialize product cache value",
+                                            serializationFailure);
+        }
+        try {
+            redis.opsForValue().set(key, serialized, Duration.ofMinutes(5));
+        } catch (DataAccessException cacheWriteFailure) {
+            // Record a metric; return the database result if cache writes are optional.
         }
         return dto;
     }
