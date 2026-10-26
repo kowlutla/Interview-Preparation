@@ -2,7 +2,7 @@
 
 **Audience:** Java backend engineers with 5–10 years of experience preparing for senior and staff-leaning backend/product-company interviews.  
 **Purpose:** A progressive guide to architecture reasoning, capacity estimation, data ownership, consistency, failure handling, operations, and cost.  
-**Status:** Rebuilding for the 5–10 year experience band. Recent rewrites deepen async APIs, cache security and consistency, tenant-aware placement, CDN invalidation, real-time reconnects, database constraints/isolation, API contracts, and fleet-wide provider quota control, alongside transaction and reliability topics. Full topic coverage, technical accuracy, readability, and rendered diagrams remain under review; not final sign-off.
+**Status:** Rebuilding for the 5–10 year experience band. Recent rewrites deepen service discovery, health checks, degraded API contracts, rollout/rollback, tenant workload isolation, privacy/residency, operations tooling, retry-storm protection, durable long-running workflows, safe replay, and poison-message remediation, alongside database, networking, and transactional topics. Full topic coverage, technical accuracy, readability, and rendered diagrams remain under review; not final sign-off.
 
 > **How to use this guide:** Learn fundamentals in order, then practise scenarios aloud. State assumptions, identify the critical business invariant, estimate scale, draw the simplest viable architecture, and deepen the part the interviewer challenges. Naming technologies is not the goal; explaining why the design satisfies requirements is.
 
@@ -2660,79 +2660,193 @@ Before adopting a mesh, name the operational problem it solves—such as consist
 
 ### Q262. What should happen if service discovery returns stale endpoints?
 
-Clients should use connection/request timeouts, detect failed endpoints, refresh discovery data, and avoid synchronized retry storms. The platform's readiness and endpoint-removal semantics matter, especially during rolling deployments. A stale endpoint should fail within a bounded budget, not hold threads indefinitely. Observe discovery freshness and connection errors to distinguish routing problems from application failures.
+Treat discovery data as a potentially stale routing hint, not proof that an endpoint is usable. A client or proxy should use bounded connection/request timeouts, detect connection failures, refresh endpoint data with jitter, and avoid repeatedly sending traffic to a known-dead target. If all clients refresh simultaneously, they can stampede the registry/control plane during the same outage.
+
+The platform's readiness and endpoint-removal behavior matters. A target may be removed from new routing while existing keep-alive, HTTP/2, gRPC, or WebSocket connections still exist. Draining is needed for planned shutdown; long-lived connections need reconnect and resume semantics. Discovery freshness and health-check intervals affect how long traffic may continue to reach a failing instance.
+
+Do not retry indefinitely or blindly retry non-idempotent writes. A connection failure before a request is sent differs from a timeout after the remote service may have processed it. Preserve operation IDs and use idempotency/status lookup for mutations. For stateful leaders, stale discovery must not confer write authority; use an explicit leadership epoch/fencing check at the resource.
+
+Monitor endpoint age, connection failures by target, resolution errors, route convergence, retries, and per-endpoint imbalance. In an interview, explain how quickly the stale endpoint is detected, how clients refresh without amplification, and how correctness survives when routing metadata is out of date.
 
 ### Q263. How do you design a health endpoint that does not amplify outages?
 
-Separate liveness, readiness, and deeper diagnostic checks. A readiness check may include critical dependencies, but if every instance becomes unready due to a shared dependency failure, traffic may have nowhere to go and restart loops may follow. Keep probes cheap, use appropriate thresholds, and avoid making every probe trigger an expensive query. Business-path synthetic checks should complement—not replace—process health checks.
+Separate **liveness** (would restarting the process plausibly help?), **readiness** (should new traffic be sent here?), and **diagnostics** (what dependencies are degraded?). A single endpoint that recursively checks every dependency can cause all instances to become unready during a shared database or identity-provider outage. Restarting every process because the same dependency is down can turn a partial failure into a restart storm.
+
+Keep probe work cheap, bounded, and non-destructive. A readiness check can include the ability to serve critical traffic, but should not execute expensive queries or wait without timeout. Optional dependencies may degrade only one route rather than removing the whole instance from service. Use thresholds and hysteresis to prevent brief latency spikes from causing readiness flapping.
+
+A green process probe is not proof that user journeys work. The service may respond to /health while business requests fail due to a wrong schema, authorization regression, exhausted downstream quota, or incorrect data. Use synthetic checks and service-level indicators for end-to-end correctness while keeping probe semantics simple.
+
+During shutdown, mark readiness false before stopping new work, then drain connections and in-flight requests. For leaders/writers, health endpoints cannot transfer ownership safely; promotion requires a proper protocol and fencing. In interviews, state what each probe controls, how shared dependency failures are reported, and why probes should not generate more load during an outage.
 
 ### Q264. How should graceful degradation be represented in an API contract?
 
-Specify which fields or capabilities may be omitted, whether partial responses are marked, and which failures remain hard errors. Clients should not have to infer that missing data means a valid empty result. Use explicit status or metadata when partial results are supported. Never degrade a response in a way that silently violates authorization, financial correctness, or a user's understanding of completion.
+A degraded response should remain truthful and machine-readable. If a capability is optional, the API can omit it or return a partial result only when the contract clearly distinguishes “no data exists” from “data unavailable.” For example, an empty recommendations array means no recommendations were produced; it should not ambiguously mean that the recommendation service timed out unless the response includes an availability/freshness indicator.
+
+Define which fields are authoritative, which may be stale, and whether partial responses include warnings, status metadata, or per-section errors. If clients must make a decision based on completeness, include an explicit completeness state or a separate endpoint. Do not return HTTP 200 with misleading values merely to satisfy availability metrics.
+
+For writes, distinguish accepted/pending from succeeded. A request accepted into a durable queue may return 202 and an operation ID; it should not claim that payment, booking, or export completed. During a dependency failure, reject or mark the operation pending if the invariant cannot safely be established. Avoid degrading authentication or authorization controls to keep a route online.
+
+Version the degraded behavior and test clients against it. Document retry semantics and whether the user can recover omitted data later. In an interview, describe the contract seen by the caller, the freshness guarantee, and how the system prevents an optional fallback from changing the meaning of a successful response.
 
 ### Q265. How do you choose between blue-green and canary deployment?
 
-Canary is useful when gradual exposure and measurable comparison are possible; blue-green simplifies switching traffic between two complete environments but costs more temporary capacity. Both require compatible schemas, session behavior, and rollback planning. A rollback cannot undo external side effects or irreversible data transformations. Choose based on release risk, traffic controls, infrastructure cost, and how quickly health signals become meaningful.
+A **canary** sends a small, controlled share of traffic or a selected cohort to the new version, then expands based on measurable health and business outcomes. It reduces blast radius and can detect real-world regressions, but needs representative traffic, reliable comparison, and enough volume to reveal rare failures. A low-volume service may need synthetic tests or longer observation windows.
+
+A **blue-green** deployment runs old and new environments side by side and switches traffic after the new environment is validated. It can make the traffic cutover and application rollback straightforward, but temporarily duplicates capacity. It does not automatically roll back database writes, messages, or external side effects created by the new version.
+
+Choose based on traffic control, cost, statefulness, service criticality, and how quickly regression signals become statistically useful. Define automated gates for latency/error rate/saturation and business correctness, not just instance health. A canary should include tenant and request-type diversity; a 5% traffic slice that excludes the biggest tenants may miss the real failure.
+
+Both strategies require backward-compatible schema/event evolution and connection/session handling. Plan expand–migrate–contract, identify the point where rollback is no longer safe, and test old code against new data before release. In an interview, explain rollout steps, success criteria, abort conditions, traffic shift, and what rollback cannot reverse.
 
 ### Q266. What is a safe rollback strategy for a database migration?
 
-Design rollback before deployment. During the expand phase, old and new code should coexist; after new writes use an incompatible representation, rollback may require reverse transformation or forward-fix instead of simply reverting the application. Keep migration checkpoints and validated backups, and define the point beyond which rollback is unsafe. Prefer additive, reversible changes and delay destructive contract steps.
+Design rollback before the migration starts. Prefer additive, backward-compatible changes so the previous application can continue to read/write during the migration window. A destructive schema change or a new write representation may make a simple binary rollback unsafe once the new version has committed data the old version cannot understand.
+
+Use expand–migrate–contract: add the new schema, deploy compatible code, backfill and validate, switch traffic/reads, then remove the old representation in a later release after the rollback window expires. Take a verified recovery point before high-risk changes, but do not rely on restoring the entire database as the default rollback—it may discard legitimate writes made after the snapshot.
+
+For data transformations, keep versioned/checkpointed migration logic and define whether rollback means reverse transformation or forward repair. Reverse transforms may be lossy if the new schema stores information the old schema cannot represent. If both representations are written, define which is authoritative and how conflicts are reconciled. Avoid uncontrolled dual-writes to separate stores.
+
+Test the rollback with mixed application versions and representative data, including nulls, large rows, constraints, and concurrent writes. Record the point of no return and who can approve a risky reversal. In an interview, distinguish rolling back code, reverting schema, and restoring data; they are different operations with different loss risks.
 
 ### Q267. How do feature flags interact with data migrations?
 
-A feature flag can control which code path is active, but it does not make the database schema compatible by itself. Deploy compatible schema first, backfill and validate, then enable the new path gradually. Keep both code paths safe during rollout and define how to handle records written by the new path if the flag is turned off. Test the rollback path, not only flag activation.
+A feature flag controls whether behavior is active, but it does not make an incompatible schema safe. Deploying code with a flag off can still run startup migrations, emit events, write new fields through background jobs, or cache a new data format. Schema and event compatibility must be designed independently from the flag.
+
+A safe rollout often adds the compatible schema first, deploys code that can read old and new representations, backfills and validates, then gradually enables the new path for a cohort. During rollout, monitor behavior and business outcomes. If the feature is disabled, the old path must still cope with data written by the new path; otherwise flag-off is not a real rollback.
+
+For a flag that changes write semantics, decide whether old and new code may run concurrently. If they mutate the same invariant differently, use versioned transitions or serialize the cutover. Keep flag targeting server-side and ensure callers cannot escalate access by setting a client-controlled flag. High-impact operational flags need access control, audit logs, owner, expiry, and tested propagation.
+
+Remove obsolete flags after the safe migration window so the code does not accumulate untested combinations. In an interview, describe schema rollout, backfill, cohort enablement, metrics, abort threshold, and how you recover if the new path has already written incompatible data.
 
 ### Q268. How do you plan a canary for a low-volume service?
 
-Small percentages may produce too few requests to detect regressions quickly. Use representative synthetic transactions, longer observation windows, targeted tests, and business invariants in addition to aggregate latency/error metrics. Do not interpret a lack of observed errors as proof of safety when the sample is tiny. Choose rollout pace based on risk and statistical confidence.
+A percentage-based canary may receive too few requests to expose a regression, so “no errors observed at 5%” can be weak evidence. Estimate the expected event/request count and the failure rate you need to detect. If the service sees only a few dozen requests per hour, an aggregate latency/error dashboard may not provide meaningful confidence within a short rollout window.
+
+Use synthetic transactions, representative contract/integration tests, targeted requests for critical flows, and a longer bake period. Validate business invariants such as “no duplicate booking,” “no missing event,” or “authorization rules unchanged” in addition to technical health. For low-volume asynchronous systems, seed controlled test events and track end-to-end completion time.
+
+Keep the canary representative of tenant and request classes, but protect real customers and external providers. Route selected internal or low-risk tenants first where possible, and make the fallback/rollback path reliable. If traffic is low but the change is high risk, prefer stronger preproduction test coverage and staged capability enablement rather than relying on insufficient canary data.
+
+Define abort criteria before the release and measure whether the observations are enough to detect the expected failure mode. In an interview, explain the statistical limitation, what extra signals make the canary informative, and why absence of observed failure is not proof of safety.
 
 ### Q269. What is the difference between horizontal scaling and workload isolation?
 
-Horizontal scaling adds capacity to handle more work. Workload isolation prevents one class of work from consuming capacity needed by another. Scaling all workloads together may not protect a critical payment path from a bulk export job. Separate queues, concurrency pools, database resources, or priority classes can improve isolation, though they add utilization and management trade-offs.
+Horizontal scaling adds instances or nodes to increase total capacity. Workload isolation prevents one workload class from consuming resources needed by another. They solve different problems: adding more shared workers may increase total throughput while still allowing a bulk export or one noisy tenant to starve an interactive payment path.
+
+Isolation can be implemented with separate queues, worker pools, concurrency limits, database pools, priority classes, quotas, dedicated shards, or even separate infrastructure for high-criticality workloads. The boundary should match the constrained resource. A separate application pool does not isolate a shared database from expensive queries, while a tenant rate limit may not address one global lock.
+
+Isolation has costs: capacity can sit idle in one pool while another is overloaded, and separate pools increase operational complexity. Weighted fair scheduling and bounded borrowing can improve utilization while preserving reservations for critical work. Define how priorities are assigned and prevent clients from escalating their own priority.
+
+Measure per-class latency, queue age, rejection rate, resource usage, and starvation. Test a heavy background batch alongside interactive traffic. In an interview, identify the shared bottleneck, explain why more nodes alone do not isolate it, and state how capacity is reserved, fairly shared, and recovered after a burst.
 
 ### Q270. How should a design handle bursty batch workloads alongside interactive traffic?
 
-Schedule or throttle batch work according to spare capacity, use separate worker pools or resource quotas, and prioritize interactive requests. Batch jobs should checkpoint and resume safely. Observe database and network saturation, not just worker CPU. A batch job that is fast in isolation may violate interactive p99 latency when run concurrently.
+Treat batch and interactive requests as different workload classes. Interactive operations usually have tight latency deadlines; batch jobs often need high total throughput but can be deferred or throttled. If both share the same worker pool, database connections, or provider quota, a batch spike can inflate interactive p99 even when the total system has enough average capacity.
+
+Use separate queues or worker pools, per-class concurrency limits, weighted fair scheduling, and reserved capacity for critical paths. Schedule batch work during lower-demand windows only if deadlines permit. Make jobs checkpointable and restartable, use idempotent chunks, and ensure a failed batch does not restart from zero or duplicate side effects.
+
+Isolation must reach the bottleneck. Separate application workers do not protect a shared database if the batch query performs a large scan; use indexes, replicas/analytical stores, query resource controls, or a separate data pipeline as needed. Bulk processing should respect provider quotas and network/egress limits. Bound backlog and define expiry or prioritization when work cannot finish by its deadline.
+
+Monitor interactive SLOs and batch completion SLOs together, plus database I/O, pool wait, queue age, and per-class throughput. In an interview, explain which work can be deferred, what capacity is reserved, and how the scheduler prevents starvation without letting batch jobs monopolize critical resources.
 
 ### Q271. How do you estimate whether a cache saves money?
 
-Compare cache infrastructure and operational costs with the source reads, database capacity, egress, and latency-related costs it avoids. Include cache misses, invalidation traffic, replica overhead, and engineering/operational complexity. A high hit ratio does not automatically mean lower total cost if values are huge or the database query is already cheap. Evaluate cost per successful business operation under representative load.
+Compare total system cost with and without the cache, not just the cost of database calls avoided. Include cache memory/instances, network requests, replication, egress, invalidation/publishing infrastructure, cache-warming jobs, engineering/on-call burden, and the origin capacity it allows you to avoid. A cache may be worth using for latency or resilience even if the direct cost reduction is small, but that benefit should be explicit.
+
+Estimate eligible read volume, expected hit ratio from representative key distribution, average value size, origin compute/I/O cost, and request rate during cache failure. A 95% hit ratio on a cheap indexed lookup may save little; a lower hit ratio on an expensive aggregation may save a lot. Personalized cache keys can lower reuse and increase memory requirements.
+
+Include freshness and correctness costs. Aggressive TTLs may raise miss load; long TTLs increase stale-data risk. Event invalidation adds infrastructure and operational failure modes. High-cardinality keys can increase eviction and memory costs, while a hot key can require coalescing or replication.
+
+Measure cost per successful business operation, end-to-end p99, origin offload, stale-result rate, and cold-cache behavior. Test the no-cache/outage scenario to ensure the origin remains safe. In an interview, make the economic comparison quantitative and explain the cache's purpose—cost reduction, latency, origin protection, or some combination.
 
 ### Q272. How do you choose a retention policy for logs and traces?
 
-Base retention on incident investigation needs, compliance, privacy, and storage cost. High-volume traces may need sampling, while error traces or security audit events may require stronger retention and access controls. Sampling policies must preserve enough information to debug rare tail-latency and distributed failures. Do not apply one retention rule to all telemetry without considering its purpose.
+Choose retention by data purpose: incident debugging, product analytics, security investigation, audit, or regulatory evidence. High-volume debug logs and ordinary traces may need sampling and short retention, while security or business audit records may require stricter integrity, access control, and longer retention. These should not automatically share the same store or deletion policy.
+
+Estimate volume from events per second × average record size × retention, then include indexing/replication overhead and query costs. Traces can be sampled by request class, error, latency, or tail-based criteria so rare slow failures are more likely to be retained. Metrics often use aggregation and longer storage at lower resolution. Preserve enough context to investigate an incident without capturing every payload.
+
+Privacy matters: strip credentials and sensitive fields before export, limit access, encrypt data, and handle residency constraints. A log's retention can accidentally outlive the underlying customer data's approved lifecycle. Define how deletion requests, legal holds, backups, and telemetry copies interact.
+
+Test investigations against the retention window: can the team reconstruct a multi-service failure or an async workflow that took several days? Retention is a trade-off between storage cost and diagnostic value. In an interview, explain the purpose of each signal, expected data volume, sampling strategy, access controls, and why the selected window meets operational and legal needs.
 
 ### Q273. How should an architecture handle sensitive data in backups?
 
-Encrypt backups, restrict access, rotate and protect keys, audit restores, and define retention/deletion rules. Ensure restore tooling can access keys during disaster recovery without making keys broadly available. If a deletion request conflicts with immutable backup retention, define the policy for expiry and prevent restored data from silently reintroducing deleted records. Backup security is part of the system's trust boundary.
+Backups are part of the production trust boundary because they may contain full database snapshots, transaction logs, credentials, personal information, and deleted records. Encrypt them at rest and in transit, restrict write/read/restore permissions, protect key management separately, and audit both backup access and restore operations. Immutable or access-separated backup copies can reduce the impact of an attacker who compromises production credentials.
+
+Key management must support disaster recovery. If all encryption keys are stored only in the failed region or are deleted with the production account, backups may be unusable. But broadly accessible keys undermine the backup's security. Define key replication, recovery access, rotation, revocation, and separation of duties.
+
+Retention must balance recovery objectives, legal obligations, privacy, and cost. A deletion request may not mean every immutable backup is immediately rewritten, but the policy must define when copies expire and how restored data is prevented from reintroducing records that should remain deleted. Consider cryptographic erasure where appropriate and legally valid, while preserving required audit information.
+
+Test restores in an isolated environment, validate permissions and data integrity, and verify that sensitive data remains protected during the process. Include object-storage versions, snapshots, WAL/binlogs, exports, search indexes, and offsite copies. In an interview, explain who can access backups, how keys survive a regional failure, and how RPO/RTO align with the retention design.
 
 ### Q274. What is a data residency boundary in a multi-region system?
 
-It specifies which data classes may be stored, processed, or accessed in each jurisdiction. Map primary data, replicas, backups, logs, traces, search indexes, support exports, and analytics. A global control plane may hold limited metadata, but that exception must be explicit and approved. Automated placement policies and audits are more reliable than relying on teams to remember regional rules.
+A data residency boundary defines where certain data may be stored, processed, transferred, or accessed. It must cover more than the primary database: replicas, backups, logs, traces, search indexes, analytics extracts, object storage, support exports, and third-party processors may all contain regulated or tenant-specific information.
+
+Classify data by sensitivity and jurisdiction, then map each data flow and copy. A global control plane might store limited identifiers or routing metadata, but that must be deliberate and approved rather than assumed harmless. Support access from another region may itself count as processing or access under the applicable policy. The exact legal requirements depend on jurisdiction and contract, so architecture decisions need legal/security review rather than a generic “regional deployment” checkbox.
+
+Implement placement with enforceable mechanisms: region-aware tenant routing, separate regional stores or keys, replication policies, access controls, deployment guardrails, and audit evidence. Prevent accidental cross-region telemetry or backups. Derived datasets must preserve the same restrictions unless transformation genuinely changes the classification under an approved rule.
+
+Plan for failover conflicts. A region that is prohibited from receiving certain data cannot automatically become the failover target for that tenant. Residency can constrain disaster recovery and RTO, so the requirement must be included in the availability plan. In an interview, trace data from ingestion to backup/observability and explain how placement is enforced and audited.
 
 ### Q275. How do you design a safe administrative or repair tool?
 
-Require strong authentication, least privilege, scoped operations, audit logs, dry-run support, rate limits, and idempotency. Repair jobs should have checkpoints and preview affected records before destructive changes. Separate routine service credentials from elevated operator credentials. A one-off script can bypass all normal invariants, so production repair paths deserve the same review as application code.
+Administrative and repair tools can bypass normal application workflows and alter production state, so treat them as privileged production software rather than harmless scripts. Require strong authentication, least privilege, scoped targets, approval for high-impact actions, rate limits, and immutable audit records. Separate routine service credentials from operator privileges and use short-lived elevation where possible.
+
+Provide a dry-run mode that shows the target records and intended changes, with counts and sampled output. Make long-running repairs checkpointable, idempotent, and resumable; include a unique repair/job ID and log before/after state or a safe reference to it. Use transactions or conditional/version checks to avoid overwriting newer live changes. For destructive work, require explicit scoping and a clear rollback/forward-repair plan.
+
+Do not let repair jobs ignore tenant boundaries, authorization, data residency, retention, or event ordering. A script that updates the primary but does not publish events can leave search/cache/analytics inconsistent. Define whether the repair should emit domain events, update projections, or trigger reconciliation—avoid accidentally replaying external side effects.
+
+Test on a snapshot or limited cohort, monitor production impact, and pause automatically when mismatch counts or latency exceed thresholds. Protect repair credentials and outputs from leaking secrets. In an interview, describe safeguards against wrong-scope execution, partial failure, duplicate execution, and reintroduction of deleted or stale data.
 
 ### Q276. How do you protect a system from a retry storm caused by clients outside your control?
 
-Apply edge admission control, quotas, request deadlines, and overload responses with clear retry guidance where appropriate. Use jittered server-directed delays if the protocol supports them, and protect expensive endpoints with concurrency limits. Do not assume clients obey retry policies. During an incident, preserve capacity for high-value operations and monitor incoming attempts versus unique logical requests.
+Assume some clients will retry immediately, ignore retry-after, or generate new request IDs for the same operation. Server-side protection must not depend on every client implementing a polite policy. Start with edge rate limits, connection/request budgets, per-identity or per-tenant quotas, request size limits, and concurrency caps before expensive work begins.
+
+For clients that can be given feedback, return clear retry semantics and use 429/503 plus Retry-After where appropriate. Jittered server-directed delays can reduce synchronized retries, but a malicious or broken client may ignore them. Use idempotency keys for mutation APIs, detect repeated logical operations, and avoid treating every repeated payment/booking request as independent work.
+
+During overload, shed low-priority traffic, cap retries internally, and protect shared databases/providers with bulkheads and bounded pools. Do not rely on a circuit breaker alone; the API still needs admission control. Use per-tenant enforcement and fair scheduling so one client cannot consume the retry budget of others. DDoS/bot protection may be required when traffic is distributed across identities or IPs.
+
+Monitor attempt rate versus unique operations, retry amplification, repeated payloads, queue age, 429/503 rates, and successful business throughput. In an interview, explain what the server does when clients ignore backoff and how it prevents duplicate side effects while preserving capacity for legitimate critical work.
 
 ### Q277. How should a system handle overload when requests have different business priorities?
 
-Assign explicit classes such as critical transactions, user-facing reads, background exports, and low-priority analytics. Reserve or cap capacity per class, use fair scheduling, and shed lower-priority work first. Avoid relying solely on HTTP endpoint names; one endpoint may contain different workloads. Ensure priority cannot be abused by arbitrary clients and measure starvation across classes.
+Define priority from business outcomes and service contracts, not only endpoint names. A checkout operation may be critical, while a bulk export is deferrable; the same API endpoint could contain both depending on tenant tier, job size, or operation type. Authenticate/authorize priority so clients cannot label every request “critical.”
+
+Use admission control, priority queues, per-class concurrency budgets, weighted fair scheduling, and reserved capacity for critical work. Strict priority alone can starve low-priority tasks forever, so use aging or weighted service guarantees. A separate worker pool helps only if it also isolates the database/provider resource that is actually saturated.
+
+During overload, reject or delay low-priority work before shared pools are exhausted. Return a clear deferred/pending status for durable work, or a retryable rejection with guidance for requests that were not accepted. Do not accept more work into a queue that cannot complete before its business deadline. Protect the recovery path and ensure retries do not jump ahead of new high-priority work uncontrollably.
+
+Measure latency and rejection by class, tenant, and age; verify that low priority receives eventual service when capacity returns. In an interview, explain the scheduling policy, resource boundaries, fairness rules, and behavior when critical traffic alone exceeds capacity.
 
 ### Q278. How do you model a workflow that can remain pending for hours?
 
-Persist workflow state, next-action time, retry count, deadline, and correlation IDs instead of holding threads or HTTP connections. Use durable timers or scheduled work and idempotent transitions. Define expiry and manual intervention paths. Long-running workflows need auditability and reconciliation because process memory and a single distributed trace are not sufficient records of progress.
+Persist a durable workflow state machine instead of holding an HTTP connection, thread, or process memory for the duration. Store the operation ID, current state, next action/time, retry count, deadline/expiry, correlation IDs, and references to inputs/results. Each transition should be conditional and idempotent so the workflow can resume after a worker crash.
+
+Use durable timers or scheduled work for delayed steps. Do not create one sleeping thread per long-running operation. A state change and the event/command that wakes the next step should be recorded reliably, often through an outbox or workflow engine. Workers should claim due work, process bounded batches, and update state with version checks.
+
+Define cancellation, manual intervention, expiry, compensation, and uncertain external outcomes. If a workflow waits for a provider callback for six hours, it needs a timeout/reconciliation path for callbacks that never arrive. Events can be duplicated or arrive out of order, so use stable IDs and legal state transitions rather than trusting event sequence alone.
+
+Expose accepted/pending/completed states to clients, with polling/push and authorization controls. Monitor oldest pending age, time spent in each state, retries, and workflows requiring review. In an interview, explain how the workflow survives restarts, how timers are recovered, and how it avoids duplicate external effects after retries.
 
 ### Q279. How do you avoid duplicate side effects when replaying historical events?
 
-Replay should use a distinct mode or idempotent consumer contract that understands whether the target is being rebuilt or live business effects are being invoked. Use stable event IDs and versions, separate projection rebuilds from irreversible side effects, and gate external calls during replay unless explicitly intended. Document offset boundaries and verify counts before switching the rebuilt projection into service.
+Separate **rebuilding derived state** from **re-executing business commands**. Replaying events into a search index or projection is often intended and should be idempotent; replaying a historical “charge payment” or “send email” handler can repeat irreversible effects. A generic replay flag is insufficient unless every side-effecting handler respects it.
+
+Use stable event IDs and entity versions, and make projection updates conditional/idempotent. Rebuild into a new index or table where practical, capture concurrent live events from a known snapshot/log position, validate, then switch the read pointer. During projection rebuild, external side effects should usually be disabled or routed to a safe no-op/simulation path.
+
+For business replay, determine whether the event represents a past fact or a command that should execute now. If a repair truly must call an external provider, use the original operation identity/idempotency key where the provider contract permits it and reconcile status first. Maintain an inbox/deduplication record long enough to cover the replay window; but remember deduplication cannot stop two different event IDs representing the same business operation unless there is a business-level uniqueness rule.
+
+Rate-limit replay, preserve per-entity ordering, and audit the operator, input range, and outcome. In an interview, name the target store, specify whether the replay may trigger external calls, explain the dedupe scope, and describe how you prove the rebuilt projection matches the authoritative state.
 
 ### Q280. How do you design a poison-message remediation workflow?
 
-Store the original event, failure category, attempt history, and relevant code/schema version. Provide an owner, alert, safe inspection path, and controlled replay mechanism. Correct the underlying cause before replaying at scale. If ordering matters, define whether the partition remains blocked or later records can continue. Dead-letter storage without ownership and replay tooling merely hides the failure.
+A poison-message workflow must preserve evidence and avoid silently losing business progress. Store the original message or an immutable reference, source topic/queue and partition/offset, event ID, schema version, failure category, stack/error context, attempts, and correlation/tenant identifiers with appropriate sensitive-data handling. Distinguish deterministic payload/schema errors from transient dependency failures.
+
+Assign an owner and an explicit disposition: fix consumer code/schema and replay; repair invalid data through an audited tool; skip with a documented business decision; or compensate if downstream state is already inconsistent. If later events depend on this event, moving it to a DLQ and continuing can break per-entity ordering. Pause the affected partition/key where needed or isolate unrelated work while the gap is repaired.
+
+Replay should be controlled, rate-limited, and idempotent. Preserve event identity so inbox/deduplication logic still applies; if a corrected payload needs a new version, keep the original and record the transformation. Prevent replay from re-sending external side effects unintentionally. Track the repair attempt, old/new state, and validation result.
+
+Monitor DLQ age, recurrence rate, affected entities, blocked partitions, and unresolved business impact. A DLQ that accumulates records without an operational owner is delayed data loss. In an interview, explain how the message is diagnosed, corrected, replayed, and proven safe without silently violating ordering or invariants.
 
 ### Q281. How do you select a partitioning strategy for multi-tenant data?
 
