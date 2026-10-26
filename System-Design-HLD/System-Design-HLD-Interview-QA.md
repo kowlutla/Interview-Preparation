@@ -2,7 +2,7 @@
 
 **Audience:** Java backend engineers with 5–10 years of experience preparing for senior and staff-leaning backend/product-company interviews.  
 **Purpose:** A progressive guide to architecture reasoning, capacity estimation, data ownership, consistency, failure handling, operations, and cost.  
-**Status:** Rebuilding for the 5–10 year experience band. Includes eight worked end-to-end designs (URL shortener, feed, chat, booking, notifications, rate limiter, search/autocomplete, and object storage) plus expanded senior scenarios. Full topic coverage, technical accuracy, readability, and rendered diagram validation remain in progress; not final sign-off.
+**Status:** Rebuilding for the 5–10 year experience band. Includes eight worked end-to-end designs, 15 core-concept deep dives, and expanded senior scenarios. Foundational interview-method answers are being rewritten for architectural reasoning, not one-line recall. Full topic coverage, technical accuracy, readability, and rendered diagram validation remain in progress; not final sign-off.
 
 > **How to use this guide:** Learn fundamentals in order, then practise scenarios aloud. State assumptions, identify the critical business invariant, estimate scale, draw the simplest viable architecture, and deepen the part the interviewer challenges. Naming technologies is not the goal; explaining why the design satisfies requirements is.
 
@@ -50,15 +50,21 @@ A strong answer is not necessarily longer in every interview. It is deep enough 
 
 ### Q1. What does a High-Level Design interview evaluate?
 
-It evaluates whether you can turn an ambiguous product goal into a coherent architecture and defend its important decisions. Interviewers look for requirement discovery, assumptions, capacity reasoning, data modelling, component boundaries, consistency guarantees, failure handling, and communication. They do not expect a perfect production architecture in 45 minutes; they expect you to expose important decisions and reason about consequences.
+An HLD interview evaluates whether you can turn an ambiguous product goal into an architecture that satisfies business requirements at a plausible scale—and explain what happens when parts fail. Interviewers assess requirement discovery, capacity estimation, component boundaries, data ownership, API/event flow, consistency, fault tolerance, security, operations, cost, and the clarity of your reasoning. They are not simply testing whether you know the names of databases, queues, caches, or load balancers.
 
-Start with user journeys and business invariants, not a list of fashionable technologies. In a ticket-booking system, preventing two users from buying the same seat is more fundamental than choosing an API framework.
+At 5–10 years of experience, the key difference is how you defend the design. If you choose a cache, explain the reuse/freshness assumptions, invalidation, stampede behavior, and cache-outage capacity. If you shard a database, explain the shard key, query locality, global uniqueness, rebalancing, and cross-shard cost. If you move work to a queue, explain durable acceptance, duplicate processing, ordering, retries, expiry, and status visibility.
+
+Start from the user journey and the business invariant. For ticket booking, preventing two customers from buying the same seat matters more than choosing a framework. Then estimate demand, draw the simplest viable architecture, trace one normal request, and explore the most dangerous failure paths. A strong answer is explicit about assumptions, guarantees, trade-offs, and how you would validate the design with tests or production signals.
 
 ### Q2. How is HLD different from LLD?
 
-High-Level Design (HLD) explains the system's major building blocks: what each component owns, how requests and events move between components, where data lives, and how the design scales and recovers from failure. Low-Level Design (LLD) zooms into implementation: classes, interfaces, method contracts, object collaboration, and design patterns.
+High-Level Design (HLD) explains the system's major building blocks, responsibilities, data ownership, request/event flows, storage choices, scaling approach, and failure/recovery behavior. It answers questions such as: which service owns an order, how a booking is made atomic, where asynchronous work runs, and how the system behaves when a region or dependency fails.
 
-The boundary is not absolute. If a database constraint determines whether two users can book the same seat, it matters in HLD even though it is a low-level detail. A useful rule is to discuss any detail that can change correctness, capacity, reliability, or the choice of architecture; leave details that do not affect those decisions for LLD.
+Low-Level Design (LLD) focuses on internal implementation: classes, interfaces, method contracts, object collaboration, state transitions, and design patterns. For example, LLD may define the classes and methods used by a payment workflow; HLD decides how the payment service interacts with the order store, provider, event stream, idempotency record, and reconciliation process.
+
+The boundary is not absolute. A database constraint, idempotency key, or fencing token may look like an implementation detail, but it belongs in HLD if it determines correctness or changes the architecture. Likewise, a retry policy is not just a line of code if it can multiply traffic across a fleet and create a cascading failure.
+
+A useful rule for interviews: include any detail that could change correctness, capacity, availability, security, operational ownership, or the choice between architectures. Defer class structure and method-level details unless the interviewer asks or the implementation decision affects one of those properties.
 
 ### Q3. How should you structure a 45–60-minute design interview?
 
@@ -70,27 +76,43 @@ Reserve time to explain how the design is operated: SLOs, important metrics, rol
 
 ### Q4. What should you clarify before drawing the architecture?
 
-Start with the users and their most important journeys: what must they be able to do, and what must never go wrong? Then ask about scale (average and peak traffic, bursts, data growth), read/write patterns, latency and availability targets, retention, geography, privacy, and cost. For workflows such as payments or booking, explicitly ask which outcomes must be atomic and which can complete asynchronously.
+Start with the users and their core journeys: what must they be able to do, which result counts as success, and what must never go wrong? Identify business invariants early—for example, no duplicate charge, no double booking, tenant isolation, or durable acceptance of a job. Those invariants often determine the data model and consistency boundary more strongly than the choice of framework.
 
-Prioritize questions that could change the design. For example, a notification system with a two-second delivery target needs a different queueing and provider strategy from a bulk email system that can take an hour. If the interviewer cannot provide a number, state a reasonable assumption and continue rather than getting stuck.
+Next ask about scale and workload shape: active users, average and peak requests/second, burst duration, read/write mix, payload size, fan-out, data growth, retention, and geographic distribution. Clarify measurable quality targets such as p95/p99 latency, availability, freshness, RTO/RPO, and cost constraints. For external dependencies, ask about quotas, latency, error behavior, and whether operations are idempotent.
+
+Ask which operations are synchronous and which may complete asynchronously. A notification platform with a two-second delivery goal is different from bulk email that may take an hour. A catalogue can tolerate stale descriptive data, while a payment or inventory write may need an authoritative transaction.
+
+Prioritize questions that could change the architecture. If exact numbers are unavailable, state reasonable assumptions, show the arithmetic, and continue. An interview is not a requirements workshop with unlimited time; the objective is to uncover the few constraints that materially change the design and make the remaining assumptions explicit.
 
 ### Q5. How do functional and non-functional requirements differ?
 
-Functional requirements describe **what the system does**: create an order, reserve a seat, publish a message, or let a user search products. Non-functional requirements describe the constraints and quality of that behavior: how fast it responds, how much traffic it handles, how reliably it operates, how long it retains data, and what it costs.
+Functional requirements describe **what the system does**: create an order, reserve a seat, send a notification, search products, or upload a file. Non-functional requirements describe the constraints and quality of that behavior: latency, throughput, availability, durability, freshness, privacy, security, retention, recoverability, and cost.
 
-The distinction matters because the same feature can lead to different architectures under different quality targets. A report generated once per day can run as a batch job; a dashboard that must update within a second may need streaming updates and a materialized read model. Capture measurable targets wherever possible instead of writing vague requirements such as “fast” or “highly available.”
+The distinction matters because the same feature can lead to different architectures under different targets. A daily report can run as a batch job; a dashboard that must update within a second may need streaming ingestion and a materialized read model. A payment endpoint that can take minutes may return a durable operation ID and expose pending status, whereas a low-latency lookup should usually complete within a short request deadline.
+
+Make non-functional requirements measurable wherever possible. “Fast” should become a target such as p99 below a specified threshold at expected peak load. “Highly available” should identify the eligible operations, measurement window, and expected behavior during a dependency or regional failure. “Reliable” should include correctness and recovery, not just successful HTTP responses.
+
+Also distinguish global requirements from per-operation requirements. A product can tolerate eventual consistency for search and analytics while requiring transactional correctness for inventory. In interviews, tie each quality target to a design choice and an observable metric rather than treating non-functional requirements as a generic checklist.
 
 ### Q6. How do you handle an ambiguous prompt such as “design a notification system”?
 
-Turn the broad phrase into a few concrete journeys. Ask which channels are needed (email, SMS, push), expected volume and burst size, delivery deadlines, user preferences, provider quotas, and whether notifications may expire. Clarify what “delivered” means: accepted by your API, durably queued, accepted by the provider, or confirmed on the recipient's device. Those are different guarantees.
+Turn the broad prompt into concrete journeys and promises. Ask which channels are needed (email, SMS, push, in-app), expected volume and peak bursts, delivery deadlines, user preferences/quiet hours, provider quotas, retries, priority classes, retention, and whether notifications may expire. Clarify what “delivered” means: accepted by your API, durably queued, accepted by the provider, confirmed by a carrier, or acknowledged by the recipient's device. These are different guarantees.
 
-Then identify which work must be synchronous. A request can return an operation ID after the notification request is durably recorded, while provider delivery happens asynchronously. Design for retries, duplicate events, provider outages, and per-channel priorities; otherwise, “send a notification” hides the main architectural decisions.
+Identify which work must be synchronous. The API may validate the request and durably record the notification, then return an operation ID while provider delivery runs asynchronously. But “accepted” must mean the service has recorded responsibility; an in-memory task that disappears on restart is not durable acceptance.
+
+Then design around the failure cases: duplicate source events, provider timeout after possible send, provider throttling/outage, invalid recipients, out-of-order callbacks, and a backlog that misses its deadline. Use stable operation identities, an outbox or durable enqueue path, channel/priority queues, provider-aware rate limits, bounded retries with jitter, a monitored dead-letter path, and reconciliation for uncertain outcomes.
+
+Keep analytics and noncritical personalization off the critical acceptance path when possible. In an interview, state which notifications may be delayed or dropped, how a caller can query status, and what metric measures end-to-end completion rather than just API success.
 
 ### Q7. How do you avoid overengineering?
 
-Begin with the simplest design that meets the stated requirements, then identify which limits are likely to appear first. A modular monolith with a relational database may be the right answer for a small team and moderate traffic. A broker is useful when work must be durably deferred or independently retried; a cache helps when repeated reads are expensive; a search engine helps when the query needs exceed the database's practical strengths.
+Begin with the simplest design that meets the stated requirements, and identify which limit is likely to appear first. A modular monolith with a relational database may be ideal for a small team and moderate traffic. A broker is justified when work must be durably deferred, independently retried, or consumed by multiple subscribers; a cache helps when repeated reads are expensive and freshness is manageable; a search engine is justified when query semantics exceed the practical strengths of the primary datastore.
 
-Every component adds failure modes, deployment work, monitoring, and operational ownership. Explain what requirement justifies each component and what evidence would trigger the next step. A credible evolution path is usually stronger than starting with a large architecture “just in case.”
+Every component creates operational costs: deployment, configuration, monitoring, security, capacity planning, backup/restore, upgrades, incident response, and new failure modes. A service mesh, separate read model, or multi-region active-active setup is not automatically an improvement just because it appears in mature architectures.
+
+Ask what requirement each component satisfies, what new guarantee or capability it provides, and what failure scenario it introduces. If the justification is only “we might need it someday,” consider documenting an evolution path and the measurable trigger for adding it instead.
+
+Senior-level pragmatism is neither “keep everything in one service forever” nor “split everything into microservices.” Choose the least complex architecture that meets the current contract, protect the important invariants, and explain how you would evolve it when load, team structure, or product requirements change.
 
 ### Q8. What makes an architecture diagram useful?
 
@@ -114,9 +136,13 @@ The synchronous path should own the user-visible acceptance guarantee. The async
 
 ### Q9. How should you respond when the interviewer changes a requirement?
 
-Restate the new requirement and explain which existing assumption it changes. Then trace the impact through the architecture: data model, request path, consistency, capacity, failure behavior, and cost. Update only the components affected instead of starting the whole design again.
+Restate the new requirement and identify which assumption it invalidates. Then trace its impact through user-visible behavior, business invariants, data model, request path, consistency, capacity, security, recovery, and cost. Do not start the whole design again unless the new requirement changes a fundamental boundary; adapt the affected parts and explain why.
 
-For example, if notifications that previously could take several minutes must now arrive within two seconds, you may need priority queues, reserved provider capacity, stricter deadlines, and a different retry policy. You should also explain what happens when the provider is unavailable, because a tighter latency target does not make external dependencies more reliable.
+For example, if notifications that could arrive within several minutes must now arrive within two seconds, you may need priority queues, reserved provider capacity, tighter deadlines, pre-rendered templates, and a different retry policy. But a strict latency target cannot make an external provider more reliable. You must also explain whether the system rejects, queues, or reports pending status during provider outage.
+
+If the requirement changes from eventual to strong consistency, identify where coordination is needed and what availability/latency trade-off follows. If the requirement becomes global, account for network distance, data residency, replicated state, and safe writer ownership rather than adding a global load balancer alone.
+
+In an interview, state the consequences and ask whether the business accepts them. A senior candidate shows flexibility without hiding the costs of a changed requirement.
 
 ### Q10. Why do candidates underperform in HLD interviews?
 
@@ -130,15 +156,23 @@ Improve by making the reasoning explicit: requirement and invariant → workload
 
 ### Q11. How do you know the design is complete enough?
 
-You should be able to walk through the main user journey from request to response, identify the authoritative owner of each important fact, and state the invariant the design protects. You should also have a plausible capacity estimate, a likely bottleneck, a plan for dependency failure, a security boundary, and a recovery approach.
+You should be able to walk through the main user journey from request to response and identify the authoritative owner of every important fact. State the business invariant the design protects, the API/event contract, the main synchronous and asynchronous flows, and the consistency guarantee the caller can rely on.
 
-You do not need to specify every class or configuration value. Instead, name the important unresolved questions and explain how you would validate them—for example, with a load test, a failover exercise, or a database-specific consistency review. A design is complete enough when its major decisions and limitations are explicit.
+Show a plausible capacity estimate: peak request/write rate, data growth, downstream fan-out, connection demand, queue drain, and headroom during a node/zone failure. Identify the likely bottleneck and explain which metric would reveal it. If the design uses caches or replicas, state the staleness contract and what happens when lag exceeds it.
+
+Then walk through failure scenarios: a request times out after committing, a consumer crashes after a side effect before acknowledgement, a shared dependency becomes slow, a cache goes cold, a region is lost, or a restore is needed after corruption. Include security/tenant boundaries, observability, rollout/rollback, and cost.
+
+You do not need to specify every class or configuration value. Instead, name unresolved assumptions and explain how you would validate them with load tests, failure injection, query plans, restore exercises, or business-level reconciliation. The design is complete enough when major decisions, guarantees, limitations, and validation plans are explicit.
 
 ### Q12. How should you communicate a trade-off?
 
-Make the reasoning conditional on the requirement: “Because this workflow must prevent duplicate seat reservations, I would enforce uniqueness in the authoritative database. That gives us a clear correctness boundary, but contention can limit throughput for a very hot event. If the business accepts overselling or uses temporary inventory allocation, I would revisit the design.”
+Make the reasoning conditional on a requirement and say what you gain, what it costs, and what could make you choose differently. For example: “Because this flow must prevent duplicate seat reservations, I would enforce uniqueness or a conditional state transition in the authoritative database. That gives a clear correctness boundary, but contention on a very hot event may limit throughput. If the business supports temporary allocation or partitioned inventory buckets, I would evaluate those approaches next.”
 
-A good trade-off answer names the benefit, the cost, the failure mode, and the condition that would change your decision. Avoid saying that a technology is “best” without explaining the workload and guarantees that make it suitable.
+Avoid statements such as “Redis is faster,” “NoSQL scales better,” or “microservices are more available” without describing the workload and guarantees. A cache can lower database load but add a network hop and stale-data risk. A read replica can scale eligible reads but return an older value. Sharding can increase independent capacity but complicate cross-shard queries, uniqueness, transactions, backups, and rebalancing.
+
+A strong trade-off answer includes failure behavior and observability: what happens when the component is unavailable, which metric confirms the choice is helping, and what condition triggers an architectural change. Also state the assumptions. If the load estimate is illustrative, say so.
+
+Senior-level judgment is not about finding a universal best technology. It is about showing why a decision is appropriate for the present requirements, where it is weak, and how you would evolve or roll it back safely.
 
 ## 2. Requirements and quality attributes
 
