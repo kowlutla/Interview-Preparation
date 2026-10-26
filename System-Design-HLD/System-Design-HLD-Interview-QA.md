@@ -381,7 +381,9 @@ The migration is complete only after the backfill and concurrent-write stream ag
 
 ### Q61. Normalization versus denormalization?
 
-Normalization reduces duplicated facts and update anomalies. Denormalization duplicates or derives data to improve read locality. It creates a synchronization obligation: define the authoritative copy, propagation method, freshness contract, and reconciliation process.
+Normalization stores each fact in a well-defined place and relates entities through keys. It reduces duplicated data and avoids update anomalies—for example, changing a customer's address should not require finding and updating copies in many order rows. Denormalization duplicates or precomputes information to make common reads faster, such as storing a product summary in a search index.
+
+Denormalization is often valuable for read-heavy systems, but it creates a consistency problem: which copy is authoritative, how are changes propagated, and how stale may a copy become? Keep the transactional source of truth clear and add derived copies only when the read benefit justifies the write and repair complexity.
 
 ### Q62. How do you recover from database failure?
 
@@ -407,7 +409,9 @@ Penetration is repeated access to nonexistent keys, potentially addressed by neg
 
 ### Q67. How should TTLs be chosen?
 
-Choose TTL based on staleness cost, update frequency, and backend capacity. Randomize TTLs to avoid synchronized expiration. TTL bounds retention, not freshness across in-flight requests or a guarantee that every client sees the same value.
+Choose a TTL by balancing how costly stale data is, how often the source changes, and how much load the backend can handle. A product description may tolerate a longer TTL than an inventory value shown immediately before checkout. Randomize TTLs for large sets of keys so they do not all expire together and create a synchronized burst.
+
+A TTL is not a full consistency guarantee. It does not prevent a request that started before an update from repopulating stale data afterward, nor does it ensure every replica or client sees the same value. Combine TTL with invalidation or versioning when needed, and bypass the cache for decisions that require authoritative current state.
 
 ### Q68. What if Redis becomes unavailable?
 
@@ -421,7 +425,9 @@ There is no universal atomic operation spanning an ordinary database and an inde
 
 ### Q70. What is a partial failure?
 
-One component or network path fails while the rest of the system continues. A caller may time out even though the callee completed the operation. A timeout is not proof that an operation did not happen.
+A partial failure occurs when one part of a distributed system fails while other parts continue to run. Unlike a single-process application, a caller cannot always tell whether a remote service is down, slow, unreachable from this network path, or has completed the request but lost the response.
+
+For example, a payment provider may charge a card successfully, but the response times out before reaching your service. The caller sees an error even though the side effect occurred. Treat timeouts as uncertain outcomes for mutations: preserve a stable operation ID, query status or reconcile, and do not assume that retrying with a new identity is safe.
 
 ### Q71. Explain strong and eventual consistency.
 
@@ -437,7 +443,9 @@ When a network partition prevents nodes from communicating, a distributed data s
 
 ### Q74. What does PACELC add?
 
-PACELC says that during a partition a system trades off availability and consistency; otherwise, during normal operation, it still trades off latency and consistency. It is a reasoning aid, not a substitute for understanding a database's actual guarantees.
+PACELC extends the CAP discussion by making the normal-operation trade-off explicit. During a **Partition** (P), a system may need to trade **Availability** (A) against **Consistency** (C); **Else** (E), when there is no partition, it may still trade **Latency** (L) against **Consistency** (C). A globally coordinated read may be more current but require a slower cross-region round trip, while a local replica can respond faster with a staleness risk.
+
+Use PACELC as a way to frame questions, not as a complete classification of a database. Read the product's actual guarantees for transactions, replication, failover, and consistency levels before making a design claim.
 
 ### Q75. What are quorum reads and writes?
 
@@ -453,7 +461,9 @@ The phrase is incomplete without a system boundary. A broker may offer exactly-o
 
 ### Q78. How do you handle out-of-order events?
 
-Decide whether order is needed and at what scope. If per-account order matters, partition by account and process sequentially within that partition. Include versions or sequence numbers so consumers can detect stale or missing updates. Global ordering is expensive and usually unnecessary.
+First identify the ordering requirement. Many systems need order only per entity—such as per account or order—not across every event in the platform. Partitioning by that entity and processing records sequentially can preserve order within the partition, provided producers and consumers follow the required semantics.
+
+When events can still arrive late or be replayed, include a version or sequence number and reject stale updates. Detect gaps when missing events matter, and define whether to buffer, retry, or reconcile. Global ordering creates coordination and throughput costs, so do not pay for it unless the business invariant actually requires it.
 
 ### Q79. What is reconciliation?
 
@@ -467,11 +477,15 @@ A task queue commonly distributes work among workers, with each task intended fo
 
 ### Q81. What is a Kafka partition key?
 
-The key determines which partition receives a record under the producer's partitioning strategy. Same-key records are typically routed to the same partition, enabling per-key ordering there. A bad key can create a hot partition; changing partition counts or strategy can change key placement.
+The key is the value the producer's partitioner uses to choose a partition. Records with the same key are normally routed to the same partition under a stable partitioning setup, which lets consumers process that entity's events in partition order. For an order workflow, using orderId may be appropriate if all events for one order must be ordered.
+
+The key also determines load distribution. A highly popular key can overload one partition while others remain idle. Changing the partition count or partitioning strategy can change where keys land, so do not assume ordering survives every topology change without checking the producer, topic, and consumer behavior.
 
 ### Q82. What is consumer lag?
 
-Consumer lag measures how far a group trails the available log. Lag alone does not reveal catch-up time; record size, processing cost, partitions, and incoming rate matter. Monitor lag trend, age of oldest event, processing latency, errors, and throughput.
+Consumer lag describes how far a consumer group is behind the records available in the stream, often measured by offset difference. It is a useful symptom but not enough on its own: a large backlog of tiny events may be easier to clear than a smaller backlog of expensive events, and lag can be high while the consumer is still catching up quickly.
+
+Track the trend in lag, the age of the oldest unprocessed event, arrival and completion rates, processing latency, retry/DLQ volume, and partition skew. Estimate drain time using **net** processing capacity (successful completion rate minus ongoing arrivals). If that value is zero or negative, the backlog will not shrink.
 
 ### Q83. How should retries and dead-letter queues work?
 
@@ -500,7 +514,9 @@ In choreography, services react to events and each knows how to continue or comp
 
 ### Q86. How do you handle poison messages?
 
-A poison message repeatedly fails due to malformed data, schema incompatibility, or deterministic bugs. Classify errors, cap attempts, route irrecoverable messages for investigation, and preserve ordering requirements. Skipping a failed event may be unsafe if later events depend on it.
+A poison message repeatedly fails because of malformed data, an incompatible schema, a deterministic application bug, or another condition that retries will not fix. Classify the failure, cap automatic attempts, and move the record to a dead-letter or quarantine path with its payload, error context, attempt history, and correlation ID preserved.
+
+Do not assume it is always safe to skip the message. If later events depend on it, skipping can corrupt the entity's state; the partition may need to pause until the issue is repaired. Provide an owner and a controlled replay process, and alert on DLQ growth so the queue does not become a silent graveyard.
 
 ## 11. Transactions and business correctness
 
@@ -554,11 +570,15 @@ Verify authenticity, persist the provider event ID under a uniqueness constraint
 
 ### Q93. How should retries be designed?
 
-Retry only likely transient failures, only when the operation is safe to repeat, and only within a bounded deadline. Use exponential backoff with jitter. Coordinate retries across clients, gateways, services, and brokers; independent retry policies can multiply attempts. Respect provider retry guidance where available.
+Retry only failures that are likely to be transient, only when repeating the operation is safe, and only while the caller's deadline leaves time for another attempt. Use exponential backoff with jitter and a maximum attempt count or retry budget. Permanent validation errors should not be retried indefinitely.
+
+Coordinate policies across clients, gateways, services, SDKs, and message consumers; independent retry layers can multiply attempts. For a mutation, use idempotency or a durable operation state machine because a timeout does not prove the original attempt failed. Monitor retries per logical operation and test both outage and recovery behavior.
 
 ### Q94. What does a circuit breaker do?
 
-It stops calls to a dependency that appears unhealthy, allowing recovery and preventing callers from accumulating slow requests. Typical states are closed, open, and half-open. Thresholds must match the workload. It complements timeouts; it does not replace them.
+A circuit breaker temporarily stops calls to a dependency that appears unhealthy, so callers fail fast or use an approved fallback instead of filling threads and connection pools with requests that are unlikely to succeed. Common states are **closed** (calls flow normally), **open** (calls are rejected), and **half-open** (a limited number of probes test recovery).
+
+A breaker complements timeouts and concurrency limits; it does not replace them. Thresholds that are too sensitive can cause unnecessary outages, while thresholds that react too slowly may not prevent overload. Define what callers receive when the breaker is open, ensure recovery probes do not all fire at once, and monitor open duration, rejected calls, and probe results.
 
 ### Q95. What is a bulkhead?
 
