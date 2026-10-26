@@ -7,7 +7,7 @@ A collection of focused interview-preparation handbooks for Java backend enginee
 Choose a handbook by topic:
 
 - [Java Interview Handbook](Java/Java-Interview-QA.md)
-- [Design Patterns & LLD Interview Handbook](Design-Patterns-LLD/Design-Patterns-LLD-Interview-QA.md) — object-oriented design, SOLID, GoF patterns, UML, concurrency-aware object models, and practical LLD case studies.
+- [Design Patterns & LLD Interview Handbook](Design-Patterns-LLD/Design-Patterns-LLD-Interview-QA.md) — object-oriented design, SOLID, GoF patterns, UML, concurrency-aware object models, and practical LLD case studies.\n- [System Design HLD Interview Handbook](System-Design-HLD/System-Design-HLD-Interview-QA.md) — architecture fundamentals, capacity estimation, consistency, scaling, reliability, and a senior-level scenario bank; make this a priority for dedicated HLD rounds.
 - [Spring Framework + Spring Boot Interview Handbook](Spring/Spring-Interview-QA.md)
 - [Microservices & REST APIs Interview Handbook](Microservices-REST-APIs/Microservices-REST-APIs-Interview-QA.md)
 - [Distributed Systems & Event-Driven Architecture Interview Handbook](Distributed-Systems/Distributed-Systems-Interview-QA.md) — consistency, failure handling, consensus, distributed transactions, messaging semantics, sagas, and production scenarios.
@@ -44,10 +44,10 @@ Interview-Preparation/
 4. **Microservices & REST APIs** — service boundaries, HTTP semantics, API contracts, resilience, security, and service-level communication.
 5. **Distributed Systems & Event-Driven Architecture** — cross-service correctness, consistency, failure handling, coordination, sagas, messaging semantics, and production reliability.
 6. **Hibernate + JPA** — persistence context, mappings, fetching, transactions, query performance, and concurrency.
-7. **SQL & databases** — query logic, joins, indexes, transactions, isolation, and database-specific behavior.
-8. **Redis & Caching** — Redis data structures, cache consistency, coordination, Spring integration, and resilience across the cache/database boundary.
-9. **Kafka** — broker architecture, topics and partitions, producer/consumer behavior, delivery semantics, and production scenarios.
-10. **Docker, Kubernetes & Helm** — containerize and run the service, understand its runtime constraints, configure workload health and resources, debug connectivity, and deliver releases safely.
+8. **SQL & databases** — query logic, joins, indexes, transactions, isolation, and database-specific behavior.
+9. **Redis & Caching** — Redis data structures, cache consistency, coordination, Spring integration, and resilience across the cache/database boundary.
+10. **Kafka** — broker architecture, topics and partitions, producer/consumer behavior, delivery semantics, and production scenarios.
+11. **Docker, Kubernetes & Helm** — containerize and run the service, understand its runtime constraints, configure workload health and resources, debug connectivity, and deliver releases safely.
 
 The order moves from language and application fundamentals toward distributed behavior and then application delivery. You can study Docker/Kubernetes earlier if your current project requires it.
 
