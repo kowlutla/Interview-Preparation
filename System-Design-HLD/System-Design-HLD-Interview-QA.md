@@ -2,7 +2,7 @@
 
 **Audience:** Java backend engineers with 5+ years of experience preparing for senior backend and product-company interviews.  
 **Purpose:** A progressive guide to architecture reasoning, capacity estimation, data ownership, consistency, failure handling, operations, and cost.  
-**Status:** Rebuilding for the 5–10 year experience band. Recent rewrites deepen capacity calculations, data ownership, synchronous/asynchronous boundaries, event and queue semantics, outbox/idempotency, payment correctness, retries, caching, security, observability, deployment safety, and multi-region recovery. Coverage, technical accuracy, readability, and rendered diagrams still require review; not final sign-off.
+**Status:** Rebuilding for the 5–10 year experience band. Recent rewrites deepen capacity calculations, data ownership, queue/stream semantics, Kafka partitioning and consumer lag, outbox/idempotency, payment correctness, cache behavior, consistency, retries, security, observability, deployment safety, and disaster recovery. Coverage, technical accuracy, readability, and rendered diagrams still require review; not final sign-off.
 
 > **How to use this guide:** Learn fundamentals in order, then practise scenarios aloud. State assumptions, identify the critical business invariant, estimate scale, draw the simplest viable architecture, and deepen the part the interviewer challenges. Naming technologies is not the goal; explaining why the design satisfies requirements is.
 
@@ -162,9 +162,15 @@ An **SLI** (service-level indicator) is the measurement, such as the percentage 
 
 Be precise about the measurement. “99.9% availability” could mean the fraction of time the service is usable or the fraction of eligible requests that succeed; those are not interchangeable. Define which requests count, what counts as success, the observation window, and how planned maintenance or client errors are treated. Otherwise, a team can report a healthy SLI while users experience a broken critical journey.
 
-### Q17. What is an error budget?
+### Q17. What is an error budget, and how should teams use it?
 
-For a time-based 99.9% availability target over a 30-day month, the nominal unavailability budget is about 43 minutes. A request-based SLO instead allows a fraction of eligible requests to fail. Error budgets help balance release velocity and reliability work; they are not permission to ignore incidents.
+An error budget is the amount of unreliability permitted by an SLO during its measurement window. If the SLO is 99.9% successful requests over 30 days, the allowed failure fraction is 0.1% of eligible requests. For a time-based objective that treats the whole 30-day period uniformly, 0.1% of 30 days is about 43.2 minutes of unavailability. A request-based SLO and a time-based SLO measure different things, so do not convert one to the other without stating assumptions.
+
+The budget is useful because it makes the reliability-versus-change trade-off explicit. When error-budget consumption is healthy, teams can continue shipping within the agreed risk policy. If the budget burns too quickly, a team may pause risky releases and prioritize reliability work, capacity fixes, or dependency remediation. This should be a pre-agreed operating policy rather than an improvised punishment after an incident.
+
+Track burn rate as well as remaining budget. A service can consume a month's budget in a short window even when its 30-day availability chart still looks acceptable. Use alerts that identify fast burn and connect it to user impact. Define eligible traffic, what constitutes success, exclusions, and the measurement window; otherwise the SLO can be gamed unintentionally.
+
+The error budget is not a target to spend and not permission to neglect low-volume but high-severity correctness failures. A payment system may meet its availability SLO while still incorrectly charging customers. Pair service-level indicators with business invariants, incident review, and controlled release practices.
 
 ### Q18. How do you estimate end-to-end availability across dependencies?
 
@@ -397,11 +403,13 @@ A Strangler-style migration can route one capability at a time to the new servic
 
 ### Q45. Why is database-per-service not an automatic win?
 
-Giving each service ownership of its data can reduce schema coupling and let teams evolve independently. The cost is that cross-service joins and atomic transactions become harder; the system may need APIs, events, or denormalized read models to combine data. Those projections can lag behind the source, and a multi-service business workflow may need a saga and reconciliation.
+Data ownership is a useful service boundary: the owning service controls its schema, validates invariants, and exposes supported ways to read or change the data. This reduces the risk that unrelated teams couple their releases to another service's tables. But **database-per-service does not necessarily mean one database server or cluster per service**; smaller services can share managed infrastructure while keeping schema and access ownership separate.
 
-The goal is clear ownership, not blindly giving every service a separate database server. Several cohesive modules may safely share one database while keeping table ownership and access boundaries explicit. Choose the separation that improves independent evolution without creating unnecessary network calls and distributed consistency problems.
+The cost appears when a workflow needs data owned by several services. A SQL join across shared tables becomes API calls, events, or a denormalized read model. Those calls can fail independently, increase latency, and return data from different points in time. A local transaction that once updated two tables may become a saga with partial progress and compensation. Analytics and reporting also need a deliberate way to combine data.
 
-## 6. Scaling and traffic management
+Choose the boundary around a cohesive business capability and its invariants, not around every entity or table. Keep a service's data private by convention and access controls; don't let another service make direct writes just because the database is reachable. Where cross-module transactions are frequent and the domain is still tightly coupled, a modular monolith with a shared relational database may be safer and simpler.
+
+If the data is split, define the authoritative owner for each fact, APIs/events for access, consistency lag, deletion propagation, and reconciliation. Plan schema evolution and data migration with backward compatibility. The success measure is independent evolution with manageable operational cost—not the number of database instances.
 
 ### Q46. Vertical versus horizontal scaling?
 
@@ -615,11 +623,15 @@ A classic race is: reader reads old value, writer commits new value and deletes 
 
 For payments, balances, inventory allocation, or permissions that require immediate revocation, do not rely on cache TTL as the only correctness mechanism. Use the source of truth for the decision, or define a token/version/lease contract that bounds stale authorization explicitly. Document stale-read tolerance, cache outage behavior, invalidation latency objective, and reconciliation plan.
 
-### Q70. What is a partial failure?
+### Q70. What is a partial failure, and why is it more dangerous than a simple error?
 
-A partial failure occurs when one part of a distributed system fails while other parts continue to run. Unlike a single-process application, a caller cannot always tell whether a remote service is down, slow, unreachable from this network path, or has completed the request but lost the response.
+A partial failure occurs when some components or communication paths work while others are failed, slow, unreachable, or uncertain. A remote call may time out even though the server completed the operation; a broker may accept a message while its acknowledgement is lost; one replica may lag while another is current. The caller does not automatically know whether the side effect occurred.
 
-For example, a payment provider may charge a card successfully, but the response times out before reaching your service. The caller sees an error even though the side effect occurred. Treat timeouts as uncertain outcomes for mutations: preserve a stable operation ID, query status or reconcile, and do not assume that retrying with a new identity is safe.
+This uncertainty is different from a definitive rejection. If an inventory reservation times out, sending a new reservation with a new identity can reserve twice. If a payment provider charges a card but the response is lost, recording “failed” and initiating a new charge can duplicate the debit. Preserve an operation ID, make the mutation idempotent at a defined boundary, and query status or reconcile when the outcome is unknown.
+
+Use deadlines and bounded retries to control resources, but do not interpret timeout as rollback. Design the request state machine to distinguish accepted, pending, succeeded, failed, and needs-reconciliation states where appropriate. For async workflows, acknowledge only after the work is durably accepted; for database-plus-event flows, use a transactional outbox and idempotent consumers.
+
+Partial failure must also appear in observability: trace the request across services, record durable state transitions, and alert on operations that remain unknown too long. In an interview, walk through the failure between each pair of steps—before the remote effect, after the effect but before response, and after response but before local commit—and explain what the retry does in each case.
 
 ### Q71. Explain strong and eventual consistency with an example.
 
@@ -657,9 +669,15 @@ PACELC extends the CAP discussion by making the normal-operation trade-off expli
 
 Use PACELC as a way to frame questions, not as a complete classification of a database. Read the product's actual guarantees for transactions, replication, failover, and consistency levels before making a design claim.
 
-### Q75. What are quorum reads and writes?
+### Q75. What are quorum reads and writes, and what does the quorum formula not guarantee?
 
-Replicated systems may require acknowledgements from a configured number of replicas. In a simple N-replica model, read quorum R and write quorum W with R + W > N create an intersection between the read and write sets. That intersection helps a read encounter a recent write only if the system's protocol, versions, membership, and conflict resolution preserve the relevant guarantee. Sloppy quorums, concurrent writes, and product-specific semantics can change the result; the arithmetic alone is not a universal consistency guarantee.
+A replicated datastore may require a write to be acknowledged by at least (W) replicas and a read to consult at least (R) replicas out of (N). In a simple model, (R + W > N) ensures that every read set and write set overlap in at least one replica. For example, with (N=3), a write quorum (W=2) and read quorum (R=2) intersect. That intersection is useful only if the protocol knows how to identify and return the newest valid version.
+
+The arithmetic by itself does **not** universally guarantee linearizability, read-your-writes, or conflict-free values. Concurrent writes may be accepted, replicas can have different versions, and a product may use sloppy quorums, hinted handoff, or other policies under failure. Leader-based databases may provide their guarantees through a different replication/consensus protocol, even if the documentation uses the word “quorum.”
+
+Understand the concrete system's semantics: what counts as an acknowledgement (memory, durable log, or applied state), whether a read performs version comparison or repair, what happens when membership changes, and how failover treats acknowledged writes. A write that reaches two replicas but is later overwritten by a conflicting concurrent update is not the same as a linearizable commit.
+
+Quorum size trades latency and availability against consistency and durability, but the exact trade-off depends on topology and protocol. In an interview, define the required guarantee first, then explain how the chosen datastore's read/write policy achieves it and what happens during partition, concurrent writes, or replica recovery.
 
 ### Q76. Why are distributed locks difficult?
 
@@ -683,9 +701,13 @@ State which layer provides which guarantee: broker delivery, stream-processing t
 
 ### Q78. How do you handle out-of-order events?
 
-First identify the ordering requirement. Many systems need order only per entity—such as per account or order—not across every event in the platform. Partitioning by that entity and processing records sequentially can preserve order within the partition, provided producers and consumers follow the required semantics.
+Start by defining the actual ordering requirement. Many business workflows require order only per entity, such as per account, order, or inventory item; globally ordering every event creates a coordination bottleneck and is rarely necessary. If order matters per key, route that key consistently to one ordered partition and process its events sequentially, while remembering that producer retries and application concurrency can still introduce semantic reordering.
 
-When events can still arrive late or be replayed, include a version or sequence number and reject stale updates. Detect gaps when missing events matter, and define whether to buffer, retry, or reconcile. Global ordering creates coordination and throughput costs, so do not pay for it unless the business invariant actually requires it.
+Include a monotonic entity version or sequence number where possible. A consumer can reject a stale update when its version is less than or equal to the version already applied. If it receives version 12 while the current state is version 10 and version 11 is required, it must decide whether to buffer, retry, query authoritative state, or mark the entity for reconciliation. The right choice depends on whether every intermediate event matters or whether the event describes the latest state.
+
+Timestamps alone are often unsafe ordering signals because clocks can skew and events may be emitted long after the underlying action. Use aggregate versions, log offsets, or domain sequence numbers with explicit scope. For events that can arrive after deletion, retain a tombstone/version long enough to prevent an older update from recreating the entity.
+
+Observe duplicate/out-of-order counts, sequence gaps, and oldest buffered events. Ensure replays and DLQ recovery preserve the required ordering. In an interview, explain what order is guaranteed by the broker, what order is guaranteed by the consumer, and how the system recovers from a missing or permanently invalid event.
 
 ### Q79. What is reconciliation, and why do distributed systems need it?
 
@@ -707,17 +729,25 @@ Example: “send this email” is a work item; “order 123 was confirmed” is 
 
 Choose the abstraction based on whether a message represents an instruction or an immutable fact, whether history must be replayable, and who owns retry and retention policy. In either model, define delivery guarantees, ordering scope, poison-message behavior, idempotency, capacity, and what happens when the backlog exceeds its business deadline.
 
-### Q81. What is a Kafka partition key?
+### Q81. What is a Kafka partition key, and how does it affect ordering and throughput?
 
-The key is the value the producer's partitioner uses to choose a partition. Records with the same key are normally routed to the same partition under a stable partitioning setup, which lets consumers process that entity's events in partition order. For an order workflow, using orderId may be appropriate if all events for one order must be ordered.
+A producer's partitioner uses the key to select a partition. With a stable key-to-partition mapping, records sharing a key normally go to the same partition, and Kafka preserves their log order within that partition. This is why an order-processing topic often uses `orderId` when all events for a single order must be processed in sequence.
 
-The key also determines load distribution. A highly popular key can overload one partition while others remain idle. Changing the partition count or partitioning strategy can change where keys land, so do not assume ordering survives every topology change without checking the producer, topic, and consumer behavior.
+The key determines both **where the data lands** and **which work can run in parallel**. A good key has enough distinct values to distribute load and aligns with the entity whose ordering matters. A key such as `country` may create a few hot partitions, while a random key spreads traffic but destroys per-order ordering. One extremely popular account can dominate a partition regardless of how many other keys exist.
 
-### Q82. What is consumer lag?
+Partition count and key mapping changes also matter. Increasing the number of partitions may remap keys for common partitioner implementations; messages for one key written before and after the change can land in different partitions, weakening assumptions about total order across the transition. If ordering is a correctness requirement, plan topology changes explicitly or use a stable routing/bucketing strategy.
 
-Consumer lag describes how far a consumer group is behind the records available in the stream, often measured by offset difference. It is a useful symptom but not enough on its own: a large backlog of tiny events may be easier to clear than a smaller backlog of expensive events, and lag can be high while the consumer is still catching up quickly.
+Check key skew, per-partition throughput and lag, record size, and consumer processing time. More partitions increase parallelism but also broker metadata, replication, and rebalance cost; more consumers in one group cannot make a single partition concurrently processed in-order by several consumers. Choose the key from business invariants and access patterns—not just a desire for a uniform distribution.
 
-Track the trend in lag, the age of the oldest unprocessed event, arrival and completion rates, processing latency, retry/DLQ volume, and partition skew. Estimate drain time using **net** processing capacity (successful completion rate minus ongoing arrivals). If that value is zero or negative, the backlog will not shrink.
+### Q82. What is consumer lag, and how should you respond to it?
+
+Consumer lag measures how far a consumer group is behind the latest records available in a stream, commonly expressed as offset difference. It is a symptom, not a full diagnosis. Lag may rise because arrival rate increased, processing slowed, one partition is hot, the consumer is retrying poison messages, database writes are blocked, or a downstream provider is throttling.
+
+Measure more than the aggregate offset count: **oldest unprocessed event age**, arrival and successful completion rates, per-partition lag, processing duration, retries, rebalance frequency, downstream latency, and the business deadline for the event. A backlog of 10 million low-cost events can recover faster than 100,000 events requiring slow external API calls.
+
+Estimate net drain as successful completion rate minus new arrival rate. If workers complete 15,000/s while new records arrive at 9,000/s, net drain is 6,000/s; a 1.2-million backlog takes about 200 seconds under stable conditions. If net drain is zero or negative, adding consumers will help only if consumer parallelism is the bottleneck and the downstream can accept more work.
+
+Mitigate based on cause: add consumers/partitions if safe parallelism is available, increase batch efficiency, optimize downstream writes, isolate slow keys, fix retry loops, or enforce provider quotas. Scale-out can overload a database or create more throttling, so cap concurrency and preserve per-key ordering. Define when events expire, are dead-lettered, or become business-invalid, and verify the end-to-end completion SLO after the backlog drains.
 
 ### Q83. How should retries and dead-letter queues work?
 
