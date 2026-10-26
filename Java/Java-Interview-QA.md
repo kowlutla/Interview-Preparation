@@ -575,9 +575,13 @@ Iterator traverses forward and can remove elements where supported. ListIterator
 
 Fail-fast iterators may throw ConcurrentModificationException when they detect structural modification outside the supported iterator operations, but this is not guaranteed thread safety. Weakly consistent iterators from some concurrent collections can tolerate concurrent updates and reflect some state without throwing that exception. Understand the concrete collection's contract rather than assuming all iterators behave alike.
 
-### Q102. Why is ConcurrentHashMap safer than HashMap for concurrent access?
+### Q102. What iterator and null-handling differences matter when using ConcurrentHashMap?
 
-ConcurrentHashMap supports concurrent retrieval and updates with documented thread-safety properties and atomic methods such as computeIfAbsent. HashMap does not support unsynchronized concurrent structural modification. ConcurrentHashMap disallows null keys and values, which avoids ambiguity in concurrent lookup results and should be considered in API design.
+Unlike the fail-fast iterators commonly encountered with ordinary collections, ConcurrentHashMap iterators are **weakly consistent**: they can safely traverse the map while updates occur, may reflect some concurrent changes, and do not throw ConcurrentModificationException merely because another thread updates the map. They are not a frozen snapshot, so do not use one traversal as proof that no concurrent update occurred.
+
+ConcurrentHashMap also disallows null keys and null values. This makes a null result from `get(key)` unambiguous as “no mapping was observed,” rather than requiring the caller to distinguish a missing key from a mapping to null. If the application needs to represent a known-but-empty value, use an explicit value type or sentinel rather than null.
+
+For the general HashMap-versus-ConcurrentHashMap comparison, see Q84; for atomic check-then-act operations, see Q103 and Q327.
 
 ### Q103. How do you make a check-then-act operation atomic?
 
@@ -1322,17 +1326,21 @@ Do not choose a lock based on a blanket claim that it is fastest. Measure conten
 
 ### Q325. What is the difference between CAS, lock-free, and wait-free algorithms?
 
-Compare-and-set (CAS) atomically updates a value only if it still equals an expected value. A typical loop retries when another thread wins the race:
+Compare-and-set (CAS) atomically updates a value only if it still equals an expected value. A typical compare-and-set loop reads the current value, calculates a candidate, and retries if another thread changes the value before the update succeeds:
 
 ```java
-AtomicInteger count = new AtomicInteger();
-
-int incrementAndGet() {
-    return count.incrementAndGet(); // already implements an atomic update
+static int increment(AtomicInteger value) {
+    int previous;
+    int next;
+    do {
+        previous = value.get();
+        next = previous + 1;
+    } while (!value.compareAndSet(previous, next));
+    return next;
 }
 ```
 
-For a custom state transition, the pattern is conceptually: read the current value, calculate a candidate, attempt CAS, and retry if the observed value changed. Keep the transformation safe to repeat; a CAS retry loop may evaluate it more than once.
+This Java example needs `java.util.concurrent.atomic.AtomicInteger`. A failed CAS means the expected value was no longer current, so the loop rereads and recomputes. Keep calculations safe to repeat: the loop may evaluate them multiple times, so do not perform non-idempotent side effects inside the retry loop. For a simple counter, prefer the library's `incrementAndGet()`; the explicit loop is useful for understanding custom state transitions.
 
 A **lock-free** algorithm guarantees system-wide progress: some operation completes even if individual threads repeatedly lose races. A **wait-free** algorithm guarantees each operation completes in a bounded number of its own steps. A blocking lock-based algorithm may suspend a thread while another holds a lock. These are progress guarantees, not synonyms for “fast.”
 
