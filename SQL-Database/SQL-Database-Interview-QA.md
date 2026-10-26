@@ -25,7 +25,7 @@ A focused interview handbook for Java backend engineers preparing for mid-level 
 3. [Q3. How do NULL values behave in SQL?](#q3-how-do-null-values-behave-in-sql)
 4. [Q8. What is the difference between INNER JOIN and LEFT JOIN, and how can ON versus WHERE change results?](#q8-what-is-the-difference-between-inner-join-and-left-join-and-how-can-on-versus-where-change-results)
 5. [Q13. How do you find the second-highest distinct salary?](#q13-how-do-you-find-the-second-highest-distinct-salary)
-6. [Q12. How do ROW_NUMBER, RANK, and DENSE_RANK differ?](#q12-how-do-rownumber-rank-and-denserank-differ)
+6. [Q12. How do ROW_NUMBER, RANK, and DENSE_RANK differ?](#q12-how-do-row_number-rank-and-dense_rank-differ)
 7. [Q14. How do you find the highest-paid employee in each department?](#q14-how-do-you-find-the-highest-paid-employee-in-each-department)
 8. [Q19. How do you identify duplicates and remove them safely?](#q19-how-do-you-identify-duplicates-and-remove-them-safely)
 9. [Q21. How do indexes work, and what are their trade-offs?](#q21-how-do-indexes-work-and-what-are-their-trade-offs)
