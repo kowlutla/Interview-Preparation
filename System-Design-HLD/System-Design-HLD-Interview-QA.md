@@ -2,7 +2,7 @@
 
 **Audience:** Java backend engineers with 5–10 years of experience preparing for senior and staff-leaning backend/product-company interviews.  
 **Purpose:** A progressive guide to architecture reasoning, capacity estimation, data ownership, consistency, failure handling, operations, and cost.  
-**Status:** Rebuilding for the 5–10 year experience band. Includes eight worked designs and 15 core-concept deep dives; the first 20 scenarios now emphasize invariants, diagnosis, quantified capacity, failure windows, recovery, and operational signals. A full content-coverage, technical accuracy, readability, and rendered-diagram audit remains in progress; not final sign-off.
+**Status:** Rebuilding for the 5–10 year experience band. Includes eight worked designs and 15 core-concept deep dives; scenarios 1–30 are being strengthened around invariants, diagnosis, capacity, failure windows, recovery, and operational signals. Full content coverage, technical accuracy, readability, and rendered-diagram validation remain in progress; not final sign-off.
 
 > **How to use this guide:** Learn fundamentals in order, then practise scenarios aloud. State assumptions, identify the critical business invariant, estimate scale, draw the simplest viable architecture, and deepen the part the interviewer challenges. Naming technologies is not the goal; explaining why the design satisfies requirements is.
 
@@ -3590,23 +3590,31 @@ If the service boundary provides no independent scaling, deployment, security, o
 
 ### Scenario 21 — Millions of queued events after an outage
 
-**Problem:** A downstream service recovers after several hours, leaving millions of retryable events. Replaying everything immediately risks causing a second outage.
+**Problem:** A downstream dependency was unavailable for several hours. It has recovered, but millions of retryable events are waiting. Replaying at full speed could create a second outage, exceed an external quota, or starve fresh interactive traffic.
 
-**Clarify:** What is the incoming rate now, what is the safe processing rate, which events have deadlines, and which are obsolete or non-retryable?
+**Clarify the workload:** Establish backlog size and age, current arrival rate, successful completion rate, provider quota, event deadlines, and which event types are critical. Determine whether the queue contains only retryable work or also permanent failures and records whose business meaning has expired.
 
-**Approach:** Calculate net drain rate as completion rate minus ongoing arrivals. Ramp replay gradually, cap concurrency against the downstream service's capacity, prioritize deadline-sensitive work, and separate poison messages. Preserve idempotency because replay can repeat side effects; expire or coalesce work only when business policy permits it.
+**Quantify net drain:** If the worker can successfully complete 18,000 events/s and new arrivals continue at 7,000/s, the net drain is 11,000/s. A 3.3-million backlog takes about 300 seconds under stable conditions. If completion rate is at or below ongoing arrivals, backlog cannot shrink; extending retention or adding consumers alone does not solve the deficit.
 
-**Signals and follow-up:** Track oldest-event age, arrival and completion rates, retry rate, failure rate, and estimated drain time. If processing capacity is no greater than ongoing arrivals, the backlog will not drain; add safe capacity, reduce incoming work, or change admission policy rather than merely increasing retention.
+**Recovery design:** Ramp replay gradually and cap worker concurrency against downstream capacity. Reserve a portion of provider quota for new urgent requests, separate priorities/channels, and process oldest or most deadline-sensitive work according to the business contract. Use exponential backoff with jitter and respect provider retry-after signals. Ensure retries use stable operation IDs/idempotency so events that may already have succeeded are not repeated as new actions.
+
+**Data and ordering:** Preserve per-key ordering where required, quarantine poison messages, and expire obsolete work explicitly. If the downstream side effect is uncertain, query status or reconcile before replay. Do not blindly replay the entire backlog after a consumer reset.
+
+**Signals and follow-up:** Track oldest-event age, arrivals/completions, net drain rate, provider throttling, retries, duplicates, and completion SLO. Explain how you will protect live traffic and what you will do when the predicted drain time exceeds the event's useful deadline.
 
 ### Scenario 22 — Duplicate notifications after consumer rebalance
 
-**Problem:** A Kafka consumer group rebalances during a deployment and users receive the same notification twice.
+**Problem:** A consumer group rebalance occurs during deployment or a slow processing interval, and users receive the same notification twice. Rebalances change partition ownership; they do not provide exactly-once semantics for arbitrary provider side effects.
 
-**Trace:** Follow a stable notification ID through the source transaction, outbox, broker record, consumer attempt, provider request, and delivery callback. Determine whether the duplicate came from republishing, reprocessing after offset reset, concurrent ownership during a rebalance, or provider retry after an uncertain timeout.
+**Trace the operation:** Follow one stable notification ID from the source transaction through outbox publication, broker topic/partition/offset, consumer attempt, provider request, and delivery callback. Determine whether the duplicate came from producer retry, offset reset, a crash after provider acceptance but before offset commit, reprocessing of a partition, or an HTTP timeout after the provider sent the message.
 
-**Design:** Use durable deduplication keyed by logical notification ID and an idempotent state transition. Commit local notification state before acknowledging the record; if the consumer crashes in between, the repeated record can be recognized. Pass a stable provider idempotency key if supported, and persist provider references and outcomes.
+**Design for idempotent handling:** Persist the logical notification ID and processing state in a durable inbox/state table. Coordinate the local state transition and processed-event record in one database transaction, then commit the broker offset according to the consumer model. If the process crashes after local commit but before offset commit, redelivery is recognized as already processed. If the provider accepts a send and the consumer crashes before recording that result, the local transaction alone cannot prevent a duplicate external side effect.
 
-**Limit:** If the provider does not support idempotency and a request times out after it may have sent the message, a duplicate cannot always be ruled out. Document that residual window and use delivery callbacks/reconciliation where possible. Monitor duplicate rate, rebalance frequency, provider timeouts, and retry attempts.
+Pass a stable provider idempotency key where supported; record provider message IDs, response state, and callback evidence. If the provider does not support idempotency and a timeout leaves the outcome uncertain, query status or reconcile when possible and document the residual duplicate window. Avoid acknowledging before the notification is durably recorded, but also avoid holding a Kafka partition while performing unbounded slow provider calls.
+
+**Operational controls:** Use bounded provider concurrency, deadlines, retry jitter, and per-destination quotas. Monitor rebalance frequency, processing duration, duplicate rate, unknown provider outcomes, and attempt counts. Test crashes before/after provider send and before/after offset commit.
+
+**Follow-up:** Distinguish deduplication of the event, idempotency of the database transition, and exactly-once external delivery. Those are three different guarantees.
 
 ### Scenario 23 — Search shows stale price after product update
 
@@ -3624,13 +3632,17 @@ If the service boundary provides no independent scaling, deployment, security, o
 
 ### Scenario 24 — Regional failover creates a routing loop
 
-**Problem:** Region A forwards traffic to B after a health check fails, while B's routing policy sends the same request back to A.
+**Problem:** Region A forwards traffic to Region B after a health check fails, while B's local routing rule forwards the request back to A. Requests bounce between regions, increasing latency and potentially multiplying traffic during an outage.
 
-**Clarify:** Which layer owns global routing, how is a region marked draining or failed, and can a region's local dependencies serve the request without cross-region forwarding?
+**Clarify routing ownership:** Determine which layer makes the global region decision (DNS/global traffic manager, edge proxy, or application router), whether regional routing is allowed to forward across regions, and how the system represents a region's state: healthy, degraded, draining, failed, or recovering. A local service should not independently override global ownership without a defined rule.
 
-**Approach:** Define explicit regional states and a one-way failover decision for each request. Keep global routing policy separate from service-level routing, attach a hop/region context where useful, and prevent forwarding back to a region already visited. Distinguish ingress health from end-to-end dependency health, and ensure failback is a controlled state transition rather than automatic oscillation.
+**Design:** Separate global traffic policy from regional/service-level routing. Make the failover decision explicit and idempotent, and ensure a region marked failed/draining is not selected again by another region's fallback policy. Include a hop count or visited-region context as a safety guard, but treat that as defense in depth rather than the primary routing design. Use request IDs and region-routing metadata to detect repeated forwarding and stop loops before exhausting resources.
 
-**Signals and follow-up:** Monitor cross-region hop counts, redirect/forwarding rate, routing decisions, dependency health, and failover state changes. Test partial failures and failback, not only a complete region shutdown.
+Distinguish ingress health from the ability to complete a user journey. A region may accept TCP connections but fail to reach its identity provider, database, or external dependency. Conversely, a partial failure may justify degraded local service rather than redirecting every request globally. Avoid health rules that react to transient noise and create failover oscillation.
+
+**Stateful data:** Routing is not write ownership. Before sending financial writes to another region, fence the previous writer, verify replica eligibility/RPO, and ensure one authoritative owner. Existing connections and WebSockets may not move when DNS changes.
+
+**Recovery and signals:** Make failback a separate controlled transition after data is current. Track cross-region hops, forwarding loops, decision reasons, route convergence, region states, and retries. Test partial connectivity and failback, not only complete region shutdown.
 
 ### Scenario 25 — Retention doubles storage requirements
 
@@ -3662,13 +3674,17 @@ If the service boundary provides no independent scaling, deployment, security, o
 
 ### Scenario 27 — External provider imposes a strict quota
 
-**Problem:** The provider permits 500 calls per second per account, but the application scales across many instances and can collectively exceed the limit.
+**Problem:** A provider permits 500 calls/second per account, while the application scales across dozens of instances. A per-instance limiter appears healthy but the aggregate exceeds the provider quota, causing 429 responses and retry amplification.
 
-**Clarify:** Is the quota shared across endpoints or credentials? Are bursts allowed? Does the provider return `Retry-After`, and which operations are deadline-sensitive?
+**Clarify the actual limit:** Is the quota per account, API key, endpoint, region, or resource? Are bursts allowed? Are read and write calls counted together? Does the provider publish rate-limit headers or retry-after guidance? Which calls are urgent and which can wait?
 
-**Approach:** Enforce an account-wide budget using a shared limiter or centrally allocated local token budgets. Queue deferrable calls with bounded depth, prioritize critical work, coalesce duplicate requests, and cache only when the provider contract permits it. Honor retry guidance and expose a pending state rather than retrying every throttled request immediately.
+**Design:** Enforce a shared budget at the same scope as the provider's quota. A central limiter is straightforward but adds request-path latency and can become a hot dependency. A hierarchical design can allocate bounded token budgets to instances/workers, reducing per-call coordination while limiting aggregate overshoot. Reconcile budgets when instances scale in/out so unused tokens are not permanently stranded and new instances do not start with a full quota.
 
-**Trade-off and signals:** A shared limiter adds a dependency; allocated local budgets reduce coordination but can briefly overshoot. Monitor provider 429s, quota consumption, queue age, retries, and per-operation latency. A per-instance limiter alone multiplies the aggregate allowance as instances scale.
+Queue deferrable calls with bounded depth, use priority classes, coalesce duplicate requests, and cache only data the provider contract permits to be cached. Bound concurrency as well as calls/second: a slow provider can exhaust in-flight work even when the rate is within quota. Respect retry-after responses and use jitter; immediate retries convert throttling into more throttling.
+
+**Failure behavior:** Define what happens if the quota service is unavailable. Strict contractual limits may require fail-closed behavior; a conservative local fallback may suit an approximate protective guard. Persist operation identity for non-idempotent provider calls and do not retry an uncertain mutation with a new ID.
+
+**Signals and follow-up:** Track aggregate call rate, 429s, quota consumption, limiter latency, queue age, attempts per logical operation, and per-operation completion. Load-test autoscaling and region failover; the quota must remain global even when traffic shifts between instances or regions.
 
 ### Scenario 28 — Infrastructure is healthy but data is inconsistent
 
@@ -3686,23 +3702,31 @@ If the service boundary provides no independent scaling, deployment, security, o
 
 ### Scenario 29 — Team wants a new database because it is popular
 
-**Problem:** A team proposes a new database based on industry popularity, without showing that the current store is the bottleneck.
+**Problem:** A team proposes adopting a popular database because it is widely discussed or used by another company, but has not shown that the current datastore cannot meet the workload requirements.
 
-**Approach:** State the workload and requirement first: query patterns, transaction invariants, throughput, p99 latency, data size, growth, and recovery targets. Use query plans and production measurements to establish the gap, then benchmark representative data and skew—not only a synthetic happy path. Compare consistency behavior, migration complexity, backup/restore, security, observability, operational skills, and total cost.
+**Start with evidence:** Describe access patterns, joins/aggregations, transaction boundaries, consistency needs, data size and growth, peak read/write rate, key distribution, p95/p99 objective, retention, RPO/RTO, security, and residency. Use production query plans, lock/pool metrics, storage/IOPS, replication lag, and load tests to establish the current limitation. A large table alone does not prove that the data needs a new engine.
 
-**Decision rule:** Adopt the new store only if the measured benefit is material enough to justify migration and ongoing operational risk. If the real issue is a missing index, poor query, hot key, or oversized connection pool, fix that first.
+**Compare alternatives fairly:** First consider tuning queries/indexes, correcting N+1 behavior, shortening transactions, partition pruning, archival, read replicas for eligible reads, cache or read-model design, connection management, or vertical scale. Then compare candidate stores with representative data and key skew. Test not only throughput but consistency, failover, backup/restore, schema evolution, hot-key behavior, observability, upgrades, and operational effort.
 
-**Follow-up:** Define success and rollback criteria before a proof of concept; a faster benchmark is not enough if restore or failover behavior is unproven.
+**Model migration cost:** Moving data requires dual-read/write decisions, snapshot and change capture, reconciliation, rollback, compatibility, and downtime or consistency trade-offs. A faster benchmark can be a net loss if it makes recovery slower or demands skills the team cannot operate safely. Include total cost: service pricing, replicas, network/egress, licenses, on-call, migration, and eventual exit.
+
+**Decision rule:** Adopt the new store only when the measured benefit matters enough to justify the added operational and correctness burden. If the real issue is a missing index, hot key, or overloaded connection pool, solve that first.
+
+**Follow-up:** Define a benchmark workload, success thresholds, failure tests, and rollback/exit criteria before committing to a proof of concept.
 
 ### Scenario 30 — Interviewer asks “What breaks first?”
 
-**Answer structure:** Start with the rough workload estimate and the capacity limit of each major tier: requests per instance, database throughput/connections, cache capacity, broker partitions, consumer throughput, and third-party quotas. Identify the most likely bottleneck and state the assumptions behind that prediction.
+This is a capacity and failure-model question, not an invitation to guess one component. Start with a workload model and explicitly state assumptions: peak request rate, request mix, fan-out, read/write ratio, payload sizes, cache hit ratio, and downstream/provider quotas.
 
-Then consider a failure: if one availability zone or a fraction of instances disappears, can the remaining capacity handle peak traffic? Explain the protective response—queue bounded work, shed optional traffic, throttle tenants, or reject requests before the system enters an uncontrolled failure spiral. Include recovery behavior and the risk of replaying a backlog too quickly.
+**Estimate each tier:** Calculate edge/API requests, application concurrency, database queries and connections, write throughput, cache memory and origin misses, event production/consumption, storage growth, and external API calls. Use safe tested capacity rather than theoretical maximum. For a queue, compare arrivals and successful completions; for a database, consider lock contention and hot partitions as well as aggregate CPU.
 
-**Validate:** Name the load test and metrics that would prove or disprove the hypothesis: successful throughput, p99, pool wait, hot-partition skew, queue age/drain time, dependency saturation, and error rate. A strong answer distinguishes a calculated estimate from a measured limit and says what would change the design.
+**Rank bottlenecks:** Identify the component with the lowest sustainable margin under expected peak. A shared database or provider quota may saturate before stateless app CPU. A cache outage may multiply origin traffic, and retries may turn a modest latency increase into a traffic spike. If all tiers look safe in isolation, trace fan-out and connection multiplication across the whole system.
 
+**Consider one failure:** Recalculate capacity after one instance/zone/region is lost and include deployment surge, cache cold start, or consumer replay. A system that handles peak only while every instance is healthy lacks resilience headroom. Explain which optional work is degraded, which requests are rejected early, and how critical correctness is preserved.
 
+**Validate:** Name the load/stress/spike tests and metrics that would prove or disprove the hypothesis: successful throughput, p99, pool wait, per-shard skew, cache misses, queue age/drain time, dependency saturation, error-budget burn, and business invariants. State what you would optimize, isolate, cache, queue, shard, or throttle only after the evidence points to that bottleneck.
+
+**Follow-up:** Senior-level reasoning is conditional: “Given these assumptions, database write contention is the leading risk; I would validate it with this test, and if it is not the bottleneck, I would revisit the next constraint.”
 
 ### Scenario 31 — Requirement changes from eventual to strong consistency
 
