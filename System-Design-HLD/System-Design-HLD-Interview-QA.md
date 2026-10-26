@@ -233,7 +233,7 @@ Offset pagination is easy but may become expensive at large offsets and can skip
 
 ### Q42. What is an idempotency key?
 
-It identifies a logical operation so repeated submissions return a consistent outcome rather than creating duplicate effects. Persist the key with operation state and a request fingerprint; reject reuse with a different payload. Define scope, expiry, concurrency behavior, and the response while the first attempt is running.
+It identifies a logical operation so repeated submissions resolve to the same operation rather than creating duplicate effects. Persist the key with operation state and a request fingerprint; reject reuse with a different payload. Enforce uniqueness atomically so concurrent first attempts cannot both execute. Define key scope and retention, and return either the stored result or a documented in-progress response while the original attempt is running.
 
 ### Q43. API gateway versus service mesh?
 
@@ -385,7 +385,7 @@ PACELC says that during a partition a system trades off availability and consist
 
 ### Q75. What are quorum reads and writes?
 
-Replicated systems may require acknowledgements from a configured number of replicas. Intersecting read and write quorums can help ensure a reader encounters a recent write under suitable assumptions. Guarantees depend on versioning, conflict resolution, membership, and configuration; arithmetic alone is not a universal guarantee.
+Replicated systems may require acknowledgements from a configured number of replicas. In a simple N-replica model, read quorum R and write quorum W with R + W > N create an intersection between the read and write sets. That intersection helps a read encounter a recent write only if the system's protocol, versions, membership, and conflict resolution preserve the relevant guarantee. Sloppy quorums, concurrent writes, and product-specific semantics can change the result; the arithmetic alone is not a universal consistency guarantee.
 
 ### Q76. Why are distributed locks difficult?
 
@@ -450,7 +450,7 @@ A poison message repeatedly fails due to malformed data, schema incompatibility,
 
 ### Q87. How do you prevent duplicate payment charges?
 
-Create a durable payment-operation record with a unique business/idempotency key before calling the provider. Repeated submissions resolve to the same operation. Pass an idempotency key to the provider if supported and persist provider references. Treat timeouts as unknown outcomes, query status or reconcile, and do not blindly initiate a new charge.
+Create a durable payment-operation record with a unique business/idempotency key before calling the provider. Repeated submissions resolve to the same operation. Pass a stable idempotency key to the provider if supported and persist provider references. Understand the provider's key scope and retention window: a retry after that window may not be deduplicated, so query status or reconcile before resubmitting. Treat timeouts as unknown outcomes and do not blindly initiate a new charge.
 
 ```mermaid
 sequenceDiagram
@@ -576,7 +576,7 @@ Recovery Time Objective is the target maximum time to restore service after disr
 
 ### Q111. How do you handle a regional outage without conflicting financial writes?
 
-Define a single authoritative write owner per financial entity or use a datastore with required global consistency. If regions cannot coordinate and correctness is mandatory, reject or queue some writes rather than allow conflicting updates. Fence the old leader and reconcile before restoring normal writes. Double-charging customers is not an acceptable availability trade-off.
+Define a single authoritative write owner per financial entity or use a datastore with the required global consistency. If regions cannot coordinate and correctness is mandatory, reject writes whose ownership cannot be established. Queue a write only when the queue itself durably records the request, preserves its idempotency identity, and does not falsely promise that the financial operation has committed; otherwise return a retryable response. Fence the old leader and reconcile before restoring normal writes. Double-charging customers is not an acceptable availability trade-off.
 
 ```mermaid
 flowchart TD
@@ -1190,7 +1190,7 @@ The key's retention must exceed the realistic client retry window and the time r
 
 ### Q258. How do you design API pagination when the underlying data changes frequently?
 
-Use stable sort fields and a unique tie-breaker, and encode the cursor so clients cannot arbitrarily change internal query state. Decide whether pages represent a live view or a snapshot. A cursor avoids expensive large offsets but does not itself guarantee snapshot consistency. For audit or export workflows, a snapshot boundary or asynchronous export job may be more appropriate.
+Use stable sort fields and a unique tie-breaker, and make the cursor opaque or integrity-protected so clients cannot alter internal query state. Decide whether pages represent a live view or a snapshot. A cursor avoids expensive large offsets but does not itself guarantee snapshot consistency or freeze the result set. For audit or export workflows, a snapshot boundary or asynchronous export job may be more appropriate.
 
 ### Q259. What is an API compatibility contract?
 
