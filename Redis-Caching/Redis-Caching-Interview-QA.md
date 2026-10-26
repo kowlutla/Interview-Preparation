@@ -139,6 +139,7 @@ A cache must be reconstructible after misses. If Redis stores irreplaceable stat
 - volatile-ttl: prefer eligible keys with the shortest remaining TTL.
 - allkeys-random / volatile-random: random eligible-key eviction.
 - noeviction: reject writes that need additional memory rather than evicting keys.
+- allkeys-lrm / volatile-lrm: in Redis 8.6 and later, least-recently-modified eviction is available in supported deployments; it favors keys not modified recently, rather than keys not accessed recently. Check version and managed-service support before relying on it.
 
 LRU favors recent access; LFU can favor a stable hot set. Neither is universally best. With volatile policies, if no eligible expiring keys exist, writes may fail similarly to noeviction. Confirm the policy in the deployed service; managed Redis products may restrict configuration.
 
@@ -428,6 +429,39 @@ Minimize cached fields, set TTLs, use appropriate authentication/TLS/access cont
 
 Keep MySQL authoritative, index the canonical lookup, and use cache-aside with a finite TTL for hot product DTOs. Invalidate after committed writes and use durable events if the stale window warrants the complexity. Add single-flight loading, TTL jitter, metrics, and bounded database fallback. Return the committed update result for read-after-write and avoid shared caching of permission-dependent data.
 
+
+### Q51. How do Redis Pub/Sub and Streams differ?
+
+Redis Pub/Sub is a live broadcast mechanism: subscribers receive messages while connected, but Redis does not retain a message log for disconnected subscribers to replay. It is useful for transient notifications where missing a message is acceptable or another mechanism can recover the state.
+
+Redis Streams store entries with IDs and support range reads, retention controls, and consumer groups. Consumer groups track delivered but unacknowledged entries, allowing a failed consumer's pending work to be inspected and reclaimed. This makes Streams more appropriate when a backend needs recoverable work distribution or a replayable event history.
+
+Streams still do not create an exactly-once transaction with MySQL. A consumer may commit its database transaction and fail before acknowledging the entry, causing redelivery. Make handlers idempotent, define retry and poison-message handling, and configure retention so unprocessed events are not removed prematurely. Choose Pub/Sub for ephemeral live fan-out and Streams when persistence, recovery, and consumer progress matter.
+
+### Q52. When should you use Lua scripting or Redis Functions?
+
+A Lua script can perform a bounded sequence of Redis operations atomically on the server. It is useful when correctness depends on checking and updating several values without another client interleaving—for example, validating a rate-limit window and updating its counter and expiry together. Redis Functions provide a server-managed way to deploy reusable logic in supported Redis versions.
+
+Scripts execute without other commands interleaving during their execution, so they must be short and bounded. A long script can block unrelated work on that Redis execution path. Validate input, avoid loops over unbounded collections, and make every key needed by a script explicit. In Redis Cluster, keys used by a multi-key script generally need to map to the same hash slot; use hash tags only when the resulting colocation and hot-key trade-off is acceptable.
+
+Server-side atomicity is not a distributed transaction with MySQL or an external API. If the script times out from the client's perspective, the client may not know whether it completed. Design retries and idempotency accordingly, and use the official command/function documentation for the deployed Redis version.
+
+### Q53. What is Redis pipelining, and how is it different from MULTI/EXEC?
+
+Pipelining sends several commands without waiting for each individual response, then reads the replies. It reduces network round trips and can improve throughput when latency is dominated by request/response overhead. It does not, by itself, make the commands atomic: other clients may run commands between the pipelined commands.
+
+`MULTI/EXEC` groups queued commands so their execution is not interleaved with commands from other clients, but it does not provide SQL-style rollback of commands already executed when a runtime command error occurs. A Lua script can perform conditional read-and-write logic atomically on the server, provided its work is bounded.
+
+Use bounded pipeline batches; huge pipelines can increase client and server memory use and create latency spikes. Choose the mechanism by the requirement: pipelining for fewer round trips, transactions for grouped non-interleaved execution, and scripts for bounded conditional logic that must execute atomically.
+
+### Q54. When should a Spring application use @Cacheable versus RedisTemplate?
+
+Spring's cache abstraction—commonly `@Cacheable`, `@CachePut`, and `@CacheEvict`—is convenient when the desired behavior is method-level caching managed through a configured `CacheManager`. It keeps application code focused on the method result and allows the underlying cache implementation to be changed with less application-level coupling.
+
+`RedisTemplate` or `StringRedisTemplate` is more appropriate when the application needs explicit Redis data structures, atomic counters, custom key operations, scripts, streams, TTL control, or logic that does not map naturally to method-result caching. It offers more control but also makes key design, serialization, expiration, and failure handling the application's responsibility.
+
+Neither approach automatically solves consistency. Define key names and TTLs, ensure cache keys include relevant tenant or authorization dimensions, and decide how updates invalidate or refresh entries. Be aware that annotation-based caching commonly relies on Spring proxy interception: self-invocation within the same object may bypass the cache advice. Verify the behavior and configuration for the actual Spring version, and test cache misses, errors, serialization changes, and invalidation explicitly.
+
 # Redis command reference
 
 Use diagnostic commands with awareness of production impact. Some managed services restrict them.
@@ -445,7 +479,7 @@ HSET user:17 status active
 SADD product:42:tags keyboard office
 SISMEMBER product:42:tags office
 ZADD leaderboard 1200 user:17
-ZREVRANGE leaderboard 0 9 WITHSCORES
+ZRANGE leaderboard 0 9 REV WITHSCORES
 
 # Expiry
 TTL product:42
