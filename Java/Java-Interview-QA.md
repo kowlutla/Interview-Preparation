@@ -1318,7 +1318,7 @@ A concurrent collection protects its own structure; it does not make mutable val
 
 A `ThreadLocal` associates a value with a thread, not with a request. A platform-thread pool reuses workers, so a value left behind after one request can leak into the next task on that worker. Always clean up values in a `finally` block when using ThreadLocal for request-scoped state:
 
-```try
+```java
 try {
     requestContext.set(context);
     handleRequest();
