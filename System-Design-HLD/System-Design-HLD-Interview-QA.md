@@ -2,7 +2,7 @@
 
 **Audience:** Java backend engineers with 5–10 years of experience preparing for senior and staff-leaning backend/product-company interviews.  
 **Purpose:** A progressive guide to architecture reasoning, capacity estimation, data ownership, consistency, failure handling, operations, and cost.  
-**Status:** Rebuilding for the 5–10 year experience band. Includes eight worked designs and 15 core-concept deep dives; foundational answers are being audited for mechanism-level depth, trade-offs, capacity reasoning, recovery, and failure-window correctness. The first ten scenario answers now include clearer invariants, diagnosis, design options, migration/recovery considerations, and signals. Full coverage, technical accuracy, readability, and rendered diagram validation remain in progress; not final sign-off.
+**Status:** Rebuilding for the 5–10 year experience band. Includes eight worked designs and 15 core-concept deep dives; the first 20 scenarios now emphasize invariants, diagnosis, quantified capacity, failure windows, recovery, and operational signals. A full content-coverage, technical accuracy, readability, and rendered-diagram audit remains in progress; not final sign-off.
 
 > **How to use this guide:** Learn fundamentals in order, then practise scenarios aloud. State assumptions, identify the critical business invariant, estimate scale, draw the simplest viable architecture, and deepen the part the interviewer challenges. Naming technologies is not the goal; explaining why the design satisfies requirements is.
 
@@ -3444,103 +3444,149 @@ After a timeout, do not create a new payment attempt with a new identity. Query 
 
 ### Scenario 11 — Distributed lock expires while work continues
 
-**Problem:** Worker A obtains a lease and pauses during a long GC pause or network partition. The lease expires, worker B acquires ownership, and then A resumes and attempts to commit stale work.
+**Problem:** Worker A acquires a 30-second lease to process an account. It pauses for 45 seconds during a long runtime pause or network partition. Worker B sees the lease expire and acquires ownership, then A resumes and attempts to commit stale work. Both workers may believe they are acting legitimately.
 
-**Invariant:** At most one current owner may successfully mutate the protected resource. A lock service cannot enforce this invariant by itself if the resource accepts writes from stale owners.
+**Invariant:** Only the current owner may commit a mutation to the protected resource. A lock service that records ownership is insufficient if the target database or external system still accepts writes from a stale owner.
 
-**Design:** Issue a monotonically increasing fencing token or epoch when ownership changes, and require the protected database or service to reject writes with an older token. Prefer a conditional update or unique constraint when it directly expresses the invariant. Make long-running work resumable and idempotent; do not rely only on a worker checking its local lease before writing.
+**Design:** Where possible, express the invariant directly in the authoritative store using a conditional update, unique constraint, or transaction. If a lease is required, allocate a monotonically increasing fencing token/epoch on each ownership change. Every write carries that token, and the protected resource rejects tokens older than the latest accepted one. Checking the lease locally just before writing is not enough because ownership can change between the check and the write.
 
-**Follow-up:** Explain what happens if A calls an external provider that cannot validate fencing tokens. Use provider idempotency, a durable operation state machine, and reconciliation to manage the remaining uncertainty.
+**Crash and external-effect windows:** A may have already called an external provider before its lease expired. If that provider cannot validate fencing tokens, use a stable idempotency key, durable operation state, and status query/reconciliation. A fencing token cannot undo an email, payment, or external mutation already accepted. Avoid holding distributed locks across long network calls; split work into durable, resumable steps where possible.
+
+**Recovery and signals:** Define lease duration/renewal, owner identity, behavior when the lock service is partitioned, and safe cleanup of abandoned work. Track lease expiry, duplicate processing, stale-token rejection, lock contention, and jobs stuck in progress.
+
+**Follow-up:** Explain exactly where the stale write is rejected. “We use Redis locks” is incomplete unless the resource being protected can distinguish the current owner from an expired one.
 
 ### Scenario 12 — p99 latency is poor but averages look healthy
 
-**Problem:** Average latency is 80 ms, but p99 is 2.5 seconds and users report intermittent stalls.
+**Problem:** Average request latency is 80 ms, but p99 is 2.5 seconds. Most users see a fast response, while a small but important fraction experience stalls or timeouts. The mean is hiding the tail.
 
-**Diagnose:** Confirm that the percentile uses the correct request population and time window. Break traces down by endpoint, tenant, payload size, region, and dependency. Inspect queue wait, connection-pool acquisition, lock contention, slow queries, garbage collection, retries, and fan-out. Compare latency during peak load with the same path at low load.
+**Diagnose:** Confirm the percentile's request population, sampling, time window, endpoint, region, and success/error treatment. Break the latency timeline into queue wait, connection-pool acquisition, application execution, database time, downstream calls, and network/serialization. Segment by tenant, payload size, cache hit/miss, request route, and peak versus off-peak periods. Averages can hide a hot key or one slow dependency serving only a subset of requests.
 
-**Design:** Fix the dominant source of tail latency rather than optimizing the average. Propagate an end-to-end deadline, bound concurrency and queueing, isolate expensive tenants or optional dependencies, and parallelize only independent calls. If one optional field dominates the tail, allow a partial response only when the API contract explicitly permits it.
+Check for queueing near saturation, database lock contention, slow query plans, thread/connection pool starvation, garbage-collection pauses, retries, network retransmissions, and synchronous fan-out. In a fan-out endpoint, the slowest required parallel dependency often determines the tail. For a serial chain, downstream latency accumulates.
 
-**Signals and validation:** Track p50/p95/p99 alongside throughput, errors, and queue/pool wait. Reproduce the workload under load and dependency degradation; a low average does not prove that the SLO is met.
+**Design response:** Fix the dominant cause rather than optimizing average latency. Bound concurrency and queue depth, propagate an end-to-end deadline, prevent retries from exceeding it, isolate expensive tenant/work classes, and remove optional dependencies from the critical path when the API contract permits degradation. Optimize a query or partition key when a specific database path dominates. Parallelize only independent calls and cap fan-out so it does not create a new downstream overload.
+
+**Validation:** Reproduce the load and traffic mix, then compare p50/p95/p99, successful throughput, error rate, queue/pool waits, and business completion. Validate with one controlled change at a time and include degraded-dependency tests.
+
+**Follow-up:** Low CPU does not rule out saturation. Many threads can be waiting on locks, sockets, or connections. Explain which metric tells you where time is spent, not just that you would “check logs.”
 
 ### Scenario 13 — Multi-region partition during financial writes
 
-**Problem:** Regions A and B lose connectivity, but both continue receiving requests to debit, refund, or update the same financial entity.
+**Problem:** Regions A and B lose connectivity, but clients can still reach both. Each region receives debit/refund requests for the same accounts. If both regions accept writes independently, the ledger may diverge or the same logical payment may be applied twice.
 
-**Clarify:** Which system is authoritative, what does an accepted response promise, and can the datastore establish one write owner during the partition?
+**Clarify the contract:** Which store is authoritative for a ledger entry? Does an acknowledged response promise durable commit, or merely acceptance for later processing? What RPO is allowed? Can the system determine current write ownership during the partition?
 
-**Design:** Use a single authoritative writer per entity or a datastore with the required globally consistent transaction semantics. Fence the old owner so it cannot commit after promotion. If ownership cannot be proven, reject the write with a retryable response or durably record a pending command without claiming that the financial mutation has committed. Preserve the same idempotency identity across retries and reconcile provider records before resuming normal processing.
+**Design:** Use a datastore/protocol that provides the required cross-region transaction guarantee, or route writes for each account/ledger to one authoritative region or partition. Replicate reads to other regions where the freshness contract permits. Ownership changes require an explicit quorum/leader protocol and fencing so the old writer cannot resume after a pause. Health checks and DNS changes do not establish exclusive write authority.
 
-**Trade-off and signals:** Strong coordination can reduce write availability during a partition; allowing conflicting writes risks irreversible double effects. Monitor owner changes, rejected/queued writes, unknown payment outcomes, and ledger discrepancies. Active-active application servers do not imply safe active-active writes.
+If the owner is unreachable and ownership cannot safely transfer, reject the write or durably record a **pending command** without claiming the debit/refund has committed. Do not queue arbitrary financial mutations indefinitely: the command may be stale or invalid when connectivity returns. Preserve the original idempotency identity and validate current account state before executing it. For external payment effects, query/reconcile the provider before retrying.
+
+**Trade-off:** Strong coordination can reduce write availability during partitions and add cross-region latency. Allowing both sides to accept writes improves availability only if the data model can safely merge the operations; financial debits generally cannot be treated as a simple last-write-wins register.
+
+**Recovery:** Fence one owner, reconcile logs/provider transactions, repair derived read models, and expose unresolved outcomes for investigation. Monitor owner changes, rejected/pending writes, unknown payment outcomes, and ledger mismatches.
+
+**Follow-up:** Distinguish active-active compute, multi-region reads, single-writer-per-entity, and true multi-writer writes. They provide different guarantees.
 
 ### Scenario 14 — New microservice makes requests slower
 
-**Problem:** A feature that previously made one in-process call now calls three services, increasing p99 latency and creating new failure paths.
+**Problem:** A feature previously made one in-process call but now calls three new services. P99 latency rises, timeouts increase, and failures in one service affect the entire user journey. The extraction may have improved ownership without improving runtime performance.
 
-**Diagnose:** Compare traces before and after extraction. Include network and serialization cost, connection-pool waits, retries, sequential versus parallel calls, duplicated database queries, and the availability of each required dependency. Check whether the new service owns its data or merely adds a network hop to a shared database.
+**Diagnose:** Compare distributed traces before and after the change. Separate network/serialization cost, DNS/service discovery, TLS, connection-pool acquisition, sequential versus parallel calls, duplicated database queries, retries, and the downstream processing time. Check whether the new service actually owns its data or only adds a network hop to a shared database. Identify whether the tail comes from one required dependency or many small sequential costs.
 
-**Options:** Coarsen the API to avoid chatty calls, reuse connections, parallelize independent requests under a concurrency limit, or build a read model for a high-volume composite query. Keep authorization and consistency-critical checks at the appropriate authoritative owner. If the service boundary adds no independent ownership, scaling, deployment, or isolation benefit, a well-defined module in the same deployment may be better.
+**Architectural choices:** Coarsen an API to return the data needed for one user operation instead of making a chatty series of calls. Reuse persistent connections, propagate deadlines, enforce concurrency limits, and parallelize independent calls only where semantics allow. For a high-volume composite read, consider a materialized read model to avoid repeated fan-out, accepting its propagation lag and rebuild complexity. Keep business authorization at the resource-owning service; do not bypass ownership merely to shave latency.
 
-**Decision:** Compare end-to-end latency, operational cost, and failure behavior—not just per-service CPU. A microservice is an organizational and operational boundary, not an automatic performance optimization.
+If the service boundary provides no independent scaling, deployment, security, or ownership benefit, a module within the same deployment may be better. Alternatively, keep the service boundary but move noncritical work off the synchronous path. Avoid solving latency by indiscriminately increasing timeouts; that often ties up more threads and connections.
+
+**Trade-offs and validation:** Measure end-to-end latency and availability, not each service's local metric alone. Load-test with network delays and one slow dependency. Monitor fan-out ratio, pool wait, retry multiplier, p99, and resource consumption.
+
+**Follow-up:** Explain why microservices are not automatically faster and which boundary benefit justifies the additional partial failures and operational overhead.
 
 ### Scenario 15 — Retry policy creates an outage
 
-**Problem:** The client, gateway, and worker each retry a slow dependency three times, turning one logical request into a burst of downstream attempts.
+**Problem:** The client, gateway, service, SDK, and worker each retry a slow dependency. Three attempts at multiple layers can multiply downstream load instead of merely adding a few extra requests. The dependency slows further, causing more timeouts and a retry storm.
 
-**Analysis:** Retries at multiple layers can multiply attempts rather than simply add a few extra calls. Timeouts can also leave the caller uncertain whether a write committed, so a retry may duplicate a side effect.
+**Quantify the amplification:** If four layers each permit three attempts and all attempts reach the next layer, one original call can theoretically cause up to (3^4 = 81) attempts at the deepest dependency. Real paths may stop early, but the example shows why independent retry policies cannot be considered in isolation. Include background retries and replay traffic in the capacity model.
 
-**Design:** Choose a clear retry owner where possible, propagate an end-to-end deadline, cap attempts, and use exponential backoff with jitter. Retry only failures likely to be transient and only when the operation is safe to repeat through idempotency or deduplication. Apply concurrency limits, retry budgets, circuit breaking, and load shedding; restore traffic gradually after recovery.
+**Diagnose:** Compare original logical request rate with physical attempt rate, timeout and latency distributions, per-layer retry counters, concurrency, queue age, and dependency saturation. Determine whether timeouts are due to a transient network issue, overload, or uncertain mutation outcome. A timeout does not imply that the remote side effect failed.
 
-**Signals and validation:** Monitor attempts per logical request, timeout rate, retry traffic, dependency saturation, and recovery time. Test an outage and recovery, not just a single injected failure. See [Google SRE guidance on cascading failures](https://sre.google/sre-book/addressing-cascading-failures/).
+**Design:** Choose a clear retry owner where possible, propagate an overall deadline, cap attempts, and use exponential backoff with jitter. Respect retry-after instructions and use a retry budget during incidents. Retry only plausible transient failures, and require idempotency or stable operation identity before retrying mutations. Apply bulkheads, admission control, circuit breakers, and load shedding. Do not allow all retries to immediately resume at full rate after recovery.
+
+**Recovery:** Reduce retry traffic first, recover the dependency, then increase traffic gradually. Reconcile uncertain external effects before replaying. Ensure DLQ/redrive work cannot compete without bounds with live business traffic.
+
+**Validation:** Inject dependency latency/outage and test recovery, not merely the first failure. Track attempts per logical operation, retry-generated QPS, successful throughput, error budget burn, and time-to-recover.
+
+**Follow-up:** A policy can improve individual-request success probability while making system-wide availability worse. Explain that system-level trade-off.
 
 ### Scenario 16 — API returns success before work is durable
 
-**Problem:** The API responds `201 Created` or `202 Accepted` before the database transaction commits or the broker durably acknowledges the queued job. A process crash can then lose work that the client believes was accepted.
+**Problem:** The API returns `201 Created` or `202 Accepted` before the database commit finishes or before a job is durably accepted by the broker. The process crashes, and the client believes work exists when it has been lost.
 
-**Clarify the contract:** `201 Created` normally indicates that a resource was created; `202 Accepted` indicates that processing was accepted but may not be complete. Neither status code itself guarantees durability—the implementation and documented contract must provide it.
+**Clarify semantics:** `201 Created` normally represents creation of a resource; `202 Accepted` means processing was accepted but may not be complete. Neither status code itself proves durability. The contract should name the exact boundary: persisted command, committed business state, broker acceptance, provider acceptance, or completed business outcome.
 
-**Design:** For synchronous creation, commit the durable record before returning success. For asynchronous processing, persist a job or operation record (often with an outbox in the same transaction as business state) before acknowledging acceptance. Return an operation ID and expose pending, succeeded, failed, and retryable states. In-memory task submission alone is not durable acceptance.
+**Design for synchronous creation:** Commit the record and required state transition before returning success. If an event must be emitted, use a transactional outbox so the business state and publication intent commit together. Publishing to a broker before the database transaction commits can expose a non-existent entity; publishing afterward in a separate step can lose the event if the process crashes.
 
-**Failure handling:** Test crashes between persistence, broker publication, and response transmission. A client timeout after commit can cause a retry, so use an idempotency key and return the existing operation rather than creating a duplicate.
+**Design for asynchronous work:** Persist an operation/job record (and outbox row when needed) in a durable transaction, then return an operation ID and pending state. A worker claims the durable job, processes idempotently, records progress, and exposes succeeded/failed/expired states. In-memory task submission alone is not durable acceptance. If the broker itself is the acceptance boundary, document its acknowledgement and replication guarantees.
+
+**Failure windows:** Test crash before commit, after commit but before publish, after broker publish but before marking the outbox row complete, and after durable acceptance but before the HTTP response reaches the client. Use idempotency keys so a client retry returns the existing operation rather than creating a duplicate. Expect duplicate publication and make consumers idempotent.
+
+**Follow-up:** Explain what a success response promises and how you prove the operation can survive a process, node, or broker failure.
 
 ### Scenario 17 — Strongly consistent payments and eventually consistent analytics
 
-**Problem:** Finance requires an accurate payment state, while dashboards and reports can tolerate delayed updates.
+**Problem:** The payment domain needs correct state transitions, ledger entries, and idempotent processing, while dashboards and analytical reports can tolerate delayed updates. The design should not couple payment authorization latency to the reporting stack, nor let a lagging report decide a financial action.
 
-**Design:** Keep the ledger and payment state in an authoritative transactional store. Commit the business change and an outbox record atomically, then publish through an outbox publisher or CDC pipeline to analytical storage. Make projection updates idempotent and version-aware, and provide a rebuild/reconciliation path.
+**Source of truth:** Keep payment/order financial state in an authoritative transactional store with constraints and explicit state transitions. The payment path should atomically update its durable business state and record publication intent, commonly via a transactional outbox. A publisher or CDC pipeline sends changes to a broker; consumers update analytical storage and report projections.
 
-**Trade-off:** Synchronous writes to analytics would couple payment latency and availability to reporting infrastructure. Eventual analytics introduces a freshness delay, so show an “as of” timestamp or freshness SLO and never use a lagging analytical model to authorize financial decisions.
+**Consistency contract:** The outbox prevents the database change and event intent from diverging, but it does not give exactly-once end-to-end processing. Publish can be repeated after a crash, so consumers must deduplicate/idempotently apply events. Version checks and ordered per-entity processing prevent stale status updates. Reports should surface an “as of” timestamp/freshness SLO and not be used to approve refunds or authorize debits.
 
-**Signals and follow-up:** Monitor outbox age, consumer lag, projection freshness, reconciliation mismatches, and ledger-to-report totals. If a report is wrong, trace the operation through the ledger, outbox, event, and projection before rebuilding.
+**Failure handling:** Monitor outbox backlog, oldest unpublished event, consumer lag, projection errors, and ledger-to-report reconciliation. If analytics is behind, payment operations continue while the dashboard shows delayed freshness. If the source transaction fails, no committed outbox event should claim the payment change happened. If the event is published twice, the projection should not double-count it.
+
+**Recovery:** A corrupted projection should be rebuildable from authoritative data or retained events using a versioned snapshot boundary, with concurrent changes captured before cutover. Preserve delete and correction semantics; a financial correction should be represented as an auditable adjustment rather than silently rewriting history.
+
+**Follow-up:** Explain why strong consistency is scoped to a critical business boundary rather than imposed on every downstream consumer.
 
 ### Scenario 18 — Incompatible event schema deployment
 
-**Problem:** A new producer emits an event shape that an older consumer cannot parse, causing retries or a consumer outage.
+**Problem:** A producer begins emitting a new event shape that an older consumer cannot parse or interpret. The consumer retries, lag grows, and a partition may become blocked. The failure can be syntactic (deserialization) or semantic (the same field now means something different).
 
-**Diagnose:** Determine whether the change is syntactically incompatible (for example, a required field is missing) or semantically incompatible (a field kept the same name but changed meaning). Schema validation catches only the rules configured in the registry; it cannot prove business meaning is preserved.
+**Diagnose:** Identify schema versions in flight, producer/consumer deployment order, registry compatibility mode, replayed historical payloads, DLQ growth, and which partition/key is affected. A schema registry can enforce structural rules, but it cannot prove that a field's business meaning is unchanged.
 
-**Rollout plan:** Prefer additive fields with safe defaults. Deploy consumers that tolerate the new representation before producers start emitting it, then roll out producers gradually. Keep compatibility through the rollback window and test old/new producer-consumer combinations. For incompatible changes, introduce a new version or event type and migrate consumers explicitly.
+**Safe rollout:** Prefer additive optional fields and stable semantics. Deploy consumers that tolerate both old and new forms before producing the new form. Set safe defaults and ensure old consumers can ignore unknown fields if the serialization contract permits it. For a breaking change, create a new event type/version and migrate consumers deliberately rather than repurposing a field in place.
 
-**Recovery:** Quarantine malformed records rather than retrying them forever, preserve the original payload and schema version, and replay only after the consumer can process them safely. Monitor consumer errors, DLQ growth, and event-processing lag.
+**Recovery:** Preserve the original payload, schema ID/version, error, and event identity. Do not retry deterministic schema errors forever. Quarantine malformed messages and replay only when a compatible consumer is deployed; maintain ordering if downstream events for that entity depend on the missing event. If a projection was partially updated, make its replay idempotent and reconcile.
+
+**Rollback:** The old producer may be safe to restore only if new consumers accept old events and any data written by the new version remains readable. Keep mixed-version compatibility through the rollback window. Test old-producer/new-consumer and new-producer/old-consumer combinations, including historical replay.
+
+**Signals:** Monitor deserialization failures, schema-version distribution, DLQ age, per-partition lag, and completion SLO. In an interview, explain rollout order and rollback compatibility—not just “use schema registry.”
 
 ### Scenario 19 — Rate limiter becomes the bottleneck
 
-**Problem:** A remote rate limiter becomes a bottleneck because every incoming request performs a shared counter operation.
+**Problem:** Every incoming request calls a shared rate-limit store or service, adding a network round trip and contending on hot counters. The limiter's p99 becomes the API's p99 or the limiter itself becomes unavailable during traffic spikes.
 
-**Diagnose:** Measure limiter latency, contention on hot keys, network round trips, and how much of the API's p99 is spent waiting for quota decisions. Confirm whether the quota truly needs exact global enforcement or only bounded overshoot.
+**Diagnose:** Measure checks per request, limiter latency, hot-key contention, key cardinality, store CPU/network, atomic operation cost, and the fraction of end-to-end latency spent waiting for quota decisions. Confirm whether the quota must be exact globally, exact per tenant, or only approximate abuse protection.
 
-**Options:** A shared atomic limiter gives a more accurate global view but adds a dependency and latency. Local token buckets are fast and resilient but can multiply the allowance across instances. A hierarchical design can allocate bounded token budgets to instances from a global quota, reducing per-request coordination while controlling overshoot.
+**Options:**
+- **Central atomic limiter:** simple global semantics and accurate shared accounting, but it adds latency and can create a hot store/key.
+- **Local token bucket:** fast and resilient, but each instance can independently grant tokens; autoscaling can multiply the aggregate allowance.
+- **Hierarchical budget allocation:** a global controller leases bounded token budgets to local instances. Requests are then decided locally while total overshoot is bounded by the distributed allocation, but some capacity may temporarily be stranded or unfairly distributed.
+- **Edge plus business quotas:** coarse IP/network limits reject obvious abuse early; authenticated tenant/account limits and expensive-operation budgets are enforced closer to the API owner.
 
-**Decision:** Pick the simplest algorithm that satisfies the abuse and billing risk. Define fail-open versus fail-closed behavior, account for scale-out and restarts, and monitor limiter errors, quota consumption, rejection rate, and latency added by enforcement.
+**Correctness and failure:** Define behavior on store outage and partition. A hard billing quota may need fail-closed behavior; an approximate anti-abuse limit may permit a conservative local fallback. Make the limit scope match the provider's actual quota and include burst semantics. Rate limiting controls requests per time; concurrency admission controls simultaneous expensive work and can be needed even with an acceptable rate.
+
+**Signals and follow-up:** Track allowed/rejected traffic, per-key skew, store latency/errors, quota overshoot, and autoscaling changes. Load-test hot tenants and limiter failover. Explain how the design avoids a limiter dependency taking down every endpoint.
 
 ### Scenario 20 — 10× spike with a limited budget
 
-**Problem:** A campaign may create ten times normal traffic, but the budget does not allow every tier to be provisioned for the peak continuously.
+**Problem:** A campaign may create ten times normal traffic, but continuously provisioning every component for the peak is too expensive. The design must absorb bursts without letting optional work or one hot dependency overwhelm critical journeys.
 
-**Clarify:** How quickly does the spike arrive, how long does it last, which user journeys are revenue- or safety-critical, and what latency or rejection rate is acceptable for optional work?
+**Clarify the shape:** Ask how quickly demand ramps, how long the spike lasts, whether requests are read-heavy or write-heavy, what percentage can be deferred, which journeys are revenue- or safety-critical, and what rejection/latency target is acceptable. Ten times traffic for 30 seconds is different from ten times traffic for six hours.
 
-**Design:** Separate baseline from burst capacity. Cache immutable or safely stale reads, precompute expensive results, queue deferrable work with bounded retention, reserve capacity for critical operations, and use admission control or rate limits. Pre-warm capacity and test autoscaling lag; autoscaling cannot instantly create capacity for a sudden spike. Avoid letting a cold cache or dependency failure multiply the load.
+**Capacity and design:** Separate baseline from burst capacity. Cache immutable or safely stale content, precompute expensive reads, use a CDN for eligible public/static responses, and avoid proxying large object bytes through application servers. Queue deferrable work with bounded retention and priority separation. Reserve capacity for critical writes, put quotas around expensive tenants/routes, and use admission control and load shedding when the safe concurrency limit is reached.
 
-**Trade-off and validation:** Overprovisioning improves burst response but costs more; shedding load protects critical paths but rejects some work. Run a representative load test, including cold-cache and degraded-dependency cases, and monitor queue age, rejected traffic, p99, and cost per successful operation.
+**Autoscaling limits:** Provisioning is not instant. New instances need startup, readiness, connection pools, and cache warm-up; a database or provider quota may not scale with application instances. Pre-warm minimum capacity for known campaigns, use gradual ramping, and test cold-cache/dependency-degraded conditions. More app instances can actually create more DB connections and downstream traffic.
+
+**Trade-off:** Overprovisioning reduces rejection risk but increases cost. Load shedding protects critical flows while some work is rejected/deferred. Precomputation reduces read-time cost but introduces freshness and rebuild responsibilities. Do not accept work durably if storage, quota, or business deadlines make completion implausible.
+
+**Signals:** Monitor offered versus successful traffic, p99, cache misses, queue age, per-dependency saturation, rejected work by priority, error-budget burn, and cost per successful operation. Use a representative load test to prove the peak path, recovery, and rollback—not only steady-state autoscaling.
 
 ### Scenario 21 — Millions of queued events after an outage
 
