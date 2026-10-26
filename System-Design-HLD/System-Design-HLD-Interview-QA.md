@@ -2,7 +2,7 @@
 
 **Audience:** Java backend engineers with 5+ years of experience preparing for senior backend and product-company interviews.  
 **Purpose:** A progressive guide to architecture reasoning, capacity estimation, data ownership, consistency, failure handling, operations, and cost.  
-**Status:** Rebuilding for the 5–10 year experience band. Recent rewrites cover data and messaging correctness, capacity estimates, recovery, cache/shard behavior, identity, async observability, search-index rebuilds, webhooks, retention, SLO alerts, failure domains, fallbacks, and privacy-safe telemetry. Full coverage, accuracy, readability, and rendered diagrams still require review; not final sign-off.
+**Status:** Rebuilding for the 5–10 year experience band. Recent rewrites include quantitative estimates for storage, network, connection pools, fan-out, error budgets, replication bandwidth, cache outages, rate limiting, and object storage, plus resumable large-file flows. Core data, messaging, reliability, security, and recovery coverage is still under review; not final sign-off.
 
 > **How to use this guide:** Learn fundamentals in order, then practise scenarios aloud. State assumptions, identify the critical business invariant, estimate scale, draw the simplest viable architecture, and deepen the part the interviewer challenges. Naming technologies is not the goal; explaining why the design satisfies requirements is.
 
@@ -2006,35 +2006,83 @@ This distinction affects API semantics, monitoring, incident response, and compe
 
 ### Q199. How do you estimate cache hit ratio before implementation?
 
-Use workload shape rather than a universal rule. Identify the key popularity distribution, working-set size, value update rate, and cache capacity. If a small set of hot keys accounts for most reads, a modest cache may have a high hit ratio; uniformly random access over a dataset much larger than memory may not. Load-test with realistic key skew and measure hit ratio, origin load, stale responses, and p99 latency together.
+There is no reliable hit ratio from total request volume alone. It depends on the distribution of key popularity, the size of the working set, TTL/invalidation behavior, cache capacity, access locality, and whether the cache key includes high-cardinality dimensions such as user or tenant. A public product catalogue may have strong reuse; a personalized endpoint whose key includes a unique request ID may have almost none.
+
+Start from access logs or a representative workload trace. Count requests per canonical cache key, estimate the popularity distribution, and simulate the chosen cache capacity and eviction policy. A rough upper bound can be estimated by asking what fraction of reads target the most popular keys that fit in memory, but measured/simulated workload is better than assuming uniform access. Test cold start, expiry bursts, and changing popularity after a campaign.
+
+Calculate the weighted hit ratio only across requests eligible for caching, and distinguish hit ratio by request count from bytes served. A cache can have a high request hit ratio but still provide little bandwidth relief if large responses are misses. Also track stale-result rate, origin latency, evictions, memory, and refresh cost.
+
+Finally, convert hit ratio into origin load. If the eligible origin-facing traffic would be 10,000 requests/s and the cache serves 90% of those requests, the origin would see about 1,000 requests/s at steady state, before refreshes and unrelated traffic. But a cache outage can send the full load to origin. Capacity-plan and protect that failure mode rather than treating expected hit ratio as a guaranteed safety margin.
 
 ### Q200. How do you calculate storage for a replicated database?
 
-Estimate logical data first, then add indexes, metadata, write-ahead logs, temporary migration space, and retention overhead. If logical data is 8 TB and three full replicas are maintained, raw replica storage alone is roughly 24 TB before indexes, backups, and operational headroom. Confirm whether the vendor's reported storage already includes replicas to avoid double counting. Backups and snapshots may have different incremental-storage behavior.
+Separate logical data size from total physical footprint. Estimate records per day × average serialized row size × retention, then add actual database row/page overhead and index sizes. Include updates and deletes, write-ahead logs/binlogs, temporary space for vacuum/compaction/reindexing, and headroom for uneven growth. For an indexed transactional database, the index footprint can be a meaningful fraction of the table or larger depending on key width and number of indexes.
+
+Then account for physical copies. If one primary dataset occupies 8 TB including its indexes and the topology stores three full copies (one primary plus two replicas), the data fleet needs roughly 24 TB before logs, snapshots, backups, and temporary migration copies. The replication factor may apply differently to logical shards or storage blocks; use the product's model rather than multiplying blindly.
+
+Backups are additional capacity unless the product uses storage-efficient incremental snapshots. Point-in-time recovery logs can add substantial volume, especially for high write churn. Search indexes, object storage exports, and caches may be additional derived copies. Retention and regulatory deletion requirements can affect how long each copy persists.
+
+Estimate growth and recovery too: a full restore must be able to stream data at a rate that meets RTO, while replication consumes network and disk bandwidth continuously. Use observed logical-to-physical storage ratios from realistic data and include a failure margin for free space. In an interview, show assumptions and identify which overheads are measured versus estimated.
 
 ### Q201. How do you estimate connection demand across a microservice fleet?
 
-Multiply instances by per-instance pool size to estimate the maximum potential connections to each dependency, then include background workers, migrations, monitoring, and failover behavior. Forty instances with a pool of 30 can create up to 1,200 connections to the same database. This is a ceiling, not a throughput estimate. Bound pools and concurrency, and consider how a rolling deployment temporarily increases instance count.
+Estimate potential concurrent connections at the fleet level, then compare with every downstream limit. If 30 application instances each have a maximum database pool of 40, the application tier alone can open 1,200 database connections. Add background workers, scheduled jobs, migrations, monitoring, other services, and failover headroom. Autoscaling can multiply connections faster than the database can serve them.
+
+Request rate alone does not determine connection demand. Concurrency depends on how long each operation holds a connection and whether work waits on locks or external calls while holding it. As a first approximation, Little's Law relates average in-flight work to arrival rate × average time in the system; use actual connection hold time, not end-to-end request time, when estimating pool usage.
+
+Calculate budgets per database, shard, and connection class. A single service may have multiple pools to different dependencies; a fan-out request can occupy several pools at once. Connection pooling/proxying can reduce connection overhead but may introduce transaction/session constraints or a new central bottleneck. Reserve sessions for failover, admin work, and migrations rather than consuming every available connection in normal traffic.
+
+Monitor pool wait, active/idle counts, hold duration, database session count, transaction age, and lock waits. Increasing pool size is not a universal fix; it can increase database contention. The design should cap downstream concurrency, use short acquisition timeouts, avoid holding connections across remote calls, and test reconnect storms after a database failover.
 
 ### Q202. How do you estimate the impact of a downstream fan-out ratio?
 
-If 5,000 incoming requests per second each cause four downstream calls, the downstream service may receive 20,000 calls/second before retries. Some branches may be conditional or cached, so estimate actual fan-out per request class. Fan-out affects both capacity and tail latency; reducing unnecessary calls can outperform adding downstream instances.
+Model how many internal operations each incoming request creates. If an API receives 2,000 requests/s and 60% of them call three downstream services, those calls alone create (2{,}000 × 0.60 × 3 = 3{,}600) downstream attempts/s, before retries or background work. If some paths call a service more than once, count those calls explicitly rather than using a vague “fan-out factor.”
+
+The average fan-out ratio is not enough if a small request class triggers expensive fan-out or a tenant causes skew. Break down by endpoint and dependency, and include retries, cache misses, and optional enrichments. Parallel calls reduce serial latency but increase peak concurrency and cause the response to depend on the slowest required dependency. If all downstreams must succeed, end-to-end availability falls as required dependencies are added.
+
+Use traces to validate actual call graphs and call counts under representative load. Apply per-dependency concurrency limits, deadlines, and bulkheads; separate optional calls so they can be skipped under pressure. Precompute or materialize repeated compositions when they are reused often enough to justify freshness and rebuild complexity.
+
+During overload, fan-out can amplify traffic exactly when a downstream is least able to handle it. Budget downstream QPS and concurrency for peak, retry, cold-cache, and failover scenarios. In an interview, show the request-to-dependency arithmetic, name the likely bottleneck, and explain how you prevent retries or one slow dependency from consuming all capacity.
 
 ### Q203. How do you calculate a service's error budget from a request-based SLO?
 
-For 50 million eligible requests and a 99.9% success target, the error budget is 0.1% of 50 million, or 50,000 unsuccessful eligible requests during the measurement window. Define whether timeouts, client errors, health checks, and rejected overload requests count. The metric must match the user-visible contract; otherwise teams can appear compliant while customers experience failures.
+For a request-based SLO, the error budget is the allowed fraction of eligible requests that may fail during the measurement window. If the target is 99.9% success across 20 million eligible requests, the permitted failure fraction is 0.1%, so the budget is 20,000 failed eligible requests. If 5,000 have already failed, 15,000 remain for that window, assuming the definition and denominator remain fixed.
+
+Define success precisely. A network response may be HTTP 200 while the business operation failed, so the SLI should reflect the user-facing contract where possible. Define whether client errors, cancelled requests, internal retries, synthetic probes, or requests rejected before admission count. Do not change exclusions during an incident to improve the reported result.
+
+Request-based and time-based availability differ. A service can be unavailable for a short period during a high-traffic window and consume a large request-based budget; a low-traffic outage may consume little of that budget but still be severe for affected users. For multi-step workflows, consider separate journey-level indicators.
+
+Use burn rate to detect the speed of budget consumption, with alert windows that balance urgency and noise. Pair availability with latency, correctness, and asynchronous completion SLIs. In an interview, calculate the budget, state what is counted, and explain what operational action follows when the budget burns too fast.
 
 ### Q204. How do you estimate object-storage cost at a high level?
 
-Estimate new bytes per day, retention duration, storage tier, replication or versioning, request counts, retrieval volume, and egress. If 2 TB/day is retained for 90 days, the steady-state raw footprint approaches 180 TB before versions and copies. Lifecycle policies can move cold data to cheaper tiers, but retrieval latency, minimum storage duration, and retrieval fees may matter. Treat estimates as a model to validate against current provider pricing.
+Model storage cost as a set of separate dimensions: bytes stored by storage class and region, request counts (PUT/GET/LIST and multipart operations), data retrieval/restore charges, egress, replication, lifecycle transitions, and any minimum storage-duration or small-object overhead. The exact billing model varies by provider and tier, so use current official pricing for the intended region and storage class once the workload is known.
+
+Estimate object count and byte volume over time. If 2 million files/day average 4 MB and are retained for 90 days, new logical data is about 8 TB/day and steady retained data can approach 720 TB before compression, versioning, replication, and deletion lag. That example may be unrealistic for a particular workload, but it shows why the upload rate and retention duration matter as much as API request rate.
+
+Consider lifecycle policies: hot objects may need low-latency access, older data may move to a cheaper tier, and archival tiers may have retrieval delay and fee implications. Versioning and soft deletion can preserve recoverability but increase retained storage. Cross-region replication improves resilience or residency options but multiplies storage and transfer costs.
+
+Large uploads should usually use direct or pre-signed uploads so application servers do not proxy every byte. Track incomplete multipart uploads and configure safe cleanup; otherwise abandoned uploads accrue cost. In an interview, enumerate the cost dimensions, model retention and access frequency, and explain how the chosen tier and replication policy satisfy performance, compliance, and recovery requirements.
 
 ### Q205. How do you estimate how much capacity a cache outage removes?
 
-Estimate normal origin reads as total reads multiplied by cache miss ratio. If a service handles 40,000 reads/s at a 90% cache hit ratio, the origin sees roughly 4,000 reads/s. If the cache fails and every read falls through, origin load can approach 40,000 reads/s—ten times the previous rate. Plan for bounded fallback, stale serving where safe, and load shedding rather than assuming the database can absorb all misses.
+Start from the origin workload that exists with the cache healthy. If the application receives 10,000 eligible reads/s and the cache hit ratio is 90%, the steady-state origin load attributable to those reads is about 1,000 misses/s (plus refreshes and other traffic). If the cache becomes unavailable, origin load can jump toward 10,000 reads/s—a tenfold increase for that request class.
+
+That simple estimate assumes the measured hit ratio applies to the outage workload. It may be optimistic: cache failures can create concurrent stampedes, clients may retry failed cache calls, and hot keys may dominate origin capacity. A warm local cache or stale-while-revalidate policy may reduce the sudden shift, but only where freshness allows. If a cache stores correctness-critical coordination state, bypass behavior may be unsafe.
+
+Capacity-test the origin at the cold-cache rate, including realistic query plans, data volume, pool sizes, and writes that still occur. Add request coalescing, bounded origin concurrency, circuit breaking, and load shedding so the entire fleet does not overwhelm the database. Stagger cache warm-up and autoscaling to avoid everyone loading the same keys simultaneously.
+
+Monitor cache availability, miss rate, origin QPS, database saturation, connection wait, and p99. In an interview, quantify the expected traffic multiplier and state what protects the origin during cache failure, instead of assuming the cache is always available.
 
 ### Q206. How do you estimate the bandwidth needed for replication?
 
-Multiply change rate by average serialized change size, then account for protocol overhead, batching, compression, and bursts. At 15,000 changes/s averaging 1.2 KB, raw payload flow is about 18 MB/s, or 144 Mbps, before overhead. Cross-region replication adds cost and can compete with application traffic. Measure real change records because large updates and tombstones may make averages misleading.
+Estimate the volume of changes that must be shipped, not just the final row size. If the database generates 40 MB/s of write-log/change data on average, one remote replica needs roughly that throughput before protocol overhead, compression effects, metadata, and bursts. Two full remote copies can require approximately twice that replication traffic, though the actual pattern depends on topology and whether replicas cascade through other nodes.
+
+Average bandwidth is not sufficient. Replication must catch up after network interruption or maintenance. If 2 TB of change data accumulates during an outage and the link can deliver 200 MB/s while new changes continue at 40 MB/s, the net catch-up rate is about 160 MB/s; ideal catch-up takes roughly 12,500 seconds, or 3.5 hours. Actual time may be longer due to apply/flush bottlenecks and variance.
+
+Measure log generation rate, replica apply rate, network throughput, lag in bytes/time, and write amplification/compaction. Synchronous replication places network and remote durability latency on the commit path; asynchronous replication decouples commit latency but permits lag and a defined risk of losing recent writes on failover. Cross-region links can also carry snapshots, rebuilds, backups, and application traffic.
+
+In an interview, connect bandwidth to RPO, failover eligibility, and recovery time. Ensure the replica can apply changes as fast as they are generated during normal conditions and faster than generation during catch-up. Validate the model using real write patterns, compression, and a planned link outage.
 
 ### Q207. How do you estimate partition count for an event stream such as Kafka?
 
@@ -2052,15 +2100,33 @@ For example, if load testing shows each partition can safely sustain 2,000 event
 
 ### Q208. How do you estimate whether a rate limiter can sustain traffic?
 
-Estimate operations per incoming request, atomicity requirements, key cardinality, state size, and expected contention on hot keys. A limiter that performs two remote round trips for every API call may become a latency bottleneck. Use server-side atomic operations, local token budgets, or hierarchical quotas where the precision trade-off is acceptable. Benchmark the limiter under the same key skew and burst pattern expected in production.
+Estimate the number of limit checks per second, not just incoming HTTP requests. A request may be checked at the IP, user, tenant, route, and provider-account levels, leading to multiple lookups or atomic updates. If 50,000 requests/s each require three globally coordinated checks, the limiter may need to sustain 150,000 checks/s plus bursts and retries.
+
+Measure the algorithm's operation cost, key cardinality, hot-key distribution, store latency, and consistency needs. A single popular account's counter can be a hot key even when total traffic is distributed. Fixed/sliding windows, token buckets, and concurrency-based admission controls have different memory, accuracy, and burst behavior. Local counters are fast but may overshoot the aggregate quota when traffic moves across instances; centralized atomic counters are more accurate but add latency and can become a bottleneck.
+
+Consider hierarchical allocation: a global controller grants bounded token budgets to local instances, allowing most requests to be decided locally while limiting overshoot. This can reduce coordination but may leave unused capacity stranded on one instance or allow a defined temporary variance. For strict provider quotas, allocate centrally at the scope the provider enforces.
+
+Test the limiter during autoscaling, region loss, store failover, and adversarial key cardinality. Define fail-open/closed behavior, monitoring, and what the client receives when limited. In an interview, explain required check rate, per-key skew, accuracy-versus-latency trade-off, and how the limiter's own failure does not bring down the service.
 
 ### Q209. When should large files bypass application servers?
 
-For uploads/downloads of large objects, application servers can authenticate and issue scoped upload/download URLs while the client transfers bytes directly to object storage. This reduces application bandwidth and connection occupancy. The design still needs size/type limits, authorization, checksum validation, malware scanning where appropriate, lifecycle policies, and safe handling of partially uploaded objects. Direct transfer is not appropriate if the application must inspect or transform every byte synchronously.
+For large uploads/downloads, the application server should usually authorize the operation and manage metadata, while the client transfers file bytes directly to object storage or a dedicated transfer service. Proxying every byte through application instances consumes bandwidth, connections, memory buffers, CPU, and autoscaling capacity that would be better used for business logic.
+
+A common upload flow is: the client requests an upload session; the application authenticates the caller, checks tenant quota and allowed content; it creates a scoped pre-signed URL or multipart-upload capability; the client transfers directly to object storage; then the application validates final size/checksum and marks the object ready. Keep the capability short-lived and restricted to a specific object, operation, and permitted headers. Do not expose broad bucket credentials.
+
+Direct upload does not remove security requirements. Validate file size/type, scan for malware, treat filenames and metadata as untrusted, and avoid serving active content from a privileged application origin. For private downloads, use authorization before issuing a short-lived signed link or proxy through an access-controlled path. Large-object downloads should support range requests where the client/use case benefits.
+
+Handle incomplete multipart uploads, duplicate finalize requests, client retries, checksums, quotas, encryption, retention, and object deletion. An object may be uploaded but not yet approved/available to downstream workflows; represent that state explicitly. In an interview, separate control-plane operations (authorize, create, complete, validate) from the data plane (transfer bytes) and discuss security, cost, and failure recovery.
 
 ### Q210. How do you design resumable uploads?
 
-Create a durable upload session with owner, expiry, expected size, checksum policy, and part metadata. Upload chunks independently, allow retry of individual parts, and finalize only after verifying all required parts and the final checksum. Make finalization idempotent and clean up abandoned sessions. Consider abuse controls because incomplete multipart uploads consume storage and metadata.
+A resumable upload divides a large object into independently transferred parts so the client can retry failed parts rather than restarting the whole file. The server or object store maintains an upload session with an ID, destination, expected size, part list/checksums, expiry, and state. Multipart object-storage APIs are commonly used, but their exact guarantees and limits are provider-specific.
+
+The API should create the session idempotently, authorize every part/finalize operation, and enforce maximum object size, part count, content type, and tenant quota. Each part should have a checksum or integrity validation. The client can query which parts were accepted after a connection loss and retry missing or failed parts. Finalization must be idempotent so two concurrent completion requests do not publish the object twice or expose a partially assembled file.
+
+Treat session IDs and pre-signed URLs as capabilities; keep them scoped and short-lived, and avoid leaking them in logs. A session may be abandoned, so clean up incomplete multipart uploads after a safe expiry. For security, validate the completed object, scan it if necessary, and keep it in a quarantined or pending state until validation succeeds.
+
+Account for duplicate callbacks, object-store temporary failures, checksum mismatch, and a client that attempts to finalize a different size/content. Use an operation state machine and background reconciliation for uploads whose completion status is uncertain. In an interview, discuss resumability, idempotent finalize, resource-abuse protection, data integrity, and cleanup—not just dividing a file into chunks.
 
 ### Q211. How do you choose between polling and push notifications for status updates?
 
