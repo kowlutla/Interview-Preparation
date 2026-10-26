@@ -43,7 +43,8 @@ Interview-Preparation/
 3. **Spring** — dependency injection, Spring Boot, framework behavior, transactions, security, testing, and production behavior.
 4. **Microservices & REST APIs** — service boundaries, HTTP semantics, API contracts, resilience, security, and service-level communication.
 5. **Distributed Systems & Event-Driven Architecture** — cross-service correctness, consistency, failure handling, coordination, sagas, messaging semantics, and production reliability.
-6. **Hibernate + JPA** — persistence context, mappings, fetching, transactions, query performance, and concurrency.
+6. **System Design HLD** — requirements, capacity estimates, architecture choices, data ownership, failure handling, and senior-level scenario practice. Revisit it throughout preparation; it is a dedicated interview-round skill, not merely another technology topic.
+7. **Hibernate + JPA** — persistence context, mappings, fetching, transactions, query performance, and concurrency.
 8. **SQL & databases** — query logic, joins, indexes, transactions, isolation, and database-specific behavior.
 9. **Redis & Caching** — Redis data structures, cache consistency, coordination, Spring integration, and resilience across the cache/database boundary.
 10. **Kafka** — broker architecture, topics and partitions, producer/consumer behavior, delivery semantics, and production scenarios.
