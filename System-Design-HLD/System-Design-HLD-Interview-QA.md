@@ -2,9 +2,23 @@
 
 **Audience:** Java backend engineers with 5+ years of experience preparing for senior backend and product-company interviews.  
 **Purpose:** A progressive guide to architecture reasoning, capacity estimation, data ownership, consistency, failure handling, operations, and cost.  
-**Status:** Substantive rewrite underway after a quality reset: foundational deep dives now cover partitioning/sharding, traffic infrastructure, database indexes and storage engines, transaction isolation, consensus/quorums/fencing, and storage selection. A full coverage and answer-quality audit remains in progress; this is not a final sign-off.
+**Status:** Rebuilding for the 5–10 year experience band. Detailed deep dives cover database internals, partitioning/sharding, transaction isolation, consensus/fencing, storage choices, and traffic infrastructure; selected scaling, discovery, gateway, and event-partition answers have also been rewritten. Coverage, accuracy, and readability audit remains in progress; not yet final sign-off.
 
 > **How to use this guide:** Learn fundamentals in order, then practise scenarios aloud. State assumptions, identify the critical business invariant, estimate scale, draw the simplest viable architecture, and deepen the part the interviewer challenges. Naming technologies is not the goal; explaining why the design satisfies requirements is.
+
+### What interviewers expect from a 5–10 year candidate
+
+At this level, an answer should normally go beyond naming a component. Be ready to explain the workload and invariant that justify it, the request/data flow, the guarantee the component provides, its bottleneck and failure modes, and why you chose it over the main alternatives. The interviewer may ask you to estimate capacity, trace a timeout across three services, explain what happens during a partition, or describe a zero-downtime migration.
+
+Use this answer pattern when useful:
+
+1. **State the requirement and invariant.** What must be fast, available, fresh, unique, ordered, or durable? Which errors are unacceptable?
+2. **Explain the mechanism.** Show how requests are routed, data is partitioned, transactions are protected, or work is retried—not just which technology is chosen.
+3. **Quantify the design.** Estimate peak throughput, storage, fan-out, connection demand, queue drain, or replication cost with assumptions.
+4. **Describe failure and recovery.** Include partial success, timeouts with uncertain outcomes, overload, stale data, leader failover, replay, and restore—not just a process crash.
+5. **Compare alternatives and operational cost.** Explain what you give up, how you observe it, how you roll it out, and what evidence would make you change the design.
+
+A strong answer is not necessarily longer in every interview. It is deep enough to answer “why?”, “what if it fails?”, and “how do you know it works?” without hand-waving.
 
 ## Table of contents
 
@@ -977,7 +991,13 @@ Request-time fan-out keeps data fresh and avoids storing every combination, but 
 
 ### Q125. What is the difference between a control plane and a data plane?
 
-The control plane configures and coordinates behavior—such as routes, policies, cluster membership, or tenant quotas. The data plane handles the actual requests or records. Separating them can protect request processing from slow administrative operations, but stale configuration and control-plane outages still need explicit behavior. Cache validated configuration, define safe defaults, and decide which policy changes must take effect immediately.
+The **control plane** decides or distributes how a system should behave: routes, service membership, configuration, deployment state, policies, quotas, or ownership metadata. The **data plane** handles the actual user or workload traffic using that configuration. Keeping them distinct helps prevent routine administrative operations from becoming a synchronous dependency of every request, but the boundary is logical rather than necessarily a separate product or cluster.
+
+For example, a control plane may publish a new set of healthy service endpoints and route rules. Proxies and applications cache validated configuration and use it to route millions of requests through the data plane. If the control plane is temporarily unavailable, the data plane may continue using its last known-good configuration—but only if that configuration is safe to retain. Expired credentials, revoked permissions, or a compromised route may require stricter behavior than an ordinary routing update.
+
+The design needs an explicit policy for stale configuration: what can continue, for how long, and what must fail closed? Avoid blocking each request on a central configuration lookup, since this can turn a control-plane incident into a global data-plane outage. Conversely, indefinite stale configuration can prevent security revocations or ownership changes from taking effect. Use versioned/validated updates, staged rollout, last-known-good behavior where appropriate, observable configuration age, and a rollback mechanism.
+
+A useful interview distinction is that **data-plane redundancy does not automatically imply control-plane resilience**. Replicated gateways may still all be affected by a failed global rate-limit store, identity provider, certificate-rotation system, or configuration service. Identify which services are required in the hot path, and which can be cached or handled asynchronously.
 
 ### Q126. How do you choose between pushing and pulling work?
 
@@ -1041,7 +1061,17 @@ Event sourcing stores state-changing events as the primary record and derives cu
 
 ### Q141. How should API rate limits be distributed across multiple application instances?
 
-A local limiter is fast and resilient but allows aggregate traffic to multiply with instance count and can be uneven across instances. A shared limiter enforces a more global view but adds network latency and a new dependency. Hierarchical budgets can allocate a global quota to local instances and periodically reconcile it, trading exactness for speed. Choose based on abuse risk, quota semantics, traffic volume, and behavior during limiter failure.
+First define the scope of the limit. A quota might apply per IP address, user, API key, tenant, endpoint, provider account, or the whole platform. If the limit is 1,000 requests per minute per tenant, a local counter on each of ten application instances can unintentionally allow about 10,000 requests per minute when traffic is spread across all ten. The same limit must be enforced at the scope promised by the contract.
+
+There are three common designs:
+
+- **Local per-instance limiter:** low latency and works even when a shared store is unavailable, but the aggregate limit is approximate and depends on routing. It is suitable for a coarse safety guard or when small quota overshoot is acceptable.
+- **Shared/distributed limiter:** instances coordinate through a shared store or dedicated rate-limit service. It can enforce a more consistent global budget but adds a network hop, contention, and a dependency that can itself become saturated. Atomicity, clock behavior, failover, and key cardinality matter.
+- **Hierarchical token allocation:** a global controller allocates bounded token budgets or leases to local instances. Requests are decided locally until the allocation is exhausted, reducing hot-path coordination. The trade-off is temporary unused capacity and possible bounded overshoot or uneven fairness while budgets are redistributed.
+
+Choose the semantics before choosing the algorithm: strict contractual quota, abuse protection, and load shedding are different use cases. A fixed window is simple but can permit a burst at the boundary; a sliding window smooths the accounting but costs more state; a token bucket explicitly permits a configured burst while bounding the long-term rate. Also distinguish rate from concurrency: 100 requests per second can be harmless for 5 ms calls but dangerous if each call occupies a worker for 30 seconds.
+
+Define fail-open versus fail-closed behavior. If a billing quota must not be exceeded, failing open may violate a contract; if the limiter is an approximate abuse guard and rejecting every legitimate request would cause a major outage, a bounded local fallback may be better. Monitor allowed/rejected counts, latency, store errors, key cardinality, and quota overshoot, and test behavior as the instance count changes.
 
 ### Q142. How do token bucket and leaky bucket differ conceptually?
 
@@ -1142,13 +1172,38 @@ Retention defines how long each class of data is stored, where it resides, and w
 
 Use idempotent batches and compare entity versions or timestamps under a well-defined ordering rule. A backfill snapshot may be older than live updates, so an unconditional upsert can revert current state. Use a high-water mark plus change capture, version-aware writes, or a dual-read validation phase. Checkpoint progress, rate-limit work, and reconcile mismatches before switching reads.
 
-### Q166. How do you estimate shard count?
+### Q166. How do you estimate shard count without pretending the estimate is exact?
 
-Start with independent constraints: data size per shard, sustained read/write throughput per shard under representative load, connection/query overhead, and desired failure headroom. Calculate candidate shard counts from each constraint and use the largest credible requirement, then add migration and growth margin. Avoid false precision: real shard capacity depends on query mix, key skew, index size, and operational limits. Load testing is required to validate the estimate.
+Estimate shard count from several independent limits, then use the most restrictive credible one. First measure or load-test **per-shard safe capacity** using the expected query mix, index size, writes, transactions, and latency objective. A shard's marketing maximum or peak benchmark is not a safe production target; include headroom for skew, failover, maintenance, and bursts.
 
-### Q167. What makes re-sharding difficult?
+A starting model is:
 
-The difficulty is not just creating more partitions; clients and services must agree on routing while data moves and writes continue. Common strategies include dual routing with versioned ownership, copying a bounded snapshot, capturing concurrent changes, validating, switching reads/writes, and retiring the old placement. Every stage needs retry-safe migration logic and rollback criteria. Monitor hot shards, copy lag, mismatch counts, and the duration of mixed routing.
+- **Storage constraint:** required logical data divided by usable logical capacity per shard.
+- **Throughput constraint:** expected peak reads/writes divided by the safe per-shard throughput for that same workload.
+- **Hot-key/tenant constraint:** the largest tenant or key must fit within one shard's limit—or the data model must explicitly allow that tenant/key to be split.
+- **Operational constraint:** query fan-out, connection budgets, rebalance duration, backup windows, replica placement, and the number of nodes the team can safely operate.
+
+Take the maximum of the constraints, then add an explicit growth and failure margin. These calculations are a first sizing pass, not proof: sharding changes query plans, network traffic, lock contention, and cache behavior, so benchmark with realistic skew and failure conditions.
+
+**Illustrative storage example:** assume 12 TB of logical live data and a target of no more than 1 TB of usable logical data per shard. The storage constraint alone suggests at least 12 shards. If each logical shard has one primary and two replicas, there are 36 stored copies across the fleet before counting indexes, logs, temporary migration copies, and backups. That replication factor does not mean there are 36 independent logical shards. If write throughput or the largest tenant requires 18 shards, throughput/skew—not storage—becomes the governing constraint.
+
+Do not start by selecting an arbitrary number such as 16 or 32 because it is a power of two. Explain the measurements that would validate your estimate and keep enough flexibility to move or split data later.
+
+### Q167. What makes re-sharding difficult, and how would you do it safely?
+
+Re-sharding is a live data migration plus a routing migration. The hard part is not copying existing rows; it is keeping the old and new placements consistent while writes continue, clients run different software versions, and retries or failures occur at every stage. A partial cutover can cause missing reads, duplicated writes, conflicting owners, or data that is difficult to roll back.
+
+A disciplined migration usually has these phases:
+
+1. **Define a stable routing abstraction.** Use a versioned mapping from logical key or virtual partition to physical shard, so adding nodes does not require embedding a fixed modulo calculation in every client. Confirm that all readers, writers, background jobs, and repair tools use the routing layer.
+2. **Prepare the destination.** Create schemas and indexes, apply compatible migrations, and verify capacity, access controls, backup and replication settings.
+3. **Copy a consistent baseline.** Snapshot or copy the source data in bounded chunks. Track progress by partition and use retry-safe writes. A snapshot timestamp or log position defines the boundary between copied data and later changes.
+4. **Capture ongoing writes.** Replay the source change log/CDC stream after the baseline position, preserving the required ordering per key. Uncoordinated dual writes to old and new shards are dangerous: one side can succeed while the other fails. If dual writes are used, the repair protocol and authority model must be explicit.
+5. **Validate and shadow-read.** Compare counts, checksums, sampled records, deletes, and key invariants. Send shadow reads to the destination and compare results without changing user-visible responses.
+6. **Cut over using an ownership epoch or version.** Prevent stale application instances from continuing to write to the old location. Switch a small cohort first, monitor errors and mismatch rates, then expand. Retain the old copy until the rollback window and reconciliation checks are satisfied.
+7. **Retire deliberately.** Stop old writes, prove no supported client still depends on the old mapping, and only then delete old data.
+
+Rollback is not automatically safe after new writes have been accepted by the destination. You need a defined reverse-replication or reconciliation path, or a clear point after which rollback means forward repair rather than switching back. Track copy lag, CDC lag, per-shard load, conflicts, mismatch counts, and cutover progress. In a senior interview, include how you handle deletes, stale route caches, a migration worker crash, and a rollback after writes reach the new shard.
 
 ### Q168. How do you generate unique IDs across regions?
 
@@ -1309,9 +1364,19 @@ Estimate normal origin reads as total reads multiplied by cache miss ratio. If a
 
 Multiply change rate by average serialized change size, then account for protocol overhead, batching, compression, and bursts. At 15,000 changes/s averaging 1.2 KB, raw payload flow is about 18 MB/s, or 144 Mbps, before overhead. Cross-region replication adds cost and can compete with application traffic. Measure real change records because large updates and tombstones may make averages misleading.
 
-### Q207. How do you estimate partition count for an event stream?
+### Q207. How do you estimate partition count for an event stream such as Kafka?
 
-Estimate the required consumer parallelism and throughput per partition under realistic processing cost, then account for key skew and future growth. If a workload needs 30 parallel consumers, more than 30 partitions may be useful for headroom, but extra partitions have metadata and operational costs. Partition count alone does not guarantee throughput: broker disk/network, producer batching, consumer work, and hot keys can be the limiting factors.
+Partition count affects parallelism, ordering, throughput, and operational cost. It is not just a throughput knob. Within a consumer group, a partition is assigned to one consumer at a time, so the number of partitions places an upper bound on useful consumer parallelism for that group. Extra consumers beyond the partition count generally sit idle for that topic, although a consumer can own multiple partitions.
+
+Estimate partition count from at least three constraints:
+
+- **Throughput:** measure the per-partition producer and consumer rate for your payload size, batching, compression, broker storage/network, and actual processing cost. For target throughput (T) and safe per-partition throughput (t), a starting point is (N geq T/t), then add measured headroom.
+- **Parallelism and latency:** estimate the number of independent consumers needed to keep up with peak arrival rate. If each event takes 20 ms of CPU-bound work, the effective processing rate per worker is very different from a worker that mostly waits on I/O.
+- **Ordering and key skew:** ordering is guaranteed within a partition, not across the topic as a whole. Events that must be processed in order for one account or entity should consistently map to the same partition. If one key produces most of the traffic, adding partitions does not split that key unless the data model changes.
+
+Partitions carry costs: broker metadata, file handles/log segments, leader placement, replication traffic, rebalances, and recovery work. Adding partitions may also change key-to-partition mapping for some producer partitioners, which can affect ordering assumptions for historical and new events. Treat partition-count changes as a design decision, not a harmless toggle.
+
+For example, if load testing shows each partition can safely sustain 2,000 events/s for the real payload and consumer logic, a 40,000 events/s target suggests at least 20 partitions on throughput alone. If you need 32 active consumer workers and strict per-key order, you may choose more partitions—but validate the actual broker and consumer limits, hot-key distribution, replication factor, and failure headroom before finalizing.
 
 ### Q208. How do you estimate whether a rate limiter can sustain traffic?
 
@@ -1435,10 +1500,13 @@ Use a controlled migration to a dedicated shard or new placement: establish rout
 
 ### Q238. How do you know when a system needs sharding rather than a larger database?
 
-Look for measured limits in storage, write throughput, index size, connection capacity, or maintenance windows that cannot be solved adequately with vertical scaling, indexing, query improvements, or replicas. Sharding adds routing, cross-shard query, rebalancing, and transaction complexity. Establish the bottleneck and estimate the cost of simpler alternatives before adopting it. Shard only when the expected benefit exceeds that complexity.
+Treat sharding as a response to a measured constraint, not a milestone that follows a certain user count or row count. Identify what is actually saturated: CPU, memory, storage IOPS, write-ahead log throughput, index size, connection slots, lock contention, replication lag, maintenance windows, or a hard limit in the database service. Different bottlenecks imply different remedies.
 
+Before sharding, evaluate query plans and indexes, remove N+1 calls, shorten transactions, batch writes, archive expired data, use native partitioning where it helps pruning/retention, add read replicas for eligible read traffic, cache repeated reads, and scale the database vertically where viable. Some of these will not increase primary write capacity, but they may remove the specific bottleneck at much lower complexity.
 
+Sharding is justified when the workload must be distributed across independent database resources—for example, the primary cannot meet write throughput or storage objectives at a feasible size, or tenants need stronger capacity isolation. The design then needs a shard key, routing layer, rebalancing strategy, global ID/uniqueness plan, backup/restore model, monitoring by shard, and a decision about cross-shard transactions, joins, reports, and consistency. Sharding by a key that is missing from common queries may make those queries fan out to every shard.
 
+Use load testing and growth projections to compare the simpler option and the sharded option on both cost and failure behavior. Include the operational capacity to run, patch, restore, and rebalance all shards. A well-tuned single database can be a better senior-level design than a prematurely sharded system; equally, refusing to shard when a proven hard limit has been reached is not pragmatism.
 
 ### Q239. How do DNS-based global routing and application-level routing differ?
 
@@ -1460,13 +1528,27 @@ HTTP/2 multiplexes multiple streams over one connection and compresses headers, 
 
 HTTP/3 uses QUIC over UDP and can reduce some connection-establishment and transport head-of-line blocking costs compared with HTTP/2 over TCP. It can improve behavior on changing or lossy networks, but adoption depends on clients, intermediaries, observability, and operational support. It does not guarantee faster application execution or fix slow databases. Evaluate end-to-end measurements rather than assuming a protocol upgrade solves latency.
 
-### Q244. How should an API gateway avoid becoming a single point of failure?
+### Q244. How should an API gateway avoid becoming a single point of failure or a bottleneck?
 
-Run redundant gateway instances across failure domains, keep routing/configuration changes safe, and ensure health checks reflect the ability to serve traffic. Avoid putting expensive business logic or a global synchronous dependency into every gateway request. Capacity-plan TLS handshakes, authentication, logging, and rate-limit operations. Gateway redundancy is not enough if all instances share one exhausted quota store or configuration control plane.
+Run gateway capacity across independent failure domains, but do not stop at “deploy multiple replicas.” Plan the entire request path: DNS/global routing, public load balancer, gateway instances, certificate and configuration distribution, authentication, rate-limit storage, logging, and downstream routing. A fleet of redundant gateways can still fail together if every request synchronously depends on one overloaded policy store, identity provider, or shared limiter.
+
+Keep the hot path lean. Expensive business orchestration is usually better owned by backend services; the gateway should focus on edge concerns such as routing, coarse quotas, TLS policy, request size limits, external authentication integration, and API compatibility. If the gateway performs token validation, know whether it verifies signed tokens locally or makes a remote introspection call on every request. Local verification reduces dependency latency but requires clear key rotation, revocation, audience, issuer, and expiry rules.
+
+Capacity-plan CPU and memory for TLS handshakes, connection churn, HTTP/2 multiplexing, payload buffering, compression, logging, and worst-case headers/bodies—not merely request count. Establish connection/request limits, bounded queues, per-route concurrency budgets, upstream deadlines, and backpressure. If overload occurs, reject cheaply before consuming expensive downstream capacity.
+
+The gateway also needs safe configuration changes and rollout: version configuration, validate it before activation, roll it out progressively, and retain a known-good state. Define fail-open/fail-closed behavior for authentication, quota, and policy dependencies separately; “fail open” may be unacceptable for access control, while a bounded fallback may be appropriate for an approximate traffic-shaping policy. Instrument per-route latency, upstream latency, rejection reason, retries, active connections, queueing, and configuration age. Finally, test gateway failure and regional failover as part of end-to-end load tests rather than treating the gateway as invisible plumbing.
 
 ### Q245. What is service discovery, and what failure modes matter?
 
-Service discovery maps a logical service name to healthy instances or endpoints. It may be DNS-based, registry-based, or provided by a platform. Stale records, slow health detection, registry outages, and uneven endpoint selection can cause failures. Cache discovery data with a deliberate freshness policy, use connection and request timeouts, and ensure clients can recover when endpoints change.
+Service discovery translates a logical service identity—such as `orders.internal`—into one or more reachable endpoints. Discovery may be provided by DNS, a registry, a container orchestrator, or a proxy's dynamic endpoint configuration. It answers “where might I send traffic?”; load balancing chooses among eligible endpoints, and health/readiness signals determine whether a target should receive new work. Products may combine these roles, but the responsibilities remain distinct.
+
+There are two broad patterns. In **client-side discovery**, the client obtains the endpoint list and chooses a target; this gives the client routing control but requires consistent client libraries, refresh behavior, and health tracking. In **server-side discovery**, the client sends traffic to a proxy or load balancer that discovers and selects the backend; this centralizes policy and simplifies clients but adds a hop and a routing layer that must itself be operated reliably.
+
+Important failure modes include stale endpoint caches, endpoint removal racing with long-lived connections, slow or flapping health checks, registry/control-plane outages, resolver caching, bad configuration pushes, and uneven balancing because endpoint capacities differ. A discovery record is not proof the application can serve the intended request: an endpoint might accept TCP but fail every database-backed operation.
+
+Design endpoint freshness and failure behavior deliberately. Cache last-known-good endpoints for a bounded period when safe; use connection and request deadlines; drain connections before planned removal; refresh discovery after failures without having every client refresh simultaneously; and include jitter/backoff to avoid a discovery stampede. For long-lived gRPC or WebSocket connections, account for the fact that changing discovery does not move an established connection; reconnect and missed-message behavior belong in the application protocol.
+
+Monitor endpoint age, resolution errors, connection failures, per-endpoint load, health transitions, and route convergence. For stateful writes, discovery must not decide the authoritative owner on its own: use an explicit leader/epoch/fencing mechanism so stale routing cannot produce two active writers.
 
 ### Q246. When should sticky sessions be used for WebSockets?
 
@@ -1528,9 +1610,15 @@ It specifies which request/response shapes and semantics clients can rely on, in
 
 Count attempts at the same scope the provider counts them, including retries and requests from multiple regions. A failover must not reset a local quota budget if the provider's quota is account-wide. Central coordination, preallocated budgets, or a durable scheduler may be appropriate. Respect retry-after instructions and avoid immediate catch-up traffic after an outage.
 
-### Q261. How should a service mesh affect application design?
+### Q261. How should a service mesh affect application design, and what should remain in the application?
 
-A mesh can standardize transport security, routing, retries, and telemetry, but it does not remove the need for application deadlines, idempotency, business authorization, and correct error handling. Mesh-level retries can interact with client-library retries and multiply attempts. Make retry ownership explicit and inspect effective policies across the whole call path. Operational complexity and sidecar/resource overhead also belong in the trade-off.
+A service mesh can move repeated service-to-service networking concerns into a shared infrastructure layer: workload identity, mutual TLS, traffic routing, telemetry, and standardized timeout/retry policies. Depending on the implementation, it may use sidecar proxies, node-level proxies, or a different data-plane model. It can make policies more consistent across teams, but it adds configuration, resource consumption, debugging layers, and another system that must be understood during incidents.
+
+A mesh does **not** know whether a business operation is safe to repeat. A proxy can retry a GET-like request under an appropriate policy, but retrying a payment, inventory reservation, or non-idempotent POST may duplicate a side effect unless the application implements idempotency or a durable operation identity. Likewise, transport mTLS authenticates a workload identity; it does not prove that a particular end user is allowed to refund a specific order. Business authorization must remain at the resource-owning service.
+
+Avoid layered policy multiplication. If a client library makes three attempts and the mesh independently makes three attempts for each one, the downstream might receive up to nine attempts per original request. Establish a single clear owner for retries where possible, propagate absolute deadlines, cap attempts and per-request time, and distinguish transport errors from application responses. Check actual effective policies rather than assuming defaults.
+
+Before adopting a mesh, name the operational problem it solves—such as consistent workload identity across many teams, traffic shifting, or common telemetry—and compare it with simpler options such as a library, gateway, or platform-native networking. Validate tail latency, CPU/memory overhead, failure behavior during control-plane disruption, certificate rotation, and the team's debugging capability. The goal is consistent networking policy, not moving every concern out of application code.
 
 ### Q262. What should happen if service discovery returns stale endpoints?
 
