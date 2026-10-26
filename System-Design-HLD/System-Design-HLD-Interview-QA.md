@@ -1481,7 +1481,13 @@ For every scenario, state assumptions, identify the invariant, analyse evidence,
 
 ### Scenario 17 — Strongly consistent payments and eventually consistent analytics
 
-**Answer:** Keep the authoritative ledger transactional and enforce invariants there. Publish committed changes through outbox/CDC to analytics storage. Expose analytics freshness and never use a lagging analytical model to authorize financial decisions.
+**Problem:** Finance requires an accurate payment state, while dashboards and reports can tolerate delayed updates.
+
+**Design:** Keep the ledger and payment state in an authoritative transactional store. Commit the business change and an outbox record atomically, then publish through an outbox publisher or CDC pipeline to analytical storage. Make projection updates idempotent and version-aware, and provide a rebuild/reconciliation path.
+
+**Trade-off:** Synchronous writes to analytics would couple payment latency and availability to reporting infrastructure. Eventual analytics introduces a freshness delay, so show an “as of” timestamp or freshness SLO and never use a lagging analytical model to authorize financial decisions.
+
+**Signals and follow-up:** Monitor outbox age, consumer lag, projection freshness, reconciliation mismatches, and ledger-to-report totals. If a report is wrong, trace the operation through the ledger, outbox, event, and projection before rebuilding.
 
 ### Scenario 18 — Incompatible event schema deployment
 
@@ -1501,7 +1507,13 @@ For every scenario, state assumptions, identify the invariant, analyse evidence,
 
 ### Scenario 21 — Millions of queued events after an outage
 
-**Answer:** Ramp replay gradually, limit concurrency, prioritize by deadline, and monitor queue age and error rates. Expire only work whose policy allows it. Reprocessing must be idempotent and observable; do not flood a recovering dependency.
+**Problem:** A downstream service recovers after several hours, leaving millions of retryable events. Replaying everything immediately risks causing a second outage.
+
+**Clarify:** What is the incoming rate now, what is the safe processing rate, which events have deadlines, and which are obsolete or non-retryable?
+
+**Approach:** Calculate net drain rate as completion rate minus ongoing arrivals. Ramp replay gradually, cap concurrency against the downstream service's capacity, prioritize deadline-sensitive work, and separate poison messages. Preserve idempotency because replay can repeat side effects; expire or coalesce work only when business policy permits it.
+
+**Signals and follow-up:** Track oldest-event age, arrival and completion rates, retry rate, failure rate, and estimated drain time. If processing capacity is no greater than ongoing arrivals, the backlog will not drain; add safe capacity, reduce incoming work, or change admission policy rather than merely increasing retention.
 
 ### Scenario 22 — Duplicate notifications after consumer rebalance
 
@@ -1513,11 +1525,23 @@ For every scenario, state assumptions, identify the invariant, analyse evidence,
 
 ### Scenario 24 — Regional failover creates a routing loop
 
-**Answer:** Map routing and dependency topology. Distinguish ingress health from required dependency health; use region-aware routing and explicit failover states. A healthy HTTP endpoint is insufficient if its critical downstream path is unavailable. Test failover and failback.
+**Problem:** Region A forwards traffic to B after a health check fails, while B's routing policy sends the same request back to A.
+
+**Clarify:** Which layer owns global routing, how is a region marked draining or failed, and can a region's local dependencies serve the request without cross-region forwarding?
+
+**Approach:** Define explicit regional states and a one-way failover decision for each request. Keep global routing policy separate from service-level routing, attach a hop/region context where useful, and prevent forwarding back to a region already visited. Distinguish ingress health from end-to-end dependency health, and ensure failback is a controlled state transition rather than automatic oscillation.
+
+**Signals and follow-up:** Monitor cross-region hop counts, redirect/forwarding rate, routing decisions, dependency health, and failover state changes. Test partial failures and failback, not only a complete region shutdown.
 
 ### Scenario 25 — Retention doubles storage requirements
 
-**Answer:** Recalculate raw growth, indexes, replicas, backups, and analytics copies. Decide what must remain queryable versus archived, and verify deletion requirements across caches, logs, replicas, and backups. Storage estimates must separate hot data from low-cost archive.
+**Problem:** A compliance change doubles retention from 90 to 180 days, and the original storage budget no longer holds.
+
+**Approach:** Recalculate steady-state growth for each data class, including indexes, replicas, snapshots, logs, derived read models, and temporary migration space. Separate data that must remain low-latency and queryable from data that can be archived. Model retrieval, minimum-duration, and egress costs as well as raw storage.
+
+**Correctness and compliance:** Confirm retention and deletion obligations for primary data, downstream copies, caches, logs, and backups; legal holds may override normal deletion timing. Do not shorten retention or delete audit records merely to fit the budget without approval.
+
+**Follow-up:** Measure actual bytes per record and compression rather than extrapolating from logical payload size alone. Track storage growth, archive retrievals, and policy exceptions.
 
 ### Scenario 26 — Global service needs low latency on multiple continents
 
@@ -1525,15 +1549,33 @@ For every scenario, state assumptions, identify the invariant, analyse evidence,
 
 ### Scenario 27 — External provider imposes a strict quota
 
-**Answer:** Centralize quota accounting, schedule calls through a bounded queue, prioritize, coalesce duplicates, and cache only where allowed. Honor retry hints and expose pending state. A per-instance limiter is insufficient for an account-wide quota.
+**Problem:** The provider permits 500 calls per second per account, but the application scales across many instances and can collectively exceed the limit.
+
+**Clarify:** Is the quota shared across endpoints or credentials? Are bursts allowed? Does the provider return `Retry-After`, and which operations are deadline-sensitive?
+
+**Approach:** Enforce an account-wide budget using a shared limiter or centrally allocated local token budgets. Queue deferrable calls with bounded depth, prioritize critical work, coalesce duplicate requests, and cache only when the provider contract permits it. Honor retry guidance and expose a pending state rather than retrying every throttled request immediately.
+
+**Trade-off and signals:** A shared limiter adds a dependency; allocated local budgets reduce coordination but can briefly overshoot. Monitor provider 429s, quota consumption, queue age, retries, and per-operation latency. A per-instance limiter alone multiplies the aggregate allowance as instances scale.
 
 ### Scenario 28 — Infrastructure is healthy but data is inconsistent
 
-**Answer:** Add business-level signals: write-to-read freshness, replication lag, event age, duplicate/conflict counts, and reconciliation outcomes. Trace entity versions through database, outbox, broker, and read model. Distinguish allowed staleness from a violated read-your-writes guarantee.
+**Problem:** CPU, memory, and availability dashboards are green, but users report missing or contradictory records.
+
+**Approach:** Start with a concrete entity and expected invariant. Trace its version and operation ID through the authoritative database, outbox, broker, consumer, and read model. Check replication lag, consumer offsets, duplicate handling, schema changes, tombstones, and any backfill that may have overwritten newer data. Compare allowed staleness with the API's actual consistency contract.
+
+**Signals:** Add write-to-read freshness, oldest event age, projection lag, duplicate/conflict counts, and reconciliation outcomes. Infrastructure health proves components are responding; it does not prove business state is correct.
+
+**Follow-up:** If the issue affects a financial or authorization invariant, stop unsafe downstream decisions first, then repair from the authoritative source and verify the correction.
 
 ### Scenario 29 — Team wants a new database because it is popular
 
-**Answer:** Identify a concrete workload the current database cannot meet, quantify the gap, and compare operational expertise, migration, backup, security, and on-call costs. Prototype representative queries and failure tests. Keep the current database if it satisfies requirements at lower total cost.
+**Problem:** A team proposes a new database based on industry popularity, without showing that the current store is the bottleneck.
+
+**Approach:** State the workload and requirement first: query patterns, transaction invariants, throughput, p99 latency, data size, growth, and recovery targets. Use query plans and production measurements to establish the gap, then benchmark representative data and skew—not only a synthetic happy path. Compare consistency behavior, migration complexity, backup/restore, security, observability, operational skills, and total cost.
+
+**Decision rule:** Adopt the new store only if the measured benefit is material enough to justify migration and ongoing operational risk. If the real issue is a missing index, poor query, hot key, or oversized connection pool, fix that first.
+
+**Follow-up:** Define success and rollback criteria before a proof of concept; a faster benchmark is not enough if restore or failover behavior is unproven.
 
 ### Scenario 30 — Interviewer asks “What breaks first?”
 
