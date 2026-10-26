@@ -2,7 +2,7 @@
 
 **Audience:** Java backend engineers with 5–10 years of experience preparing for senior and staff-leaning backend/product-company interviews.  
 **Purpose:** A progressive guide to architecture reasoning, capacity estimation, data ownership, consistency, failure handling, operations, and cost.  
-**Status:** Rebuilding for the 5–10 year experience band. Substantive rewrites have expanded capacity calculations, partitioning/sharding, traffic infrastructure, data consistency, transaction patterns, messaging, security, observability, and recovery. This is still a working draft; topic coverage, technical accuracy, readability, and rendered diagrams require further review.
+**Status:** Rebuilding for the 5–10 year experience band. Recent rewrites deepen async operation APIs, cancellation, deadlines/leases, fallback safety, cascade prevention, retry budgets, graceful shutdown, scheduled jobs, and data consistency, in addition to capacity, database, messaging, security, and recovery topics. Full coverage, technical accuracy, readability, and rendered diagrams remain under review; not final sign-off.
 
 > **How to use this guide:** Learn fundamentals in order, then practise scenarios aloud. State assumptions, identify the critical business invariant, estimate scale, draw the simplest viable architecture, and deepen the part the interviewer challenges. Naming technologies is not the goal; explaining why the design satisfies requirements is.
 
@@ -2148,55 +2148,133 @@ Account for duplicate callbacks, object-store temporary failures, checksum misma
 
 ### Q211. How do you choose between polling and push notifications for status updates?
 
-Polling is simple and works when update frequency is low, but repeated requests waste capacity and can create synchronized spikes. Push mechanisms such as WebSockets or Server-Sent Events reduce repeated polling but need connection management, reconnect handling, and fan-out infrastructure. A hybrid approach often uses polling for low-value status and push for time-sensitive changes, with the server retaining durable state so clients can recover after disconnects.
+Choose based on how quickly the client needs updates, how many clients are concurrently connected, and whether updates must be delivered while the client is offline. **Polling** is simple: the client requests current status at an interval. It works well for low-frequency changes and simple infrastructure, but creates repeated requests even when nothing changes. If every client polls every second, the steady request rate can be large and polling timers can synchronize into periodic spikes.
+
+**Push** mechanisms such as Server-Sent Events (SSE), WebSockets, or mobile push notifications reduce repeated checks. SSE is useful for server-to-browser updates over an HTTP stream; WebSockets support bidirectional, interactive communication; mobile push is useful for waking or alerting an offline device but is not a reliable substitute for application state. Persistent connections need heartbeats, reconnect handling, connection distribution, authentication refresh, and fan-out capacity.
+
+A common design is hybrid: the client submits a job, receives an operation ID, and polls a status endpoint with backoff until it completes; clients that need near-real-time updates subscribe to push events, then fetch durable status after reconnect. Persist status transitions and event IDs so a dropped push does not lose the result. Support ETags/conditional requests or long polling to avoid returning unchanged payloads repeatedly.
+
+Do not assume a transport provides durable delivery. Define reconnect cursors, event retention, offline behavior, authorization, and the source of truth. Pick polling when frequency is low and simplicity matters; use push when the latency/cost benefit justifies connection management. Measure active connections, polling QPS, update latency, reconnect storms, and completion freshness.
 
 ### Q212. How do you design a long-running operation API?
 
-Return a durable operation ID and an explicit accepted/pending state after the operation is durably recorded. Provide a status endpoint or notification mechanism, define terminal states and expiry, and make client retries idempotent. Do not keep an HTTP request open for hours. Document whether cancellation is supported and whether it means “stop future work” or “compensate effects already performed.”
+Do not keep an HTTP request open while work may take minutes or hours. Accept the command durably, create an operation resource with a stable ID, and return a response such as HTTP 202 Accepted with a link to query its status. Acceptance means the system has recorded responsibility for the operation; it must not imply that the final business action has completed.
+
+Represent the operation as a durable state machine—for example, QUEUED, RUNNING, SUCCEEDED, FAILED, CANCEL_REQUESTED, CANCELLED, EXPIRED, or NEEDS_REVIEW. Persist progress when useful, the initiating principal/tenant, input reference, timestamps, deadline, retry count, result reference, and failure reason. Use a database transaction/outbox or another durable handoff so the API does not record “accepted” and then lose the job before enqueueing it.
+
+Make the create request idempotent. If a client times out after acceptance, retrying with the same key should return the same operation instead of creating duplicate exports or payments. Provide polling with backoff, SSE/WebSocket/webhook updates where justified, and authorization checks on every operation lookup. Large results should use a controlled download URL with explicit expiry and access scope.
+
+Define cancellation precisely. It may stop not-yet-started work, request cancellation at a safe checkpoint, or be impossible once an irreversible external action has begun. Include operation retention and expiry, DLQ/reconciliation, progress semantics, and how clients learn about a final unknown result. Monitor completion latency and oldest pending age, not just API acceptance latency.
 
 ### Q213. How should cancellation work in a distributed workflow?
 
-Cancellation is a command, not proof that all work stopped instantly. Persist cancellation intent, propagate it to queued and active steps, and make workers check it at safe boundaries. If prior steps created external effects, define compensation or a “too late to cancel” result. Race cancellation against completion explicitly, and ensure the workflow reaches one durable terminal state.
+Cancellation is a business command that races with execution; it is not a guarantee that all work has instantly stopped. Persist the cancellation request and let the workflow state machine decide which transitions remain legal. Workers should check cancellation at safe boundaries, such as before starting a new stage or before committing a reversible local change.
+
+Define the race between cancellation and completion. If cancellation arrives before a payment is submitted, the workflow may stop cleanly. If the provider has already charged the customer, cancellation may require a refund or void rather than erasing the charge. Some steps may be irreversible or have an uncertain outcome after a timeout. The API should then return an explicit outcome such as cancellation requested, cancelled, completed, or too late to cancel—not a misleading universal “cancelled” result.
+
+Propagate cancellation to queued and active downstream calls where supported, but do not rely on network cancellation to roll back a committed database transaction or external side effect. Use durable operation IDs, idempotent cancellation requests, compensating actions, and reconciliation for uncertain steps. A cancellation can also expire while a worker is paused, so workers need version-checked state transitions.
+
+For batch operations, define partial cancellation: which items completed, which were stopped, and which require repair. Record an audit trail and ensure the workflow reaches a terminal state eventually. In an interview, draw the cancellation path alongside the happy path, identify irreversible boundaries, and explain what users see when cancellation races with final completion.
 
 ### Q214. What is the difference between a timeout, a deadline, and a lease?
 
-A timeout limits how long a particular wait or operation may continue. A deadline is an absolute end time for the whole request/workflow budget and can be propagated downstream. A lease grants temporary ownership that expires unless renewed. Expired leases do not forcibly stop a paused worker, so the protected resource may need fencing tokens or conditional writes.
+A **timeout** bounds how long one operation or wait may continue—for example, acquiring a database connection or waiting for a downstream response. A **deadline** is the absolute time by which a complete request or workflow is expected to finish. A **lease** grants temporary ownership or permission until it expires unless renewed. They are used for different problems and should not be substituted for one another.
+
+Suppose an API has a one-second end-to-end deadline. If it spends 150 ms in authentication and 200 ms querying the database, a downstream call should receive only the remaining budget, with time reserved to commit and return the response. Giving every hop an independent one-second timeout can cause the overall request to run several seconds. Retries consume that same budget.
+
+A lease is about ownership, not merely latency. A worker may acquire a 30-second lease, pause for 45 seconds, then resume after another worker has acquired the lease. The old worker may still execute unless the protected resource validates an epoch/fencing token or conditional transition. Expiry does not forcibly terminate a process.
+
+Use monotonic clocks for local elapsed-time measurement; absolute wall-clock deadlines across hosts require careful propagation and clock assumptions. Define what happens when a deadline expires after a side effect may have occurred. In an interview, explain the time budget, the ownership contract, and what prevents an expired owner from performing stale writes.
 
 ### Q215. How should timeouts be chosen for downstream calls?
 
-Use observed downstream latency percentiles, acceptable false-timeout rate, network characteristics, and the caller's end-to-end deadline. Include connection acquisition and other phases if the client library's timeout does not cover them. Too-short timeouts create unnecessary retries and load; too-long timeouts hold threads and connections. Revisit values when latency distributions or topology change. See [AWS guidance on timeouts, retries, and jitter](https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/).
+Choose timeouts from the caller's end-to-end latency objective, measured downstream latency distributions, network conditions, and the cost of a false timeout. A timeout that is too short rejects healthy but slower requests and triggers retries; one that is too long ties up threads, connections, memory, and queued work while the caller waits. Avoid selecting a value only because it “feels safe.”
+
+Measure each stage: DNS/resolution, connection-pool acquisition, connection/TLS setup, request transfer, server processing, and response transfer. Client libraries differ in which stages a configured timeout covers. A connection timeout, read timeout, and whole-call deadline may be separate settings. Reuse connections where appropriate, but still bound how long an individual operation may wait.
+
+Propagate an end-to-end deadline or remaining budget to downstream calls. A service should not start a retry when too little time remains for the retry to succeed and return the result. For asynchronous work, use separate task deadlines and retry schedules; do not accidentally inherit a short HTTP deadline for an hours-long background workflow.
+
+Use timeouts with bounded retries, jitter, concurrency limits, and idempotency for mutations. Tune from p95/p99 data and acceptable false-timeout rates, then validate under load and partial failure. A timeout is not cancellation of a remote effect: a timed-out payment call may still succeed. See [AWS guidance on timeouts, retries, and jitter](https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/).
 
 ### Q216. How do you decide whether a fallback is safe?
 
-List the exact user-visible result produced by the fallback and the invariant it must preserve. A cached product description may be safe; cached authorization or inventory may not be. Define maximum staleness, fallback activation, and recovery behavior, then test it under dependency failure. A fallback that returns plausible but incorrect data can be worse than an explicit error.
+Write down what result the fallback returns and the invariant it must preserve. Fallback is safe only when that result remains within the product's correctness and security contract. Serving a cached product description may be acceptable; serving stale authorization, account balance, or final inventory availability may not be safe for a write decision.
+
+Separate optional dependencies from authoritative ones. If a recommendation service fails, the API can omit recommendations and mark the response partial. If a payment provider times out, the system cannot claim payment failed or succeeded without evidence; it should preserve an unknown/pending state and query or reconcile. An alternate provider may have different semantics, quotas, supported currencies, or idempotency behavior, so failover does not mean transparently sending the same command anywhere.
+
+Define the fallback's freshness limit, activation rule, capacity, security checks, and recovery procedure. Cached fallback data can become dangerously stale during a long outage. A fallback that depends on another shared service may fail at the same time, and switching every request to a secondary provider can overwhelm that provider. Preserve audit events and stable operation identities.
+
+Test both partial and prolonged dependency failures, including the return to normal operation. Measure fallback frequency and business outcomes. In interviews, distinguish “technically available” from “correct”: a controlled error is better than a plausible response that violates the invariant.
 
 ### Q217. How do you avoid cascading failure across a dependency graph?
 
-Bound concurrency and queue depth at each layer, propagate deadlines, avoid unbounded retries, and isolate optional work. Model the dependency graph to find shared databases, identity services, and control planes that create common failure paths. Add load shedding before resources are exhausted. Recovery should be gradual, because restoring all retries and queued work simultaneously can recreate the overload.
+A cascading failure occurs when a component's slowdown causes callers to accumulate work, time out, retry, and overload neighboring components until the failure spreads. Draw the dependency graph and identify shared bottlenecks: databases, identity providers, rate-limit stores, brokers, DNS/control planes, and external quotas. Multiple services may look independent while all depend on the same constrained resource.
 
-### Q218. What is a retry budget?
+Bound work at each layer. Use end-to-end deadlines, short and bounded queues, per-dependency concurrency limits, bulkheads, and admission control. Shed optional traffic before critical pools are exhausted. Circuit breakers can stop calls to a failing dependency, but must be paired with a safe fallback or explicit failure behavior. Retries should be limited, jittered, idempotent where necessary, and owned by a clear layer so policies do not multiply.
 
-A retry budget limits the amount of additional traffic generated by retries over a period or relative to successful/original requests. It prevents retries from consuming unlimited capacity during an incident. A token bucket is one implementation: retries consume tokens that replenish under a defined rule. The budget complements per-request attempt limits and deadlines; it does not make an unsafe operation idempotent.
+Scale based on sustainable throughput and downstream capacity. Adding application replicas can multiply connection pools and provider calls. Cache failures can create origin stampedes. When a dependency recovers, ramp traffic and queued work gradually instead of releasing every retry at once. Preserve capacity for health, control, and recovery operations.
+
+Monitor queue age, successful throughput, retry amplification, connection wait, dependency p99, saturation, and SLO burn. Design for the one-zone-down or cache-cold case, not just normal steady state. In an interview, explain the feedback loop, the first resource that saturates, and the mechanism that interrupts the loop without compromising business correctness.
+
+### Q218. What is a retry budget, and how is it different from a per-request attempt limit?
+
+A per-request attempt limit bounds how many times one logical request may be attempted. A **retry budget** limits aggregate retry-generated work over a time window or relative to original traffic, protecting the system during broad failures. Both are needed: a request might have only two retries while millions of requests retry simultaneously.
+
+For example, a client may allow at most two retries per call, while a service-wide token bucket allows retries only up to a bounded fraction of recent original requests. Retry tokens are consumed by extra attempts and replenished according to a defined rate. Once the budget is exhausted, the system should fail fast or defer eligible asynchronous work rather than keep amplifying pressure.
+
+Budgets should be applied at the scope of the bottleneck—per dependency, region, tenant, or service. A global budget may let one noisy tenant consume all retry allowance; a per-instance budget can multiply with autoscaling. Choose a policy that matches the dependency's actual quota and failure domain.
+
+A retry budget does not make a non-idempotent mutation safe, fix a bad timeout, or guarantee the dependency is healthy. Combine it with deadlines, backoff with jitter, error classification, circuit breaking, and concurrency limits. Track original logical requests separately from attempts, plus retry success rate, budget exhaustion, and downstream saturation. Explain what happens when the budget runs out so the mechanism does not become an undocumented source of dropped work.
 
 ### Q219. How do you choose the right level of redundancy?
 
-Redundancy should match the failure model and recovery target. Multiple application instances protect against process/host failure, multiple availability zones protect against some zone failures, and cross-region copies address larger outages. Every extra copy adds cost and may create consistency or operational complexity. Verify independence: replicas sharing the same credentials, network, or database are not fully independent.
+Choose redundancy from the failure model, required availability, RTO/RPO, geographic needs, and budget. Multiple application instances can protect against process/host failures; deployment across availability zones can tolerate some zone failures; cross-region replicas can support regional recovery. But every extra copy adds cost, coordination, and operational work, and only protects against failures independent of the other copies.
+
+Ask what is replicated and how it behaves. Stateless compute is relatively easy to duplicate. Databases need a replication and promotion protocol; message brokers need a durability/replica acknowledgement policy; caches may lose recent state on failover; search indexes may be rebuildable from source. Replicas sharing a single network, credential provider, storage system, or broken release remain correlated.
+
+Plan capacity during loss of a failure domain. Two regions that each use 90% of capacity normally cannot necessarily carry all traffic when one region fails. The surviving region may need reserved headroom, priority shedding, or a reduced service contract. Redundancy also needs tested failover/failback, restore procedures, and fencing to prevent split brain.
+
+Use reliability modeling as a first estimate, but include common-cause failures and operational mistakes. In an interview, state which failures are tolerated, what data can be lost, how long recovery takes, how the surviving tier handles the load, and whether the team can afford to maintain and test the added complexity.
 
 ### Q220. How do you design graceful shutdown for a worker or service?
 
-Stop accepting new work, mark the instance unready, drain in-flight requests within a deadline, and safely release or extend leases. For message consumers, stop fetching new records and commit progress only after processing is durable. If shutdown is forced, assume work may be retried and ensure idempotency. Test deployment termination and node loss, not only clean local shutdown.
+Graceful shutdown gives the system a controlled transition from serving work to stopping, but it must not rely on the process having unlimited time to finish. On receiving a termination signal, stop accepting new traffic, mark the instance unready, drain in-flight requests within a defined deadline, and close dependencies cleanly. The platform's termination grace period must be long enough for the intended drain behavior but still bounded.
+
+For HTTP/RPC servers, stop new requests and allow safe in-flight calls to finish. Long-lived WebSockets may need a reconnect signal and a maximum drain duration. For message consumers, stop fetching new records, finish or safely abandon in-flight work, and commit acknowledgements/offsets only after the processing side effect is durable. If shutdown is forced, assume the message will be redelivered.
+
+For workers using leases, stop renewing ownership when appropriate and release or hand off safely; do not let a second worker act before the first can no longer commit. Ensure shutdown does not wait forever on a stuck dependency. Use deadlines, cancellation tokens, and idempotent side effects. A service should remain able to receive termination signals even when its main worker pool is saturated.
+
+Test rolling deployment, node loss, forced kill, and slow downstream behavior. Watch rejected requests, in-flight duration, duplicate work, and termination timeout. In an interview, describe readiness/draining order, message acknowledgement, external side-effect safety, and what the recovery mechanism does if graceful shutdown is interrupted.
 
 ### Q221. How should a system handle duplicate job scheduling?
 
-Give each logical scheduled occurrence a deterministic identity, such as job ID plus scheduled instant, and enforce uniqueness durably. Workers should claim work with leases or conditional state transitions and make side effects idempotent. A scheduler can crash between triggering and recording a run, so duplicates must be expected. Define misfire policy for missed intervals and prevent accidental unbounded catch-up.
+Assume the scheduler can trigger a job more than once. A scheduler may crash after enqueuing a job but before recording that it did so; a lease may expire while the worker is paused; a retry can arrive after the first execution succeeded. “Only one scheduler instance” does not remove all duplicate windows.
+
+Give each logical occurrence a deterministic identity, such as job ID plus scheduled instant or business period, and enforce uniqueness durably. Claim a job with a conditional state transition or lease and record its status/progress. The worker should be idempotent at the business-effect boundary; a dedupe row alone cannot atomically cover an unrelated email, payment provider, or third-party action.
+
+Define misfire policy: should missed runs be skipped, coalesced into one run, or caught up individually? For periodic jobs, blindly replaying every missed interval after a long outage can create an overload burst and may execute work whose deadline has passed. Keep a bounded catch-up rate and preserve per-entity ordering where required.
+
+Monitor schedule lag, duplicate occurrence attempts, execution duration, lease expirations, and oldest pending job. Recovery tools should allow safe re-drive with the original job identity. In an interview, explain the crash window between schedule creation, queue publication, job execution, and final status recording—and how the system remains correct through each retry.
 
 ### Q222. How do you prevent stale leaders from committing writes?
 
-Assign a monotonically increasing epoch or fencing token whenever ownership changes. The storage resource must reject operations carrying an older epoch. A lease service by itself cannot stop an old process from resuming after a pause. Also define leader promotion, membership changes, and how the old owner is prevented from being treated as authoritative.
+A stale leader is a process that once owned a resource but has lost authority and may still be running after a pause, network partition, or delayed shutdown. A lease or health check alone cannot force that process to stop. The protected resource must be able to reject stale writes.
+
+Use a monotonically increasing **epoch** or fencing token assigned when leadership changes. The leader includes the token in every protected write, and the database/resource records the highest accepted token and rejects older epochs. If the resource supports compare-and-set, conditional updates, or term/version checks, enforce the ownership rule there. A token that is generated but never validated by the resource provides no protection.
+
+Leadership transfer must be coordinated: establish the new epoch, ensure the new writer has the data it needs, fence the previous writer, and only then route authoritative writes. For external side effects, the external provider may not understand your fencing token; use provider idempotency, a single durable command owner, or reconciliation to reduce duplicate effects.
+
+Test a process that pauses past lease expiry and then resumes, a region that loses control-plane connectivity but can still reach the database, and a slow old leader during promotion. In an interview, name the resource that checks fencing, the atomicity of that check with the write, and how you avoid a window where old and new leaders can both commit.
 
 ### Q223. How do you choose a data consistency guarantee for each API?
 
-For every endpoint, state whether it needs linearizable reads/writes, read-your-writes, monotonic reads, bounded staleness, or eventual convergence. Tie the guarantee to a user journey and business risk. For example, account settings may tolerate a brief stale read while a payment authorization may not. Explicit guarantees guide routing, caching, replica selection, and client retry behavior.
+Choose the guarantee from the operation's business meaning and failure cost. “Consistency” is too vague without a named property. Options may include linearizable reads/writes, read-your-writes, monotonic reads, bounded staleness, or eventual convergence. These guarantees differ in what a caller can observe and what the system must coordinate.
+
+For example, a product browsing endpoint may tolerate slightly stale descriptive data; a user's immediate profile update may need read-your-writes; a balance or inventory reservation may require an authoritative transactional operation. Even a strongly consistent read is not sufficient if the subsequent mutation is not protected atomically—checking that a seat is available and then inserting a booking still races unless the write enforces the invariant.
+
+Write the contract per operation: which source is authoritative, whether the result can be stale, how much, and what happens during replica lag or regional partition. Choose cache and replica routing accordingly. If the requirement cannot be met in a failure state, return a controlled error or pending status rather than silently weakening the promise.
+
+A single system can use several consistency levels for different endpoints. Avoid describing an entire database as simply “strong” or “eventual” without checking its actual API and configuration. In an interview, connect the guarantee to the data model, transaction boundary, latency, availability, and user-visible behavior.
 
 ### Q224. What does bounded staleness mean?
 
