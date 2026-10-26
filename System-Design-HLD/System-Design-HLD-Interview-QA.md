@@ -529,6 +529,19 @@ Client
 
 Not every deployment needs every box. A gateway may also be the L7 load balancer; an ingress controller may combine reverse-proxy and gateway functions; a service mesh may be unnecessary for a small system. Multiple layers can accidentally multiply retries, timeouts, TLS hops, and operational complexity. Define the owner of each policy, the timeout budget across the full path, and which component is authoritative for identity and authorization.
 
+```mermaid
+flowchart LR
+  C[Client] --> E[DNS / Edge]
+  E --> R[Reverse Proxy / Load Balancer]
+  R --> G[API Gateway]
+  G --> S1[Service A]
+  G --> S2[Service B]
+  S1 --> M[Service Mesh Data Plane]
+  M --> S2
+```
+
+This is one possible deployment, not a mandatory stack: a reverse proxy/load balancer and gateway may be combined, and a service mesh is useful only when its cross-service traffic controls justify the operational cost.
+
 ### Q44. When should a monolith be split into microservices?
 
 Split when there is a clear boundary that benefits from independent deployment, scaling, ownership, security, or fault isolation—not simply because the codebase is large or the team uses microservices elsewhere. A modular monolith can keep modules independently structured while retaining in-process calls and simpler transactional behavior. If module boundaries and ownership are unclear, moving the same tangled dependencies over HTTP usually creates a distributed monolith.
@@ -660,6 +673,19 @@ Evaluate these dimensions explicitly:
 **Example:** For a multi-tenant SaaS product, `tenant_id` may be a natural routing key because most reads are tenant-scoped. But a very large tenant can become a hot shard. A practical design might route ordinary tenants by tenant ID and split selected large tenants into buckets, while preserving a mapping service that tells the application where each tenant's data lives. That increases routing and migration complexity, so it should be justified by observed skew.
 
 Before choosing a key, list the top queries and write paths, estimate per-key traffic, identify operations that must be atomic, and test both average and worst-case tenants. A key should be selected from the workload and invariants—not because a database product recommends a fashionable strategy.
+
+```mermaid
+flowchart TD
+  W[Workload and query patterns] --> K[Candidate shard key]
+  K --> D{Even load and useful locality?}
+  D -->|Yes| T[Test hot keys and growth]
+  D -->|No| A[Try composite key, buckets, or tenant-aware placement]
+  A --> T
+  T --> M[Model cross-shard queries and resharding]
+  M --> V[Validate with skewed traffic and migration tests]
+```
+
+The diagram captures the decision process: choose a key from access patterns and invariants, then test skew and operational consequences—not merely the number of rows per shard.
 
 ### Q56. What is a hot partition?
 
@@ -969,6 +995,17 @@ The publisher can crash after publishing but before marking the row sent, so dup
 
 Operational design matters: poll with bounded batches or use CDC on the outbox; preserve the required per-aggregate ordering; avoid one locked publisher query becoming a bottleneck; monitor oldest unpublished event, backlog size, publisher errors, and duplicate rates; and define retention/cleanup. If an event contains sensitive data, minimize the payload and control access. The interview-quality explanation should show the failure window it closes, the duplicate window it still has, and how consumers recover safely.
 
+```mermaid
+flowchart LR
+  A[Application transaction] --> DB[(Business row + outbox row)]
+  DB --> P[Outbox publisher / CDC]
+  P --> B[Message broker]
+  B --> C[Idempotent consumer]
+  C --> D[(Consumer state)]
+```
+
+The business change and outbox record commit in one local database transaction. Publishing may be repeated after a crash, so consumers still need deduplication or idempotent state transitions; the outbox closes the database/broker dual-write gap but does not create universal exactly-once delivery.
+
 ### Q85. Saga choreography versus orchestration?
 
 A saga coordinates a long-running business workflow whose steps commit in separate local transactions. Since there is no single ACID transaction spanning all services, the design records progress and defines what happens when a step fails or the workflow times out. A saga is not a database rollback: a compensation is a new business action that attempts to counteract an earlier action and may itself fail or be impossible.
@@ -1252,6 +1289,18 @@ First distinguish a region being unavailable from a network partition in which b
 **Recovery:** Fence the old region, promote one authority, verify ledger invariants, reconcile in-flight payment attempts and pending commands, refresh routing gradually, and rebuild derived views. Ensure failback does not make the recovered region a second writer.
 
 **Signals:** Track owner epochs, rejected/pending writes, unknown payment outcomes, replication lag, ledger mismatches, routing convergence, and recovery time. In an interview, explain precisely what the client sees during the outage and what proof permits writes to resume.
+
+```mermaid
+flowchart TD
+  R1[Region A: write authority] --> L[(Authoritative ledger)]
+  L --> R2[Replicate to Region B]
+  F{Region A unreachable?} -->|No| R1
+  F -->|Yes| P[Verify fencing / promote authority]
+  P --> Q[Reconcile uncertain operations]
+  Q --> W[Resume writes in one authoritative region]
+```
+
+Failover is safe only when the system can establish a single write authority and understand the replication/RPO implications. If authority cannot be proven, temporarily rejecting or queuing new financial writes is safer than allowing split-brain ledger updates.
 
 ### Q112. What is split brain, and how do you prevent it?
 
