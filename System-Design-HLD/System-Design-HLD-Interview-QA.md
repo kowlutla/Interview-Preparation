@@ -841,7 +841,7 @@ The repository's focused guides provide implementation depth; this handbook reta
 
 - [System Design Primer](https://github.com/donnemartin/system-design-primer) — concepts and practice problems.
 - [Google SRE Books](https://sre.google/books/) — reliability, monitoring, incident response.
-- [AWS Builders’ Library](https://aws.amazon.com/builders-library/) — operational lessons and distributed design; see also [timeouts, retries, and backoff with jitter](https://builder.aws.com/content/3EumjoZascWd1oZiEgL8ORlv3qE/timeouts-retries-and-backoff-with-jitter%20%C2%B7%20Like%20%C2%B7%20Reply.%201%20Reaction.%20See%20more%20...).
+- [AWS Builders’ Library](https://aws.amazon.com/builders-library/) — operational lessons and distributed design; see also [timeouts, retries, and backoff with jitter](https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/).
 - [Google Cloud Architecture Framework](https://cloud.google.com/architecture/framework) — reliability, security, cost.
 - [Microsoft Azure Architecture Center](https://learn.microsoft.com/en-us/azure/architecture/) — architecture patterns and reference designs.
 - [Apache Kafka documentation](https://kafka.apache.org/documentation/) — broker/client guarantees.
