@@ -2,7 +2,7 @@
 
 **Audience:** Java backend engineers with 5–10 years of experience preparing for senior and staff-leaning backend/product-company interviews.  
 **Purpose:** A progressive guide to architecture reasoning, capacity estimation, data ownership, consistency, failure handling, operations, and cost.  
-**Status:** Rebuilding for the 5–10 year experience band. Includes eleven worked designs and 15 core-concept deep dives; the full 300-question bank and 80 scenarios have received substantial depth rewrites, with the remaining audit focused on topic coverage, technical verification, readability, and rendered diagrams. Not a final sign-off yet.
+**Status:** A 300-question bank and 80 senior-level scenarios, with a case-study reference index (index only; no end-to-end solutions). This handbook has received a structural and scenario-depth review; technical claims and external references are being checked, and this is not a claim of exhaustive line-by-line verification.
 
 > **How to use this guide:** Learn fundamentals in order, then practise scenarios aloud. State assumptions, identify the critical business invariant, estimate scale, draw the simplest viable architecture, and deepen the part the interviewer challenges. Naming technologies is not the goal; explaining why the design satisfies requirements is.
 
@@ -4541,7 +4541,7 @@ flowchart LR
 | System | Level / concepts | References |
 |---|---|---|
 | URL shortener | Intermediate: IDs, redirects, cache, hot keys | [URL shortener design walkthrough](https://www.hellointerview.com/learn/system-design/problem-breakdowns/bitly) |
-| Pastebin | Intermediate: expiry, storage, read-heavy traffic | [Hello Interview — distributed rate limiter](https://www.hellointerview.com/learn/system-design/problem-breakdowns/distributed-rate-limiter) |
+| Pastebin | Intermediate: expiry, storage, read-heavy traffic | [System Design Primer — Pastebin / Bitly](https://github.com/donnemartin/system-design-primer#design-pastebincom-or-bitly) |
 | Distributed unique ID generator | Advanced: uniqueness, time, coordination | [System Design Primer](https://github.com/donnemartin/system-design-primer) |
 | Distributed rate limiter | Advanced: token bucket, atomicity, quotas | [Hello Interview — distributed rate limiter](https://www.hellointerview.com/learn/system-design/problem-breakdowns/distributed-rate-limiter) |
 | Notification service | Advanced: queues, priorities, retries | [Hello Interview — notification system](https://www.hellointerview.com/learn/system-design/problem-breakdowns/notification-system) |
