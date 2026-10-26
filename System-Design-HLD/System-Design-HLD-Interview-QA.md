@@ -2,7 +2,7 @@
 
 **Audience:** Java backend engineers with 5–10 years of experience preparing for senior and staff-leaning backend/product-company interviews.  
 **Purpose:** A progressive guide to architecture reasoning, capacity estimation, data ownership, consistency, failure handling, operations, and cost.  
-**Status:** Rebuilding for the 5–10 year experience band. Includes eight worked designs and 15 core-concept deep dives; the full 300-question bank and 80 scenarios have received substantial depth rewrites, with the remaining audit focused on topic coverage, technical verification, readability, and rendered diagrams. Not a final sign-off yet.
+**Status:** Rebuilding for the 5–10 year experience band. Includes nine worked designs and 15 core-concept deep dives; the full 300-question bank and 80 scenarios have received substantial depth rewrites, with the remaining audit focused on topic coverage, technical verification, readability, and rendered diagrams. Not a final sign-off yet.
 
 > **How to use this guide:** Learn fundamentals in order, then practise scenarios aloud. State assumptions, identify the critical business invariant, estimate scale, draw the simplest viable architecture, and deepen the part the interviewer challenges. Naming technologies is not the goal; explaining why the design satisfies requirements is.
 
@@ -4910,6 +4910,92 @@ Estimate new bytes/day × retention before adding replication, version history, 
 Track upload completion rate, incomplete multipart sessions, checksum failures, scan backlog, object/metadata mismatches, access-denied rates, egress, storage growth, and restore time. In an interview, explain why the app server should not proxy bytes, how resumability and finalize work after a lost response, and how private objects remain private through CDN/cache/URL layers.
 
 
+
+### Worked design 9: Payment processing and ledger
+
+### Requirements, scope, and invariants
+
+Assume the platform lets a customer initiate a payment for an order, supports authorization/capture where the provider offers it, handles asynchronous callbacks, exposes payment status, and later reconciles provider/settlement records. Clarify currency and amount rules, refunds/voids, partial capture, recurring payments, regulatory constraints, provider selection, expected volume, latency targets, and the required RPO/RTO. The design below focuses on correctness under retries and uncertain provider outcomes rather than a particular payment provider's API.
+
+The core invariants are:
+
+- One logical client operation must not create multiple unintended charges.
+- A payment must not be marked captured/settled merely because a request was sent or a queue accepted a command.
+- Amount and currency must be immutable or versioned for a given payment attempt; a retry must not silently change the request.
+- Every financial state transition must be auditable and traceable to a stable operation/provider reference.
+- Internal state and provider state must eventually agree, or the difference must be visible as an unresolved reconciliation item.
+
+Do not store raw card data unless the organization has deliberately accepted the relevant compliance scope. Prefer provider tokenization/hosted payment fields and store tokens/references needed to operate the payment.
+
+### Capacity assumptions
+
+Use illustrative numbers to show the method, not as a production sizing claim. Suppose the platform creates 2 million payment intents/day. Average creation rate is about 23/s; if peak is 10 times average, plan initially for roughly 230 creates/s. That is not the same as provider calls/s: one intent can cause authorization, capture, status lookups, retries, callbacks, and refunds. Estimate each operation separately and include retry/reconciliation traffic in the quota budget.
+
+A payment database often has modest raw storage compared with a feed/search system, but its correctness and audit requirements are stricter. Estimate payment/attempt rows, immutable ledger entries, idempotency records, outbox/inbox events, provider responses/metadata, indexes, backups, and retention. Do not log sensitive payment payloads simply to make debugging easier.
+
+### Architecture and request flow
+
+```mermaid
+flowchart TD
+  C[Client / Checkout] --> G[API Gateway]
+  G --> P[Payment API]
+  P --> D[(Payment DB and Ledger)]
+  D --> O[Transactional Outbox]
+  O --> B[Durable Broker]
+  B --> W[Payment Orchestrator / Workers]
+  W --> X[Payment Provider]
+  X --> H[Webhook Endpoint]
+  H --> I[Webhook Inbox]
+  I --> D
+  R[Reconciliation Job] --> X
+  R --> D
+  P --> S[Payment Status API]
+  S --> C
+```
+
+**Create/confirm flow:** Validate order ownership, currency, amount, and payment method reference. In one local database transaction, create or find the idempotency record, create the payment operation, and persist an outbox command. Return a stable payment/operation ID after durable commit. A worker claims the command, calls the provider with a stable provider idempotency key where supported, stores the provider reference and response, and advances the payment state through an allowed transition.
+
+**Webhook flow:** Verify the signature and timestamp/replay protection, validate provider/account identity, and durably record the provider event ID before acknowledging. Apply the callback idempotently to the payment state. A webhook can arrive before the synchronous provider response is persisted, so unmatched callbacks must be stored and retried for correlation rather than dropped. Use state-transition rules so a late “processing” event cannot move a terminal captured payment back to pending.
+
+**Status flow:** Return the durable operation state, not a guess based on whether a worker is currently running. Common states include CREATED, PROCESSING, REQUIRES_ACTION, AUTHORIZED, CAPTURED, FAILED, CANCELLED, and UNKNOWN/RECONCILIATION_REQUIRED; the exact state machine depends on the provider and product. Use separate state for refund/void attempts instead of overwriting history.
+
+### APIs and data model
+
+Potential APIs include `POST /payment-intents`, `POST /payment-intents/{id}/confirm`, `POST /payment-intents/{id}/capture`, `POST /payment-intents/{id}/cancel`, `POST /payment-intents/{id}/refunds`, and `GET /payment-intents/{id}`. Mutating calls should accept an idempotency key and return a stable resource/operation ID. The API must state whether the result means “durably accepted,” “provider authorized,” “captured,” or “settled”; these are not synonyms.
+
+A payment record can include payment ID, order/merchant ID, immutable amount/currency, payment-method token/reference, current state, provider/account reference, creation/update version, and relevant timestamps. A payment-attempt table stores each provider interaction with its own stable attempt ID, idempotency key, request fingerprint, provider transaction ID, response category, and uncertainty/reconciliation status. Do not use a single mutable status column as the entire audit history.
+
+Enforce uniqueness in the database—for example, a scoped idempotency key per merchant/API operation—and atomically bind the key to a canonical request fingerprint. A concurrent retry with the same key and same payload should converge on the same operation; reuse of the key with a different amount, currency, or order should be rejected. Key scope and retention must be documented. Provider idempotency windows can expire, so long-term safety also needs internal operation identity and reconciliation.
+
+### Ledger and financial correctness
+
+For a system that owns money movement or a customer balance, model an immutable double-entry ledger rather than relying only on a mutable balance field. Each posted journal transaction should balance debits and credits under the currency/precision rules. Corrections are new compensating entries, not destructive edits that erase the earlier movement. A balance table or projection can accelerate reads, but it must be rebuildable or reconcilable from the ledger.
+
+Commit ledger entries and the corresponding internal business-state transition in one database transaction. Use constraints and concurrency control to prevent duplicate posting for the same logical provider event/operation. If a financial rule spans rows, ensure the selected isolation/locking strategy actually protects it; application-side “check then update” is not enough.
+
+The external provider is outside that transaction. The provider may charge successfully while the network response is lost; the local database cannot atomically roll back the external charge. Treat the result as UNKNOWN until a stable-key retry, status query, verified callback, or reconciliation resolves it. Never create a new logical payment simply because a call timed out.
+
+### Retries, outbox/inbox, and reconciliation
+
+The outbox closes the local database-plus-publish dual-write window: payment state and publication intent commit together, then a publisher sends the command/event. The publisher can crash after publish but before marking the outbox row sent, so consumers must expect duplicate delivery. The webhook inbox similarly records provider event IDs and applies local state transitions transactionally.
+
+Use bounded retries, exponential backoff with jitter, provider retry-after guidance, an overall deadline for synchronous work, and account-wide provider quotas. Count retries and status lookups against the provider's limits. A timeout is an uncertain outcome, not evidence of failure. If the provider supports idempotency, use the same key for the same logical operation and verify its documented scope/retention semantics.
+
+Reconciliation is a required subsystem, not a later convenience. Compare unresolved internal payment attempts against provider status APIs, transaction exports, and settlement reports. Automatically repair only cases where the evidence and transition rules are clear; send ambiguous financial mismatches to an auditable investigation queue. Track oldest unresolved item and amount/value exposure, not just count.
+
+### Security, scaling, and failure behavior
+
+Verify webhook signatures, restrict service-to-service permissions, protect payment tokens and secrets, and ensure sensitive data is excluded from logs/traces. Use strong authorization at the resource-owning service; an authenticated customer should not be able to read or refund another customer's payment by changing an ID. Keep audit trails tamper-resistant according to the product's risk requirements.
+
+Scale stateless API and workers independently, but keep provider concurrency and quota controls global to the account/provider. Partition operational tables by a workload-appropriate key only when measurements justify it; do not make a global mutable ledger invariant depend on independent shards without defining the transaction/coordination model. Preserve per-payment ordering where needed. Keep reporting and analytics on derived read models so a warehouse outage does not block authorization/capture.
+
+If the provider is unavailable, durably accept commands only when the API contract allows pending status and the work can remain valid. If the payment database is unavailable, do not claim a payment was accepted or captured. If a webhook is duplicated, the inbox must deduplicate it. If the outbox is stuck, alert on age/backlog and protect database capacity; do not delete unpublished commands just to clear the queue.
+
+### Trade-offs and interview follow-ups
+
+A single provider is operationally simpler but can create availability/quota concentration. Multi-provider routing can improve resilience, but different providers have different idempotency, authorization/capture, refund, and settlement semantics; failover must not create a second charge at the other provider while the first outcome is unknown. Synchronous confirmation gives immediate feedback but binds latency to the provider; asynchronous acceptance improves request latency but requires status visibility and durable workflow state.
+
+Expect follow-up questions about: timeout after successful charge; duplicate webhook; provider callback before response; partial capture/refund; reconciliation mismatch; outbox lag; regional outage; provider quota; ledger correction; and how you prove that retrying cannot duplicate a business effect. A strong answer draws the crash windows, states which guarantees are local versus provider-dependent, and explains the operational path for every UNKNOWN outcome.
 
 ### Core systems
 
