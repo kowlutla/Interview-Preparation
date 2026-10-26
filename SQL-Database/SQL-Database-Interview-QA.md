@@ -739,6 +739,8 @@ The question selection reflects recurring themes across multiple interview-prepa
 ### Official Oracle documentation
 
 - [Oracle Database SQL Language Reference](https://docs.oracle.com/en/database/oracle/oracle-database/23/sqlrf/)
+- [Oracle MERGE statement](https://docs.oracle.com/en/database/oracle/oracle-database/23/sqlrf/MERGE.html)
+- [Oracle materialized views](https://docs.oracle.com/en/database/oracle/oracle-database/23/dwhsg/basic-materialized-views.html)
 - [Oracle — ROWNUM pseudocolumn](https://docs.oracle.com/en/database/oracle/oracle-database/23/sqlrf/ROWNUM-Pseudocolumn.html)
 - [Oracle — ROW_NUMBER analytic function](https://docs.oracle.com/en/database/oracle/oracle-database/23/sqlrf/ROW_NUMBER.html)
 - [Oracle — COALESCE](https://docs.oracle.com/en/database/oracle/oracle-database/26/sqlrf/COALESCE.html)
@@ -755,6 +757,10 @@ The question selection reflects recurring themes across multiple interview-prepa
 - [MySQL — TRUNCATE TABLE](https://dev.mysql.com/doc/refman/8.4/en/truncate-table.html)
 - [MySQL — InnoDB Transaction Model and Isolation Levels](https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-model.html)
 - [MySQL — InnoDB Locking](https://dev.mysql.com/doc/refman/8.4/en/innodb-locking.html)
+- [MySQL — Prepared Statements](https://dev.mysql.com/doc/refman/8.4/en/sql-prepared-statements.html)
+- [MySQL — Locking Reads](https://dev.mysql.com/doc/refman/8.4/en/innodb-locking-reads.html)
+- [MySQL — INSERT ... ON DUPLICATE KEY UPDATE](https://dev.mysql.com/doc/refman/8.4/en/insert-on-duplicate.html)
+- [MySQL — Views](https://dev.mysql.com/doc/refman/8.4/en/views.html)
 
 ---
 
