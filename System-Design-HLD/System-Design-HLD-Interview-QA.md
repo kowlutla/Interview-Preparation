@@ -1649,7 +1649,13 @@ A permission is revoked, but a cached authorization result still allows access. 
 
 ### Scenario 38 — Rolling deployment duplicates scheduled work
 
-Two application versions overlap and both schedule the same periodic task. Do not rely on process-local timers for globally unique scheduling. Use a durable scheduler or lease, deterministic run IDs, uniqueness constraints, and idempotent execution. Make leader ownership visible and test deployment, crash, and failover overlap.
+**Problem:** Old and new application versions overlap during deployment, and both run the same periodic billing or cleanup task.
+
+**Design:** Treat each logical scheduled occurrence as a durable job with a deterministic identity, such as `(job_name, scheduled_instant, tenant_or_partition)`. Enforce uniqueness in persistent storage, and let workers claim jobs through conditional state transitions or leases. Use fencing if stale owners could still commit, and make job effects idempotent because crashes can occur after an effect but before completion is recorded.
+
+**Failure cases:** Define misfire behavior after downtime, whether missed runs are skipped or caught up, and how catch-up is rate-limited. A process-local timer or leader election alone does not prevent duplicate external side effects.
+
+**Signals:** Track duplicate run attempts, scheduler lag, missed intervals, lease expirations, job duration, and terminal-state failures. Test rolling deploys, worker pauses, and scheduler failover.
 
 ### Scenario 39 — Writes slow after adding indexes
 
@@ -1661,7 +1667,13 @@ The API's p99 is much worse than each dependency's median. Identify required ver
 
 ### Scenario 41 — HTTP 200 responses hide business failures
 
-Infrastructure metrics show success, but orders are not progressing. Define business success separately from transport success. Instrument outcome codes, state-transition counts, and workflow age; validate response semantics rather than treating every 2xx as completion. Alert on stuck states and reconcile requests accepted by one service but not completed downstream.
+**Problem:** Dashboards report a high HTTP success rate, but customers report orders stuck in `PENDING` and downstream work is not completing.
+
+**Approach:** Separate transport success from business completion. A `2xx` response may mean the request was accepted, not that the workflow finished. Define valid state transitions and terminal outcomes, then instrument acceptance-to-completion latency, state age, rejected transitions, and per-stage success rates. Correlate an operation ID across synchronous requests, outbox records, broker events, and consumers.
+
+**Recovery:** Alert on old nonterminal states and reconcile work that was accepted but never advanced. Do not blindly mark stuck operations complete; repair from authoritative evidence and make replay idempotent.
+
+**Interview point:** State exactly what the API promises and which metric measures that promise. A green infrastructure dashboard cannot prove the business process is healthy.
 
 ### Scenario 42 — Consumer offset commits before database transaction
 
@@ -1669,35 +1681,83 @@ A consumer advances its offset, then crashes before the business update becomes 
 
 ### Scenario 43 — Consumer crashes after processing but before acknowledgement
 
-The event is delivered again after restart. This is the normal at-least-once duplicate window. Use an inbox/deduplication table keyed by event ID, unique business constraints, and idempotent state transitions. If the dedup record and business update share a database, commit them atomically. External effects need provider idempotency or reconciliation.
+**Problem:** A consumer updates its database successfully, then crashes before acknowledging the broker record. After restart, the same event is delivered again.
+
+**Design:** Assume at-least-once delivery. If the business update and inbox/deduplication record share a database, write both in one transaction and enforce uniqueness on the event ID. A repeated delivery can then detect prior completion and acknowledge safely. Also enforce business-level uniqueness where two distinct event IDs could represent the same action.
+
+**External side effects:** A local transaction cannot atomically include an unrelated email, payment provider, or third-party API. Use the provider's idempotency mechanism when available, durable operation state, and reconciliation for uncertain outcomes.
+
+**Trade-off:** Acknowledging before durable processing risks loss; acknowledging after processing permits duplicates. The usual design chooses the duplicate window and makes effects idempotent rather than claiming universal exactly-once execution.
 
 ### Scenario 44 — Cache invalidation events arrive out of order
 
-An older update overwrites a newer cached value. Store entity versions and reject updates older than the current version, or invalidate rather than applying an untrusted stale payload. Define refill semantics when cache and source updates race. Ordering is scoped to a key/partition and must be verified in the actual broker and producer configuration.
+**Problem:** Version 12 of a product is cached, then a delayed version 10 event arrives and overwrites it with stale data.
+
+**Design:** Prefer version-aware cache writes that reject an update older than the stored version. If the cache cannot enforce that safely, use events to invalidate and refill from the authoritative source, while guarding against an old refill racing with a newer update. Define how cache misses, source reads, and invalidation events interleave.
+
+**Ordering caveat:** Broker ordering is generally scoped to a partition, and only helps if related events use a consistent key and producer configuration. It does not solve out-of-order delivery across independent pipelines or stale backfills.
+
+**Signals:** Track event age, entity-version regressions, invalidation lag, and cache/source mismatches. Test delayed, duplicated, and reordered events explicitly.
 
 ### Scenario 45 — A distributed botnet bypasses IP rate limits
 
-Combine authenticated identity, account, API key, tenant quota, endpoint cost, and behavioral signals where appropriate. Apply cheap edge controls before expensive database work while avoiding false positives for legitimate users behind shared NAT. Use challenge/throttling strategies consistent with product needs and privacy obligations. No single signal is sufficient.
+**Problem:** Attack traffic comes from many IP addresses, so a per-IP limit is bypassed, while aggressive blocking risks harming legitimate users behind shared NATs.
+
+**Approach:** Apply layered controls using authenticated account or API-key identity, tenant quotas, endpoint-specific cost, concurrency, and behavior signals. Reject obviously abusive traffic at the edge before expensive database or provider calls. Use adaptive challenges or progressive throttling only where appropriate, and protect high-cost operations more tightly than cheap reads.
+
+**Trade-offs:** Identity-based limits can be evaded by account farms; IP limits can penalize shared networks; behavioral detection can create false positives and privacy risks. Combine signals and provide a safe appeal or recovery path for legitimate users.
+
+**Signals:** Monitor abuse indicators, throttled requests by identity and endpoint, challenge success, false-positive reports, and downstream cost. Keep emergency limits configurable and auditable.
 
 ### Scenario 46 — Backups exist but restore is untested
 
-Run scheduled restore exercises into an isolated environment, validate checksums and business invariants, measure recovery time, and verify keys, schemas, secrets, and configuration. Replication cannot replace historical backups. Document authorization, data-integrity checks, and how to avoid overwriting healthy data during recovery.
+**Problem:** The team has backup-success dashboards but has never restored a production-sized dataset or verified that the service can run from it.
+
+**Plan:** Restore into an isolated environment on a recurring schedule. Validate backup integrity, schema compatibility, encryption keys, secrets, access policies, application configuration, and business invariants—not only that the database process starts. Measure the full recovery path, including DNS/routing changes, dependent services, replay, and validation.
+
+**RTO/RPO:** Compare the measured recovery time and restored data point with the documented Recovery Time Objective and Recovery Point Objective. A backup can satisfy RPO but miss RTO if restore or replay is too slow.
+
+**Safety:** Document who can authorize restoration, how to prevent recovered data from overwriting healthy production, and how to handle corrupted data replicated into backups. Replication helps availability but is not a substitute for independent recovery points.
 
 ### Scenario 47 — Multiple layers retry the same request
 
-SDK, gateway, application, and consumer each retry. Draw the complete attempt tree and calculate worst-case amplification. Choose one retry owner per operation where possible, propagate deadlines, use retry budgets, and distinguish safe reads from non-idempotent writes. Track attempts and reasons. Retries should not turn a partial outage into a traffic storm.
+**Problem:** An SDK, gateway, application service, and background worker each retry a failing dependency, multiplying the number of attempts for one logical operation.
+
+**Analysis:** Draw the complete call/attempt tree and calculate the worst-case amplification from each layer's retry count. Include queue redelivery and client retries after timeouts. Confirm whether the original operation may have committed before deciding to retry.
+
+**Design:** Assign retry responsibility to a clear layer where practical, propagate deadlines, cap attempts, use exponential backoff with jitter, and enforce a retry budget or concurrency limit. Retry only transient errors and use stable idempotency keys for operations that can create side effects. Drop or expire work that is no longer useful rather than replaying it forever.
+
+**Validation:** Track attempts per logical request, retry reason, queue redelivery, downstream saturation, and successful throughput. Test recovery as well as outage onset; retry traffic must not prevent the dependency from recovering.
 
 ### Scenario 48 — New service must extract data from a monolith safely
 
-Choose a narrow domain boundary, define source-of-truth ownership, add a compatibility API or event feed, backfill and validate data, then route a small flow first. Avoid dual authoritative writes. Use canary traffic, business-level metrics, rollback criteria, and an explicit retirement plan for the old path.
+**Problem:** A team wants to extract a domain from a monolith, but the old and new paths currently read and update the same tables.
+
+**Plan:** Select a cohesive domain and name the authoritative owner for each business fact. Establish a compatibility API or reliable change feed, backfill the new store in bounded batches, capture concurrent changes, and compare counts, versions, and business outcomes. Avoid two independent writers claiming authority over the same data.
+
+**Migration:** Route a small, measurable slice of traffic to the new path, compare behavior, then increase gradually. Define rollback criteria and how writes made by the new service remain consistent if traffic returns to the old path. Retire old code and permissions only after consumers have migrated.
+
+**Signals:** Track migration lag, mismatch rate, error rate, p99, duplicate effects, and rollback readiness. The extraction is not complete just because the new service deploys successfully.
 
 ### Scenario 49 — Tenant requires data residency
 
-Map all data paths: primary records, replicas, backups, logs, traces, search indexes, caches, analytics, support exports, and disaster-recovery copies. Enforce placement through policy and automation, and document exceptions such as global identity or control-plane metadata. Residency is not solved by placing only the primary database in-region.
+**Problem:** An enterprise tenant requires its regulated data to remain in a specified jurisdiction, including during backups and disaster recovery.
+
+**Clarify:** Which data classes and derived data are in scope? Are support access, telemetry, encryption keys, control-plane metadata, and disaster-recovery copies covered by the contract or law?
+
+**Design:** Map data flows and enforce region placement through tenant-aware routing, storage policies, deployment controls, and automated compliance checks. Include primary records, replicas, backups, logs, traces, search indexes, caches, analytics, exports, and support tooling. Document any permitted global metadata and restrict cross-region access.
+
+**Trade-off and operations:** Residency can constrain failover choices, analytics, and support response. Test that a regional outage does not silently copy protected data to an unauthorized region. Audit placement decisions and access logs continuously; storing only the primary database locally is insufficient.
 
 ### Scenario 50 — Availability conflicts with correctness during a partition
 
-A partition prevents confirmation that inventory or a financial resource is still available. Identify the invariant. Accepting conflicting writes can create irreversible damage, so reject or queue uncertain writes while continuing safe reads and unrelated work. An availability-first policy may be acceptable for domains that tolerate overselling or later reconciliation, but it must be an explicit business decision.
+**Problem:** A network partition prevents one region from confirming the latest inventory or financial state, but users continue submitting writes.
+
+**Reason from the invariant:** Ask what damage a conflicting write would cause and whether the business explicitly tolerates it. For a payment ledger or exclusive seat reservation, accepting writes in both partitions can create irreversible double effects. For some counters or low-risk catalogue metadata, a bounded inconsistency may be acceptable.
+
+**Design:** Keep a single authoritative write owner or use a datastore whose documented consistency guarantees preserve the invariant. If ownership or current state cannot be established, reject the unsafe write or durably queue a command with a clear pending contract; do not claim the business mutation succeeded. Continue serving safe reads and unrelated operations where possible.
+
+**Trade-off:** Strong coordination can reduce write availability during partitions. State the chosen policy, recovery procedure, and reconciliation requirements explicitly instead of saying only “choose consistency over availability.”
 
 ### Scenario 51 — A dashboard endpoint fans out to many services
 
