@@ -66,6 +66,22 @@ Start with the simplest architecture that satisfies requirements and leaves cred
 
 Show major components, ownership boundaries, synchronous calls, asynchronous events, persistent stores, and trust boundaries. Label critical flows and identify the authoritative owner of each data item. A clear six-component diagram with explained trade-offs is better than twenty unexplained boxes.
 
+A generic backend flow might look like this; a real interview diagram should be tailored to the requirements.
+
+```mermaid
+flowchart LR
+  C[Client] --> E[Edge / API Gateway]
+  E --> A[Stateless Application]
+  A --> D[(Authoritative Database)]
+  A --> K[(Optional Cache)]
+  A --> O[Outbox / Event Publisher]
+  O --> B[Message Broker]
+  B --> W[Async Workers]
+  W --> X[External Provider]
+```
+
+The synchronous path should own the user-visible acceptance guarantee. The asynchronous path is useful for work that can complete later, but it needs durable events, idempotent consumers, and observable backlog.
+
 ### Q9. How should you respond when the interviewer changes a requirement?
 
 Restate the new constraint, identify assumptions it invalidates, and update only affected parts. If notifications now have a two-second deadline, priority queues and reserved capacity may be needed; the entire system does not automatically require a rewrite.
@@ -395,6 +411,19 @@ Retry transient failures with bounded attempts and backoff. Do not retry permane
 ### Q84. What is the transactional outbox pattern?
 
 Write the business change and an outbox record in the same database transaction. A publisher or CDC pipeline then publishes the record. This avoids the dual-write gap where the database commits but the event is lost—or the event publishes while the database rolls back. Publication may repeat, so consumers should be idempotent.
+
+```mermaid
+flowchart TD
+  R[Request] --> T[Single database transaction]
+  T --> D[(Business data)]
+  T --> O[(Outbox row)]
+  O --> P[Publisher or CDC]
+  P --> B[Broker]
+  B --> C[Idempotent consumer]
+  C --> S[(Consumer state / side effect)]
+```
+
+The important property is that the business change and outbox row commit together. Publishing is a separate, retryable step; it can publish the same event more than once, so downstream processing still needs deduplication.
 
 ### Q85. Saga choreography versus orchestration?
 
@@ -730,7 +759,7 @@ This section is an **index only**. Practise full designs separately; the Q&A abo
 
 | System | Level / concepts | References |
 |---|---|---|
-| URL shortener | Intermediate: IDs, redirects, cache, hot keys | [System Design Primer — URL shortener](https://github.com/donnemartin/system-design-primer#design-a-url-shortening-service-like-tinyurl) |
+| URL shortener | Intermediate: IDs, redirects, cache, hot keys | [URL shortener design walkthrough](https://systemdesign.cloud/part3-design-problems/url-shortener) |
 | Pastebin | Intermediate: expiry, storage, read-heavy traffic | [System Design Primer](https://github.com/donnemartin/system-design-primer) |
 | Distributed unique ID generator | Advanced: uniqueness, time, coordination | [System Design Primer](https://github.com/donnemartin/system-design-primer) |
 | Distributed rate limiter | Advanced: token bucket, atomicity, quotas | [System Design Primer](https://github.com/donnemartin/system-design-primer) |
@@ -812,7 +841,7 @@ The repository's focused guides provide implementation depth; this handbook reta
 
 - [System Design Primer](https://github.com/donnemartin/system-design-primer) — concepts and practice problems.
 - [Google SRE Books](https://sre.google/books/) — reliability, monitoring, incident response.
-- [AWS Builders’ Library](https://aws.amazon.com/builders-library/) — operational lessons and distributed design.
+- [AWS Builders’ Library](https://aws.amazon.com/builders-library/) — operational lessons and distributed design; see also [timeouts, retries, and backoff with jitter](https://builder.aws.com/content/3EumjoZascWd1oZiEgL8ORlv3qE/timeouts-retries-and-backoff-with-jitter%20%C2%B7%20Like%20%C2%B7%20Reply.%201%20Reaction.%20See%20more%20...).
 - [Google Cloud Architecture Framework](https://cloud.google.com/architecture/framework) — reliability, security, cost.
 - [Microsoft Azure Architecture Center](https://learn.microsoft.com/en-us/azure/architecture/) — architecture patterns and reference designs.
 - [Apache Kafka documentation](https://kafka.apache.org/documentation/) — broker/client guarantees.
