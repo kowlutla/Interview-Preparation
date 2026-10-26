@@ -15,6 +15,7 @@ A focused interview handbook for Java backend engineers preparing for mid-level 
 - [MySQL in Practice](#mysql-in-practice)
 - [Backend Production Scenarios](#backend-production-scenarios)
 - [Additional High-Value Backend Questions](#additional-high-value-backend-questions)
+- [Essential SQL Interview Questions: Joins, Keys, and Core Query Patterns](#essential-sql-interview-questions-joins-keys-and-core-query-patterns)
 - [References](#references)
 
 ## Top 15 Questions to Master First
@@ -668,6 +669,338 @@ A regular view stores a query definition and presents its result when queried; i
 MySQL provides regular views but not the same native materialized-view feature offered by some other database engines. For a precomputed result, teams commonly implement a summary table or read model and maintain it with application logic, jobs, or events.
 
 The trade-off is freshness and operational complexity versus faster repeated reads. Before introducing a materialized result, define refresh frequency, acceptable staleness, refresh failure handling, and how inserts, updates, and deletes affect the result. For many backend workloads, a well-indexed query or Redis cache may be simpler; choose based on measured requirements.
+
+## Essential SQL Interview Questions: Joins, Keys, and Core Query Patterns
+
+This section covers frequently tested fundamentals that deserve direct, focused answers. Examples use broadly compatible MySQL syntax and avoid requiring CTEs or window functions.
+
+### Q51. What are the different types of SQL joins?
+
+- **INNER JOIN:** returns only matching rows from both tables.
+- **LEFT JOIN / LEFT OUTER JOIN:** returns all left-table rows and matching right-table rows; unmatched right-side columns are NULL.
+- **RIGHT JOIN / RIGHT OUTER JOIN:** returns all right-table rows and matching left-table rows. It can usually be rewritten as a LEFT JOIN by swapping table order.
+- **CROSS JOIN:** returns every possible pair of rows from both tables.
+- **SELF JOIN:** joins a table to itself using aliases; it is a pattern rather than a separate join operator.
+- **FULL OUTER JOIN:** returns matched rows plus unmatched rows from both sides. MySQL does not directly support this syntax.
+
+Example:
+
+~~~sql
+SELECT e.employee_id, e.name, d.department_name
+FROM employees e
+INNER JOIN departments d
+  ON d.department_id = e.department_id;
+~~~
+
+Choose the join based on which rows must appear. Do not assume one join type is inherently faster; verify the execution plan for performance questions.
+
+### Q52. What is the difference between INNER JOIN and LEFT JOIN?
+
+INNER JOIN excludes rows without a match. LEFT JOIN preserves every row from the left table and returns NULL for right-side columns when no match exists.
+
+~~~sql
+SELECT c.customer_id, o.order_id
+FROM customers c
+LEFT JOIN orders o
+  ON o.customer_id = c.customer_id;
+~~~
+
+This includes customers who have never placed an order. A customer with multiple orders appears multiple times—one row per matching order. If you only need customers who have at least one order, EXISTS may be clearer and avoids multiplying customer rows.
+
+### Q53. What is the difference between LEFT JOIN and RIGHT JOIN?
+
+LEFT JOIN preserves all rows from the left input; RIGHT JOIN preserves all rows from the right input. A RIGHT JOIN can generally be rewritten as a LEFT JOIN by swapping the table order and keeping the join condition equivalent. Teams often standardize on LEFT JOIN because reading from the primary entity outward is easier to follow. The key interview point is identifying which side must be preserved, not memorizing a performance rule.
+
+### Q54. What is a CROSS JOIN, and when is it useful?
+
+CROSS JOIN returns the Cartesian product. If one table has four rows and another has three, the result contains twelve rows. It can be useful for generating combinations, such as every store for every calendar date.
+
+~~~sql
+SELECT s.store_id, d.calendar_date
+FROM stores s
+CROSS JOIN calendar_dates d;
+~~~
+
+The output grows multiplicatively. An accidentally omitted join condition can create a huge result and cause serious performance problems, so estimate the expected row count before running the query.
+
+### Q55. What is a SELF JOIN? Give a practical example.
+
+A self join joins a table to itself. It is commonly used for hierarchies, such as employees referring to their managers through manager_id.
+
+~~~sql
+SELECT e.employee_id,
+       e.name AS employee_name,
+       m.name AS manager_name
+FROM employees e
+LEFT JOIN employees m
+  ON m.employee_id = e.manager_id;
+~~~
+
+The LEFT JOIN retains employees without a manager. Aliases distinguish the employee row from the manager row. For editable hierarchies, also consider how cycles or invalid manager references are prevented.
+
+### Q56. Does MySQL support FULL OUTER JOIN? How can it be emulated?
+
+MySQL does not directly support FULL OUTER JOIN syntax. A common workaround is to return all left-side rows with a LEFT JOIN, then append only unmatched right-side rows using UNION ALL.
+
+~~~sql
+SELECT a.id, a.value AS a_value, b.value AS b_value
+FROM table_a a
+LEFT JOIN table_b b ON b.id = a.id
+
+UNION ALL
+
+SELECT b.id, a.value AS a_value, b.value AS b_value
+FROM table_b b
+LEFT JOIN table_a a ON a.id = b.id
+WHERE a.id IS NULL;
+~~~
+
+This assumes the join keys are non-NULL for real rows. The second query adds only right-side rows without a match, so UNION ALL preserves matched results from the first query without unnecessary duplicate elimination.
+
+### Q57. What is the difference between ON and WHERE with an outer join?
+
+ON defines which rows match during the join; WHERE filters the resulting rows. Moving a right-table predicate from ON to WHERE can remove NULL-extended rows and effectively turn a LEFT JOIN into an inner-style result.
+
+~~~sql
+SELECT c.customer_id, o.order_id
+FROM customers c
+LEFT JOIN orders o
+  ON o.customer_id = c.customer_id
+ AND o.status = 'PAID';
+~~~
+
+This keeps every customer and attaches paid orders when present. If o.status = 'PAID' is put in WHERE instead, customers without a paid order are filtered out. Explain whether unmatched rows must remain before choosing where the predicate belongs.
+
+### Q58. What are semi joins and anti joins? How do EXISTS and NOT EXISTS help?
+
+A semi join returns rows from one side when a match exists without multiplying each left row for every match; SQL commonly expresses this using EXISTS. An anti join returns rows with no match and is commonly expressed using NOT EXISTS.
+
+~~~sql
+SELECT c.customer_id
+FROM customers c
+WHERE EXISTS (
+  SELECT 1
+  FROM orders o
+  WHERE o.customer_id = c.customer_id
+);
+~~~
+
+For customers without orders, use NOT EXISTS instead. NOT EXISTS is often safer than NOT IN if the subquery can return NULL, because NULL can make a NOT IN predicate evaluate to UNKNOWN.
+
+### Q59. Is JOIN faster than a subquery?
+
+Neither is always faster. A JOIN is natural when columns from both tables are needed. A subquery is useful for existence checks, scalar values, or isolating an aggregate. The optimizer may transform equivalent forms into similar plans. Select the form that most accurately expresses the requirement, then use EXPLAIN and representative measurements. Also consider result cardinality: a join may return multiple rows per parent, while EXISTS can return each qualifying parent row once.
+
+### Q60. Why can a JOIN produce duplicate rows?
+
+A join produces one output row for every matching pair. If a customer has five orders, joining customers to orders returns five rows for that customer. This is expected one-to-many behavior, not necessarily bad duplicate data.
+
+Determine the required output grain first. If you need one row per customer, consider EXISTS, aggregating orders before joining, or selecting one order according to a defined business rule. Do not add DISTINCT automatically; it may hide a wrong join condition or an aggregate inflated by row multiplication.
+
+### Q61. What is the difference between a primary key, unique key, and foreign key?
+
+- **Primary key:** uniquely identifies a row and cannot be NULL. A composite primary key can contain multiple columns.
+- **Unique key:** prevents duplicate key values. MySQL generally permits multiple NULL values in a unique index, so nullable-column behavior must be considered.
+- **Foreign key:** enforces a reference to a key in another table or the same table, subject to engine and schema rules.
+
+Database constraints protect integrity under concurrency. An application-side check followed by INSERT is racy because two requests may both see that a value is absent. Use a unique constraint as the final guard for a unique business identifier.
+
+### Q62. What is a composite primary key?
+
+A composite primary key uses two or more columns together to identify a row. It is common in junction tables where the combination represents a unique relationship.
+
+~~~sql
+CREATE TABLE student_course (
+  student_id BIGINT NOT NULL,
+  course_id BIGINT NOT NULL,
+  enrolled_at DATETIME NOT NULL,
+  PRIMARY KEY (student_id, course_id)
+);
+~~~
+
+This prevents duplicate student-course pairs. The key supports lookups starting with student_id; queries filtering only by course_id may need another index beginning with course_id. Consider a surrogate key plus a unique constraint when other tables need a simpler reference.
+
+### Q63. Explain 1NF, 2NF, and 3NF.
+
+Normalization reduces redundant data and update anomalies.
+
+- **1NF:** values are atomic for the chosen model; avoid storing repeating lists in one field.
+- **2NF:** the table is in 1NF and non-key attributes depend on the whole candidate key, not just part of a composite key.
+- **3NF:** the table is in 2NF and non-key attributes do not depend transitively on a candidate key through another non-key attribute.
+
+For example, storing department_name on every employee row can create inconsistent values when a department is renamed. A separate departments table and foreign key avoid this duplication. Normalize for integrity first; denormalize only when measured workload needs justify the trade-off.
+
+### Q64. What is denormalization, and when is it justified?
+
+Denormalization deliberately duplicates or precomputes data to make frequent reads cheaper, such as maintaining a daily sales summary rather than repeatedly aggregating millions of transactions. The cost is extra storage, write complexity, and possible stale or inconsistent values. Before denormalizing, inspect query plans, indexes, cache effectiveness, and read/write patterns. Define how changes propagate, how failures are repaired, and what staleness is acceptable.
+
+### Q65. What is the difference between WHERE and HAVING?
+
+WHERE filters individual rows before grouping. HAVING filters groups after aggregation.
+
+~~~sql
+SELECT department_id, COUNT(*) AS employee_count
+FROM employees
+WHERE status = 'ACTIVE'
+GROUP BY department_id
+HAVING COUNT(*) >= 5;
+~~~
+
+This counts active employees per department and returns only departments with at least five active employees. COUNT(*) belongs in HAVING because it is an aggregate. Use WHERE for row-level predicates so unnecessary rows are filtered before grouping.
+
+### Q66. What is the difference between COUNT(*), COUNT(column), and COUNT(DISTINCT column)?
+
+- COUNT(*) counts result rows, including rows where some columns are NULL.
+- COUNT(column) counts rows where that expression is not NULL.
+- COUNT(DISTINCT column) counts distinct non-NULL values of the expression.
+
+~~~sql
+SELECT COUNT(*) AS total_rows,
+       COUNT(manager_id) AS employees_with_manager,
+       COUNT(DISTINCT department_id) AS departments_represented
+FROM employees;
+~~~
+
+A join can multiply rows before aggregation. If a count unexpectedly increases after adding a join, check relationship cardinality and whether the requirement is to count rows, entities, or distinct business keys.
+
+### Q67. What is the difference between UNION and UNION ALL?
+
+Both combine compatible SELECT results. UNION removes duplicate result rows, while UNION ALL preserves them and usually avoids the cost of duplicate elimination. Use UNION ALL when duplicates are meaningful or the input sets are known to be disjoint. Use UNION only when deduplication is required. The SELECTs must return the same number of columns in compatible positions and types. Do not use UNION to conceal an incorrect join.
+
+### Q68. What is the difference between DELETE, TRUNCATE, and DROP in MySQL?
+
+- DELETE removes selected rows and supports WHERE. InnoDB changes can be rolled back before commit.
+- TRUNCATE TABLE removes all rows, does not support a row filter, is DDL, and causes an implicit commit.
+- DROP TABLE removes the table object and its definition.
+
+Check foreign keys, triggers, privileges, and recovery requirements before destructive operations. Do not assume TRUNCATE can be rolled back like an ordinary InnoDB DELETE. Preview the target set and use the least destructive operation that meets the requirement.
+
+### Q69. How do you find duplicate values safely?
+
+Group by the business key and retain groups containing more than one row.
+
+~~~sql
+SELECT email, COUNT(*) AS occurrences
+FROM users
+WHERE email IS NOT NULL
+GROUP BY email
+HAVING COUNT(*) > 1;
+~~~
+
+Define duplicate semantics before deleting anything: case sensitivity, whitespace, and NULL handling may matter. After cleaning existing data, a unique constraint can prevent recurrence if the database collation and constraint behavior match the business rule.
+
+### Q70. How do you find the Nth-highest distinct salary without window functions?
+
+Sort distinct, non-NULL salaries descending and skip the first N-1 values. For the second-highest distinct salary:
+
+~~~sql
+SELECT DISTINCT salary
+FROM employees
+WHERE salary IS NOT NULL
+ORDER BY salary DESC
+LIMIT 1 OFFSET 1;
+~~~
+
+For the Nth-highest distinct salary, use LIMIT 1 OFFSET N-1, replacing N with the desired rank minus one. OFFSET is zero-based. If fewer than N distinct non-NULL salaries exist, the query returns no rows. Validate any application-supplied offset as a non-negative integer.
+
+### Q71. What is the difference between CHAR and VARCHAR?
+
+CHAR is fixed-length character storage, while VARCHAR stores variable-length strings up to the declared limit. CHAR may suit fixed-width values; VARCHAR is generally natural for names, emails, and labels. Actual storage and comparison behavior also depend on character set, collation, row format, and MySQL version. Choose a length based on valid business data and do not select a type based only on a presumed speed difference.
+
+### Q72. What is the difference between DATE, DATETIME, and TIMESTAMP in MySQL?
+
+DATE stores a calendar date without a time. DATETIME stores date and time without automatic time-zone conversion. TIMESTAMP uses session-time-zone conversion between the stored UTC instant and the session representation, and its supported range differs from DATETIME.
+
+For day filtering, use a half-open range rather than applying DATE() to an indexed timestamp column:
+
+~~~sql
+SELECT order_id, created_at
+FROM orders
+WHERE created_at >= '2026-01-15 00:00:00'
+  AND created_at <  '2026-01-16 00:00:00';
+~~~
+
+Define whether the value represents an instant or local wall-clock time. Standardizing instants to UTC and handling display time zones at application boundaries is common, but the application and connection configuration must agree.
+
+### Q73. What is the difference between a normal index and a unique index?
+
+A normal index helps locate or order rows but permits duplicate indexed values. A unique index also enforces uniqueness. Both consume storage and increase write maintenance. MySQL unique-index behavior with NULL values may surprise people who assume NULLs compare equal, so declare columns NOT NULL when that matches the business rule. The optimizer may still choose a table scan if that is cheaper.
+
+### Q74. Explain the leftmost-prefix rule for composite indexes.
+
+For an index on (customer_id, status, created_at), queries filtering by customer_id or by customer_id plus status can commonly use the leading prefix. A query filtering only by status generally cannot use the leading prefix as effectively because it skips customer_id.
+
+~~~sql
+CREATE INDEX idx_orders_customer_status_created
+ON orders (customer_id, status, created_at);
+~~~
+
+Choose column order based on real predicates, range conditions, sorting, and join patterns. A range condition can limit how later index columns narrow the scan. Verify the plan and write overhead rather than applying a universal “most selective first” rule.
+
+### Q75. What is a transaction, and why does ACID matter?
+
+A transaction groups operations into a logical unit. ACID means Atomicity (all-or-nothing), Consistency (preserve declared invariants), Isolation (control interference between concurrent transactions), and Durability (committed changes survive failures within system guarantees).
+
+For a money transfer, debit and credit should be in one transaction so only one side cannot commit. A transaction does not make a multi-service workflow automatically atomic; distributed workflows may need idempotency, an outbox, or a saga.
+
+### Q76. What are transaction isolation levels and common anomalies?
+
+The standard levels are Read Uncommitted, Read Committed, Repeatable Read, and Serializable. Textbook anomalies include dirty reads, non-repeatable reads, and phantom reads, but actual behavior depends on the storage engine, isolation level, locking, and MVCC implementation. MySQL InnoDB commonly defaults to Repeatable Read, though deployments can configure this differently. For correctness-critical operations, reason about the exact engine and transaction boundaries, and consider constraints, conditional updates, optimistic version checks, and locking reads.
+
+### Q77. What causes deadlocks, and how should a Java backend handle them?
+
+A deadlock occurs when transactions form a cycle of waiting—for example, transaction A holds row 1 and waits for row 2 while transaction B holds row 2 and waits for row 1. InnoDB detects deadlocks and rolls back one transaction.
+
+Reduce risk by accessing rows in a consistent order, keeping transactions short, indexing predicates, and avoiding remote calls while holding locks. The application should retry the entire transaction a bounded number of times for retryable deadlock failures, with backoff. Retrying only the last statement is generally incorrect if the transaction has been rolled back.
+
+### Q78. How do you prevent SQL injection in Java/JDBC?
+
+Use prepared statements with bound values instead of concatenating untrusted input into SQL.
+
+~~~java
+String sql = "SELECT user_id, display_name FROM users WHERE email = ?";
+try (PreparedStatement ps = connection.prepareStatement(sql)) {
+    ps.setString(1, email);
+    try (ResultSet rs = ps.executeQuery()) {
+        while (rs.next()) {
+            // Map each row while the ResultSet is open.
+        }
+    }
+}
+~~~
+
+Bind parameters represent values, not table names, column names, or keywords. For dynamic sorting, map the requested option to an allowlist of column names and directions. Prepared statements do not replace authorization checks or least-privilege database accounts.
+
+### Q79. How do you investigate a slow MySQL query?
+
+Identify the exact SQL, parameter values, frequency, latency, rows returned, and whether time is spent in the database or application. Use EXPLAIN to inspect access types, chosen indexes, join order, estimated rows, and sorting or temporary-table work. Check slow-query logs, lock waits, statistics, and production metrics. Make one evidence-based change at a time and measure it on representative data. An index is not always beneficial, and a full scan is not always wrong.
+
+### Q80. What is offset pagination versus keyset pagination?
+
+Offset pagination uses LIMIT and OFFSET and is simple for numbered pages, but large offsets may be expensive and concurrent inserts/deletes can shift results. Keyset pagination starts after the last row seen and is often more efficient for feeds.
+
+Offset example:
+
+~~~sql
+SELECT order_id, created_at
+FROM orders
+ORDER BY created_at DESC, order_id DESC
+LIMIT 20 OFFSET 40;
+~~~
+
+Keyset example, assuming created_at is NOT NULL:
+
+~~~sql
+SELECT order_id, created_at
+FROM orders
+WHERE created_at < ?
+   OR (created_at = ? AND order_id < ?)
+ORDER BY created_at DESC, order_id DESC
+LIMIT 20;
+~~~
+
+The unique order_id tie-breaker is essential. Keyset pagination is not ideal when users must jump directly to arbitrary page numbers; choose based on navigation requirements, indexes, and data-change behavior.
+
 
 ## References
 
