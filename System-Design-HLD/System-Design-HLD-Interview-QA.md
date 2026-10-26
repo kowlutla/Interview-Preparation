@@ -2,7 +2,7 @@
 
 **Audience:** Java backend engineers with 5–10 years of experience preparing for senior and staff-leaning backend/product-company interviews.  
 **Purpose:** A progressive guide to architecture reasoning, capacity estimation, data ownership, consistency, failure handling, operations, and cost.  
-**Status:** A 300-question bank and 80 senior-level scenarios, with a case-study reference index (index only; no end-to-end solutions). The handbook has received structural and scenario-depth checks plus a targeted technical review of high-risk guarantees, including quorum semantics, Kafka exactly-once boundaries, Redis replication, and database failover. This is not a claim that every product-specific behavior has been exhaustively verified line by line.
+**Status:** A 300-question bank and 80 senior-level scenarios, with a case-study reference index (index only; no end-to-end solutions). The handbook has received structural validation, a scenario-depth/usability pass, and a targeted technical review of high-risk guarantees, including quorum semantics, Kafka exactly-once boundaries, Redis replication, and database failover. This is a focused review, not a claim that every product-specific behavior or external reference has been exhaustively verified line by line.
 
 > **How to use this guide:** Learn fundamentals in order, then practise scenarios aloud. State assumptions, identify the critical business invariant, estimate scale, draw the simplest viable architecture, and deepen the part the interviewer challenges. Naming technologies is not the goal; explaining why the design satisfies requirements is.
 
@@ -3384,7 +3384,7 @@ Finally, walk through one successful request and at least two failure paths—su
 
 ## 18. Senior-level scenario bank
 
-For every scenario, state assumptions, identify the invariant, analyse evidence, recommend a design, explain alternatives, describe failure behavior, and name operational signals. These are connected design discussions, not technology flashcards.
+For every scenario, state assumptions, identify the invariant, analyse evidence, recommend a design, explain alternatives, describe failure behavior, and name operational signals. These are connected design discussions, not technology flashcards. Treat the closing follow-up cue as an interviewer challenge: defend the choice with a concrete guarantee, failure case, measurement, or migration plan—not by repeating the architecture. If a scenario ends with “signals and follow-up,” be ready to explain which metric would confirm your hypothesis and what you would change if the evidence contradicted it.
 
 ### Scenario 1 — 100,000 requests/second, one hot database shard
 
