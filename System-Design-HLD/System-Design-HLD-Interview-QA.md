@@ -1437,11 +1437,13 @@ For every scenario, state assumptions, identify the invariant, analyse evidence,
 
 ### Scenario 4 — Payment provider times out after charging
 
-**Problem:** The provider may have charged the card, but the client sees a timeout.
+**Problem:** The payment provider may have charged the customer, but your API timed out before receiving the result.
 
-**Answer:** Persist a durable operation ID and idempotency key; mark the result unknown/pending rather than failed. Query provider status or await authenticated webhook confirmation, make transitions idempotent, and reconcile settlement records. Do not retry with a new key blindly.
+**Reason through the uncertainty:** A timeout tells you that your service did not receive a response within its deadline; it does not prove the provider failed to execute the charge. Treat the operation as `PENDING` or `UNKNOWN`, not as a definitive failure.
 
-**Signals:** Unknown outcomes, provider timeouts, webhook lag, duplicate-charge indicators, and reconciliation discrepancies.
+**Design:** Create a durable payment operation and stable idempotency key before calling the provider. Reuse the same provider key for retries, query provider status when supported, process authenticated callbacks idempotently, and reconcile unresolved operations against provider or settlement records. Never create a new logical payment just because the first request timed out.
+
+**Signals:** Track unknown outcomes, provider timeouts, callback delay, retry count, duplicate-charge indicators, and reconciliation mismatches. Explain to the interviewer which states the client can observe and how the system eventually resolves an uncertain result.
 
 ### Scenario 5 — Kafka consumers fall behind
 
@@ -1467,9 +1469,13 @@ For every scenario, state assumptions, identify the invariant, analyse evidence,
 
 ### Scenario 7 — Notification provider unavailable for 45 minutes
 
-**Problem:** Millions of notifications accumulate while new events continue.
+**Problem:** A provider is unavailable for 45 minutes while new notification requests continue to arrive.
 
-**Answer:** Separate accepted business events from delivery attempts. Define expiry by notification class; use bounded queues, provider-specific circuit breakers, jittered retries, priority lanes, tenant quotas, and capped replay after recovery. Deduplicate with durable IDs. Promotional messages may expire; security alerts may not. The policy must reflect business impact.
+**Clarify the business contract:** Which notifications are urgent, which may expire, and what does the API promise when it accepts a request? A security alert and a promotional message should not necessarily share the same queue or retry policy.
+
+**Design:** Durably record accepted work, separate queues by channel and priority, and use provider-specific circuit breakers with bounded exponential backoff and jitter. Apply tenant quotas and cap concurrency so retries do not overwhelm the provider when it recovers. Expire obsolete work according to an explicit policy; do not deliver time-sensitive marketing messages hours late simply because they were queued.
+
+**Recovery:** Ramp traffic gradually after the provider returns, monitor its quota and error rate, and preserve idempotency during replay. Track oldest-message age, queue growth, attempts per notification, delivery latency, and cost per successful delivery.
 
 ### Scenario 8 — Redis outage overloads the database
 
@@ -1493,9 +1499,11 @@ For every scenario, state assumptions, identify the invariant, analyse evidence,
 
 ### Scenario 10 — Zero-downtime migration of a heavily written table
 
-**Problem:** A table needs a new representation while writes continue.
+**Problem:** A heavily written table must change shape without stopping writes or losing updates.
 
-**Answer:** Expand schema, deploy compatible code, backfill in idempotent batches, capture concurrent changes using carefully designed dual-write or CDC, compare representations, switch reads gradually, then contract. Watch lock duration, replication lag, write amplification, and load. Version checks and reconciliation prevent backfill from overwriting newer data.
+**Approach:** Use an expand–migrate–contract sequence. Add the new schema compatibly, deploy code that can read and write the representations needed during transition, and backfill in small idempotent batches. Capture concurrent changes through a carefully designed dual-write mechanism or CDC stream, then compare versions and counts before switching reads. Avoid letting a stale backfill overwrite a newer live update; use version-aware conditional writes or a high-water mark.
+
+**Operational safety:** Rate-limit the backfill so it does not starve production queries, monitor lock duration and replication lag, checkpoint progress, and define pause/rollback criteria. Keep the old representation until the new path has been validated in production and rollback no longer depends on it. “Zero downtime” still requires a tested plan for mixed application versions and partial migration failure.
 
 ### Scenario 11 — Distributed lock expires while work continues
 
@@ -1569,15 +1577,23 @@ For every scenario, state assumptions, identify the invariant, analyse evidence,
 
 ### Scenario 18 — Incompatible event schema deployment
 
-**Problem:** A new producer adds a field and an old consumer crashes.
+**Problem:** A new producer emits an event shape that an older consumer cannot parse, causing retries or a consumer outage.
 
-**Answer:** Establish compatibility policy, deploy tolerant consumers first when needed, make additive fields optional or provide defaults, then roll out producers. Test mixed versions and rollback. A schema registry enforces configured rules, not semantic correctness.
+**Diagnose:** Determine whether the change is syntactically incompatible (for example, a required field is missing) or semantically incompatible (a field kept the same name but changed meaning). Schema validation catches only the rules configured in the registry; it cannot prove business meaning is preserved.
+
+**Rollout plan:** Prefer additive fields with safe defaults. Deploy consumers that tolerate the new representation before producers start emitting it, then roll out producers gradually. Keep compatibility through the rollback window and test old/new producer-consumer combinations. For incompatible changes, introduce a new version or event type and migrate consumers explicitly.
+
+**Recovery:** Quarantine malformed records rather than retrying them forever, preserve the original payload and schema version, and replay only after the consumer can process them safely. Monitor consumer errors, DLQ growth, and event-processing lag.
 
 ### Scenario 19 — Rate limiter becomes the bottleneck
 
-**Problem:** Every request requires a remote global counter update.
+**Problem:** A remote rate limiter becomes a bottleneck because every incoming request performs a shared counter operation.
 
-**Answer:** Decide whether exact global limits are required. Central counters are accurate but add latency and contention. Local token buckets with allocated budgets reduce coordination but allow bounded overshoot. Consider hierarchical limits, atomic server-side operations, and explicit fail-open/fail-closed behavior.
+**Diagnose:** Measure limiter latency, contention on hot keys, network round trips, and how much of the API's p99 is spent waiting for quota decisions. Confirm whether the quota truly needs exact global enforcement or only bounded overshoot.
+
+**Options:** A shared atomic limiter gives a more accurate global view but adds a dependency and latency. Local token buckets are fast and resilient but can multiply the allowance across instances. A hierarchical design can allocate bounded token budgets to instances from a global quota, reducing per-request coordination while controlling overshoot.
+
+**Decision:** Pick the simplest algorithm that satisfies the abuse and billing risk. Define fail-open versus fail-closed behavior, account for scale-out and restarts, and monitor limiter errors, quota consumption, rejection rate, and latency added by enforcement.
 
 ### Scenario 20 — 10× spike with a limited budget
 
@@ -1691,31 +1707,73 @@ Then consider a failure: if one availability zone or a fraction of instances dis
 
 ### Scenario 31 — Requirement changes from eventual to strong consistency
 
-A feature tolerated stale data, but now every successful read must reflect completed writes. Clarify which entity and journey need the guarantee; do not make analytics strongly consistent unnecessarily. Route critical reads to an authoritative store or use a documented consistency token, and keep derived views asynchronous. Stronger guarantees may increase latency and reduce availability during partitions. Cache invalidation events alone do not guarantee immediate consistency because they can be delayed or lost.
+**Problem:** A feature that previously tolerated eventual consistency must now guarantee that reads reflect completed writes immediately.
+
+**Clarify:** Ask what “strong consistency” means for the user journey. Does the requirement mean read-your-writes, linearizable reads across all clients, or merely a bounded freshness delay? These guarantees have different cost and architecture implications.
+
+**Design:** Identify the authoritative datastore and determine whether it provides the required guarantee for the operations in question. Route freshness-critical reads to the authority or use a supported consistency token/transaction boundary. Do not use a lagging cache or search index to make correctness-critical decisions. If the requirement spans regions, quantify the added coordination latency and behavior during partitions.
+
+**Trade-off:** Stronger consistency can reduce availability or increase latency when replicas cannot coordinate. Explain which operations must block or fail and which read models can remain eventually consistent. Update tests and API contracts so callers know what guarantee is actually provided.
 
 ### Scenario 32 — Global username uniqueness during a regional partition
 
-Two regions receive requests to claim the same username while cross-region connectivity is degraded. A local check-then-insert in each region races. Enforce uniqueness at one authoritative constraint boundary or use coordination that can guarantee one winner. If global uniqueness is mandatory, some requests must wait or fail during a partition. Eventual conflict resolution is acceptable only if duplicate identities and remediation are genuinely tolerable.
+**Problem:** Two regions must create globally unique usernames while they cannot communicate.
+
+**Invariant:** No two committed accounts may own the same normalized username. A local check followed by an insert is insufficient because both regions can observe the name as available and race to claim it.
+
+**Design choices:** Use a single authoritative uniqueness owner, a globally consistent datastore/coordination protocol, or partition the namespace so each region owns a disjoint subset. If none can establish exclusive ownership during the partition, reject or defer conflicting creations rather than promise uniqueness that cannot be enforced. Normalization rules—case folding, Unicode handling, and reserved names—must be identical in every region.
+
+**Trade-off and recovery:** A single owner adds cross-region latency and can reduce write availability during a partition. After recovery, reconcile pending requests and ensure no split-brain owner accepted conflicting writes. Monitor uniqueness conflicts, ownership changes, and deferred registration attempts.
 
 ### Scenario 33 — Connection pool saturated while database CPU is low
 
-API latency rises and connection acquisition waits increase, but database CPU remains modest. Connections may be held during external calls, long transactions, locks, or slow clients. Inspect connection hold time, active/idle/waiting counts, transaction duration, lock waits, and query latency. Keep transactions short, avoid network calls inside transactions, bound concurrency, and size pools against database capacity. Increasing pool size blindly can make overload worse.
+**Problem:** Requests wait for a database connection even though database CPU is low.
+
+**Diagnose:** Separate connection-pool acquisition time from query execution and lock-wait time. Inspect active versus idle connections, connection leaks, long transactions, blocked threads, database connection limits, and whether rolling deployments temporarily multiply pools. Low CPU may mean requests are waiting, not that the database can use more connections.
+
+**Design:** Calculate the fleet-wide maximum connection budget, including application instances, workers, migrations, and deployment surge. Find why connections are held—slow queries, transactions that remain open during remote calls, or missing cleanup—before increasing pool size. Bound request concurrency and optimize transaction duration. A larger pool can move the queue into the database and increase contention.
+
+**Validation:** Load-test with realistic concurrency and a deployment/failover event. Monitor pool wait, connection hold time, active transactions, lock waits, total connections, and p99 latency.
 
 ### Scenario 34 — Search indexing falls behind during a campaign
 
-Product writes succeed but search results become minutes stale. Measure event arrival rate, indexer processing rate, queue age, and indexing errors. Decide whether stale search is acceptable while checkout revalidates against the source of truth. Increase workers only if partitions and search-cluster capacity allow it; batch safely and prioritize important updates. Alert on freshness SLO, not only cluster health. Coalescing updates by product is safe only if intermediate states are irrelevant.
+**Problem:** Search indexing falls behind during a campaign, so customers see stale products or prices.
+
+**Diagnose:** Compare update arrival rate with indexing throughput, oldest-event age, per-partition skew, bulk indexing latency, retries, and search-cluster saturation. More consumers will not help if the search cluster is already saturated or one hot key serializes processing.
+
+**Design:** Protect the authoritative write path from indexing load using a durable outbox/CDC feed. Scale indexing only within search-cluster capacity, batch writes where semantics permit, and isolate high-priority changes such as price or availability from lower-priority content updates. Use version-aware updates so a delayed older event cannot overwrite a newer document. Checkout must still revalidate price and inventory against the authoritative source.
+
+**Recovery:** Increase capacity or reduce optional indexing work, then drain the backlog gradually. Monitor projection freshness, event age, indexing errors, and mismatch counts; rebuild from the source if missed updates cannot be safely replayed.
 
 ### Scenario 35 — A scheduled job runs twice after failover
 
-A scheduler leader fails after triggering a job but before recording completion; the replacement triggers it again. Give each logical run a deterministic ID, persist run state, and make workers idempotent. Use leases/fencing for ownership but still protect business effects at the destination. Define misfire behavior, overlap policy, and retry limits. Exactly-once execution across arbitrary external effects is not generally guaranteed.
+**Problem:** A scheduled job is triggered twice after a scheduler or region fails over.
+
+**Invariant:** Each logical scheduled occurrence should produce at most one business effect, even if the scheduler or worker executes it more than once.
+
+**Design:** Give each occurrence a deterministic identity, such as `jobId + scheduledInstant`, and enforce uniqueness in durable storage. A worker should claim the run through an atomic state transition or lease, but the side effect must also be idempotent because a worker can pause past lease expiry or crash after the side effect but before recording completion. Use a fencing token when the protected resource can enforce ownership.
+
+**Recovery:** Record started, completed, failed, and skipped runs, define a misfire policy, and reconcile ambiguous outcomes before replay. Monitor duplicate claims, overdue runs, lease expirations, and retries. A scheduler lock alone cannot guarantee exactly-once external effects.
 
 ### Scenario 36 — Queue retention expires before consumers recover
 
-A consumer is offline long enough that the broker may delete unprocessed records. Clarify whether the stream is the system of record or only transport. Size retention using outage duration, peak input rate, record size, replication factor, and safety margin. Alert on oldest unprocessed event and projected time to retention expiry. Irreplaceable business events need a durable source or archive and a tested replay plan.
+**Problem:** A consumer outage lasts longer than the broker's retention period, so some required events expire before processing resumes.
+
+**Clarify:** Are expired events still needed to reconstruct the current state, satisfy audit requirements, or execute business actions? The answer determines whether the system can tolerate loss from the stream.
+
+**Design:** Set retention using realistic outage duration, recovery time, event rate and size, replication overhead, and the time needed to rebuild a projection. If events are the only durable record, retention must cover recovery or the system needs an independent archive/source of truth. Monitor the age of the oldest unprocessed event and alert before it approaches the retention boundary.
+
+**Recovery:** If events have already expired, do not silently continue as if no data were lost. Rebuild from the authoritative database or archive, compare versions and totals, and document any unrecoverable gap. Retention is part of the recovery design, not merely a broker configuration value.
 
 ### Scenario 37 — Cached authorization remains valid after revocation
 
-A permission is revoked, but a cached authorization result still allows access. Treat authorization freshness as a security requirement. Use bounded caching, versioned permission records, reliable invalidation with a safe fallback, or authoritative checks for sensitive operations. Fail closed when authorization cannot be established for high-risk actions. Measure revocation propagation delay and test cache/event failure.
+**Problem:** A user's permission is revoked, but a cached authorization result still allows access.
+
+**Invariant:** Revocation must take effect within the security guarantee the product promises. A cache entry that remains valid longer than that window can turn a performance optimization into an authorization bypass.
+
+**Design:** Define the acceptable revocation delay and choose a policy accordingly: short TTLs, event-driven invalidation, versioned permissions, or an authoritative check for sensitive operations. Cache keys must include the relevant identity, tenant, resource, and permission context. Event-based invalidation needs a recovery path because events can be delayed or lost; TTL can serve as a safety net but does not guarantee immediate revocation.
+
+**Response:** For high-risk actions, fail closed when authorization freshness cannot be established. Monitor invalidation lag and cache age, and test cross-tenant access plus revocation during cache or messaging outages.
 
 ### Scenario 38 — Rolling deployment duplicates scheduled work
 
@@ -1729,11 +1787,23 @@ A permission is revoked, but a cached authorization result still allows access. 
 
 ### Scenario 39 — Writes slow after adding indexes
 
-Read queries improve, but write latency and storage use increase. Indexes add work to inserts, updates, deletes, and maintenance; they consume storage and affect cache locality. Examine query plans, selectivity, write amplification, lock waits, and index overlap. Keep indexes that support important workloads and remove redundant ones only after validating query usage, including seasonal traffic.
+**Problem:** Write latency rises after adding database indexes.
+
+**Diagnose:** Indexes speed up qualifying reads but every relevant insert, update, or delete must maintain them. Check write amplification, index size, page splits, lock contention, disk I/O, query-plan changes, and whether the new index is actually used. A redundant or poorly selective index may add cost without helping important queries.
+
+**Approach:** Compare query plans and read/write metrics before and after the change. Retain indexes that materially improve critical access patterns; remove redundant ones only after checking production queries and constraints. Consider online index creation and migration impact for large tables, and account for extra storage and backup time.
+
+**Validation:** Test a representative write-heavy workload and monitor p95/p99 write latency, rows affected, I/O, index size, and lock waits. Do not assume that more indexes always improve database performance.
 
 ### Scenario 40 — Fan-out request calls 20 downstream services
 
-The API's p99 is much worse than each dependency's median. Identify required versus optional calls. Parallelize independent calls where safe, but the request may inherit the slowest required dependency's tail. Set per-call deadlines under an overall deadline, limit concurrency, and return partial results only if the contract permits it. Reduce chatty boundaries or create a read model when the topology is fundamentally too expensive.
+**Problem:** One API request calls 20 downstream services, making p99 latency and availability poor.
+
+**Diagnose:** Draw the dependency graph and distinguish required calls from optional enrichment. Determine which calls are sequential, which can run in parallel, and which share a database or other failure domain. If all 20 independent services are mandatory, even individually reliable dependencies can produce lower combined availability; tail latency is often dominated by the slowest required branch.
+
+**Options:** Remove unnecessary fan-out, create a coarse-grained API, or maintain a materialized read model for frequently requested composite data. Parallelize only independent calls, with concurrency limits and a shared end-to-end deadline. Use fallbacks only when the API contract allows partial results without violating correctness or authorization.
+
+**Trade-off:** A read model reduces request-time coupling but introduces freshness delay and rebuild complexity. Measure downstream call count, p99 per dependency, timeout rate, and projection freshness.
 
 ### Scenario 41 — HTTP 200 responses hide business failures
 
@@ -1747,7 +1817,13 @@ The API's p99 is much worse than each dependency's median. Identify required ver
 
 ### Scenario 42 — Consumer offset commits before database transaction
 
-A consumer advances its offset, then crashes before the business update becomes durable, losing the event's effect. Align acknowledgement with durable processing. Commonly, commit the database effect before advancing the offset; a crash between these steps may cause duplicate processing, which idempotency must handle. Understand the exact scope of any broker/database transaction integration before claiming cross-system atomicity.
+**Problem:** A consumer commits its broker offset before the database transaction commits. If the database write then fails, the broker considers the message processed and may not redeliver it.
+
+**Correctness issue:** The event has been acknowledged without its business effect being durable, creating a lost-update window. Reversing the order—commit the database first, then acknowledge—can produce duplicates if the consumer crashes between those steps, so at-least-once systems must be designed for duplicate processing.
+
+**Design:** Apply the event and record its stable event ID in an inbox/deduplication table within the same database transaction. Acknowledge the broker record only after that transaction commits. On redelivery, the uniqueness constraint identifies the duplicate and prevents the business effect from applying twice. If the effect is an external provider call rather than a local database update, use an operation state machine and provider idempotency/reconciliation because the inbox transaction cannot atomically cover that external side effect.
+
+**Signals:** Monitor redelivery count, transaction failures, duplicate detections, and consumer lag.
 
 ### Scenario 43 — Consumer crashes after processing but before acknowledgement
 
