@@ -2,7 +2,7 @@
 
 **Audience:** Java backend engineers with 5–10 years of experience preparing for senior and staff-leaning backend/product-company interviews.  
 **Purpose:** A progressive guide to architecture reasoning, capacity estimation, data ownership, consistency, failure handling, operations, and cost.  
-**Status:** A 300-question bank and 80 senior-level scenarios, with a case-study reference index (index only; no end-to-end solutions). This handbook has received a structural and scenario-depth review; technical claims and external references are being checked, and this is not a claim of exhaustive line-by-line verification.
+**Status:** A 300-question bank and 80 senior-level scenarios, with a case-study reference index (index only; no end-to-end solutions). The handbook has received structural and scenario-depth checks plus a targeted technical review of high-risk guarantees, including quorum semantics, Kafka exactly-once boundaries, Redis replication, and database failover. This is not a claim that every product-specific behavior has been exhaustively verified line by line.
 
 > **How to use this guide:** Learn fundamentals in order, then practise scenarios aloud. State assumptions, identify the critical business invariant, estimate scale, draw the simplest viable architecture, and deepen the part the interviewer challenges. Naming technologies is not the goal; explaining why the design satisfies requirements is.
 
