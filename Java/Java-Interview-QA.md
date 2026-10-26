@@ -1240,6 +1240,278 @@ ThreadLocal associates a value with a thread and can be useful for thread-specif
 
 ---
 
+
+### Senior-level concurrency deep dives
+
+The questions below extend the core concepts above with implementation details and production scenarios. They deliberately complement, rather than replace, the earlier foundational questions.
+
+### Q324. How do you choose between synchronized, ReentrantLock, ReadWriteLock, and StampedLock?
+
+Start with the invariant you need to protect, then choose the simplest mechanism that expresses it.
+
+- **`synchronized`** is a strong default for a short critical section. Monitor release happens automatically when control leaves the block, including when an exception is thrown.
+- **`ReentrantLock`** is useful when you need `tryLock`, timed or interruptible acquisition, fairness as an explicit policy, or multiple `Condition` queues. Always unlock in `finally`.
+- **`ReentrantReadWriteLock`** can help when reads greatly outnumber writes and read-side work is substantial enough to offset its coordination overhead. It is not automatically faster for tiny critical sections, and write contention or lock conversion can complicate behavior.
+- **`StampedLock`** supports optimistic reads and is not reentrant. An optimistic read must validate its stamp and retry under a real read lock if validation fails. Copy the fields needed into local variables before validation; do not perform unsafe operations on inconsistent state.
+
+```java
+private final ReentrantLock lock = new ReentrantLock();
+
+void update() {
+    lock.lock();
+    try {
+        updateRelatedFieldsTogether();
+    } finally {
+        lock.unlock();
+    }
+}
+```
+
+Do not choose a lock based on a blanket claim that it is fastest. Measure contention and latency under a representative workload. If several fields must preserve one invariant, a single clear critical section is often safer than several atomics.
+
+### Q325. What is the difference between CAS, lock-free, and wait-free algorithms?
+
+Compare-and-set (CAS) atomically updates a value only if it still equals an expected value. A typical loop retries when another thread wins the race:
+
+```java
+AtomicInteger count = new AtomicInteger();
+
+int incrementAndGet() {
+    return count.incrementAndGet(); // already implements an atomic update
+}
+```
+
+For a custom state transition, the pattern is conceptually: read the current value, calculate a candidate, attempt CAS, and retry if the observed value changed. Keep the transformation safe to repeat; a CAS retry loop may evaluate it more than once.
+
+A **lock-free** algorithm guarantees system-wide progress: some operation completes even if individual threads repeatedly lose races. A **wait-free** algorithm guarantees each operation completes in a bounded number of its own steps. A blocking lock-based algorithm may suspend a thread while another holds a lock. These are progress guarantees, not synonyms for “fast.”
+
+CAS on one reference does not make the referenced object's fields thread-safe, and it does not make a multi-object business invariant atomic. ABA can matter if returning to the same value hides an intervening state transition; versioned/stamped references are one possible mitigation. Atomic classes are useful for simple state transitions, but locks may make a multi-field invariant easier to reason about.
+
+### Q326. When should you use LongAdder instead of AtomicLong?
+
+Use `AtomicLong` when callers need an immediately meaningful atomic value, such as a sequence number or a counter whose each increment and read participates in a precise coordination protocol. Under heavy contention, many threads updating one atomic variable compete on the same memory location.
+
+`LongAdder` spreads updates across internal cells and combines them for `sum()`, which can improve throughput for statistical counters such as request counts. Its `sum()` is not an atomic snapshot with respect to concurrent updates, so it is not appropriate when a read must participate in an exact check-then-act decision (for example, “accept only if the exact count is below a hard limit”). Use a semaphore or another explicit admission-control mechanism for resource limits.
+
+### Q327. How do you make a multi-step operation safe with ConcurrentHashMap?
+
+`ConcurrentHashMap` makes its supported individual operations thread-safe and provides specified visibility guarantees. It does not turn a sequence of separate calls into one atomic business operation.
+
+For example, this is a race:
+
+```java
+if (!orders.containsKey(orderId)) {
+    orders.put(orderId, createOrder(orderId));
+}
+```
+
+Two threads can both observe the key as absent and both create an order. If the map itself is the right place to coordinate creation, use an atomic compound method such as `computeIfAbsent`:
+
+```Order order = orders.computeIfAbsent(orderId, this::createOrder);
+```
+
+The mapping function should be short, should not recursively update the same map in problematic ways, and should not perform a long remote call while holding up map coordination. More importantly, an in-memory map is not a durable or cross-instance idempotency mechanism. For payment/order correctness across service replicas or restarts, use a database uniqueness constraint, idempotency key, transaction, or other durable coordination appropriate to the domain.
+
+A concurrent collection protects its own structure; it does not make mutable values stored inside it safe to mutate without their own protocol.
+
+### Q328. Why is ThreadLocal risky in pooled backend workers, and what is ScopedValue for?
+
+A `ThreadLocal` associates a value with a thread, not with a request. A platform-thread pool reuses workers, so a value left behind after one request can leak into the next task on that worker. Always clean up values in a `finally` block when using ThreadLocal for request-scoped state:
+
+```try
+try {
+    requestContext.set(context);
+    handleRequest();
+} finally {
+    requestContext.remove();
+}
+```
+
+Thread-local values also do not automatically propagate to arbitrary asynchronous tasks, and many per-thread values can increase memory use when there are very many threads.
+
+`ScopedValue` expresses context whose availability is bounded by a dynamic scope, which can make context propagation easier to reason about in supported APIs. It became a final API in Java 25 (JEP 506). It is not a general mutable replacement for every ThreadLocal use case. Structured concurrency has continued to evolve as a preview API in recent releases; check the exact target JDK rather than assuming its API is final. See the [Scoped Values JEP 506](https://openjdk.org/jeps/506) and [Structured Concurrency JEP 505](https://openjdk.org/jeps/505).
+
+### Q329. How does ThreadPoolExecutor decide whether to create a thread, queue a task, or reject it?
+
+For a typical `ThreadPoolExecutor`, task submission follows this broad policy:
+
+```text
+submit task
+    |
+    +-- fewer than corePoolSize workers? --> create worker for task
+    |
+    +-- otherwise, queue accepts task? ----> enqueue
+    |
+    +-- queue full and below maximumPoolSize? -> create another worker
+    |
+    +-- otherwise --------------------------> reject
+```
+
+This explains a common surprise: with an unbounded work queue, the queue generally keeps accepting tasks after the core size is reached, so the pool usually does not grow toward `maximumPoolSize`. The maximum is not a promise that the executor will create that many workers under load.
+
+A bounded queue limits queued work but forces an explicit overload decision when both the queue and worker capacity are exhausted. `AbortPolicy` throws `RejectedExecutionException`; `CallerRunsPolicy` runs the task on the submitting thread while the executor is not shut down, which can slow producers but may also block request/event-loop threads; discard policies lose work and should only be used when dropping is explicitly safe. Observe queue depth, task wait time, active workers, completed tasks, rejection count, and end-to-end latency together.
+
+### Q330. How should a Java service size a thread pool?
+
+There is no universal pool-size formula. CPU-bound tasks compete for processor time, so a pool near the available processor count is a reasonable starting experiment. Blocking I/O tasks spend time waiting, so a larger number of concurrent tasks may be useful—but only if memory, downstream connections, remote quotas, and latency budgets support it.
+
+Measure the workload under realistic load. Track throughput, CPU utilization, queue wait, task duration, allocation/GC, downstream latency, and rejection rate. Increasing a pool can improve utilization when workers are underused, but can also increase contention, context switching, memory pressure, and downstream overload.
+
+For blocking request-per-task code on Java 21+, virtual threads may simplify high concurrency. They are not a reason to remove admission control or connection-pool limits. Use a semaphore, bounded queue, or client-side concurrency limit to protect scarce resources, and ensure the limiting mechanism itself cannot deadlock the request path.
+
+### Q331. How do you shut down an ExecutorService without losing control of tasks?
+
+A common graceful-shutdown sequence is to stop accepting new work, wait for a bounded period, request interruption if tasks do not finish, and wait briefly again. For Java 8-compatible code:
+
+```java
+static void shutdown(ExecutorService executor) {
+    executor.shutdown();
+    try {
+        if (!executor.awaitTermination(30, TimeUnit.SECONDS)) {
+            executor.shutdownNow();
+            if (!executor.awaitTermination(10, TimeUnit.SECONDS)) {
+                System.err.println("Executor did not terminate");
+            }
+        }
+    } catch (InterruptedException e) {
+        executor.shutdownNow();
+        Thread.currentThread().interrupt();
+    }
+}
+```
+
+Import `java.util.concurrent.*` for this example. `shutdownNow()` is a best-effort interruption request, not forced termination; tasks must cooperate and blocking APIs may have their own cancellation behavior. Production services should also stop accepting new requests, account for in-flight work, define what happens to queued tasks, and respect the platform's overall shutdown deadline. In Java 19+, `ExecutorService` is `AutoCloseable`; closing it waits for submitted tasks to finish, so it is not a substitute for a deliberate timeout policy when work can hang.
+
+### Q332. How do you compose asynchronous service calls without exhausting executors?
+
+Use `thenApply` to transform a value, `thenCompose` when the next operation returns another future, and `thenCombine` to combine independent results. The non-async continuation may run on the thread that completes the previous stage; an async overload uses its default executor or the executor you provide. Therefore, a continuation that blocks can unexpectedly occupy a completion thread or common-pool worker.
+
+For backend I/O, choose an executor strategy intentionally, give each request a deadline, bound fan-out, and limit downstream concurrency. Avoid submitting work to a small pool and then blocking every worker on another task queued to that same pool. Prefer composition over nested `get()`/ `join()` calls.
+
+```java
+CompletableFuture<Profile> profile =
+    CompletableFuture.supplyAsync(() -> profileClient.fetch(userId), ioExecutor);
+CompletableFuture<List<Order>> orders =
+    CompletableFuture.supplyAsync(() -> orderClient.fetch(userId), ioExecutor);
+
+CompletableFuture<Dashboard> dashboard =
+    profile.thenCombine(orders, Dashboard::new)
+           .orTimeout(800, TimeUnit.MILLISECONDS);
+```
+
+This Java 9+ example assumes `ioExecutor`, clients, `userId`, and the `Dashboard(Profile, List<Order>)` constructor exist. `orTimeout` completes the future exceptionally on timeout; it does not guarantee that the underlying HTTP call or remote operation has stopped. Configure transport-level timeouts and cancellation as well. If one dependency is optional, convert only that dependency's expected failure to a documented fallback; do not hide all failures indiscriminately.
+
+### Q333. What is the difference between allOf(), anyOf(), and combining results?
+
+`CompletableFuture.allOf(...)` completes when all supplied futures complete; it returns `CompletableFuture<Void>`, so callers still need to collect each typed result. If one of the futures fails, the aggregate completes exceptionally, but this does not automatically cancel all remaining tasks. `anyOf(...)` completes with the result or failure of one future to complete first; it does not mean “first successful result,” and it does not automatically cancel the losers.
+
+Use `thenCombine` for two independent typed results, `allOf` when a group must finish before processing, and an explicit first-success policy when that is the business requirement. For fan-out to many services, bound concurrency and define what partial results mean. A single request deadline should budget time for queueing, network calls, retries, and result processing rather than giving every downstream call a fresh full timeout.
+
+### Q334. How do you test concurrent code without flaky Thread.sleep() assertions?
+
+Do not use a sleep to guess when another thread has reached a state. Use synchronization primitives to control the test schedule, and use bounded waits so a failure becomes a test failure rather than a hung build.
+
+```java
+@Test
+void workerPublishesResult() throws Exception {
+    CountDownLatch finished = new CountDownLatch(1);
+    AtomicReference<String> result = new AtomicReference<>();
+
+    Thread worker = new Thread(() -> {
+        try {
+            result.set("done");
+        } finally {
+            finished.countDown();
+        }
+    });
+
+    worker.start();
+    assertTrue(finished.await(2, TimeUnit.SECONDS));
+    worker.join(2_000);
+    assertEquals("done", result.get());
+}
+```
+
+This example uses JUnit 5 assertions and Java concurrency APIs. For production-grade tests, also assert that the worker has terminated and arrange cleanup in `finally` if assertions can fail before cleanup. Test invariants under repeated interleavings; stress tests and [OpenJDK jcstress](https://openjdk.org/projects/code-tools/jcstress/) are more suitable than a single unit test for exploring low-level memory-model outcomes. A deterministic unit test, a stress test, and a production diagnostic answer different questions.
+
+### Q335. How do you diagnose a concurrency incident in production?
+
+First determine whether the symptom is high CPU, high latency, blocked progress, growing queues, or downstream saturation; these can look similar from an API dashboard but have different causes.
+
+1. Capture multiple thread dumps a short time apart. Look for repeated stacks, monitor ownership, lock cycles, and threads in `BLOCKED`, `WAITING`, or `TIMED_WAITING`. A state is only a snapshot; interpret it with the stack and repeated samples.
+2. Check executor active counts, queue depth, task wait/duration, rejections, scheduled-task failures, and request latency percentiles.
+3. Correlate with database/HTTP connection-pool utilization, remote latency, timeout and retry rates, CPU, allocation, and GC pauses.
+4. Use Java Flight Recorder (JFR) and supported JVM diagnostics to inspect lock contention, thread activity, and latency with appropriate production overhead settings.
+5. If CPU is high, identify hot threads and stack samples; if workers are waiting, identify what they are waiting for before increasing pool sizes.
+
+A deadlock is a wait cycle; starvation is a lack of fair access to a resource; slow dependencies and pool exhaustion can produce a similar “hang” without a deadlock. Avoid collecting sensitive request data unnecessarily, and follow production access and retention policies for dumps and recordings.
+
+### Q336. A singleton Spring service stores request data in an instance field. What can go wrong?
+
+Spring singleton beans are typically shared by concurrent requests. A mutable instance field such as `currentUserId` or `currentOrder` can be overwritten by another request between assignment and use, causing cross-request data leakage or incorrect business decisions.
+
+Keep request-specific data in method-local variables and pass it explicitly through the call chain. Use immutable configuration in singleton fields. If a context mechanism is genuinely required, use a well-defined request context with cleanup and explicit propagation across asynchronous boundaries; do not assume ThreadLocal state follows work when it changes threads.
+
+A senior answer should explain the shared lifecycle, give a concrete interleaving that breaks correctness, and distinguish an in-memory race from authorization and data-isolation requirements. Synchronizing the entire service method is usually a poor fix: it serializes requests and still does not solve cross-instance coordination.
+
+### Q337. Two requests process the same payment or order concurrently. Is ConcurrentHashMap enough?
+
+No. A concurrent map coordinates only within one JVM, loses its state on restart, and cannot coordinate multiple service replicas. Payment/order deduplication is a business correctness problem, not merely a collection-safety problem.
+
+Use a stable idempotency key and enforce uniqueness durably, for example with a database unique constraint and a transaction that records the key and outcome. Model state transitions explicitly (such as `PENDING` to `SUCCEEDED` or `FAILED`) and ensure retries return or reconcile the prior outcome rather than repeating the side effect. When calling an external payment provider, use its idempotency facility if available and reconcile unknown outcomes; a timeout does not prove that the provider did not process the request.
+
+A lock or map may reduce duplicate work inside one process, but should not be the correctness boundary for a distributed payment workflow.
+
+### Q338. A CompletableFuture pipeline hangs only under production load. How would you investigate it?
+
+Inspect the thread dump and executor metrics before rewriting the pipeline. Common causes include blocking continuations running on the common pool, tasks synchronously waiting for work queued to the same bounded executor, unbounded fan-out, missing downstream timeouts, and a future that is never completed on one error path.
+
+Trace each stage's executor, completion path, timeout, and cancellation behavior. Record stage latency and failure counts, and ensure exceptions are observed. Replace nested blocking waits with composition where possible; isolate unavoidable blocking work; bound concurrency and fan-out; and set an end-to-end deadline. A timeout on the composed future alone does not prove the underlying operation stopped, so configure the HTTP/database client's own timeout and cancellation mechanisms too.
+
+### Q339. How should a service limit simultaneous calls to a downstream dependency?
+
+Use a concurrency limit that matches the dependency's capacity, such as a semaphore around the call or a client/pool setting designed for that resource. Acquire a permit with a bounded wait when appropriate and release it in `finally`.
+
+```java
+private final Semaphore permits = new Semaphore(40);
+
+Response callDownstream(Request request) throws InterruptedException {
+    if (!permits.tryAcquire(100, TimeUnit.MILLISECONDS)) {
+        throw new RejectedExecutionException("Downstream capacity exhausted");
+    }
+    try {
+        return client.call(request); // client should also have a timeout
+    } finally {
+        permits.release();
+    }
+}
+```
+
+This is illustrative Java 8-compatible code; adapt exception types to the service contract. A per-process semaphore limits each instance independently, not the global fleet total. A permit limit also does not bound waiting callers unless acquisition is timed or admission is separately bounded. Decide whether overload should queue briefly, reject quickly, shed optional work, or return a retryable response. Do not hold a permit longer than the resource-consuming operation needs.
+
+### Q340. How do virtual threads change backend concurrency design, and what do they not solve?
+
+Virtual threads became final in Java 21 and make a thread-per-task style viable for many blocking-I/O workloads. A virtual thread can unmount from its carrier while blocked in supported operations, allowing the carrier to run other virtual threads. They do not make CPU-heavy work cheaper, eliminate blocking itself, or create more database connections, remote-service quota, heap, or file descriptors.
+
+Use `Executors.newVirtualThreadPerTaskExecutor()` when its task lifecycle fits the service, but apply explicit limits around scarce downstream resources. Do not pool virtual threads just to limit their count; limit the actual constrained resource. Monitor latency, carrier utilization, downstream pools, and memory under load.
+
+Version detail matters: Java 21 introduced virtual threads as final; Java 24's JEP 491 changed monitor behavior so that `synchronized` no longer pins virtual threads in the former common case. Native/foreign calls and other cases can still constrain carrier unmounting. Check the exact JDK and library behavior when diagnosing pinning rather than repeating outdated blanket claims. See [JEP 444: Virtual Threads](https://openjdk.org/jeps/444) and [JEP 491: Synchronize Virtual Threads without Pinning](https://openjdk.org/jeps/491).
+
+### Q341. What is the difference between a scheduled task's fixed rate and fixed delay?
+
+`scheduleAtFixedRate` targets a regular cadence based on the initial start time. If an execution runs longer than the interval, later executions may start late; executions of the same periodic task do not overlap in the usual `ScheduledThreadPoolExecutor` contract, but subsequent runs can be delayed. `scheduleWithFixedDelay` waits for the configured delay after one execution terminates before scheduling the next.
+
+Choose fixed rate for cadence-oriented work and fixed delay when the pause should begin after completion. Catch and report expected failures inside recurring tasks: an exception escaping a periodic task suppresses subsequent executions. Keep task duration, retry behavior, shutdown, and overlap across multiple application replicas in mind. A local scheduler does not guarantee cluster-wide single execution; use distributed coordination if that is a business requirement.
+
+### Q342. How do Java 8, 17, 21, and 25 differ for concurrency interview answers?
+
+- **Java 8:** Core threads, locks, atomics, executors, ForkJoinPool, and CompletableFuture are available. Use Java 8-compatible APIs if the target runtime requires it.
+- **Java 17:** Virtual threads are not a final Java 17 feature. The established executor and CompletableFuture model remains central; do not paste Java 21 examples into a Java 17 project unchanged.
+- **Java 21:** Virtual threads are final. Structured concurrency and scoped values are not both final in this release; check the exact JEP and preview flags before using them.
+- **Java 25:** ScopedValue is final (JEP 506). Structured concurrency remains a preview API in the Java 25 release line (JEP 505), so its API and compiler/runtime flags are version-sensitive. Virtual-thread monitor pinning behavior also differs from Java 21 because of JEP 491 in Java 24.
+
+For version-sensitive claims, prefer the [Java SE API specification](https://docs.oracle.com/en/java/javase/25/docs/api/), [OpenJDK JEP index](https://openjdk.org/jeps/0), and the specific JEP over blog summaries. A feature's presence in a JDK does not by itself mean its API is final or enabled without preview flags.
+
 ## 10. JVM internals, garbage collection, and diagnostics
 
 ### Q204. What are heap and stack memory, and what causes StackOverflowError versus OutOfMemoryError?
