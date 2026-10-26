@@ -2,7 +2,7 @@
 
 **Audience:** Java backend engineers with 5–10 years of experience preparing for senior and staff-leaning backend/product-company interviews.  
 **Purpose:** A progressive guide to architecture reasoning, capacity estimation, data ownership, consistency, failure handling, operations, and cost.  
-**Status:** Rebuilding for the 5–10 year experience band. Recent rewrites deepen service discovery, health checks, degraded API contracts, rollout/rollback, tenant workload isolation, privacy/residency, operations tooling, retry-storm protection, durable long-running workflows, safe replay, and poison-message remediation, alongside database, networking, and transactional topics. Full topic coverage, technical accuracy, readability, and rendered diagrams remain under review; not final sign-off.
+**Status:** Rebuilding for the 5–10 year experience band. Recent rewrites deepen tenant partitioning, hot global counters, clock skew and fencing, replicated infrastructure guarantees, audit logging, retry-safe APIs, partial completion, service boundaries, and BFF patterns, alongside cache, networking, migration, and transaction topics. Full topic coverage, technical accuracy, readability, and rendered diagrams remain under review; not final sign-off.
 
 > **How to use this guide:** Learn fundamentals in order, then practise scenarios aloud. State assumptions, identify the critical business invariant, estimate scale, draw the simplest viable architecture, and deepen the part the interviewer challenges. Naming technologies is not the goal; explaining why the design satisfies requirements is.
 
@@ -2850,43 +2850,103 @@ Monitor DLQ age, recurrence rate, affected entities, blocked partitions, and unr
 
 ### Q281. How do you select a partitioning strategy for multi-tenant data?
 
-Evaluate tenant skew, cross-tenant queries, regional placement, growth, and the need to isolate large tenants. Hashing tenant IDs distributes tenants but does not split one huge tenant; range partitioning may support locality but create hotspots. A hybrid can keep small tenants shared and move large tenants to dedicated shards. Routing changes need versioning and a migration plan.
+Choose the partitioning scheme from tenant size/skew, access patterns, ordering requirements, residency constraints, and promised isolation. If most operations are tenant-scoped, `tenant_id` can localize queries and writes, but it does not automatically balance load: one large tenant may dominate a shard, and global reporting may require scatter-gather.
+
+Range partitioning can support lifecycle tasks and time-window queries, but sequential time keys may create a hot newest partition. Hashing tenant IDs distributes tenants, but cannot split one huge tenant by itself. A hybrid can keep ordinary tenants in shared shards and move large tenants to dedicated shards or tenant-specific buckets. This requires a placement map, routing version, and live migration plan.
+
+All access paths must preserve tenant ownership: background jobs, search indexes, cache keys, event partitions, object storage, exports, backup/restore, and administrative tools. Residency requirements may also constrain replicas and backups. Isolation includes resource fairness; a correctly tenant-filtered query can still create a noisy-neighbor incident.
+
+Measure per-tenant storage, query/write rates, p99 latency, and queue use. Plan for a tenant growing beyond its current placement and prove migration can run during live writes. In an interview, justify the key with common queries and invariants, explain skew mitigation, and state how routing changes without split ownership.
 
 ### Q282. How do you prevent a global counter from limiting write throughput?
 
-A single atomic counter serializes updates and can become a hotspot. Ask whether the exact global sequence is truly required. Alternatives include per-partition counters, preallocated ranges, approximate counts, or generated IDs with different ordering guarantees. If a strict global monotonic sequence is a business invariant, acknowledge the coordination cost and design for its availability requirements.
+A single global counter is a serialization point: every increment competes for the same row, key, or coordinator. As concurrency grows, lock contention and coordination latency can dominate throughput. First ask whether the product truly needs an exact, immediately visible count or only an estimate.
+
+For analytics, maintain sharded counters or per-partition aggregates and sum them asynchronously. This spreads writes and improves throughput but permits slight staleness. For ID allocation, reserve ranges from a coordinator so workers generate IDs locally until their range is exhausted; this reduces coordination at the cost of gaps and more complicated range ownership.
+
+If the counter protects a hard invariant—inventory, quota, or a globally unique sequence—an approximate count is not sufficient. Use an authoritative atomic transaction, a central sequencer, or reserved capacity slices with a clearly defined overshoot/ordering model. A sharded display counter may coexist with a separate atomic enforcement mechanism.
+
+Measure hot-key throughput, lock wait, aggregation lag, and coordinator failure behavior. In an interview, distinguish an approximate metric from a correctness-critical counter and explain which component still enforces the invariant after the hotspot is removed.
 
 ### Q283. How do you handle clock skew in expiration and lease logic?
 
-Use a trusted datastore's time or a carefully defined clock source where possible, and avoid assuming clocks on different hosts are identical. A lease owner may pause past expiry while still working, so fencing is needed for protected writes. Expiry jobs should perform conditional state transitions rather than deleting records solely because one worker's clock says they are old. Define tolerated skew and test boundary conditions.
+Clock skew means two machines' wall clocks disagree; clocks can also drift or jump after synchronization. Logic that assumes identical time can expire a lease too early, retain it too long, or order events incorrectly. Use monotonic clocks for measuring elapsed time within a process, and define an authoritative clock or datastore timestamp for cross-node expiry when possible.
+
+A lease needs more than accurate clocks. A worker may pause past expiry and resume after another worker acquires the lease. The protected resource must validate a fencing token/epoch or conditional version so the stale owner cannot commit. Lease expiry makes takeover possible; it does not terminate the old process.
+
+For expiry jobs, make the state transition conditional on both the stored state and expiry rather than blindly deleting because a worker's clock says a row is old. For event ordering, prefer aggregate versions or log positions to timestamps when causal order matters. A timestamp is not a globally reliable ordering service.
+
+Test clock jumps, delayed workers, renewal failures, and overlapping ownership. In an interview, explain which clock is authoritative, what happens if a worker resumes late, and how the target resource rejects stale writes.
 
 ### Q284. What is the difference between a lease and a lock with an explicit release?
 
-A lease expires automatically after a bounded period, which helps recover from crashed owners but risks overlap when an owner pauses beyond expiry. A lock with explicit release can remain stuck if the owner crashes unless there is recovery logic. Both need clear ownership identity; leases protecting writes often need fencing tokens. Neither mechanism makes external side effects safe without checking ownership at the resource.
+A lock with explicit release remains held until the owner releases it or a recovery mechanism intervenes; it can block indefinitely if the owner crashes. A lease expires automatically unless renewed, which improves recovery but creates a risk that the old owner continues working after expiry.
+
+Neither guarantees exclusive side effects by itself. A process may pause, lose connectivity to the lock service, or resume after a new owner has acquired the resource. Use a monotonically increasing fencing token and require the target resource to reject writes from older ownership generations. If an external provider cannot validate fencing, use stable idempotency identities, a single durable command owner, or reconciliation.
+
+A lease needs renewal policy, bounded acquisition time, behavior on renewal failure, and fencing. A non-expiring lock needs crash recovery and proof that the old owner can no longer act before force-release. Do not hold a global lock across slow network calls if a narrower transaction or conditional update can protect the invariant.
+
+For short local critical sections, database locks may be simpler. In an interview, state what resource is protected, who validates ownership, and what happens if an owner pauses or loses contact with the coordinator.
 
 ### Q285. How should a design handle a cache or broker that is itself replicated?
 
-Understand its own consistency, failover, durability, and data-loss guarantees. A replicated cache may still lose recent writes or serve stale data during promotion; a replicated broker may acknowledge records according to configured durability settings. Do not treat the word “cluster” as a guarantee. Verify acknowledgement, replication, persistence, and recovery behavior against the actual product and configuration.
+Understand what the system acknowledges, when data becomes durable, whether replication is synchronous or asynchronous, how leaders are selected, and what data may be lost or unavailable during failover. A cluster can improve node-failure handling while still losing recent data, serving stale values, or requiring manual recovery under some configurations.
+
+For a cache, recent entries may be lost during promotion and repopulated from an older source. That can be acceptable if the origin remains protected during cold start. If the cache stores sessions, workflow coordination, or rate-limit state, define how lost/stale state affects security and correctness rather than blindly bypassing checks.
+
+For a message broker, durability depends on producer acknowledgements, replication factor, in-sync replica policy, persistence, retention, and consumer-offset handling. A producer success means the configured acknowledgement policy was met; it does not mean every consumer processed the message. Consumers still need idempotency and replay safety.
+
+Validate actual product/configuration behavior under node, zone, and network failures; do not infer guarantees from the word “replicated.” Monitor lag, leader changes, rejected writes, reconciliation, and recovery time. In an interview, distinguish cluster availability from data durability and consistency.
 
 ### Q286. How do you choose between synchronous and asynchronous audit logging?
 
-If an audit record is required to authorize or complete a regulated operation, it may need to be durably committed with the business change or through a reliable outbox. If it is operational telemetry, asynchronous buffering may be acceptable. Dropping audit records silently is different from sampling traces. Define required durability, tamper protection, retention, and behavior when the audit sink is unavailable.
+The decision depends on whether the audit record is part of the operation's correctness or compliance boundary. If a high-risk action must not occur without a durable audit trail, record the audit intent in the same local transaction as the business state change where possible. For operational debug logs, asynchronous buffering and sampling may be acceptable.
+
+Synchronous logging to a remote service on every request adds latency and can make the logging service a critical dependency. Decide fail-open versus fail-closed by action: a privileged administrative change may need to fail if no durable audit intent can be recorded, while noncritical debug telemetry should not bring down checkout.
+
+A transactional outbox can preserve the audit event's intent atomically with the business change, then deliver it asynchronously. The publisher needs durable retention, retries, integrity protection, access controls, and monitoring. Do not confuse ordinary logs—which may be sampled or pruned—with the tamper-resistant business audit trail needed for investigations.
+
+Audit records should identify actor/workload, action, target, timestamp semantics, operation ID, result, and relevant policy context while minimizing sensitive payloads. In an interview, state which operations require durable audit before commit, how delivery is guaranteed, and what happens during audit-store failure.
 
 ### Q287. How do you make an API safe for clients that retry after losing the response?
 
-Define idempotency for the logical operation, persist the result or operation state, and let clients query by stable request/operation ID. A timeout leaves the outcome uncertain; the client must not generate a new logical key for the same action. Document key scope, payload mismatch behavior, retention, and concurrent duplicate handling. This is especially important for payments, orders, and resource creation.
+Assume the client can lose a response after the server commits a mutation. Retries may come from network timeouts, proxies, browser refreshes, or mobile reconnects. Without a stable operation identity, the same logical command can execute twice.
+
+Accept an idempotency key or client operation ID scoped to the authenticated principal/tenant and operation. Atomically claim the key and store a request fingerprint so concurrent first attempts cannot start independent operations. A repeated key with the same payload should return the existing operation/status; reusing the key with different input should be rejected.
+
+Coordinate the idempotency record with the business transition in one transaction or durable state machine. A separate “remember key” write can still leave a crash window. For external effects, pass the same identity downstream if supported and reconcile uncertain outcomes. Long-running operations should expose an operation resource with explicit pending/success/failure states.
+
+Define key retention and the behavior after expiry; high-impact operations may also need business-level uniqueness that outlives the retry window. In interviews, walk through concurrent duplicate requests and a crash after commit but before response, then show exactly what the retry returns.
 
 ### Q288. How should a service expose partial completion?
 
-Return a clear operation state or per-item result when the contract permits partial success. Avoid a generic success response that hides failed sub-operations. For bulk operations, persist item-level progress and allow safe retry of failed items. Define whether the operation is atomic, best-effort, or eventually completed, and make that semantic visible to clients.
+Partial completion should be explicit and machine-readable, not an ambiguous HTTP success. If a batch contains 100 independent items and 97 succeed, expose which items succeeded, failed, or remain pending, with stable item IDs and actionable reasons. A single top-level 200 without item-level state may cause callers to retry completed work and duplicate side effects.
+
+For long-running operations, return an operation ID and expose progress/terminal states. Distinguish accepted from completed and technical success from business success. Define whether cancellation stops only pending items or compensates completed items. If items share a transaction or ordering invariant, partial completion may be invalid and should not be invented merely for convenience.
+
+Persist each item result durably so aggregate status can be reconstructed after a crash. Make retries idempotent at both workflow and item level. For large outputs, use a result resource or export artifact with explicit authorization and retention. Include correlation IDs and a repair path for unresolved items.
+
+Tell clients whether to retry failed items only, poll pending items, or treat the operation as requiring manual review. In an interview, explain partial-success semantics, how retries avoid repeating completed effects, and what consistency boundary applies across items.
 
 ### Q289. How do you decide between one large service and several smaller services?
 
-Compare domain cohesion, team ownership, independent scaling, deployment cadence, fault isolation, and data transaction boundaries. Smaller services can isolate changes but increase network hops, contract management, and on-call complexity. A single service can be modular internally and scale adequately for many workloads. Use evidence from bottlenecks and team constraints rather than a preferred service count.
+Choose service boundaries around cohesive business capabilities, data ownership, change patterns, team ownership, and distinct operational needs—not source-file count. One service is often better when components change together, share transaction invariants, and benefit from low-latency calls. Separate services are useful when capabilities need independent scaling, deployment, security, fault isolation, or ownership.
+
+Splitting introduces network latency and failure, timeout/retry policy, API/event compatibility, observability, deployment pipelines, secrets, discovery, duplicated data, and cross-service workflows. A local transaction may become a saga with partial progress and compensation. If module boundaries are unclear, moving tangled dependencies over HTTP tends to create a distributed monolith.
+
+A modular monolith can enforce internal boundaries while retaining one deployment and simpler transactions. It is a strong option while domain boundaries are changing or the team cannot operate many services reliably. Conversely, an unstructured monolith can create release coupling and a shared failure domain.
+
+Use evidence such as independent scaling profiles, release contention, security isolation, or an operational bottleneck. Before extraction, define data ownership, contract, failure behavior, migration, and rollback. In an interview, explain what coupling the split removes and what new coupling it introduces; “microservices scale better” is not sufficient.
 
 ### Q290. What is the role of a backend-for-frontend (BFF) in HLD?
 
-A BFF tailors an API to a specific client experience, reducing client fan-out and allowing aggregation. It can also duplicate business logic if responsibilities are unclear. Keep domain invariants in authoritative services and use the BFF for presentation-oriented composition and client-specific contracts. Consider whether one shared API is sufficient before introducing a separate BFF for every client.
+A backend-for-frontend is a server-side layer tailored to a particular client experience, such as web, mobile, or an administration UI. It can aggregate data from several services, adapt payloads, reduce chatty client calls, and isolate client-specific API evolution from domain services. It is not automatically a replacement for an API gateway or a place to duplicate business rules.
+
+A mobile client may need a compact response and different offline/reconnect behavior than a web client. Without a BFF, the client may make many calls and own orchestration; a BFF can simplify this but adds another hop and a component to deploy and operate. Aggregation also creates fan-out latency and partial-failure questions.
+
+Keep domain invariants in the owning services. The BFF may compose and transform data, but should not independently decide that inventory is available, authorize a refund, or own a second source of truth. Define which downstream services are required, how deadlines propagate, which fields may be omitted, and how responses are cached safely.
+
+Avoid one BFF per screen unless the operational cost is justified. Use it when client-specific composition is stable and valuable. In an interview, distinguish client adaptation from domain ownership and explain how the BFF handles a failed downstream without hiding correctness errors.
 
 ### Q291. How do you design a system for graceful regional failback?
 
