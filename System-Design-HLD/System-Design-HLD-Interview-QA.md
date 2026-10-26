@@ -2,7 +2,7 @@
 
 **Audience:** Java backend engineers with 5–10 years of experience preparing for senior and staff-leaning backend/product-company interviews.  
 **Purpose:** A progressive guide to architecture reasoning, capacity estimation, data ownership, consistency, failure handling, operations, and cost.  
-**Status:** Rebuilding for the 5–10 year experience band. Restored the deep-dive section, added five worked end-to-end designs, and expanded key scenario answers covering cache regressions, search staleness, retention, global routing, data inconsistency, business success signals, cache ordering, and outbox backlogs. Remaining scenarios, technical accuracy, readability, and rendered diagrams still require review.
+**Status:** Rebuilding for the 5–10 year experience band. Expanded several senior scenarios for cache behavior, search freshness, retention, global routing, consistency, outbox delivery, callback races, retry storms, service boundaries, provider quotas, object uploads, cancellation, and deployment-time connection pressure. Full coverage, technical accuracy, readability, and rendered diagrams remain under review.
 
 > **How to use this guide:** Learn fundamentals in order, then practise scenarios aloud. State assumptions, identify the critical business invariant, estimate scale, draw the simplest viable architecture, and deepen the part the interviewer challenges. Naming technologies is not the goal; explaining why the design satisfies requirements is.
 
@@ -3720,11 +3720,17 @@ Then consider a failure: if one availability zone or a fraction of instances dis
 
 ### Scenario 54 — A provider callback arrives before the synchronous response
 
-**Problem:** A payment provider processes a request quickly and sends a webhook before the application has persisted its local provider response.
+**Problem:** A payment provider processes a request quickly and sends a webhook before the application receives or persists the synchronous HTTP response.
 
-**Recommendation:** Create the durable payment operation before making the provider call, using a stable operation ID. The callback handler should resolve the operation by provider reference or idempotency key, tolerate valid state transitions arriving in either order, and persist the callback for retry if correlation is not yet possible. Avoid assuming that network arrival order matches business processing order.
+**Why this happens:** Network paths are independent and delivery order is not guaranteed. The callback may arrive before the local request handler updates the payment row, or the synchronous request may time out even though the provider completed the operation. Do not assume wall-clock arrival order is the business order.
 
-**Failure handling:** Deduplicate provider event IDs, authenticate callbacks, validate transition legality, and reconcile unmatched events. Do not discard a valid callback simply because a local state has not caught up yet.
+**Design:** Create a durable payment attempt with a stable internal operation ID and idempotency identity before calling the provider. Include a correlation reference the callback can resolve. The callback handler should authenticate the signature, deduplicate provider event IDs, validate the state transition, and apply updates transactionally. If the local state is not yet ready to accept the callback, durably store it as unmatched/pending and retry correlation rather than dropping it.
+
+**State handling:** Allow only legal transitions; for example, a late “processing” callback must not move a terminal CAPTURED payment back to PENDING. Use provider versions/timestamps only according to documented semantics, and query the provider if current status is unclear. The synchronous response handler and webhook handler must converge on the same operation state idempotently.
+
+**Recovery:** Reconcile unmatched callbacks and unresolved operations using provider status/settlement reports. Track callback-before-response frequency, unmatched-event age, duplicate callback count, invalid signatures, and state-transition conflicts.
+
+**Interview point:** Explain how both handlers race safely, how one payment operation is correlated, and why the callback may be the first reliable proof of completion even if the synchronous call has not returned.
 
 ### Scenario 55 — A database failover causes a burst of connection errors
 
@@ -3750,9 +3756,15 @@ Then consider a failure: if one availability zone or a fraction of instances dis
 
 **Problem:** The dependency has recovered, but request volume remains elevated and latency does not normalize.
 
-**Recommendation:** Inspect attempts per logical request, retry layers, synchronized schedules, queue age, and current dependency saturation. Apply retry budgets, capped exponential backoff with jitter, and concurrency limits. Stop retrying permanent failures and let noncritical work expire according to policy. Recover gradually to avoid immediately replaying all deferred work.
+**Diagnose the feedback loop:** Inspect attempts per logical request, retry policies at clients/gateways/services/meshes, synchronized schedules, current dependency saturation, queue age, and timeout rates. A request may time out while the original attempt is still running, so retries can increase concurrent work even after the initiating fault is gone. Multiple retry layers can multiply traffic.
 
-**Follow-up:** Timeouts, retries, backoff, and jitter are complementary—not interchangeable—controls. Timeouts bound resource holding; retries may mask transient failures; backoff and jitter spread attempts over time. Cite the [AWS Builders' Library guidance](https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/) when explaining this trade-off.
+**Immediate response:** Protect the dependency with concurrency limits, temporary load shedding, and a retry budget. Reduce or pause retries that are not necessary for critical work, and let noncritical asynchronous work wait or expire under a documented policy. Do not abruptly replay every deferred request at full rate when the dependency first appears healthy.
+
+**Long-term design:** Use capped exponential backoff with jitter, end-to-end deadlines, bounded attempts, error classification, and idempotency for mutations. Give retry ownership to a clear layer where possible. Make circuit-breaker thresholds and half-open probes conservative enough not to flood recovery. For client behavior outside your control, enforce server-side admission control and rate limits.
+
+**Signals:** Track original requests separately from attempts, attempts per operation, retry success rate, downstream p99, active concurrency, queue age, and successful throughput. Timeouts bound resource holding; retries can mask transient errors; backoff/jitter spread load but do not make unsafe operations idempotent.
+
+**Follow-up:** Explain the first control you would activate during the incident and how you know the system can return to normal without a second spike. See [AWS guidance on timeouts, retries, and jitter](https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/).
 
 ### Scenario 58 — A feature flag service becomes unavailable
 
@@ -3776,15 +3788,17 @@ Then consider a failure: if one availability zone or a fraction of instances dis
 
 ### Scenario 60 — A design review challenges a new microservice
 
-**Problem:** A team proposes extracting a service mainly to “make it scalable,” but the new service adds multiple network calls and shared database access.
+**Problem:** A team proposes extracting a service mainly to “make it scalable,” but the proposed service adds several network calls and continues sharing the same database tables.
 
-**Analysis:** Ask which bottleneck or ownership issue the extraction solves, whether the component needs independent deployment/scaling, and how data ownership changes. Estimate added network latency, retries, on-call burden, and cross-service transaction complexity.
+**Clarify the motivation:** Which measured bottleneck or ownership problem does the extraction solve? Does this capability require an independent release cadence, security boundary, scaling profile, or failure domain? Is the domain boundary stable, and can the service own its data and contract?
 
-**Recommendation:** If the boundary is not cohesive or independently valuable, retain a module inside the monolith and improve internal interfaces. If extraction is justified, establish data ownership, contract compatibility, observability, deployment strategy, and rollback before migration.
+**Evaluate the trade-off:** Estimate the extra network latency, timeout/retry complexity, observability and on-call burden, service discovery/configuration, deployment coordination, and cross-service transaction cost. If both services directly write the same tables, the split may not reduce coupling; it can add network failure while preserving shared ownership.
 
-**Follow-up:** “Microservices are more scalable” is not a sufficient rationale. A poorly bounded service can make both scalability and reliability worse.
+**Recommendation:** If the boundary is not cohesive or independently valuable, keep a module in the monolith and strengthen internal interfaces/ownership. If extraction is justified, define the API/event contract, authoritative data owner, migration/CDC or outbox strategy, version compatibility, dashboards, runbook, rollout plan, and rollback/forward-repair boundary. Extract one capability at a time and compare old/new behavior where safe.
 
+**Evidence and follow-up:** Use release lead time, incident blast radius, capacity isolation, and team ownership as measurable outcomes—not just count of services. A service split that reduces one bottleneck but introduces a cross-service saga may be justified, but the new workflow and compensation need explicit design.
 
+**Interview point:** “Microservices scale better” is not a sufficient rationale. Explain what coupling the boundary removes, what new coupling it introduces, and how you will prove the split improved the system.
 
 ### Scenario 61 — A search-index rebuild must not lose live updates
 
@@ -3826,13 +3840,17 @@ Then consider a failure: if one availability zone or a fraction of instances dis
 
 ### Scenario 65 — A provider returns throttling errors after scaling workers
 
-**Problem:** Increasing worker instances reduces throughput because a third-party provider enforces a fixed account-wide rate limit.
+**Problem:** Increasing worker instances reduces successful throughput because a third-party provider enforces a fixed account-wide rate limit.
 
-**Diagnose:** Compare the provider's quota scope with the limiter scope. If each instance independently permits the full account limit, aggregate traffic rises with instance count and triggers throttling. Retries can consume the same quota and make the effective throughput worse.
+**Diagnose:** Compare the provider's quota scope with the limiter's scope. If every instance independently permits the full account limit, aggregate outbound rate rises with instance count and triggers throttling. Retries may consume the same quota and reduce useful throughput further. Verify whether the provider also limits concurrency, per-endpoint calls, or burst size.
 
-**Design:** Coordinate a shared account-level budget or allocate bounded local token budgets from a global allowance. Queue deferrable work, use priority classes, coalesce duplicate requests, and honor provider retry hints such as Retry-After. Scale workers only until they can sustain the provider's permitted rate; additional instances may help local preparation but cannot raise the external quota.
+**Design:** Coordinate a shared account-level budget or allocate bounded token budgets from a global allowance. Queue deferrable work, separate urgent and bulk jobs, coalesce duplicate calls, and honor Retry-After. Count retries against the same budget. Scale workers only until they can sustain the permitted provider rate; extra workers may prepare requests but cannot raise the external limit.
 
-**Signals:** Track provider 429s, attempts per logical operation, quota consumption, queue age, and successful completion rate.
+**Recovery:** If throttling created a backlog, estimate net drain rate and ramp replay gradually. Preserve capacity for live critical work; do not reset quota accounting during regional failover or autoscaling. If a second provider is proposed, verify semantic compatibility, idempotency behavior, capacity, and reconciliation before failing over critical mutations.
+
+**Signals:** Track provider 429s, attempts per logical operation, quota utilization, queue age, successful completion rate, and expected drain time. Use a single place to observe fleet-wide outbound attempts.
+
+**Interview point:** More consumers only help when consumer capacity is the bottleneck. If the external quota is fixed, the correct response is quota-aware scheduling and priority, not unbounded scale-out.
 
 ### Scenario 66 — An emergency kill switch is needed during a rollout
 
@@ -3888,27 +3906,41 @@ Then consider a failure: if one availability zone or a fraction of instances dis
 
 **Problem:** Customers upload large files through application instances, consuming connections and bandwidth needed for normal API traffic.
 
-**Clarify:** Must the application inspect or transform the file inline? What are size, type, checksum, access-control, and malware-scanning requirements?
+**Clarify:** Must the application inspect or transform the file inline? What are the size/type limits, checksum requirements, authorization rules, malware scanning needs, and retention policy? Which operations must be synchronous and which can happen after transfer?
 
-**Recommendation:** Authenticate the request and issue a short-lived, scoped object-storage upload URL or multipart upload session. Finalize only after validating metadata, size, and checksum; trigger asynchronous scanning/transformation and make the file visible only after policy checks succeed. Clean up abandoned uploads.
+**Recommendation:** Authenticate and authorize the upload request, enforce tenant quota and allowed object path, then issue a short-lived, scoped pre-signed URL or multipart upload session. The client transfers bytes directly to object storage. On completion, validate object size/checksum and metadata, run malware/content inspection asynchronously, and mark the file visible/usable only after required checks pass.
 
-**Trade-offs and signals:** Direct upload reduces application bandwidth but moves security controls to storage policies and completion workflows. Monitor incomplete multipart uploads, finalization failures, scan backlog, egress, and storage growth.
+**Data model:** Keep an upload/session record with owner, tenant, object key, expected size, status, expiry, checksum, and multipart state. Make create/finalize idempotent. A timeout after storage has accepted the object should be resolved by checking the object/session state rather than creating a second object accidentally.
+
+**Security and cleanup:** Signed URLs are capabilities; restrict them to a specific key, operation, headers, and expiry. Do not expose bucket credentials. Clean up abandoned multipart uploads and quarantine untrusted files so they cannot be served from a privileged application origin before scanning.
+
+**Signals and trade-offs:** Monitor incomplete multipart uploads, finalization failures, checksum mismatch, scan backlog/age, egress, object count, and storage growth. Direct upload reduces application bandwidth but moves critical policy to storage permissions and the completion workflow. In an interview, distinguish the control plane (authorize/create/complete/validate) from the data plane (transfer bytes).
 
 ### Scenario 72 — A long-running operation is cancelled after external work starts
 
-**Problem:** A client cancels a data export, but workers and a downstream provider continue processing.
+**Problem:** A client cancels a data export or workflow, but workers and an external provider continue processing. The cancellation request races with work that may already have committed or cannot be reversed.
 
-**Recommendation:** Persist cancellation intent in workflow state, propagate it to active steps, and have workers check at safe boundaries. Define whether cancellation prevents future steps, attempts compensation, or can be refused after an irreversible action. Use idempotent state transitions so completion racing with cancellation reaches one documented terminal outcome.
+**Contract:** Define whether cancellation means “stop starting new steps,” “request stop at the next safe checkpoint,” or “compensate effects already performed.” Persist cancellation intent in the workflow state machine and return explicit states such as CANCEL_REQUESTED, CANCELLED, COMPLETED, or TOO_LATE rather than immediately claiming all work has stopped.
 
-**Follow-up:** Cancelling the HTTP request does not cancel a durable background job unless the operation API explicitly implements that contract.
+**Implementation:** Workers check cancellation before each stage and use version-checked/idempotent transitions. Propagate cancellation to queued work and downstream APIs where supported, but do not assume aborting an HTTP call undoes an external action. If an export has written temporary objects, delete them safely; if payment or shipment has already occurred, cancellation may require compensation or manual review.
+
+**Race handling:** If completion and cancellation occur concurrently, one durable transition should win according to documented rules. Use a version/conditional update and record completed steps. For partial batch work, show which items finished, which were cancelled, and which require repair.
+
+**Recovery and signals:** Track cancellation latency, workflows stuck in CANCEL_REQUESTED, compensation failures, external effects after cancellation, and oldest pending state. In an interview, explain what the caller sees if cancellation arrives after the side effect but before the local status commit.
 
 ### Scenario 73 — A database pool becomes exhausted during graceful deployment
 
-**Problem:** New instances start before old ones drain, temporarily multiplying connections and exhausting the database.
+**Problem:** New instances start before old instances drain, multiplying connection pools and exhausting the database during a rolling deployment.
 
-**Analysis and recommendation:** Calculate peak connection count during rolling replacement, including workers and maintenance tasks. Set pool limits against database capacity, coordinate rollout surge, mark old instances unready before draining, and use connection lifetime settings that handle failover. Do not solve this by increasing pools without considering total fleet size.
+**Capacity model:** Calculate peak connections, not only steady-state connections. If 20 instances normally each have a maximum pool of 40, they can open up to 800 connections; a 50% rollout surge can add 400 more before accounting for workers, scheduled jobs, migrations, monitoring, and admin sessions. Compare this with database limits and reserve capacity for failover.
 
-**Metrics:** Total connections, pool wait, instance count during rollout, connection churn, transaction duration, and database saturation.
+**Design:** Set a fleet-wide connection budget, coordinate max surge/rollout batch size, mark old instances unready before draining, and let in-flight work finish within a bounded window. Ensure new instances do not immediately warm every cache or execute a large startup query. Avoid increasing pool size without checking database saturation; more connections may create more blocked transactions rather than more throughput.
+
+**Diagnosis:** Separate pool-acquisition wait from database lock wait. Inspect active/idle/waiting pool counts, connection hold time, long transactions, lock graphs, query plans, connection churn, and database CPU/IO. A service can show low application CPU while all request threads are waiting for a connection.
+
+**Recovery:** Pause rollout if connection pressure or p99 crosses thresholds, shed noncritical work, and restore capacity gradually. Test rollout, node loss, and database failover with realistic fleet size.
+
+**Signals:** Total database sessions, per-instance pool utilization, acquisition time, transaction duration, waiters, database saturation, retry rate, and business p99. The key is to control aggregate concurrency across the fleet, not tune each pool in isolation.
 
 ### Scenario 74 — A cache key omission leaks tenant data
 
