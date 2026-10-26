@@ -14,6 +14,7 @@ A focused interview handbook for Java backend engineers preparing for mid-level 
 - [Transactions and Concurrency](#transactions-and-concurrency)
 - [Oracle and MySQL in Practice](#oracle-and-mysql-in-practice)
 - [Backend Production Scenarios](#backend-production-scenarios)
+- [Additional High-Value Backend Questions](#additional-high-value-backend-questions)
 - [References](#references)
 
 ## Top 15 Questions to Master First
@@ -637,6 +638,92 @@ Inspect pool active/idle/pending counts, connection acquisition latency, transac
 Do not assume SQL dialects share every detail. Check function availability and return types, implicit conversions, NULL semantics, collation and case sensitivity, date/time types and time zones, pagination syntax, identifier rules, grouping behavior, transaction isolation, and engine-specific optimizer choices.
 
 Reduce the issue to a small reproducible query and compare results as well as plans. Consult documentation for the deployed database versions, and use explicit casts, stable ordering, and unambiguous predicates. Avoid depending on non-standard behavior such as selecting ungrouped columns without a well-defined aggregate rule. Test migrations against representative data, including NULLs, duplicate values, and boundary timestamps.
+
+
+## Additional High-Value Backend Questions
+
+These questions extend the core SQL revision set with security, schema design, engine behavior, and safe operational practices that commonly arise in Java backend interviews.
+
+### Q43. What is the logical order in which a SQL query is processed?
+
+A useful conceptual order is:
+
+1. `FROM` and `JOIN` establish the input row set.
+2. `WHERE` filters individual rows.
+3. `GROUP BY` forms groups and aggregates summarize them.
+4. `HAVING` filters groups.
+5. The `SELECT` list computes output expressions.
+6. `DISTINCT` removes duplicate output rows when requested.
+7. `ORDER BY` sorts the result.
+8. The database applies the row-limiting operation, such as `LIMIT` or `FETCH FIRST`, according to the dialect.
+
+This is a logical model for understanding query semantics, not a promise about the physical execution plan. The optimizer can reorder joins, push predicates, and choose indexes while preserving the query's required result.
+
+It explains why a SELECT alias is not generally available to the same query block's `WHERE` clause: the alias belongs to the output projection, which is logically later. It also explains why filtering on an aggregate belongs in `HAVING`, and why a window-function result is commonly filtered in an outer query or CTE. Some dialects add features such as `QUALIFY`; support varies by database and version.
+
+### Q44. What is the difference between a clustered index and a secondary index in MySQL InnoDB?
+
+In InnoDB, the table's rows are organized by the clustered index, normally the primary key. The clustered index leaf pages contain the row data. A secondary index stores its indexed columns plus the primary-key value used to locate the corresponding clustered row. A query that finds a secondary-index entry may therefore need an additional lookup in the clustered index unless the secondary index covers all required columns.
+
+This has practical design implications. A wide primary key is copied into secondary-index entries, increasing their size. A stable, reasonably narrow primary key can reduce that overhead. Randomly distributed primary-key inserts can also create different page-split and locality behavior from append-friendly keys, although the right choice depends on workload and requirements.
+
+Do not generalize InnoDB's clustered-index layout to Oracle tables: Oracle commonly stores table rows in heap-organized segments and maintains separate index structures. Index organization, storage overhead, and execution-plan interpretation are engine-specific. Confirm the actual table and index definitions and measure the workload rather than choosing a key based on a single rule.
+
+### Q45. How do prepared statements prevent SQL injection, and what can they not parameterize?
+
+SQL injection occurs when untrusted input is treated as part of SQL syntax. The core defense is to keep SQL structure separate from data: use prepared statements or parameter binding so values are transmitted as parameters rather than concatenated into the SQL string.
+
+~~~java
+String sql = "SELECT user_id, display_name FROM users WHERE email = ?";
+try (PreparedStatement statement = connection.prepareStatement(sql)) {
+    statement.setString(1, email);
+    try (ResultSet resultSet = statement.executeQuery()) {
+        // Map the result while the JDBC resources are open.
+    }
+}
+~~~
+
+Never build a predicate by concatenating user-provided values. Bind parameters represent values, not SQL identifiers or keywords. If a request allows sorting by a column, map the requested sort option to a fixed allowlist of known column names and directions; do not insert arbitrary text into `ORDER BY`. Also apply authorization, least-privilege database accounts, and careful error handling. Parameter binding prevents injection through the bound values, but it does not fix insecure authorization logic or make an unsafe dynamic SQL design safe.
+
+### Q46. How do you model a many-to-many relationship correctly?
+
+Use a junction (association) table that stores one row per relationship. For example, `student_course(student_id, course_id)` connects students and courses. The two columns can form a composite primary key, or the table can use a surrogate key plus a unique constraint on `(student_id, course_id)` to prevent duplicate relationships.
+
+Add foreign keys to both parent tables when their integrity and lifecycle requirements call for them. Indexes should support the actual access paths: a primary key on `(student_id, course_id)` supports lookups by student and course pair, while an additional index beginning with `course_id` may be needed for listing students by course. The order of a composite index matters.
+
+If the relationship has attributes such as enrollment date, role, quantity, or status, those attributes belong on the junction table. Choose delete behavior deliberately: cascading deletion may be appropriate for pure association rows, but should not accidentally delete independently meaningful business records. In Java/JPA, model the association explicitly when it has its own lifecycle or attributes rather than hiding important business behavior behind a bare many-to-many mapping.
+
+### Q47. How do upsert operations differ between MySQL and Oracle, and what concurrency issue remains?
+
+An upsert attempts to insert a row and update an existing row when a defined uniqueness conflict occurs. MySQL commonly uses `INSERT ... ON DUPLICATE KEY UPDATE`; Oracle supports `MERGE` for matching source and target rows. The syntax and edge cases differ, so use the documentation for the deployed engine and version.
+
+The conflict must be based on a real database uniqueness rule, such as a primary key or unique business key. An application-level “SELECT first, then INSERT” is racy: two requests can both observe that the row is absent. A unique constraint is the durable arbiter under concurrency; the application should handle a duplicate-key outcome intentionally.
+
+Be explicit about what “update” means. Should a retry overwrite all fields, preserve fields already set, increment a counter, or return the result of the first request? Those are business semantics, not syntax details. Upsert is not automatically idempotent—for example, an update that increments a value may apply twice on retry. Use an idempotency key or operation record when retries must return the same logical result.
+
+### Q48. How do you safely update or delete millions of rows?
+
+Start by defining the selection criteria, expected row count, business impact, and recovery plan. Test the predicate with a SELECT, inspect the access path, and ensure the batch cannot unintentionally affect the entire table. A single huge transaction can hold locks for a long time, generate substantial undo/redo or binary-log activity, delay replication, and make rollback expensive.
+
+For suitable workloads, process bounded, deterministic batches—often by a stable primary-key range—committing each batch and recording progress. Make the operation resumable and idempotent, and ensure concurrent inserts or updates cannot cause rows to be skipped. Throttling and pauses may be necessary to protect latency-sensitive traffic. The exact batch size depends on row size, indexes, replication, lock contention, and service-level objectives.
+
+For schema changes, use an expand–migrate–contract rollout when old and new application versions must coexist. “Online” DDL does not mean every phase is lock-free. Monitor lock waits, transaction age, replica lag, error rates, and application latency. Never assume that a rollback will be cheap after a large data change; prepare and rehearse a recovery or roll-forward plan.
+
+### Q49. When should you use SELECT ... FOR UPDATE instead of optimistic locking?
+
+A locking read such as `SELECT ... FOR UPDATE` requests locks on selected rows so another transaction cannot modify the locked records incompatibly until the transaction completes. It is useful when the application must inspect current state and then make a related decision and update within the same short transaction—for example, reserving inventory based on the current quantity.
+
+Optimistic locking instead lets concurrent work proceed and detects a conflict using a version column or conditional update. It is often a good fit when conflicts are relatively rare and the application can reload or report a conflict. Pessimistic locking may be preferable when a critical section needs to serialize competing writers, but it increases waiting and deadlock risk.
+
+Lock scope and behavior depend on the engine, isolation level, index access path, and predicate. In InnoDB, locking reads can take record and range-related locks depending on the query and isolation level; an appropriate index helps avoid locking more rows than intended. Keep the transaction short, access rows in a consistent order, and never hold database locks while waiting on user input or slow remote calls.
+
+### Q50. What is the difference between a view and a materialized view?
+
+A regular view stores a query definition and presents its result when queried; it does not normally persist a separate copy of every result row. It can simplify complex joins, provide a stable interface over tables, and help restrict which columns are exposed, but it is not automatically a performance optimization. The optimizer may merge or otherwise transform the view query, depending on the database and query shape.
+
+A materialized view stores a precomputed result that must be refreshed or maintained. Oracle supports materialized views with refresh options and additional query-rewrite capabilities subject to configuration and eligibility. MySQL has regular views but does not provide the same native materialized-view feature; teams may implement a summary table or read model and maintain it with application logic, jobs, or events.
+
+The trade-off is freshness and operational complexity versus faster repeated reads. Before introducing a materialized result, define refresh frequency, acceptable staleness, refresh failure handling, and how inserts, updates, and deletes affect the result. For many backend workloads, a well-indexed query or Redis cache may be simpler; choose based on measured requirements.
 
 ## References
 
