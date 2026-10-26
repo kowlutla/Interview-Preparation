@@ -947,6 +947,332 @@ Avoid putting secrets, payment credentials, tokens, or unnecessary personal data
 An HTTP request can succeed while an order remains unfulfilled, a payment is unresolved, or a notification never reaches its intended terminal state. Define business outcomes and valid state transitions, then instrument them alongside transport and infrastructure metrics. Design reconciliation and operator tooling for incomplete workflows. Senior-level architecture must explain how the system detects and repairs silent business failures.
 
 
+
+
+### Q199. How do you estimate cache hit ratio before implementation?
+
+Use workload shape rather than a universal rule. Identify the key popularity distribution, working-set size, value update rate, and cache capacity. If a small set of hot keys accounts for most reads, a modest cache may have a high hit ratio; uniformly random access over a dataset much larger than memory may not. Load-test with realistic key skew and measure hit ratio, origin load, stale responses, and p99 latency together.
+
+### Q200. How do you calculate storage for a replicated database?
+
+Estimate logical data first, then add indexes, metadata, write-ahead logs, temporary migration space, and retention overhead. If logical data is 8 TB and three full replicas are maintained, raw replica storage alone is roughly 24 TB before indexes, backups, and operational headroom. Confirm whether the vendor's reported storage already includes replicas to avoid double counting. Backups and snapshots may have different incremental-storage behavior.
+
+### Q201. How do you estimate connection demand across a microservice fleet?
+
+Multiply instances by per-instance pool size to estimate the maximum potential connections to each dependency, then include background workers, migrations, monitoring, and failover behavior. Forty instances with a pool of 30 can create up to 1,200 connections to the same database. This is a ceiling, not a throughput estimate. Bound pools and concurrency, and consider how a rolling deployment temporarily increases instance count.
+
+### Q202. How do you estimate the impact of a downstream fan-out ratio?
+
+If 5,000 incoming requests per second each cause four downstream calls, the downstream service may receive 20,000 calls/second before retries. Some branches may be conditional or cached, so estimate actual fan-out per request class. Fan-out affects both capacity and tail latency; reducing unnecessary calls can outperform adding downstream instances.
+
+### Q203. How do you calculate a service's error budget from a request-based SLO?
+
+For 50 million eligible requests and a 99.9% success target, the error budget is 0.1% of 50 million, or 50,000 unsuccessful eligible requests during the measurement window. Define whether timeouts, client errors, health checks, and rejected overload requests count. The metric must match the user-visible contract; otherwise teams can appear compliant while customers experience failures.
+
+### Q204. How do you estimate object-storage cost at a high level?
+
+Estimate new bytes per day, retention duration, storage tier, replication or versioning, request counts, retrieval volume, and egress. If 2 TB/day is retained for 90 days, the steady-state raw footprint approaches 180 TB before versions and copies. Lifecycle policies can move cold data to cheaper tiers, but retrieval latency, minimum storage duration, and retrieval fees may matter. Treat estimates as a model to validate against current provider pricing.
+
+### Q205. How do you estimate how much capacity a cache outage removes?
+
+Estimate normal origin reads as total reads multiplied by cache miss ratio. If a service handles 40,000 reads/s at a 90% cache hit ratio, the origin sees roughly 4,000 reads/s. If the cache fails and every read falls through, origin load can approach 40,000 reads/s—ten times the previous rate. Plan for bounded fallback, stale serving where safe, and load shedding rather than assuming the database can absorb all misses.
+
+### Q206. How do you estimate the bandwidth needed for replication?
+
+Multiply change rate by average serialized change size, then account for protocol overhead, batching, compression, and bursts. At 15,000 changes/s averaging 1.2 KB, raw payload flow is about 18 MB/s, or 144 Mbps, before overhead. Cross-region replication adds cost and can compete with application traffic. Measure real change records because large updates and tombstones may make averages misleading.
+
+### Q207. How do you estimate partition count for an event stream?
+
+Estimate the required consumer parallelism and throughput per partition under realistic processing cost, then account for key skew and future growth. If a workload needs 30 parallel consumers, more than 30 partitions may be useful for headroom, but extra partitions have metadata and operational costs. Partition count alone does not guarantee throughput: broker disk/network, producer batching, consumer work, and hot keys can be the limiting factors.
+
+### Q208. How do you estimate whether a rate limiter can sustain traffic?
+
+Estimate operations per incoming request, atomicity requirements, key cardinality, state size, and expected contention on hot keys. A limiter that performs two remote round trips for every API call may become a latency bottleneck. Use server-side atomic operations, local token budgets, or hierarchical quotas where the precision trade-off is acceptable. Benchmark the limiter under the same key skew and burst pattern expected in production.
+
+### Q209. When should large files bypass application servers?
+
+For uploads/downloads of large objects, application servers can authenticate and issue scoped upload/download URLs while the client transfers bytes directly to object storage. This reduces application bandwidth and connection occupancy. The design still needs size/type limits, authorization, checksum validation, malware scanning where appropriate, lifecycle policies, and safe handling of partially uploaded objects. Direct transfer is not appropriate if the application must inspect or transform every byte synchronously.
+
+### Q210. How do you design resumable uploads?
+
+Create a durable upload session with owner, expiry, expected size, checksum policy, and part metadata. Upload chunks independently, allow retry of individual parts, and finalize only after verifying all required parts and the final checksum. Make finalization idempotent and clean up abandoned sessions. Consider abuse controls because incomplete multipart uploads consume storage and metadata.
+
+### Q211. How do you choose between polling and push notifications for status updates?
+
+Polling is simple and works when update frequency is low, but repeated requests waste capacity and can create synchronized spikes. Push mechanisms such as WebSockets or Server-Sent Events reduce repeated polling but need connection management, reconnect handling, and fan-out infrastructure. A hybrid approach often uses polling for low-value status and push for time-sensitive changes, with the server retaining durable state so clients can recover after disconnects.
+
+### Q212. How do you design a long-running operation API?
+
+Return a durable operation ID and an explicit accepted/pending state after the operation is durably recorded. Provide a status endpoint or notification mechanism, define terminal states and expiry, and make client retries idempotent. Do not keep an HTTP request open for hours. Document whether cancellation is supported and whether it means “stop future work” or “compensate effects already performed.”
+
+### Q213. How should cancellation work in a distributed workflow?
+
+Cancellation is a command, not proof that all work stopped instantly. Persist cancellation intent, propagate it to queued and active steps, and make workers check it at safe boundaries. If prior steps created external effects, define compensation or a “too late to cancel” result. Race cancellation against completion explicitly, and ensure the workflow reaches one durable terminal state.
+
+### Q214. What is the difference between a timeout, a deadline, and a lease?
+
+A timeout limits how long a particular wait or operation may continue. A deadline is an absolute end time for the whole request/workflow budget and can be propagated downstream. A lease grants temporary ownership that expires unless renewed. Expired leases do not forcibly stop a paused worker, so the protected resource may need fencing tokens or conditional writes.
+
+### Q215. How should timeouts be chosen for downstream calls?
+
+Use observed downstream latency percentiles, acceptable false-timeout rate, network characteristics, and the caller's end-to-end deadline. Include connection acquisition and other phases if the client library's timeout does not cover them. Too-short timeouts create unnecessary retries and load; too-long timeouts hold threads and connections. Revisit values when latency distributions or topology change. See [AWS guidance on timeouts, retries, and jitter](https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/).
+
+### Q216. How do you decide whether a fallback is safe?
+
+List the exact user-visible result produced by the fallback and the invariant it must preserve. A cached product description may be safe; cached authorization or inventory may not be. Define maximum staleness, fallback activation, and recovery behavior, then test it under dependency failure. A fallback that returns plausible but incorrect data can be worse than an explicit error.
+
+### Q217. How do you avoid cascading failure across a dependency graph?
+
+Bound concurrency and queue depth at each layer, propagate deadlines, avoid unbounded retries, and isolate optional work. Model the dependency graph to find shared databases, identity services, and control planes that create common failure paths. Add load shedding before resources are exhausted. Recovery should be gradual, because restoring all retries and queued work simultaneously can recreate the overload.
+
+### Q218. What is a retry budget?
+
+A retry budget limits the amount of additional traffic generated by retries over a period or relative to successful/original requests. It prevents retries from consuming unlimited capacity during an incident. A token bucket is one implementation: retries consume tokens that replenish under a defined rule. The budget complements per-request attempt limits and deadlines; it does not make an unsafe operation idempotent.
+
+### Q219. How do you choose the right level of redundancy?
+
+Redundancy should match the failure model and recovery target. Multiple application instances protect against process/host failure, multiple availability zones protect against some zone failures, and cross-region copies address larger outages. Every extra copy adds cost and may create consistency or operational complexity. Verify independence: replicas sharing the same credentials, network, or database are not fully independent.
+
+### Q220. How do you design graceful shutdown for a worker or service?
+
+Stop accepting new work, mark the instance unready, drain in-flight requests within a deadline, and safely release or extend leases. For message consumers, stop fetching new records and commit progress only after processing is durable. If shutdown is forced, assume work may be retried and ensure idempotency. Test deployment termination and node loss, not only clean local shutdown.
+
+### Q221. How should a system handle duplicate job scheduling?
+
+Give each logical scheduled occurrence a deterministic identity, such as job ID plus scheduled instant, and enforce uniqueness durably. Workers should claim work with leases or conditional state transitions and make side effects idempotent. A scheduler can crash between triggering and recording a run, so duplicates must be expected. Define misfire policy for missed intervals and prevent accidental unbounded catch-up.
+
+### Q222. How do you prevent stale leaders from committing writes?
+
+Assign a monotonically increasing epoch or fencing token whenever ownership changes. The storage resource must reject operations carrying an older epoch. A lease service by itself cannot stop an old process from resuming after a pause. Also define leader promotion, membership changes, and how the old owner is prevented from being treated as authoritative.
+
+### Q223. How do you choose a data consistency guarantee for each API?
+
+For every endpoint, state whether it needs linearizable reads/writes, read-your-writes, monotonic reads, bounded staleness, or eventual convergence. Tie the guarantee to a user journey and business risk. For example, account settings may tolerate a brief stale read while a payment authorization may not. Explicit guarantees guide routing, caching, replica selection, and client retry behavior.
+
+### Q224. What does bounded staleness mean?
+
+Bounded staleness promises that a read is no more than a defined amount behind the authoritative state, or behind a defined number of versions, under the system's documented assumptions. Eventual consistency alone provides no such time bound. A TTL on a cache does not necessarily provide a global staleness bound if invalidation, refill, or replication can lag longer.
+
+### Q225. How do you prevent lost updates in a read-modify-write flow?
+
+Two clients can read the same value and overwrite each other's change. Use a transaction, atomic update, compare-and-set with a version, or an operation that expresses the increment directly. A distributed lock may be unnecessary if the database can enforce the condition. Test concurrent interleavings and decide whether conflicts should be retried, merged, or returned to the client.
+
+### Q226. How do you design inventory for oversell-sensitive products?
+
+Keep the authoritative available quantity in a datastore that can atomically reserve or decrement stock only when sufficient inventory remains. Represent reservations with expiry and idempotent state transitions; release expired holds safely. Cache stock for display if useful, but validate during reservation. If overselling is an accepted business policy, state the limit and customer-remediation path explicitly.
+
+### Q227. How do you model temporary holds and expiry safely?
+
+Persist hold ID, resource, owner, expiry instant, and status. Confirm only if the hold remains valid under an atomic condition, and make release idempotent. A cleanup job can be delayed, so correctness must not depend solely on a timer deleting expired rows. Use the datastore's current-time semantics or an explicit version/state transition to prevent confirming an expired hold.
+
+### Q228. How do you keep a payment ledger correct across retries and reconciliation?
+
+Represent each business operation with stable IDs and immutable or auditable entries, enforce uniqueness where required, and model reversals as explicit compensating entries rather than silently rewriting history. Provider callbacks and settlement files may be delayed or duplicated, so reconciliation should compare amounts, currencies, references, and terminal states. A successful HTTP response is not a substitute for settlement correctness.
+
+### Q229. How do you decide whether to use a saga or a single database transaction?
+
+If all state changes belong to one transactional datastore and the transaction can be short, a local ACID transaction is usually simpler. A saga is useful when a workflow spans independently owned services and cannot share one atomic transaction. It exposes intermediate states and compensation failure, so use durable orchestration/choreography state, idempotency, timeouts, and reconciliation. Do not introduce a saga merely because a flow has multiple classes.
+
+### Q230. What is a transactional inbox pattern?
+
+A consumer stores a received event ID and applies its database effect in the same transaction. A uniqueness constraint prevents the same event from applying twice after a retry. This is useful when the broker provides at-least-once delivery. It does not automatically deduplicate two distinct event IDs representing the same business action, and it cannot atomically cover an unrelated external side effect without additional protocol support.
+
+### Q231. How do you handle schema changes when old and new application versions run simultaneously?
+
+Use additive changes first, keep both representations readable during migration, and avoid changing field meaning in place. Deploy compatible readers before new writers, backfill gradually, and remove the old schema only after all callers and rollback paths no longer need it. Test rolling deployment and rollback with mixed versions. Database compatibility and event compatibility should be reviewed separately.
+
+### Q232. How do you prevent cache poisoning or cache-key confusion?
+
+Validate inputs before caching, normalize keys consistently, include all representation-changing dimensions, and ensure untrusted headers cannot alter a shared cache entry unexpectedly. Keep authorization-aware responses private unless shared caching is explicitly safe. Test tenant boundaries and variants such as locale, encoding, and query parameters. Cache invalidation must also be authenticated and scoped.
+
+### Q233. How do you decide between local cache and distributed cache?
+
+A local cache has very low access latency and avoids a network dependency, but each instance has its own copy and invalidation can be difficult. A distributed cache shares entries across instances but adds network latency, capacity limits, and an outage mode. Frequently reused immutable or versioned data may suit local caching; large shared working sets may suit a distributed cache. Layered caching can work if consistency semantics are explicit.
+
+### Q234. How do you plan a CDN cache invalidation strategy?
+
+Prefer versioned or content-addressed URLs for immutable assets so updates create new keys rather than requiring global purge. For mutable content, define TTL, purge scope, propagation expectations, and behavior when purge fails. Purges can be expensive and may create origin traffic spikes. Monitor cache hit ratio and origin load during release and invalidation events.
+
+### Q235. How do you prevent an origin stampede when a CDN key expires?
+
+Use origin request coalescing where supported, staggered TTLs, stale-while-revalidate for safe content, and rate limits at the origin. Prewarm only the highest-value keys when it is cost-effective. Ensure stale serving is not used for authorization or other correctness-critical responses. A CDN does not automatically prevent all concurrent misses, especially across regions or cache nodes.
+
+### Q236. How do you design tenant-aware data partitioning?
+
+Compare tenant size distribution, query patterns, residency constraints, and isolation requirements. Shared tables with tenant IDs are operationally efficient but require strict query isolation and may create noisy-neighbor issues. Dedicated databases or shards improve isolation for large tenants but increase cost and management overhead. Plan for tenant migration between placements and measure per-tenant storage and latency.
+
+### Q237. How do you handle a tenant that outgrows its original shard?
+
+Use a controlled migration to a dedicated shard or new placement: establish routing ownership, copy a snapshot, capture concurrent writes, validate, and switch routing. Keep tenant-aware metrics and ensure cache keys and background jobs follow the new placement. Avoid moving a tenant by simply changing a routing table while writes are in flight; stale routing can split ownership.
+
+### Q238. How do you know when a system needs sharding rather than a larger database?
+
+Look for measured limits in storage, write throughput, index size, connection capacity, or maintenance windows that cannot be solved adequately with vertical scaling, indexing, query improvements, or replicas. Sharding adds routing, cross-shard query, rebalancing, and transaction complexity. Establish the bottleneck and estimate the cost of simpler alternatives before adopting it. Shard only when the expected benefit exceeds that complexity.
+
+
+
+
+### Q199. How do you estimate cache hit ratio before implementation?
+
+Use workload shape rather than a universal rule. Identify the key popularity distribution, working-set size, value update rate, and cache capacity. If a small set of hot keys accounts for most reads, a modest cache may have a high hit ratio; uniformly random access over a dataset much larger than memory may not. Load-test with realistic key skew and measure hit ratio, origin load, stale responses, and p99 latency together.
+
+### Q200. How do you calculate storage for a replicated database?
+
+Estimate logical data first, then add indexes, metadata, write-ahead logs, temporary migration space, and retention overhead. If logical data is 8 TB and three full replicas are maintained, raw replica storage alone is roughly 24 TB before indexes, backups, and operational headroom. Confirm whether the vendor's reported storage already includes replicas to avoid double counting. Backups and snapshots may have different incremental-storage behavior.
+
+### Q201. How do you estimate connection demand across a microservice fleet?
+
+Multiply instances by per-instance pool size to estimate the maximum potential connections to each dependency, then include background workers, migrations, monitoring, and failover behavior. Forty instances with a pool of 30 can create up to 1,200 connections to the same database. This is a ceiling, not a throughput estimate. Bound pools and concurrency, and consider how a rolling deployment temporarily increases instance count.
+
+### Q202. How do you estimate the impact of a downstream fan-out ratio?
+
+If 5,000 incoming requests per second each cause four downstream calls, the downstream service may receive 20,000 calls/second before retries. Some branches may be conditional or cached, so estimate actual fan-out per request class. Fan-out affects both capacity and tail latency; reducing unnecessary calls can outperform adding downstream instances.
+
+### Q203. How do you calculate a service's error budget from a request-based SLO?
+
+For 50 million eligible requests and a 99.9% success target, the error budget is 0.1% of 50 million, or 50,000 unsuccessful eligible requests during the measurement window. Define whether timeouts, client errors, health checks, and rejected overload requests count. The metric must match the user-visible contract; otherwise teams can appear compliant while customers experience failures.
+
+### Q204. How do you estimate object-storage cost at a high level?
+
+Estimate new bytes per day, retention duration, storage tier, replication or versioning, request counts, retrieval volume, and egress. If 2 TB/day is retained for 90 days, the steady-state raw footprint approaches 180 TB before versions and copies. Lifecycle policies can move cold data to cheaper tiers, but retrieval latency, minimum storage duration, and retrieval fees may matter. Treat estimates as a model to validate against current provider pricing.
+
+### Q205. How do you estimate how much capacity a cache outage removes?
+
+Estimate normal origin reads as total reads multiplied by cache miss ratio. If a service handles 40,000 reads/s at a 90% cache hit ratio, the origin sees roughly 4,000 reads/s. If the cache fails and every read falls through, origin load can approach 40,000 reads/s—ten times the previous rate. Plan for bounded fallback, stale serving where safe, and load shedding rather than assuming the database can absorb all misses.
+
+### Q206. How do you estimate the bandwidth needed for replication?
+
+Multiply change rate by average serialized change size, then account for protocol overhead, batching, compression, and bursts. At 15,000 changes/s averaging 1.2 KB, raw payload flow is about 18 MB/s, or 144 Mbps, before overhead. Cross-region replication adds cost and can compete with application traffic. Measure real change records because large updates and tombstones may make averages misleading.
+
+### Q207. How do you estimate partition count for an event stream?
+
+Estimate the required consumer parallelism and throughput per partition under realistic processing cost, then account for key skew and future growth. If a workload needs 30 parallel consumers, more than 30 partitions may be useful for headroom, but extra partitions have metadata and operational costs. Partition count alone does not guarantee throughput: broker disk/network, producer batching, consumer work, and hot keys can be the limiting factors.
+
+### Q208. How do you estimate whether a rate limiter can sustain traffic?
+
+Estimate operations per incoming request, atomicity requirements, key cardinality, state size, and expected contention on hot keys. A limiter that performs two remote round trips for every API call may become a latency bottleneck. Use server-side atomic operations, local token budgets, or hierarchical quotas where the precision trade-off is acceptable. Benchmark the limiter under the same key skew and burst pattern expected in production.
+
+### Q209. When should large files bypass application servers?
+
+For uploads/downloads of large objects, application servers can authenticate and issue scoped upload/download URLs while the client transfers bytes directly to object storage. This reduces application bandwidth and connection occupancy. The design still needs size/type limits, authorization, checksum validation, malware scanning where appropriate, lifecycle policies, and safe handling of partially uploaded objects. Direct transfer is not appropriate if the application must inspect or transform every byte synchronously.
+
+### Q210. How do you design resumable uploads?
+
+Create a durable upload session with owner, expiry, expected size, checksum policy, and part metadata. Upload chunks independently, allow retry of individual parts, and finalize only after verifying all required parts and the final checksum. Make finalization idempotent and clean up abandoned sessions. Consider abuse controls because incomplete multipart uploads consume storage and metadata.
+
+### Q211. How do you choose between polling and push notifications for status updates?
+
+Polling is simple and works when update frequency is low, but repeated requests waste capacity and can create synchronized spikes. Push mechanisms such as WebSockets or Server-Sent Events reduce repeated polling but need connection management, reconnect handling, and fan-out infrastructure. A hybrid approach often uses polling for low-value status and push for time-sensitive changes, with the server retaining durable state so clients can recover after disconnects.
+
+### Q212. How do you design a long-running operation API?
+
+Return a durable operation ID and an explicit accepted/pending state after the operation is durably recorded. Provide a status endpoint or notification mechanism, define terminal states and expiry, and make client retries idempotent. Do not keep an HTTP request open for hours. Document whether cancellation is supported and whether it means “stop future work” or “compensate effects already performed.”
+
+### Q213. How should cancellation work in a distributed workflow?
+
+Cancellation is a command, not proof that all work stopped instantly. Persist cancellation intent, propagate it to queued and active steps, and make workers check it at safe boundaries. If prior steps created external effects, define compensation or a “too late to cancel” result. Race cancellation against completion explicitly, and ensure the workflow reaches one durable terminal state.
+
+### Q214. What is the difference between a timeout, a deadline, and a lease?
+
+A timeout limits how long a particular wait or operation may continue. A deadline is an absolute end time for the whole request/workflow budget and can be propagated downstream. A lease grants temporary ownership that expires unless renewed. Expired leases do not forcibly stop a paused worker, so the protected resource may need fencing tokens or conditional writes.
+
+### Q215. How should timeouts be chosen for downstream calls?
+
+Use observed downstream latency percentiles, acceptable false-timeout rate, network characteristics, and the caller's end-to-end deadline. Include connection acquisition and other phases if the client library's timeout does not cover them. Too-short timeouts create unnecessary retries and load; too-long timeouts hold threads and connections. Revisit values when latency distributions or topology change. See [AWS guidance on timeouts, retries, and jitter](https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/).
+
+### Q216. How do you decide whether a fallback is safe?
+
+List the exact user-visible result produced by the fallback and the invariant it must preserve. A cached product description may be safe; cached authorization or inventory may not be. Define maximum staleness, fallback activation, and recovery behavior, then test it under dependency failure. A fallback that returns plausible but incorrect data can be worse than an explicit error.
+
+### Q217. How do you avoid cascading failure across a dependency graph?
+
+Bound concurrency and queue depth at each layer, propagate deadlines, avoid unbounded retries, and isolate optional work. Model the dependency graph to find shared databases, identity services, and control planes that create common failure paths. Add load shedding before resources are exhausted. Recovery should be gradual, because restoring all retries and queued work simultaneously can recreate the overload.
+
+### Q218. What is a retry budget?
+
+A retry budget limits the amount of additional traffic generated by retries over a period or relative to successful/original requests. It prevents retries from consuming unlimited capacity during an incident. A token bucket is one implementation: retries consume tokens that replenish under a defined rule. The budget complements per-request attempt limits and deadlines; it does not make an unsafe operation idempotent.
+
+### Q219. How do you choose the right level of redundancy?
+
+Redundancy should match the failure model and recovery target. Multiple application instances protect against process/host failure, multiple availability zones protect against some zone failures, and cross-region copies address larger outages. Every extra copy adds cost and may create consistency or operational complexity. Verify independence: replicas sharing the same credentials, network, or database are not fully independent.
+
+### Q220. How do you design graceful shutdown for a worker or service?
+
+Stop accepting new work, mark the instance unready, drain in-flight requests within a deadline, and safely release or extend leases. For message consumers, stop fetching new records and commit progress only after processing is durable. If shutdown is forced, assume work may be retried and ensure idempotency. Test deployment termination and node loss, not only clean local shutdown.
+
+### Q221. How should a system handle duplicate job scheduling?
+
+Give each logical scheduled occurrence a deterministic identity, such as job ID plus scheduled instant, and enforce uniqueness durably. Workers should claim work with leases or conditional state transitions and make side effects idempotent. A scheduler can crash between triggering and recording a run, so duplicates must be expected. Define misfire policy for missed intervals and prevent accidental unbounded catch-up.
+
+### Q222. How do you prevent stale leaders from committing writes?
+
+Assign a monotonically increasing epoch or fencing token whenever ownership changes. The storage resource must reject operations carrying an older epoch. A lease service by itself cannot stop an old process from resuming after a pause. Also define leader promotion, membership changes, and how the old owner is prevented from being treated as authoritative.
+
+### Q223. How do you choose a data consistency guarantee for each API?
+
+For every endpoint, state whether it needs linearizable reads/writes, read-your-writes, monotonic reads, bounded staleness, or eventual convergence. Tie the guarantee to a user journey and business risk. For example, account settings may tolerate a brief stale read while a payment authorization may not. Explicit guarantees guide routing, caching, replica selection, and client retry behavior.
+
+### Q224. What does bounded staleness mean?
+
+Bounded staleness promises that a read is no more than a defined amount behind the authoritative state, or behind a defined number of versions, under the system's documented assumptions. Eventual consistency alone provides no such time bound. A TTL on a cache does not necessarily provide a global staleness bound if invalidation, refill, or replication can lag longer.
+
+### Q225. How do you prevent lost updates in a read-modify-write flow?
+
+Two clients can read the same value and overwrite each other's change. Use a transaction, atomic update, compare-and-set with a version, or an operation that expresses the increment directly. A distributed lock may be unnecessary if the database can enforce the condition. Test concurrent interleavings and decide whether conflicts should be retried, merged, or returned to the client.
+
+### Q226. How do you design inventory for oversell-sensitive products?
+
+Keep the authoritative available quantity in a datastore that can atomically reserve or decrement stock only when sufficient inventory remains. Represent reservations with expiry and idempotent state transitions; release expired holds safely. Cache stock for display if useful, but validate during reservation. If overselling is an accepted business policy, state the limit and customer-remediation path explicitly.
+
+### Q227. How do you model temporary holds and expiry safely?
+
+Persist hold ID, resource, owner, expiry instant, and status. Confirm only if the hold remains valid under an atomic condition, and make release idempotent. A cleanup job can be delayed, so correctness must not depend solely on a timer deleting expired rows. Use the datastore's current-time semantics or an explicit version/state transition to prevent confirming an expired hold.
+
+### Q228. How do you keep a payment ledger correct across retries and reconciliation?
+
+Represent each business operation with stable IDs and immutable or auditable entries, enforce uniqueness where required, and model reversals as explicit compensating entries rather than silently rewriting history. Provider callbacks and settlement files may be delayed or duplicated, so reconciliation should compare amounts, currencies, references, and terminal states. A successful HTTP response is not a substitute for settlement correctness.
+
+### Q229. How do you decide whether to use a saga or a single database transaction?
+
+If all state changes belong to one transactional datastore and the transaction can be short, a local ACID transaction is usually simpler. A saga is useful when a workflow spans independently owned services and cannot share one atomic transaction. It exposes intermediate states and compensation failure, so use durable orchestration/choreography state, idempotency, timeouts, and reconciliation. Do not introduce a saga merely because a flow has multiple classes.
+
+### Q230. What is a transactional inbox pattern?
+
+A consumer stores a received event ID and applies its database effect in the same transaction. A uniqueness constraint prevents the same event from applying twice after a retry. This is useful when the broker provides at-least-once delivery. It does not automatically deduplicate two distinct event IDs representing the same business action, and it cannot atomically cover an unrelated external side effect without additional protocol support.
+
+### Q231. How do you handle schema changes when old and new application versions run simultaneously?
+
+Use additive changes first, keep both representations readable during migration, and avoid changing field meaning in place. Deploy compatible readers before new writers, backfill gradually, and remove the old schema only after all callers and rollback paths no longer need it. Test rolling deployment and rollback with mixed versions. Database compatibility and event compatibility should be reviewed separately.
+
+### Q232. How do you prevent cache poisoning or cache-key confusion?
+
+Validate inputs before caching, normalize keys consistently, include all representation-changing dimensions, and ensure untrusted headers cannot alter a shared cache entry unexpectedly. Keep authorization-aware responses private unless shared caching is explicitly safe. Test tenant boundaries and variants such as locale, encoding, and query parameters. Cache invalidation must also be authenticated and scoped.
+
+### Q233. How do you decide between local cache and distributed cache?
+
+A local cache has very low access latency and avoids a network dependency, but each instance has its own copy and invalidation can be difficult. A distributed cache shares entries across instances but adds network latency, capacity limits, and an outage mode. Frequently reused immutable or versioned data may suit local caching; large shared working sets may suit a distributed cache. Layered caching can work if consistency semantics are explicit.
+
+### Q234. How do you plan a CDN cache invalidation strategy?
+
+Prefer versioned or content-addressed URLs for immutable assets so updates create new keys rather than requiring global purge. For mutable content, define TTL, purge scope, propagation expectations, and behavior when purge fails. Purges can be expensive and may create origin traffic spikes. Monitor cache hit ratio and origin load during release and invalidation events.
+
+### Q235. How do you prevent an origin stampede when a CDN key expires?
+
+Use origin request coalescing where supported, staggered TTLs, stale-while-revalidate for safe content, and rate limits at the origin. Prewarm only the highest-value keys when it is cost-effective. Ensure stale serving is not used for authorization or other correctness-critical responses. A CDN does not automatically prevent all concurrent misses, especially across regions or cache nodes.
+
+### Q236. How do you design tenant-aware data partitioning?
+
+Compare tenant size distribution, query patterns, residency constraints, and isolation requirements. Shared tables with tenant IDs are operationally efficient but require strict query isolation and may create noisy-neighbor issues. Dedicated databases or shards improve isolation for large tenants but increase cost and management overhead. Plan for tenant migration between placements and measure per-tenant storage and latency.
+
+### Q237. How do you handle a tenant that outgrows its original shard?
+
+Use a controlled migration to a dedicated shard or new placement: establish routing ownership, copy a snapshot, capture concurrent writes, validate, and switch routing. Keep tenant-aware metrics and ensure cache keys and background jobs follow the new placement. Avoid moving a tenant by simply changing a routing table while writes are in flight; stale routing can split ownership.
+
+### Q238. How do you know when a system needs sharding rather than a larger database?
+
+Look for measured limits in storage, write throughput, index size, connection capacity, or maintenance windows that cannot be solved adequately with vertical scaling, indexing, query improvements, or replicas. Sharding adds routing, cross-shard query, rebalancing, and transaction complexity. Establish the bottleneck and estimate the cost of simpler alternatives before adopting it. Shard only when the expected benefit exceeds that complexity.
+
+
 ## 18. Senior-level scenario bank
 
 For every scenario, state assumptions, identify the invariant, analyse evidence, recommend a design, explain alternatives, describe failure behavior, and name operational signals. These are connected design discussions, not technology flashcards.
@@ -1280,6 +1606,137 @@ For every scenario, state assumptions, identify the invariant, analyse evidence,
 **Problem:** Two regions will accept concurrent updates to the same account and asynchronously replicate them.
 
 **Approach:** Ask what happens when the same balance, inventory item, or profile field is updated concurrently during a partition. If the invariant requires one serial order, use a single writer per entity or a datastore/coordination protocol that enforces the needed consistency. Active-active reads and compute can coexist with owner-routed writes. Conflict resolution is acceptable only when the domain defines how conflicts are resolved without violating business correctness.
+
+
+
+
+### Scenario 71 — Object uploads overload application servers
+
+**Problem:** Customers upload large files through application instances, consuming connections and bandwidth needed for normal API traffic.
+
+**Clarify:** Must the application inspect or transform the file inline? What are size, type, checksum, access-control, and malware-scanning requirements?
+
+**Recommendation:** Authenticate the request and issue a short-lived, scoped object-storage upload URL or multipart upload session. Finalize only after validating metadata, size, and checksum; trigger asynchronous scanning/transformation and make the file visible only after policy checks succeed. Clean up abandoned uploads.
+
+**Trade-offs and signals:** Direct upload reduces application bandwidth but moves security controls to storage policies and completion workflows. Monitor incomplete multipart uploads, finalization failures, scan backlog, egress, and storage growth.
+
+### Scenario 72 — A long-running operation is cancelled after external work starts
+
+**Problem:** A client cancels a data export, but workers and a downstream provider continue processing.
+
+**Recommendation:** Persist cancellation intent in workflow state, propagate it to active steps, and have workers check at safe boundaries. Define whether cancellation prevents future steps, attempts compensation, or can be refused after an irreversible action. Use idempotent state transitions so completion racing with cancellation reaches one documented terminal outcome.
+
+**Follow-up:** Cancelling the HTTP request does not cancel a durable background job unless the operation API explicitly implements that contract.
+
+### Scenario 73 — A database pool becomes exhausted during graceful deployment
+
+**Problem:** New instances start before old ones drain, temporarily multiplying connections and exhausting the database.
+
+**Analysis and recommendation:** Calculate peak connection count during rolling replacement, including workers and maintenance tasks. Set pool limits against database capacity, coordinate rollout surge, mark old instances unready before draining, and use connection lifetime settings that handle failover. Do not solve this by increasing pools without considering total fleet size.
+
+**Metrics:** Total connections, pool wait, instance count during rollout, connection churn, transaction duration, and database saturation.
+
+### Scenario 74 — A cache key omission leaks tenant data
+
+**Problem:** Two tenants request the same resource ID, and the cache returns one tenant's representation to the other.
+
+**Recommendation:** Treat tenant and authorization context as part of the response identity. Fix the key contract, invalidate exposed entries, review other cache layers and CDN behavior, and add automated cross-tenant tests. Assess whether sensitive data was exposed and follow incident response procedures. The origin database can be perfectly isolated while a shared cache still leaks data.
+
+### Scenario 75 — A distributed ID generator returns duplicates after failover
+
+**Problem:** Two generator nodes start with overlapping worker IDs or both allocate the same sequence range.
+
+**Recommendation:** Make worker/range ownership durable and exclusive, fence stale owners, and design restart behavior to avoid reusing IDs. If the algorithm relies on time, define clock rollback behavior. Validate uniqueness with property tests and failure injection. A standby generator must not simply inherit state without proving that its range cannot overlap the former owner.
+
+### Scenario 76 — A read model rebuild disagrees with production results
+
+**Problem:** A new projection is rebuilt from retained events but produces different totals from the current projection.
+
+**Approach:** Compare event offsets, schema versions, tombstones, ordering, deduplication, and business logic versions. Replay from a consistent point and capture concurrent updates. Use checksums and domain-level aggregates, not only row counts. Do not switch traffic until discrepancies are explained and an explicit acceptance threshold is met.
+
+### Scenario 77 — A rate limiter allows bursts after instance scaling
+
+**Problem:** The global allowed rate increases whenever autoscaling adds application instances.
+
+**Approach:** The quota was implemented as independent local buckets without a shared budget. Allocate bounded local token budgets from a global allowance or use a shared atomic limiter. Decide whether limited overshoot is acceptable during budget refresh and limiter failure. Test scale-out, scale-in, and instance restart behavior.
+
+### Scenario 78 — A scheduled workflow misses several intervals
+
+**Problem:** A scheduler was unavailable for two hours and must decide whether to run every missed job.
+
+**Clarify:** Are runs independent snapshots, periodic billing, cleanup, or time-sensitive notifications? Should missed intervals be skipped, coalesced into one run, or replayed individually?
+
+**Recommendation:** Define a misfire policy per job class. Coalesce only when intermediate intervals do not matter; replay idempotently when every interval has business significance. Bound catch-up concurrency so recovery does not overload dependencies. Record skipped or coalesced runs for audit.
+
+### Scenario 79 — A region is healthy but cannot reach the identity provider
+
+**Problem:** Compute and database health checks pass, but users cannot authenticate in one region.
+
+**Recommendation:** Treat dependency health and user-journey health separately. Determine whether tokens can be validated locally using cached signing keys, whether key freshness is acceptable, and which operations must fail closed. Do not route all traffic to a second region without understanding its capacity and data locality. Monitor authentication success and key-refresh age as business-path signals.
+
+### Scenario 80 — A new storage engine benchmarks faster but raises operational risk
+
+**Problem:** A prototype shows higher throughput, but the team lacks operational experience and restore tooling.
+
+**Recommendation:** Compare representative workload performance, tail latency, failover, backup/restore, data migration, observability, security, and on-call skill requirements. Run failure and recovery tests, not only happy-path benchmarks. Keep the existing store if the performance gain does not justify migration and operational risk; if adopting the new engine, plan a reversible migration and explicit exit criteria.
+
+### Multi-stage mock interview: Design a notification platform
+
+Use this as one evolving discussion rather than separate trivia questions.
+
+**Stage 1 — Clarify the contract.** Ask which channels are required, whether delivery is best-effort or deadline-bound, how user preferences and consent work, what “delivered” means, and how many notifications arrive at peak. Distinguish accepted, queued, provider-accepted, delivered, and read states.
+
+**Stage 2 — Establish the baseline architecture.** Persist the business event and outbox record together, publish to a durable broker, route by channel and priority, and let workers call providers. Store attempt state and stable notification IDs. Keep provider calls off the user request path unless the product explicitly requires synchronous delivery.
+
+```mermaid
+flowchart LR
+  S[Business Service] --> D[(Business DB + Outbox)]
+  D --> P[Outbox Publisher / CDC]
+  P --> B[Durable Broker]
+  B --> R[Priority Router]
+  R --> E[Email Workers]
+  R --> M[SMS / Push Workers]
+  E --> V[Email Provider]
+  M --> W[SMS / Push Providers]
+  E --> T[(Delivery State)]
+  M --> T
+```
+
+**Stage 3 — Traffic grows 10×.** Recalculate event rate and provider quotas. Scale consumers only within broker partition and downstream capacity, coalesce redundant updates where semantics allow, reserve capacity for urgent alerts, and shed or defer low-priority work according to policy. Add bounded queues and queue-age alerts.
+
+**Stage 4 — One provider fails for 45 minutes.** Open a provider-specific circuit, retain retryable work durably, use capped backoff with jitter, and route to an alternate provider only if the channel, consent, cost, and delivery contract permit it. Expire time-sensitive marketing notifications rather than delivering them hours late; security alerts may need a different policy.
+
+**Stage 5 — Users report duplicate notifications.** Trace notification IDs through outbox, broker, consumer attempts, provider request IDs, and callbacks. A crash after provider acceptance but before local acknowledgement can cause a duplicate. Use durable deduplication and provider idempotency where available; if the provider offers no idempotency, document the remaining duplicate window and reconcile.
+
+**Stage 6 — Senior trade-off.** Explain that broker durability does not guarantee end-user delivery. The system can guarantee durable acceptance and controlled retry attempts, but provider outages, invalid destinations, and downstream behavior still affect final delivery. Track queue age, attempt rate, provider success, delivery latency percentiles, duplicate reports, and cost per successful delivery.
+
+### Multi-stage mock interview: Ticket booking under contention
+
+**Stage 1 — Define the invariant.** Clarify whether seats are exclusive, whether temporary holds exist, how long a hold lasts, and when payment is captured. The core invariant is that at most one active reservation owns a seat for a given event.
+
+**Stage 2 — Design the critical path.** Use an authoritative database operation with a unique constraint or conditional state transition to reserve a seat. Store hold expiry and reservation state durably. A cache can display approximate availability but must not authorize the reservation.
+
+**Stage 3 — Traffic spikes at onsale.** Use a waiting room or admission control, per-event concurrency budgets, and queue-based load leveling. Prioritize fairness and protect the database. Autoscaling application instances alone may amplify database contention.
+
+**Stage 4 — Payment times out after the seat is held.** Keep the reservation pending while the payment outcome is unknown. Query the provider or reconcile using the stable payment operation ID. Release or confirm the hold according to explicit deadlines and state transitions; do not create a second payment on a blind retry.
+
+**Stage 5 — Hold expiry races with confirmation.** Make confirmation conditional on the hold still being valid and in the expected state. The expiry worker must also perform an atomic transition. Only one transition should win; delayed cleanup must not allow an expired hold to be confirmed.
+
+**Stage 6 — Region failure.** If the system cannot establish the authoritative owner for a seat, reject or queue new reservations rather than accept conflicting ownership. Recover the authority, reconcile payment and reservation state, then reopen writes.
+
+### Multi-stage mock interview: Payment processing with uncertain outcomes
+
+**Stage 1 — Define business guarantees.** Clarify whether the system authorizes or captures funds, whether partial refunds exist, what status the client receives, and what provider idempotency features are available. Distinguish request acceptance from a confirmed financial outcome.
+
+**Stage 2 — Durable operation model.** Persist an operation ID, idempotency key, request fingerprint, amount/currency, and state before calling the provider. Enforce uniqueness for the logical operation and return the same operation for retries using the same key. Reject a key reused with a different payload.
+
+**Stage 3 — Provider times out.** Mark the result unknown or pending. Query provider status or wait for a verified webhook; do not assume timeout means failure. If the provider cannot reliably answer, reconcile against settlement data and keep the operation unresolved until evidence is available.
+
+**Stage 4 — Duplicate or out-of-order webhooks.** Authenticate signatures, persist event IDs, deduplicate, and apply only legal state transitions. Use provider references and stable operation IDs to correlate callbacks. Do not allow an old “pending” event to overwrite a confirmed terminal state.
+
+**Stage 5 — Regional failover.** Preserve one write authority per operation or use a store that guarantees the required consistency. Fence old writers, maintain a durable audit trail, and reconcile before resuming ambiguous operations. Avoid accepting independent financial writes in two partitioned regions.
+
+**Stage 6 — Senior trade-off.** Explain that exactly-once network delivery is not the same as exactly-once business effect. The design combines durable state, idempotency, constraints, authenticated callbacks, and reconciliation to make repeated attempts safe and resolve uncertain outcomes. Measure unknown-outcome age, duplicate-key conflicts, provider latency, callback lag, and settlement mismatches.
 
 
 ## 19. End-to-end case-study index
