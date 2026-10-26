@@ -1415,9 +1415,13 @@ For every scenario, state assumptions, identify the invariant, analyse evidence,
 
 ### Scenario 6 — Autoscaling overloads the database
 
-**Problem:** CPU-driven autoscaling adds instances and saturates the database connection pool.
+**Problem:** CPU-driven autoscaling adds application instances, but database CPU, connection count, and query latency spike until the database becomes the bottleneck.
 
-**Answer:** Each instance increases connections and concurrent queries. Cap total/per-instance connections, bound request concurrency, inspect query time and pool wait, and scale on useful throughput and queueing. Autoscaling needs guardrails; more compute is not more database capacity.
+**Diagnose:** Compare request rate, successful throughput, per-instance pool size, total open connections, pool-acquisition wait, database CPU, lock waits, and query latency. Check whether each new instance adds more concurrent queries than the database can serve. CPU on the application tier is not enough to decide when to scale.
+
+**Design:** Set a database connection budget across the whole fleet, including rolling-deployment surge and background workers. Bound in-flight requests and queue depth, optimize slow queries, and scale application instances only while the database has headroom. If the database is saturated, shed or defer noncritical work instead of adding more concurrent load.
+
+**Trade-off and signals:** Smaller pools can increase application-side waiting but protect the database; larger pools can simply move the queue downstream. Validate capacity with load tests and a node-loss scenario. Monitor successful throughput, pool wait, database saturation, rejected work, and p99 latency.
 
 ### Scenario 7 — Notification provider unavailable for 45 minutes
 
@@ -1427,15 +1431,23 @@ For every scenario, state assumptions, identify the invariant, analyse evidence,
 
 ### Scenario 8 — Redis outage overloads the database
 
-**Problem:** Every request becomes a cache miss.
+**Problem:** Redis becomes unavailable and a read-heavy service sends the full request load to the database, which cannot sustain the cache-miss rate.
 
-**Answer:** Treat fallback as a separate load scenario. Use circuit breaking, database concurrency limits, load shedding, and stale responses only where permitted. Warm the cache gradually after recovery. “Fall back to the database” is not sufficient if the database cannot handle uncached traffic.
+**Diagnose:** Estimate the uncached request rate and compare it with tested database capacity. Check whether Redis failure is total or partial, whether connection timeouts are delaying requests, and whether repeated retries are amplifying traffic.
+
+**Design:** Treat cache failure as a separate capacity scenario. Bound Redis timeouts and fallback concurrency, open a circuit when appropriate, shed low-priority reads, and serve stale data only for endpoints whose freshness and security requirements permit it. Use request coalescing to avoid many simultaneous misses for the same key. After recovery, warm high-value keys gradually rather than stampeding Redis and the database.
+
+**Trade-off and signals:** Fail-open to the database is safe only if the database has headroom. Monitor cache error rate, miss rate, database QPS, pool wait, rejected requests, and recovery ramp. Test the complete cache-outage path in advance.
 
 ### Scenario 9 — One tenant dominates the platform
 
-**Problem:** A large customer degrades p99 for everyone.
+**Problem:** One customer sends a traffic burst or expensive queries that increase latency for every tenant in a shared SaaS platform.
 
-**Answer:** Measure per-tenant rate, concurrency, query cost, storage, and queue use. Add quotas, fair scheduling, isolated pools, or dedicated partitions for large tenants. Enforce tenant identity in cache keys and data access. Ensure quota policy permits contracted bursts and critical recovery.
+**Diagnose:** Attribute request rate, concurrency, CPU/query cost, storage growth, queue depth, and error rate by tenant. Determine whether the problem is a burst, a hot key, an inefficient query, or a genuinely large tenant whose normal load exceeds the shared design.
+
+**Design:** Apply tenant-aware rate and concurrency limits, fair scheduling, bounded per-tenant queues, and workload isolation. Consider a dedicated shard or pool for persistently large tenants, with an explicit routing and migration plan. Enforce tenant scope in authorization and cache keys, not merely in client-supplied filters.
+
+**Trade-off and signals:** Strict quotas protect neighbors but must honor contractual burst allowances and critical recovery operations. Track noisy-neighbor incidents, per-tenant p99, throttling, queue age, and resource consumption. Test that one tenant cannot read or overwrite another tenant's data.
 
 ### Scenario 10 — Zero-downtime migration of a heavily written table
 
@@ -1445,39 +1457,63 @@ For every scenario, state assumptions, identify the invariant, analyse evidence,
 
 ### Scenario 11 — Distributed lock expires while work continues
 
-**Problem:** Worker A pauses past its lease; B acquires the lock; A resumes and writes stale data.
+**Problem:** Worker A obtains a lease and pauses during a long GC pause or network partition. The lease expires, worker B acquires ownership, and then A resumes and attempts to commit stale work.
 
-**Answer:** A lease does not guarantee continued ownership. Use a fencing token or version enforced by the protected resource. Keep work bounded and prefer conditional database updates when possible. A lock service cannot protect a resource that does not validate ownership.
+**Invariant:** At most one current owner may successfully mutate the protected resource. A lock service cannot enforce this invariant by itself if the resource accepts writes from stale owners.
+
+**Design:** Issue a monotonically increasing fencing token or epoch when ownership changes, and require the protected database or service to reject writes with an older token. Prefer a conditional update or unique constraint when it directly expresses the invariant. Make long-running work resumable and idempotent; do not rely only on a worker checking its local lease before writing.
+
+**Follow-up:** Explain what happens if A calls an external provider that cannot validate fencing tokens. Use provider idempotency, a durable operation state machine, and reconciliation to manage the remaining uncertainty.
 
 ### Scenario 12 — p99 latency is poor but averages look healthy
 
-**Problem:** Average is 80 ms but p99 is 2.5 seconds.
+**Problem:** Average latency is 80 ms, but p99 is 2.5 seconds and users report intermittent stalls.
 
-**Answer:** Break traces down by endpoint, tenant, dependency, and request size. Look for queueing, pool waits, slow queries, GC pauses, locks, retries, and fan-out. Bound concurrency and deadlines, isolate noisy workloads, and remove unnecessary serial dependencies. Optimize the percentile that the SLO actually specifies.
+**Diagnose:** Confirm that the percentile uses the correct request population and time window. Break traces down by endpoint, tenant, payload size, region, and dependency. Inspect queue wait, connection-pool acquisition, lock contention, slow queries, garbage collection, retries, and fan-out. Compare latency during peak load with the same path at low load.
+
+**Design:** Fix the dominant source of tail latency rather than optimizing the average. Propagate an end-to-end deadline, bound concurrency and queueing, isolate expensive tenants or optional dependencies, and parallelize only independent calls. If one optional field dominates the tail, allow a partial response only when the API contract explicitly permits it.
+
+**Signals and validation:** Track p50/p95/p99 alongside throughput, errors, and queue/pool wait. Reproduce the workload under load and dependency degradation; a low average does not prove that the SLO is met.
 
 ### Scenario 13 — Multi-region partition during financial writes
 
-**Problem:** Two regions lose connectivity and both receive updates.
+**Problem:** Regions A and B lose connectivity, but both continue receiving requests to debit, refund, or update the same financial entity.
 
-**Answer:** Establish a single write authority per entity or use globally consistent coordination. Fence stale leaders; reject or queue writes when ownership cannot be proven. Reconcile provider and internal ledgers before resuming. Independent active-active writes are unsafe if they can create conflicting financial effects.
+**Clarify:** Which system is authoritative, what does an accepted response promise, and can the datastore establish one write owner during the partition?
+
+**Design:** Use a single authoritative writer per entity or a datastore with the required globally consistent transaction semantics. Fence the old owner so it cannot commit after promotion. If ownership cannot be proven, reject the write with a retryable response or durably record a pending command without claiming that the financial mutation has committed. Preserve the same idempotency identity across retries and reconcile provider records before resuming normal processing.
+
+**Trade-off and signals:** Strong coordination can reduce write availability during a partition; allowing conflicting writes risks irreversible double effects. Monitor owner changes, rejected/queued writes, unknown payment outcomes, and ledger discrepancies. Active-active application servers do not imply safe active-active writes.
 
 ### Scenario 14 — New microservice makes requests slower
 
-**Problem:** One in-process call becomes three network calls.
+**Problem:** A feature that previously made one in-process call now calls three services, increasing p99 latency and creating new failure paths.
 
-**Answer:** Compare serialization, connection setup, retries, fan-out, and database round trips. Use coarser APIs, connection reuse, parallelize only independent calls, or use read models where justified. Recombine modules if the boundary adds no ownership or operational benefit.
+**Diagnose:** Compare traces before and after extraction. Include network and serialization cost, connection-pool waits, retries, sequential versus parallel calls, duplicated database queries, and the availability of each required dependency. Check whether the new service owns its data or merely adds a network hop to a shared database.
+
+**Options:** Coarsen the API to avoid chatty calls, reuse connections, parallelize independent requests under a concurrency limit, or build a read model for a high-volume composite query. Keep authorization and consistency-critical checks at the appropriate authoritative owner. If the service boundary adds no independent ownership, scaling, deployment, or isolation benefit, a well-defined module in the same deployment may be better.
+
+**Decision:** Compare end-to-end latency, operational cost, and failure behavior—not just per-service CPU. A microservice is an organizational and operational boundary, not an automatic performance optimization.
 
 ### Scenario 15 — Retry policy creates an outage
 
-**Problem:** Client, gateway, and worker each retry a slow dependency three times.
+**Problem:** The client, gateway, and worker each retry a slow dependency three times, turning one logical request into a burst of downstream attempts.
 
-**Answer:** Nested retries can multiply attempts. Assign a retry owner where practical, propagate deadlines, use bounded attempts and jitter, and never retry non-idempotent writes without deduplication. Add circuit breaking and load shedding during recovery.
+**Analysis:** Retries at multiple layers can multiply attempts rather than simply add a few extra calls. Timeouts can also leave the caller uncertain whether a write committed, so a retry may duplicate a side effect.
+
+**Design:** Choose a clear retry owner where possible, propagate an end-to-end deadline, cap attempts, and use exponential backoff with jitter. Retry only failures likely to be transient and only when the operation is safe to repeat through idempotency or deduplication. Apply concurrency limits, retry budgets, circuit breaking, and load shedding; restore traffic gradually after recovery.
+
+**Signals and validation:** Monitor attempts per logical request, timeout rate, retry traffic, dependency saturation, and recovery time. Test an outage and recovery, not just a single injected failure. See [Google SRE guidance on cascading failures](https://sre.google/sre-book/addressing-cascading-failures/).
 
 ### Scenario 16 — API returns success before work is durable
 
-**Problem:** The service replies “created” before database commit or durable queue acknowledgement.
+**Problem:** The API responds `201 Created` or `202 Accepted` before the database transaction commits or the broker durably acknowledges the queued job. A process crash can then lose work that the client believes was accepted.
 
-**Answer:** Define what success means. If it promises durable acceptance, persist the operation or obtain the required durable acknowledgement before responding. For asynchronous work, return an explicit accepted/pending state and operation ID. Scheduling an in-memory task is not durable acceptance.
+**Clarify the contract:** `201 Created` normally indicates that a resource was created; `202 Accepted` indicates that processing was accepted but may not be complete. Neither status code itself guarantees durability—the implementation and documented contract must provide it.
+
+**Design:** For synchronous creation, commit the durable record before returning success. For asynchronous processing, persist a job or operation record (often with an outbox in the same transaction as business state) before acknowledging acceptance. Return an operation ID and expose pending, succeeded, failed, and retryable states. In-memory task submission alone is not durable acceptance.
+
+**Failure handling:** Test crashes between persistence, broker publication, and response transmission. A client timeout after commit can cause a retry, so use an idempotency key and return the existing operation rather than creating a duplicate.
 
 ### Scenario 17 — Strongly consistent payments and eventually consistent analytics
 
