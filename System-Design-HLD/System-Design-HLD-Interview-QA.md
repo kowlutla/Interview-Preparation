@@ -49,7 +49,9 @@ A reasonable default is 0–5 minutes for requirements; 5–10 for quality targe
 
 ### Q4. What should you clarify before drawing the architecture?
 
-Ask about users, core actions, traffic and bursts, read/write ratio, latency, availability, retention, correctness invariants, geographic distribution, privacy, and cost. Ask questions that could change the design. If information is unavailable, state an assumption and proceed.
+Start with the users and their most important journeys: what must they be able to do, and what must never go wrong? Then ask about scale (average and peak traffic, bursts, data growth), read/write patterns, latency and availability targets, retention, geography, privacy, and cost. For workflows such as payments or booking, explicitly ask which outcomes must be atomic and which can complete asynchronously.
+
+Prioritize questions that could change the design. For example, a notification system with a two-second delivery target needs a different queueing and provider strategy from a bulk email system that can take an hour. If the interviewer cannot provide a number, state a reasonable assumption and continue rather than getting stuck.
 
 ### Q5. How do functional and non-functional requirements differ?
 
@@ -57,7 +59,9 @@ Functional requirements describe what the system does, such as create an order o
 
 ### Q6. How do you handle an ambiguous prompt such as “design a notification system”?
 
-Clarify channels, volume, latency classes, provider constraints, preferences, retries, deduplication, and what delivery means. Define states such as accepted, queued, sent to provider, and confirmed delivered. This avoids promising guarantees that the system cannot actually observe.
+Turn the broad phrase into a few concrete journeys. Ask which channels are needed (email, SMS, push), expected volume and burst size, delivery deadlines, user preferences, provider quotas, and whether notifications may expire. Clarify what “delivered” means: accepted by your API, durably queued, accepted by the provider, or confirmed on the recipient's device. Those are different guarantees.
+
+Then identify which work must be synchronous. A request can return an operation ID after the notification request is durably recorded, while provider delivery happens asynchronously. Design for retries, duplicate events, provider outages, and per-channel priorities; otherwise, “send a notification” hides the main architectural decisions.
 
 ### Q7. How do you avoid overengineering?
 
@@ -97,7 +101,9 @@ You can explain the main user flow, data ownership, critical invariant, expected
 
 ### Q12. How should you communicate a trade-off?
 
-Use: “Given requirement X, I choose A because it provides Y. The cost is Z. If constraint X changes to W, I would reconsider B.” This is stronger than claiming one technology is universally best.
+Make the reasoning conditional on the requirement: “Because this workflow must prevent duplicate seat reservations, I would enforce uniqueness in the authoritative database. That gives us a clear correctness boundary, but contention can limit throughput for a very hot event. If the business accepts overselling or uses temporary inventory allocation, I would revisit the design.”
+
+A good trade-off answer names the benefit, the cost, the failure mode, and the condition that would change your decision. Avoid saying that a technology is “best” without explaining the workload and guarantees that make it suitable.
 
 ## 2. Requirements and quality attributes
 
@@ -115,11 +121,15 @@ For example, a catalogue can remain available while showing a slightly stale pro
 
 ### Q14. Latency versus throughput: what is the difference?
 
-Latency is the time an operation takes; throughput is the number completed per unit time. A system can have high throughput and poor latency when it batches or queues work, and low latency at low load but collapse at peak load. Measure distributions, not only averages.
+Latency is how long one operation takes from the relevant start point to completion. Throughput is how many operations complete per unit of time. They are related but not interchangeable: batching can increase throughput while making each request wait longer, and a service can look fast at low load but become slow when queues form near saturation.
+
+For example, a worker may process 10,000 events per second overall while an individual event waits 30 seconds in the queue. Track latency percentiles and successful throughput together, and include queueing time in end-to-end latency. Higher request rate is not useful if it mainly produces timeouts or work that completes after its deadline.
 
 ### Q15. Why do P95 and P99 latency matter?
 
-P95 is the latency below which 95% of observations fall; P99 is the corresponding 99th percentile. Averages hide slow outliers. When a page depends on many calls, completion can be dominated by the slowest required call, so tail latency matters disproportionately.
+P95 is the value at or below which 95% of measured requests complete; P99 is the equivalent threshold for 99% of requests. If average latency is 80 ms but p99 is 2.5 seconds, the average hides a painful experience for a meaningful subset of users. Tail latency often reveals queueing, lock contention, garbage-collection pauses, hot keys, or slow downstream dependencies.
+
+Fan-out makes this especially important. If an endpoint waits for several required services, the whole response may be delayed by the slowest call. Measure percentiles by endpoint and request class, and always state the measurement window and population; percentile values from different windows or samples are not directly comparable.
 
 ### Q16. What are SLI, SLO, and SLA?
 
@@ -179,7 +189,9 @@ If 8,000 events/second arrive and each worker instance reliably processes 500 ev
 
 ### Q27. How do retries affect capacity?
 
-Retries increase attempt rate above incoming request rate. During an outage, synchronized retries can overload the already struggling dependency. Estimate retry amplification and use bounded attempts, exponential backoff with jitter, deadlines, and admission control.
+Capacity must be sized for **attempts**, not only original logical requests. If 1,000 requests per second each trigger two retries, the dependency can receive up to 3,000 attempts per second for that traffic, before considering retries at other layers. During an outage, this amplification can push a partially unhealthy service into a cascading failure.
+
+Use bounded retries with exponential backoff and jitter, stop when the end-to-end deadline expires, and retry only operations that are safe to repeat. Choose a clear retry owner where possible; client, gateway, service, and broker retries can multiply. Monitor attempts per logical operation as well as raw request rate.
 
 ### Q28. How do you estimate cache memory?
 
@@ -203,7 +215,9 @@ Each step has costs and failure modes. DNS can return a stale endpoint; connecti
 
 ### Q32. Layer 4 versus Layer 7 load balancing?
 
-Layer 4 balances using transport information such as IP addresses and ports. Layer 7 understands application protocols and can route by host, path, headers, or other request properties. Layer 7 enables richer policies but adds processing and protocol complexity.
+A Layer 4 load balancer routes using transport-level information such as IP addresses, ports, and connection state. It does not need to understand the HTTP path or application payload, so it can be a good fit for efficient connection distribution. A Layer 7 load balancer understands the application protocol and can route based on hostnames, paths, headers, cookies, or other request properties.
+
+Layer 7 is useful for API routing, authentication integration, and request-aware policies, but it adds processing and configuration complexity. Neither layer automatically makes a backend highly available: health checks, capacity, connection draining, and shared dependencies still matter.
 
 ### Q33. Which load-balancing algorithms are common?
 
@@ -211,7 +225,9 @@ Round robin distributes requests cyclically; least-connections prefers backends 
 
 ### Q34. Are health checks enough for safe failover?
 
-No. Liveness indicates whether a process should be restarted; readiness indicates whether it should receive traffic. Overly aggressive checks can remove healthy instances during a transient dependency outage and amplify the incident. Drain connections during planned removal.
+No. A health check is a signal, not a complete failover protocol. **Liveness** asks whether a process should be restarted; **readiness** asks whether it should receive new traffic. A process can be alive but not ready, and a shared database outage can make every instance fail a dependency check even though restarting those instances will not fix the database.
+
+Use thresholds and time windows that avoid reacting to brief noise, and distinguish process health from dependency health. During planned removal, mark the instance unready and drain existing requests before shutdown. For stateful systems, a health check alone must never decide write ownership or prove that the old leader has stopped accepting writes.
 
 ### Q35. What are the limitations of sticky sessions?
 
@@ -235,11 +251,15 @@ A CDN caches eligible content near users, reducing origin load and geographic la
 
 ### Q39. REST versus RPC/gRPC: how do you choose?
 
-REST over HTTP is interoperable and well suited to resource-oriented public APIs. gRPC provides typed contracts, efficient binary serialization, and streaming patterns useful for some internal calls. Neither is automatically faster end-to-end; topology, payloads, tooling, observability, and operations matter.
+REST over HTTP is often a good fit for public, resource-oriented APIs because it is broadly supported by browsers, gateways, debugging tools, and client libraries. gRPC provides generated typed contracts, compact Protocol Buffers messages, and first-class streaming, which can be useful for internal service calls or high-volume communication.
+
+Do not choose based only on claims that one protocol is faster. Network topology, payload size, connection reuse, serialization cost, proxy support, observability, and team tooling all affect end-to-end performance. Choose the contract and operational model that fit the clients and workload, and benchmark realistic traffic if performance is the deciding factor.
 
 ### Q40. How do you change an API without breaking clients?
 
-Prefer additive compatible changes: optional fields and preserved meanings. Version when semantics must change incompatibly. Measure adoption, publish deprecation windows, and remove old contracts only when usage and policy permit. Test mixed-version deployments.
+Prefer additive changes that preserve existing field meanings and behavior—for example, adding an optional response field that old clients can ignore. Treat a semantic change as potentially breaking even if the JSON shape remains the same; changing `amount` from gross to net is a contract break without a schema change. Avoid reusing a removed field name for a different meaning.
+
+When an incompatible change is unavoidable, use a versioning or migration plan, publish a deprecation window, measure which clients still use the old contract, and remove it only when the agreed policy allows. Test old and new clients against mixed-version deployments and ensure rollback does not leave incompatible data behind.
 
 ### Q41. Offset versus cursor pagination?
 
