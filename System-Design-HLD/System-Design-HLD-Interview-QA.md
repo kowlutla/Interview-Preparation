@@ -2,7 +2,7 @@
 
 **Audience:** Java backend engineers with 5+ years of experience preparing for senior backend and product-company interviews.  
 **Purpose:** A progressive guide to architecture reasoning, capacity estimation, data ownership, consistency, failure handling, operations, and cost.  
-**Status:** Rebuilding for the 5–10 year experience band. Recent rewrites cover capacity calculations, idempotency, service boundaries, caching, transactions, retries, security boundaries, observability, deployment safety, multi-region design, and recovery objectives, alongside database and traffic-infrastructure deep dives. Remaining coverage, technical accuracy, readability, and rendered diagrams still require review; not final sign-off.
+**Status:** Rebuilding for the 5–10 year experience band. Recent rewrites deepen capacity calculations, data ownership, synchronous/asynchronous boundaries, event and queue semantics, outbox/idempotency, payment correctness, retries, caching, security, observability, deployment safety, and multi-region recovery. Coverage, technical accuracy, readability, and rendered diagrams still require review; not final sign-off.
 
 > **How to use this guide:** Learn fundamentals in order, then practise scenarios aloud. State assumptions, identify the critical business invariant, estimate scale, draw the simplest viable architecture, and deepen the part the interviewer challenges. Naming technologies is not the goal; explaining why the design satisfies requirements is.
 
@@ -699,7 +699,13 @@ Measure mismatch count, oldest unresolved discrepancy, repair success, and repea
 
 ### Q80. Queue versus event stream?
 
-A task queue commonly distributes work among workers, with each task intended for one worker in a consumer group. An event stream retains an ordered log that multiple independent consumers can read and replay within retention. Products may support both patterns, but retention, replay, ordering, and acknowledgement semantics differ.
+A **queue** usually models work to be performed. A consumer receives a task, processes it, and acknowledges completion; the broker's delivery semantics determine when work can be redelivered. A **retained event stream** models a sequence of facts that happened. Consumers can often read independently from their own offsets and replay retained history to rebuild a projection or recover after a bug. Broker products can support both patterns, so the distinction is about semantics and operational contract rather than product branding.
+
+For a task queue, the main questions are visibility/lease timeout, acknowledgement, retries, dead-letter handling, fairness, and whether one task should be processed by only one worker at a time. For an event stream, key questions include partition ordering, retention, consumer offsets, replay, schema evolution, and how multiple consumer groups read the same events independently. Some queue systems also support competing consumers and delayed retries; some log systems can implement work distribution with consumer groups.
+
+Example: “send this email” is a work item; “order 123 was confirmed” is a business fact that can feed email, analytics, search, and customer history independently. Do not use a queue acknowledgement as evidence that an external side effect definitely completed if the worker can crash between the side effect and ack. The consumer still needs idempotency or deduplication.
+
+Choose the abstraction based on whether a message represents an instruction or an immutable fact, whether history must be replayable, and who owns retry and retention policy. In either model, define delivery guarantees, ordering scope, poison-message behavior, idempotency, capacity, and what happens when the backlog exceeds its business deadline.
 
 ### Q81. What is a Kafka partition key?
 
@@ -725,20 +731,13 @@ Replay is another production workload: rate-limit it, preserve ordering where th
 
 ### Q84. What is the transactional outbox pattern?
 
-Write the business change and an outbox record in the same database transaction. A publisher or CDC pipeline then publishes the record. This avoids the dual-write gap where the database commits but the event is lost—or the event publishes while the database rolls back. Publication may repeat, so consumers should be idempotent.
+The transactional outbox addresses the **dual-write problem**: an application changes its database and publishes an event to a broker, but the database commit and broker publish are two separate operations. If the database commits and publishing fails, downstream consumers never hear about the change. If the event publishes but the database rolls back, consumers observe a fact that did not commit.
 
-```mermaid
-flowchart TD
-  R[Request] --> T[Single database transaction]
-  T --> D[(Business data)]
-  T --> O[(Outbox row)]
-  O --> P[Publisher or CDC]
-  P --> B[Broker]
-  B --> C[Idempotent consumer]
-  C --> S[(Consumer state / side effect)]
-```
+With an outbox, the application writes both the business change and an outbox row in the same local database transaction. A separate publisher reads committed outbox rows and sends them to the broker. The publisher then marks the row as sent or stores publication progress. Because the business mutation and event intent share one ACID transaction, the system does not lose the intent merely because the broker is temporarily unavailable.
 
-The important property is that the business change and outbox row commit together. Publishing is a separate, retryable step; it can publish the same event more than once, so downstream processing still needs deduplication.
+The publisher can crash after publishing but before marking the row sent, so duplicate publication is expected. Consumers must therefore be idempotent, usually using a stable event ID and an inbox/processed-event record coordinated with the consumer's local state change. The outbox provides reliable eventual publication, not end-to-end exactly-once side effects.
+
+Operational design matters: poll with bounded batches or use CDC on the outbox; preserve the required per-aggregate ordering; avoid one locked publisher query becoming a bottleneck; monitor oldest unpublished event, backlog size, publisher errors, and duplicate rates; and define retention/cleanup. If an event contains sensitive data, minimize the payload and control access. The interview-quality explanation should show the failure window it closes, the duplicate window it still has, and how consumers recover safely.
 
 ### Q85. Saga choreography versus orchestration?
 
@@ -760,29 +759,13 @@ Do not assume it is always safe to skip the message. If later events depend on i
 
 ### Q87. How do you prevent duplicate payment charges?
 
-Create a durable payment-operation record with a unique business/idempotency key before calling the provider. Repeated submissions resolve to the same operation. Pass a stable idempotency key to the provider if supported and persist provider references. Understand the provider's key scope and retention window: a retry after that window may not be deduplicated, so query status or reconcile before resubmitting. Treat timeouts as unknown outcomes and do not blindly initiate a new charge.
+Treat payment processing as a durable state machine, not a single request that either succeeds or fails. The critical case is a timeout after the provider may have charged the customer but before your service receives the response. Retrying a new charge with a new identity can create a second debit.
 
-```mermaid
-sequenceDiagram
-  participant C as Client
-  participant A as Payment API
-  participant D as Payment DB
-  participant P as Provider
-  C->>A: Pay with idempotency key
-  A->>D: Create or load operation
-  A->>P: Submit with stable provider key
-  alt Provider confirms
-    P-->>A: Result / reference
-    A->>D: Persist outcome
-    A-->>C: Return operation result
-  else Timeout / unknown outcome
-    A->>D: Mark pending or unknown
-    A-->>C: Return pending operation ID
-    Note over A,D: Reconcile or process authenticated callback
-  end
-```
+Create a stable payment/attempt ID before calling the provider and enforce uniqueness for the logical business operation (for example, one payment attempt per order and payment revision). Accept a client idempotency key and atomically bind it to the request fingerprint and payment record. Concurrent requests using the same key must resolve to the same operation. Pass a stable provider idempotency key if the provider supports it, but verify that provider's key scope and retention period rather than assuming it is permanent or globally unique.
 
-The operation record is created before the external side effect. A timeout moves the workflow into an uncertain state; it must not trigger a new logical payment with a new key.
+Use explicit states such as CREATED, SUBMITTING, AUTHORIZED, CAPTURED, FAILED, and UNKNOWN/RECONCILIATION_REQUIRED, with legal transitions. Do not mark a payment failed merely because the HTTP call timed out. Query provider status, consume signed callbacks/webhooks idempotently, and reconcile internal records against provider transaction reports. Keep an auditable ledger of financial state transitions; avoid mutating a single status field in ways that erase evidence of prior actions.
+
+The database transaction and external provider operation are not one atomic transaction. The design must account for crashes before the call, after provider success, after response receipt, and before the local status commit. If a duplicate side effect is discovered, define safe compensation and customer communication. Explain which invariants are enforced locally, which guarantees depend on the provider, and how an unknown outcome eventually becomes resolved.
 
 ### Q88. How do you prevent double booking a seat?
 
@@ -836,15 +819,23 @@ Provide retry-safe downstream actions, dead-letter handling for invalid payloads
 
 ### Q93. How should retries be designed?
 
-Retry only failures that are likely to be transient, only when repeating the operation is safe, and only while the caller's deadline leaves time for another attempt. Use exponential backoff with jitter and a maximum attempt count or retry budget. Permanent validation errors should not be retried indefinitely.
+A retry policy must specify **which failures**, **how many attempts**, **how long to wait**, **the overall deadline**, and **what makes repeating the operation safe**. Retrying every error is dangerous: validation and authorization errors are usually permanent, while timeouts, connection resets, and throttling may be transient. The exact decision depends on the dependency contract.
 
-Coordinate policies across clients, gateways, services, SDKs, and message consumers; independent retry layers can multiply attempts. For a mutation, use idempotency or a durable operation state machine because a timeout does not prove the original attempt failed. Monitor retries per logical operation and test both outage and recovery behavior.
+Use exponential backoff with jitter to spread retries over time. Bound per-request attempts and total retry time, and use a retry budget so retry traffic cannot grow without limit during an incident. Respect provider retry-after headers when applicable. A retry must fit inside the caller's overall deadline; a downstream call should not continue for longer than the request that depends on it. For asynchronous work, use durable delayed retries rather than holding a request thread for minutes.
 
-### Q94. What does a circuit breaker do?
+The important ambiguity is whether the first attempt took effect. A timeout from a GET and a timeout from a payment mutation have different consequences. Use idempotency keys or operation IDs for mutations, and reconcile external outcomes before issuing a new logical operation. Assign one clear layer to own retries where possible: client, SDK, gateway, service, mesh, and broker retries can otherwise multiply.
 
-A circuit breaker temporarily stops calls to a dependency that appears unhealthy, so callers fail fast or use an approved fallback instead of filling threads and connection pools with requests that are unlikely to succeed. Common states are **closed** (calls flow normally), **open** (calls are rejected), and **half-open** (a limited number of probes test recovery).
+During overload, retries may need to be suppressed or shed before new requests are rejected. Monitor attempts per logical request, retry success rate, retry-generated QPS, timeout rate, and downstream saturation. A policy that eventually succeeds after many attempts can still be harmful if it destroys p99 latency and recovery capacity. State the failure model and the side-effect guarantee when explaining a retry strategy.
 
-A breaker complements timeouts and concurrency limits; it does not replace them. Thresholds that are too sensitive can cause unnecessary outages, while thresholds that react too slowly may not prevent overload. Define what callers receive when the breaker is open, ensure recovery probes do not all fire at once, and monitor open duration, rejected calls, and probe results.
+### Q94. What does a circuit breaker do, and when can it make things worse?
+
+A circuit breaker stops or limits calls to a dependency when observations indicate that continuing to call it is unlikely to succeed or may worsen overload. In a common state machine, **closed** allows calls while tracking outcomes; **open** rejects/fails fast for a cooling period; **half-open** permits a limited number of probes to test recovery. The exact thresholds, rolling window, and treatment of slow calls depend on the implementation.
+
+It protects resources by preventing every caller from waiting on a dependency that is already failing. But a breaker is not a queue, a timeout, or a bulkhead. A timeout bounds waiting, a bulkhead caps concurrent resource usage, and a breaker suppresses calls based on failure observations. They often complement one another.
+
+Bad configuration can create problems. A shared breaker that is too sensitive may open during a brief noisy period and cut off healthy traffic; one breaker per process may open at different times and create a synchronized flood of half-open probes. Treating business 4xx responses as dependency failures can open the breaker incorrectly. Falling back to a cache or alternate provider can also be unsafe if the fallback violates data freshness or correctness.
+
+Define which outcomes count as failures, minimum sample volume, open duration, probe limits, and the behavior when open. Monitor open/half-open transitions, rejected calls, slow-call rates, and recovery. Use jitter or controlled probes at scale, and do not let each layer independently retry through the breaker. In an interview, explain what protects the caller from waiting, what protects the dependency from concurrency, and how the system recovers after the dependency is healthy again.
 
 ### Q95. What is a bulkhead, and how is it different from a circuit breaker?
 
@@ -1053,15 +1044,33 @@ Treat savings as an experiment: define the metric, the acceptable guardrails, ro
 
 ### Q115. When is a modular monolith preferable?
 
-When a small team needs cohesive deployment, transactions across related modules, and low operational overhead. Keep modules separated by domain APIs and ownership so future extraction remains possible. Avoid shared mutable internals and cross-module table access that make separation difficult.
+A modular monolith deploys as one application but enforces clear internal module boundaries, ownership, and interfaces. It is often preferable when a product is evolving quickly, the team is small or medium-sized, domain boundaries are still changing, and most operations benefit from simple local transactions and low-latency in-process calls.
+
+The key word is **modular**. Modules should have explicit APIs, own their data structures, and avoid reaching into each other's internal tables or classes arbitrarily. If every feature can directly change every other module's internals, the architecture is a monolith without meaningful boundaries. Enforcing those boundaries makes later extraction more deliberate.
+
+Compared with microservices, a modular monolith has fewer network failure modes, simpler local debugging and deployment, less duplicated infrastructure, and easier cross-module transactions. Its costs include coupled release cadence, a shared process/resource failure domain, and less independent scaling. Strong module separation and runtime metrics can reveal which capability would benefit most from extraction later.
+
+Split a module when the benefit is concrete: independent scaling, a different security/reliability boundary, independent ownership/release needs, or a stable domain contract. Before extracting, define data ownership, API/event semantics, failure behavior, and migration strategy. In an interview, proposing a modular monolith can be the more senior answer when it satisfies requirements; the sophistication is in explaining the boundary and evolutionary path, not in maximizing service count.
 
 ### Q116. Explain the Strangler pattern.
 
-Incrementally move capabilities from a legacy system to a new implementation. Route selected flows to the new path while the old system serves the rest. Use clear data ownership, compatibility adapters, observability, and rollback. Avoid independent writes from both systems without reconciliation.
+The Strangler pattern replaces parts of a legacy system incrementally rather than rewriting everything in one release. A routing layer or façade directs selected capabilities to a new implementation while remaining functionality stays in the old system. Over time, more responsibilities move behind the new boundary until the legacy path can be retired.
+
+A safe migration begins by choosing a narrow business capability with measurable behavior and a clear owner. Define the contract, identify the authoritative data store, and map hidden dependencies such as batch jobs, reports, integrations, and administrative tools. Build compatibility adapters when clients cannot migrate at once. Route a small cohort or operation type to the new implementation, compare results, and expand only after correctness and latency are validated.
+
+Data is usually the hardest part. Avoid uncontrolled dual writes to old and new stores. Use a defined source of truth, CDC/event propagation or controlled migration, stable IDs, versioned routing, and reconciliation. Shadow reads can compare outputs without exposing the new result; shadow writes require much more caution because they may create real side effects. Ensure the new version can handle in-flight workflows and old event schemas.
+
+Rollback has a boundary: once the new system has accepted writes that the old one cannot understand, routing back may lose or corrupt state. Plan reverse replication or forward repair, define the point of no return, and retain audit data. Monitor traffic split, mismatch counts, migration lag, business outcomes, and remaining legacy dependencies. Strangling is an operational program with phases and exit criteria, not just a proxy in front of two applications.
 
 ### Q117. How do you evolve from thousands to millions of users?
 
-Do not build hypothetical scale at the expense of delivery. Establish SLOs and load-test baselines, identify likely constraints, and evolve when evidence appears. Stable IDs, tenant isolation, data ownership, and idempotency are often cheaper to design early than retrofit later.
+Do not tie architecture to a user-count milestone alone. A million mostly inactive users can be easier than ten thousand users generating expensive, highly concurrent writes. Evolve based on measured workload: peak QPS, read/write mix, payload size, storage growth, key skew, latency objective, and dependency quotas.
+
+A sensible evolution path is to begin with a well-instrumented, modular application and an appropriate primary database. First improve correctness and query plans, add indexes deliberately, bound connection pools and queues, and load-test. Add caching for repeated reads, replicas for read workloads that tolerate their consistency, and asynchronous workers for durable work that need not block the user response. Apply admission control and per-tenant fairness before overload.
+
+When the bottleneck persists, scale the constrained component: more application instances for stateless CPU-bound work; database tuning or vertical scale for database limits; partitions for retention/query pruning; sharding for independently distributed data; additional broker partitions when parallelism and ordering allow it. Every step changes operational failure modes, so add observability, runbooks, rollback, and capacity headroom as the architecture grows.
+
+Avoid “scale out everything” as a default. Stateless app nodes may be cheap to add, but each may create more database connections and downstream concurrency. A cache can lower normal load but worsen a cold-start incident. More services may allow independent scaling but add network and consistency cost. Explain what is limiting the system today, what evidence supports the next step, and how you would safely migrate rather than drawing a future-state diagram disconnected from current constraints.
 
 ### Q118. How do you reason about cost per request?
 
@@ -1235,7 +1244,13 @@ This section adds cross-cutting architecture questions that interviewers use to 
 
 ### Q119. How do you turn requirements into an architecture instead of jumping directly to components?
 
-Start by writing down user-visible operations and the invariant each operation must preserve. For each journey, identify its authoritative data, latency target, failure behavior, and dependencies. Estimate the load, then draw the smallest architecture that satisfies those constraints. For example, “place an order” might require a synchronous durable order record but allow email and analytics to happen asynchronously. The requirement—not a preference for Kafka or microservices—determines the boundary.
+Translate the product request into **user journeys, business invariants, measurable quality targets, and workload assumptions** before selecting components. For a ticketing system, journeys include search events, view availability, hold a seat, pay, and receive confirmation. The invariant might be “one seat cannot be sold to two orders”; latency targets differ between search and checkout.
+
+Next quantify the expected traffic and data: peak requests, reads/writes per journey, event rates, record growth, retention, fan-out, and external quotas. Draw the simplest architecture that meets these constraints, showing trust boundaries, synchronous calls, asynchronous events, persistent stores, and the owner of each fact. Do not add Kafka, Redis, a service mesh, or a search engine until a requirement justifies the capability.
+
+Then walk through the main flow and its failure windows: what if a dependency times out, a write commits but the response is lost, an event is duplicated, or a region fails? Choose consistency and recovery behavior per operation. Identify bottlenecks and describe how the design evolves if the workload changes.
+
+Finally, state trade-offs and operational proof: what you would load-test, which SLOs you would measure, how you would roll out schema changes, and which unresolved assumptions could change the architecture. This flow is reusable across interview prompts. It produces a design that is tied to requirements and gives the interviewer clear places to probe, rather than a catalogue of technologies.
 
 ### Q120. How do you distinguish a system boundary from a deployment boundary?
 
@@ -1243,11 +1258,23 @@ A system boundary describes ownership, trust, data, and responsibility; a deploy
 
 ### Q121. How do you decide which work belongs on the synchronous request path?
 
-Keep synchronous work limited to what is necessary to produce a truthful response and preserve immediate business invariants. Move slow, retryable, or nonessential side effects—such as analytics, noncritical notifications, or media processing—to durable asynchronous workflows. However, asynchronous acceptance must be durable: if the API promises “accepted,” persist the job or outbox record before returning. Do not acknowledge work that exists only in process memory.
+The synchronous path should contain the work needed to return a truthful and useful answer to the caller. Include the minimum validation, authorization, and authoritative state transition needed to uphold the business invariant. Move work that can safely happen later—emails, analytics, search indexing, bulk reports, noncritical enrichment—to a durable asynchronous path when it would otherwise increase latency or couple availability to optional dependencies.
+
+The choice is not “synchronous is bad, asynchronous is good.” If the user asks to reserve inventory, the system may need to commit a hold before claiming it is reserved. If the user requests an export, the service can durably record the job and return an operation ID rather than keep an HTTP request open for 20 minutes. If a payment is merely accepted for processing, the API must communicate PENDING/ACCEPTED instead of promising that payment is completed.
+
+Async introduces its own contract: durable acceptance, queue retention, idempotent consumers, status visibility, retries, ordering, expiry, and dead-letter remediation. An in-memory fire-and-forget task is not durable acceptance. Decide what the system returns if the broker is down, whether the operation can expire before execution, and how clients discover final success or failure.
+
+Estimate the latency and failure contribution of each synchronous dependency. Every required fan-out call adds latency and can reduce availability. Keep optional features off the critical path when the business allows degradation, but do not move a correctness-critical check behind eventual processing. In an interview, explain both why work is asynchronous and what guarantee is established before returning the HTTP response.
 
 ### Q122. How do you identify the authoritative source of truth in a system with several databases?
 
-For each business fact, name one authoritative owner and distinguish it from caches, search indexes, analytics stores, and replicated read models. A product search index can be stale, but checkout should validate price and availability against their authoritative owners. If two services can independently overwrite the same fact, define conflict resolution or redesign ownership. “Both databases are the source of truth” is usually a warning that consistency responsibilities are unclear.
+For each important business fact, name the system that owns the right to accept and validate changes. An order database may own order status, a payment ledger may own financial movements, and a search index may be a derived projection of catalogue data. There can be many copies, but the architecture needs an explicit rule for which one is authoritative when they disagree.
+
+Ownership is about more than where data physically lives. It includes which service may mutate the fact, which invariants are enforced transactionally, how changes are published, and how a derived copy is rebuilt. If every service can update the same shared rows, service boundaries are weak even if the system has many databases.
+
+For example, a search index may show “available” based on a recent event, but checkout should ask the inventory owner to perform an authoritative conditional reservation. Search is optimized for discovery and may lag. Likewise, an analytics warehouse can report a payment count but should not authorize a refund based on a possibly delayed aggregate.
+
+Use contracts and identifiers to coordinate across owners: domain events/outbox, APIs for commands, CDC for data-change propagation where appropriate, and reconciliation for missed or conflicting updates. Document propagation lag and deletion behavior. Avoid treating a read replica, cache, materialized view, and transactional source as interchangeable. In an interview, describe what happens when two stores disagree, which store wins, and how the other copies converge without silently overwriting newer data.
 
 ### Q123. What is a materialized view, and when is it useful?
 
@@ -1255,7 +1282,13 @@ A materialized view stores a precomputed representation of data for a read patte
 
 ### Q124. How do you choose between request-time fan-out and precomputation?
 
-Request-time fan-out keeps data fresh and avoids storing every combination, but latency and availability depend on several services. Precomputation moves work to the write/update path and makes reads predictable, but introduces staleness and update complexity. Use request-time composition for low-volume or highly personalized data when latency permits; precompute hot, repeatable views when read volume is high and freshness can be bounded. A hybrid often works best.
+Request-time fan-out composes data by calling several services when the client asks. It keeps results relatively fresh and avoids storing every combination in advance, but latency is affected by downstream calls, and the endpoint inherits their failure modes. If all ten parallel dependencies must succeed, the endpoint's availability is lower than any one dependency under an independence assumption, and the tail is often dominated by the slowest required call.
+
+Precomputation builds a materialized view, feed, search result, or aggregate ahead of the request. Reads become faster and can be served from a purpose-built store, but writes/events must update the projection, propagation lag becomes visible, and rebuild/reconciliation is required. A hybrid often works best: precompute stable or expensive parts, then fetch a small amount of critical/fresh data at request time.
+
+Example: a news feed can precompute candidate post IDs, then fetch current privacy/deletion state before returning the response. A dashboard can serve recent aggregates from a materialized view but label its freshness. A checkout flow should not rely on a delayed precomputed inventory view to finalize a reservation.
+
+Estimate read rate, update rate, fan-out depth, data freshness requirement, and cost of recomputation. Precomputation becomes attractive when many reads reuse the same expensive result, but high write churn and personalized combinations can make it wasteful. Define how events are deduplicated and ordered, how deletes propagate, and how the view is rebuilt from a known source of truth. Decide what happens when the projection is stale or unavailable rather than silently serving old data.
 
 ### Q125. What is the difference between a control plane and a data plane?
 
@@ -1289,7 +1322,13 @@ A global lock serializes otherwise independent operations and can become a throu
 
 ### Q131. What is the difference between deduplication and idempotency?
 
-Deduplication recognizes that the same event or operation ID has been seen before. Idempotency means repeating an operation has the same intended effect as performing it once. Deduplication storage can expire or be unavailable, and two different event IDs can represent the same business action. Use stable business keys, idempotent state transitions, and database constraints where the invariant demands it.
+**Deduplication** attempts to recognize that a message or request has already been observed, usually by storing a stable identifier and rejecting or skipping repeats. **Idempotency** is a behavioral property: repeating the same logical operation produces the same intended state as executing it once. They are related but not the same.
+
+For example, if a consumer sees event ID 123 twice, an inbox table can deduplicate delivery. But if processing event 123 sends an email through an external provider and the consumer crashes before recording completion, replay may send the email again unless the provider supports idempotency or the application can query/reconcile the send. Likewise, a “set status to PAID” operation may be state-idempotent while a “increment balance by 100” operation is not unless guarded by operation identity.
+
+A robust consumer records the event ID and applies its local database change in one transaction. If the external side effect cannot join that transaction, use a stable downstream operation ID and reconciliation. Define the uniqueness scope of IDs and retention period; deleting dedupe records too early can allow old events to repeat side effects.
+
+Deduplication state can grow large, so use retention aligned with broker replay windows, business retry windows, and regulatory needs. If events can be replayed from months-old history, a 24-hour dedupe table may not protect a high-impact operation. In interviews, identify the side effect, its atomic boundary, its stable identity, and the duplicate path after every crash point.
 
 ### Q132. How should you handle a request that depends on several downstream services?
 
@@ -1319,13 +1358,25 @@ A replica maintains another copy for availability or read scaling, often with li
 
 Identify the smallest set of facts that must change atomically to preserve an invariant. Keep those changes in one transaction when possible. Coordinate later cross-service steps through a saga or durable events, making intermediate states explicit. For example, order creation and its outbox event can commit together, while notification delivery occurs later. Do not expand a transaction across every service just to make the diagram look atomic.
 
-### Q139. What is the dual-write problem?
+### Q139. What is the dual-write problem, and what patterns solve it?
 
-A service updates a database and separately publishes an event. If the database commit succeeds but publishing fails, downstream systems never learn about the change; if publishing succeeds but the transaction rolls back, consumers see a phantom event. The transactional outbox or a supported CDC approach closes this gap between the authoritative commit and publication. Consumers still need idempotency because publication and delivery can repeat.
+The dual-write problem occurs when one logical business operation must update two systems independently—for example, commit an order in a database and publish an event to a broker. The writes can diverge because there is no shared atomic commit. Database-first can lose the event; broker-first can publish an event for a transaction that rolls back.
+
+The most common solution for a database plus broker is the transactional outbox: persist the business change and an outbox record in one database transaction, then publish the outbox asynchronously. Change-data-capture can stream committed changes from the database log or the outbox, depending on the design. Consumers must be idempotent because publication may repeat after a crash.
+
+For two independent databases or an external provider, an outbox alone does not make the entire operation atomic. You may need a saga with explicit state transitions and compensations, an inbox at the consumer, an idempotency key accepted by the provider, or reconciliation of uncertain outcomes. The right pattern depends on which system is authoritative, whether the side effect is reversible, and what consistency the product promises.
+
+Avoid naive application-level “write A, then write B” with a catch block: a process can crash between the writes, and a retry can repeat one side. Also avoid pretending that a distributed transaction is available unless every participant and operational constraint truly supports it. Describe the exact failure window the pattern closes, what duplicates remain possible, and how the system detects and repairs inconsistent state.
 
 ### Q140. When is event sourcing justified?
 
-Event sourcing stores state-changing events as the primary record and derives current state by replaying them. It can provide audit history and temporal reconstruction, but introduces event-schema evolution, replay cost, projection lag, correction strategies, and operational complexity. It is not synonymous with using Kafka or publishing domain events. Choose it when the event history itself is a core domain requirement, not merely because an event-driven architecture is desired.
+Event sourcing stores the sequence of domain events that represent state changes, then derives current state by replaying or projecting those events. It can provide a detailed audit history, support temporal questions, and allow new read projections to be built from past events. It is not simply publishing events after writing current state; the event log is the authoritative record of changes.
+
+The approach is valuable when the domain genuinely needs immutable history—such as financial ledgers or complex state transitions—and the team can define stable event semantics, versioning, replay, and projection operations. It has significant costs: event schemas become long-lived contracts, replay can be slow, projections can lag, historical bugs may reproduce during replay, and changing the meaning of an event is much harder than changing a table column.
+
+Snapshots can reduce replay time but must be consistent with the event position. Projections should be rebuildable and idempotent. Corrections are usually new compensating events rather than destructive edits to history, but sensitive-data deletion and retention requirements need deliberate design; immutable history does not override privacy or legal obligations. Protect event logs and backups as carefully as source-of-truth data.
+
+Do not adopt event sourcing merely because the system uses Kafka. Many applications work better with a conventional transactional database plus outbox/domain events for downstream integration. Choose it when immutable business history and replay materially justify the complexity, and explain how the system handles schema evolution, duplicate delivery, failed projection rebuilds, and reconciliation.
 
 ### Q141. How should API rate limits be distributed across multiple application instances?
 
