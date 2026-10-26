@@ -2,7 +2,7 @@
 
 **Audience:** Java backend engineers with 5–10 years of experience preparing for senior and staff-leaning backend/product-company interviews.  
 **Purpose:** A progressive guide to architecture reasoning, capacity estimation, data ownership, consistency, failure handling, operations, and cost.  
-**Status:** Rebuilding for the 5–10 year experience band. The guide now includes five worked end-to-end designs (URL shortener, news feed, chat, ticket booking, and notifications) in addition to deepened Q&A and scenarios. Full topic coverage, technical accuracy, readability, and rendered diagram validation remain in progress; not final sign-off.
+**Status:** Rebuilding for the 5–10 year experience band. Restored the deep-dive section and expanded database, partitioning/sharding, proxy/gateway, distributed coordination, and storage-choice explanations; added five worked end-to-end designs. Full topic coverage, technical accuracy, readability, and rendered diagram validation remain in progress; not final sign-off.
 
 > **How to use this guide:** Learn fundamentals in order, then practise scenarios aloud. State assumptions, identify the critical business invariant, estimate scale, draw the simplest viable architecture, and deepen the part the interviewer challenges. Naming technologies is not the goal; explaining why the design satisfies requirements is.
 
@@ -1139,6 +1139,165 @@ Estimate major cost drivers: compute time, database queries/IO, cache and broker
 Compare architectures under the same workload and SLO. A cache or replica may add direct cost but lower database capacity, reduce p99 latency, or improve resilience. Compression can reduce egress while increasing CPU. Autoscaling can reduce idle cost but may increase cold starts and fail to react quickly to spikes. Evaluate both steady state and failure conditions.
 
 Use measurements from load tests and cloud billing, then watch cost per successful operation over time by endpoint or workload class. In interviews, show which costs scale linearly, which are shared/fixed, and how you avoid lowering cost by silently weakening reliability or correctness.
+
+## Core concept deep dives: partitioning, sharding, and traffic infrastructure
+
+These modules explain concepts that often appear in senior HLD interviews as follow-up questions. They complement the numbered Q&A with mechanisms, assumptions, and failure behavior; they are not a reason to add technology without a requirement.
+
+### Deep dive A. What is the difference between partitioning, sharding, replication, and clustering?
+
+These terms describe different dimensions of a data system:
+
+- **Partitioning** divides one logical dataset into smaller pieces according to a rule. Range partitioning groups values such as dates into ranges; hash partitioning maps a key through a hash; list partitioning assigns explicit value groups. Partitions may remain within one database instance.
+- **Sharding** distributes pieces of a logical dataset across independently managed database nodes. A routing layer maps a record/query to the shard that owns it. A shard can itself have local partitions and replicas.
+- **Replication** keeps copies of the same logical data on multiple nodes. It can improve availability and eligible read capacity, but asynchronous copies may lag. Replication alone does not necessarily raise the write capacity of one leader.
+- **Clustering** is a broad term for multiple nodes operating as one system. A cluster may provide replication, partitioning, failover, or combinations; the word alone does not specify consistency or durability guarantees.
+
+Example: an orders table might be partitioned by month for pruning and retention, sharded by tenant ID across database nodes for capacity, and replicated within each shard for recovery/read scaling. The design then has separate concerns: local partition pruning, shard routing/rebalancing, and replica lag/failover. Partitioning can improve maintenance without overcoming a single-node write limit; sharding can add capacity while making cross-shard queries, uniqueness, transactions, and operations harder.
+
+### Deep dive B. How does range partitioning differ from hash partitioning?
+
+**Range partitioning** places rows into ordered ranges—for example, orders by month. It works well for time-window queries, partition pruning, and lifecycle operations such as archiving old periods. The risk is skew: if all new writes land in the newest range, that partition can become hot. In a distributed store, boundary splits and range movement also need operational planning.
+
+**Hash partitioning** applies a hash function to a key to spread values across partitions. It often distributes point writes more evenly and avoids a single newest-range hotspot, but weakens natural ordering: a range query may need to contact many partitions. Changing the partition count or hash mapping can require data movement unless the database hides it behind a virtual-partition/routing layer.
+
+A composite strategy is common: partition by time for retention and then distribute each time partition by a hash key. This supports both lifecycle and write distribution, at the cost of additional routing and query complexity. Choose based on dominant access patterns, data growth, skew, and operational constraints. Explain which queries become efficient, which become scatter-gather, and how the design handles a hot partition.
+
+### Deep dive C. How does database sharding work end to end?
+
+A sharded database divides rows by a routing key. For example, `hash(tenant_id) -> shard_id` maps a tenant to a shard. The application, database proxy, or routing service uses that mapping before executing a query. A normal request should include the shard key and route to one shard; a query without the key may require scatter-gather—send work to several shards, merge results, and apply global ordering/pagination. That raises fan-out latency and failure exposure.
+
+Sharding changes familiar database assumptions:
+
+- **Uniqueness:** a local unique index may enforce uniqueness only within one shard. Global uniqueness may need a coordinator, allocated ID ranges, a dedicated uniqueness service, or routing that ensures conflicting values share an owner.
+- **Joins/transactions:** operations spanning shards can be slow or unsupported. Colocate related data when query patterns and invariants justify it; otherwise use explicit workflow coordination or a denormalized read model.
+- **Rebalancing:** adding a shard does not move old data automatically. Plan snapshot copy, capture of concurrent changes, validation, versioned routing, cutover, rollback/forward repair, and cleanup.
+- **Hot keys/tenants:** balanced row counts do not guarantee balanced traffic. One tenant or key may dominate a shard and require dedicated placement or sub-sharding.
+- **Operations:** backups, restore, schema changes, failover, monitoring, and capacity planning become per-shard and fleet-wide problems.
+
+Do not shard merely because a table is large. First test query/index improvements, native partitioning, read replicas, caching, archival, vertical scaling, and workload isolation. Shard when measured capacity or isolation needs justify the added operational and consistency cost.
+
+### Deep dive D. What is the difference between a shard key and a partition key?
+
+Products sometimes use these terms interchangeably, so define them in the design. Here, a **partition key** selects a partition of a logical dataset; a **shard key** selects which independently managed shard owns the record. A shard can contain multiple local partitions, and distributed SQL products may hide physical routing from the application.
+
+The key needs to balance data distribution, common query locality, write throughput, and business invariants. A `tenant_id` key makes tenant-scoped reads efficient but may create a hot shard for a large tenant. An `order_id` key may spread traffic well but make “all orders for one tenant” expensive. A monotonic timestamp can help range scans but direct new writes to one hot range.
+
+Before deciding, list the high-volume queries, write paths, uniqueness constraints, and operations that must be atomic or ordered. Estimate cardinality and skew rather than treating them as the same thing. A key with many distinct values can still be skewed if most requests target a small subset. In an interview, explain the query patterns the key localizes, the queries it makes more expensive, and how you migrate if the distribution becomes unacceptable.
+
+### Deep dive E. How do you detect and mitigate hot shards or hot partitions?
+
+A hot shard receives a disproportionate amount of work while other shards remain underused. Row count alone may hide it: one shard can contain a modest share of the data but most requests. Compare per-shard QPS, bytes, CPU, I/O, lock waits, queue depth, p95/p99 latency, replication lag, and tenant/key contribution. Use per-partition rather than fleet averages.
+
+Mitigations depend on the cause:
+
+- For hot reads, use request coalescing, caching, or replicated/local read paths if freshness allows.
+- For a hot tenant, move it to a dedicated shard or split it into buckets. This increases routing and can complicate tenant-wide queries/transactions.
+- For monotonic range hotspots, use hash/bucket distribution or redesign the key, recognizing that ordered scans may become more expensive.
+- For hot counters, consider sharded counters, batching, or approximate aggregation if the business invariant permits it.
+- For uneven query cost or row size, rebalance by resource consumption rather than row count alone.
+
+Do not blindly add partitions: more partitions will not fix a serialized hot key or global lock. Validate the change against locality, ordering, uniqueness, and migration requirements. In an interview, explain how you found the skew, why the chosen mitigation addresses the bottleneck, and how you know the hotspot actually moved or disappeared.
+
+### Deep dive F. How do forward proxies, reverse proxies, load balancers, gateways, and service meshes fit together?
+
+These roles overlap because they describe responsibilities rather than always separate products.
+
+- A **forward proxy** represents clients accessing external destinations and can enforce outbound policy.
+- A **reverse proxy** receives requests on behalf of servers and can terminate TLS, route, compress, or apply request limits.
+- A **load balancer** selects an eligible backend among several candidates, at L4 or L7.
+- An **API gateway** commonly manages external API policies such as routing, authentication integration, quotas, request transformations, and versioning.
+- A **service mesh** focuses on service-to-service communication, often providing workload identity, mTLS, traffic policy, and telemetry using proxies/control-plane configuration.
+
+A request might traverse DNS/global routing, CDN or edge protection, an L4/L7 load balancer, an API gateway, an application service, and an internal service proxy. Not every system needs every layer; an ingress controller can combine gateway and reverse-proxy functions.
+
+At each hop, ask who owns TLS termination, caller identity, authorization, discovery, timeouts, retries, buffering, and logs. If multiple layers independently retry, they can multiply requests; three attempts at one layer combined with three at another can result in up to nine downstream attempts. Establish an end-to-end deadline and a clear retry owner where possible. In an interview, identify the purpose and failure mode of each layer instead of drawing every box by default.
+
+### Deep dive G. How do DNS, a global traffic manager, a load balancer, and service discovery differ?
+
+**DNS** resolves names to records and is often part of reaching a service, but resolver/client caching means it is not an instantaneous per-request failover mechanism. **Global traffic management** chooses a region or endpoint based on policy such as health, geography, or latency. **Regional load balancing** distributes traffic among targets within a network/region. **Service discovery** helps a client or proxy find current internal service instances.
+
+The layers have different scopes and health signals. A region can accept TCP connections while business writes fail. A global manager may steer new connections away from a region but cannot necessarily move established WebSockets or reverse a write already accepted there. A service registry can return stale endpoints even when its control plane is healthy.
+
+Design failover around user-visible behavior: what qualifies a region as healthy, whether data is current enough, how write ownership changes, and how in-flight/unknown operations are reconciled. Routing change alone does not establish data authority. For stateful systems, use a promotion/epoch/fencing protocol. In an interview, distinguish traffic steering from replication and safe write-ownership transfer.
+
+### Deep dive H. What does a health check mean at each layer?
+
+A **liveness check** asks whether a process should be restarted; **readiness** asks whether it should receive new traffic; **dependency checks** report the state of databases, brokers, or identity services; **synthetic checks** exercise an end-to-end user journey. These signals answer different questions and should not be collapsed into one Boolean.
+
+If readiness depends on every optional dependency, a recommendation-service outage can remove all application instances from rotation. If liveness depends on a shared database, the outage can trigger a restart storm. Conversely, a process probe can be green while all business requests fail due to an exhausted pool or invalid data.
+
+Keep probes cheap and bounded, use thresholds/hysteresis to avoid flapping, and separate process-local health from shared-dependency degradation. During planned removal, mark the instance unready and drain ongoing work. For stateful writers, a health check alone cannot decide who owns writes; use a leader/lease/epoch protocol with fencing at the protected resource.
+
+In an interview, state what action follows each probe: restart, stop new traffic, alert, or degrade one feature. The action must match the failure and not amplify it.
+
+### Deep dive I. What is the difference between queueing, backpressure, and load shedding?
+
+**Queueing** absorbs a temporary difference between arrival and service rates but does not create capacity. **Backpressure** asks upstream producers to slow down or stop when downstream capacity is limited. **Load shedding** deliberately rejects or drops lower-priority work to keep the system stable and preserve critical operations.
+
+Let arrival rate be λ and successful service rate be μ. If λ is persistently greater than μ, backlog grows at about λ-μ. If the backlog is 3.6 million messages, arrivals are 4,000/s, and workers complete 12,000/s, the net drain is 8,000/s and ideal drain time is 450 seconds (7.5 minutes), assuming stable rates and no hidden bottleneck. If arrivals equal/exceed completions, the queue will not drain.
+
+Use bounded queues, age/depth alerts, producer throttling, concurrency limits, deadlines, priorities, and expiry policy. Rejecting an interactive request quickly can be safer than accepting work that will miss its deadline. For a mutation, never shed after it may have committed without returning an operation identity or providing status lookup.
+
+### Deep dive J. How should a senior engineer explain a design decision?
+
+Use a repeatable chain: **requirement → invariant → workload → design choice → alternatives → failure behavior → operational proof**.
+
+For example: “Most reads are tenant-scoped, and the current primary is approaching its write limit. I would first measure whether query tuning, indexes, partition pruning, or replicas address the bottleneck. If writes still require distribution, I would consider sharding by tenant because it localizes common access patterns. I would measure tenant skew and explain global search, uniqueness, migrations, backups, and cross-shard reporting. I would not claim that sharding is free or guarantees balanced load.”
+
+This structure shows judgment rather than vocabulary recall. It gives interviewers useful places to probe: key selection, consistency, failover, capacity, migration, and cost. State assumptions, name the weakest part of the design, and identify the measurement or failure test that would validate it. You do not need a production-ready blueprint in every detail, but you must defend the decisions that affect correctness and system limits.
+
+### Deep dive K. How do database indexes work, and why can adding an index make a system slower?
+
+An index is an auxiliary data structure that helps the database find rows without scanning the full table. B-tree/B+ tree indexes are common for equality lookups, ordered access, and range scans; hash, bitmap, inverted, spatial, or specialized indexes suit different workloads and engines. An index helps only when the query planner can use it and the index is selective enough to reduce work.
+
+Composite-column order matters. An index on `(customer_id, created_at)` may help fetch one customer's recent orders, but it may not efficiently serve a query filtering only by `created_at`. Expressions, implicit type conversions, collation, null handling, and query shape can also prevent use of an expected index. Inspect actual query plans and rows scanned rather than assuming an index is used.
+
+Every insert/update/delete may have to maintain indexes. They consume disk and memory, enlarge backups/replication traffic, and can increase write amplification and page contention. Too many overlapping indexes can slow writes without materially improving reads. A query returning a large fraction of a table may still be faster with a scan.
+
+In an interview, explain the workload and evidence: selectivity, actual plan, rows estimated versus returned, index size, query latency, and write overhead. “Add an index” is not a universal answer; it will not fix N+1 queries, a hot row lock, a saturated connection pool, or a bad data model.
+
+### Deep dive L. How do B-tree indexes differ from LSM-tree storage, and when does the distinction matter?
+
+A B-tree-based engine maintains ordered pages and updates them through its storage mechanisms; it is commonly effective for mixed transactional workloads, point lookups, and range scans. Actual behavior also depends on write-ahead logging, buffer pools, page splits, and vacuum/compaction behavior, so it is misleading to say every write is simply “in place.”
+
+An LSM-tree typically buffers writes and writes immutable sorted files, then merges them through compaction. That can make sustained write ingestion efficient, but read paths may consult multiple structures and compaction can create write amplification, temporary disk-space demand, or resource spikes. Different implementations use filters, caches, and compaction strategies to manage those trade-offs.
+
+Neither structure is universally faster. Compare the actual workload: read/write ratio, point versus range queries, update frequency, latency tail, data size, compaction behavior, durability configuration, and operating requirements. A write-heavy stream might suit LSM-based storage; a transactional system with selective range queries may benefit from B-tree behavior. In an interview, explain the trade-off and validate it with representative benchmarks instead of choosing a database solely by the data-structure name.
+
+### Deep dive M. What should you understand about transaction isolation and concurrency control in HLD?
+
+Isolation describes what concurrent transactions may observe. The exact behavior depends on database engine and isolation level; common anomalies include dirty reads, non-repeatable reads, phantoms, lost updates, and write skew. Snapshot-based isolation can prevent some anomalies while still allowing write skew in certain systems. Do not assume isolation-level labels have identical semantics across vendors.
+
+Choose the guarantee from the invariant. For a seat reservation, a unique constraint or conditional update in the authoritative database is often clearer than “check availability, then insert.” For a balance read-modify-write flow, use an atomic update, version check, lock, or ledger model. A transaction alone is not enough unless its isolation and constraint rules actually protect the condition.
+
+Stronger isolation may increase lock waits, aborts, deadlocks, and retries. Weaker isolation can improve concurrency but requires explicit handling of anomalies. Keep transactions short, avoid remote calls while holding database locks, and use bounded retries only after rolling back the full transaction. A retried database transaction must not duplicate an external side effect.
+
+In an interview, name the invariant, show how the database enforces it under concurrent requests, state what the losing transaction observes, and explain the throughput/latency trade-off.
+
+### Deep dive N. What are consensus, leader election, quorum, and fencing—and why are they not interchangeable?
+
+**Leader election** chooses which node is currently authorized to coordinate work. **Consensus** is a distributed agreement protocol for choosing values or a replicated sequence of decisions despite specified failures and network delays. Protocols such as Raft use terms, logs, and quorum rules under their assumptions; choosing the node with the lowest ID is not a safe consensus protocol.
+
+A **quorum** is the number/subset of participants whose responses satisfy a protocol. In a simple replicated-store model, (R+W>N) makes read and write sets intersect, but that arithmetic alone does not guarantee linearizability, freshness, or conflict resolution. Those depend on replication protocol, versions, leadership, read repair, membership, and what an acknowledgement means.
+
+**Fencing** prevents an old or paused owner from writing after ownership has transferred. A lease timeout cannot stop a paused process from resuming. The protected resource must validate a monotonically increasing epoch/token and reject stale owners.
+
+These mechanisms solve different parts of the problem: consensus may select a leader, a lease may limit expected ownership duration, fencing protects the resource from stale writers, and a quorum defines acknowledgements for a given operation. In an interview, specify the failure model and who actually validates write authority.
+
+### Deep dive O. How do you choose between a relational database, key-value store, document store, wide-column store, search engine, and object storage?
+
+Choose from the access pattern and correctness requirements, not from a fashionable category label. Relational databases are strong for structured relationships, constraints, joins, and transactions. Key-value stores fit predictable key-based access; document stores can fit aggregate-oriented flexible records; wide-column stores target distributed workloads with deliberately designed keys/queries; search engines provide text analysis and relevance; object storage holds durable blobs/files rather than arbitrary low-latency row updates.
+
+The choice also depends on consistency, latency, write rate, retention, query flexibility, cost, backup/restore, security, team expertise, and the consequence of service failure. A “NoSQL” label does not guarantee scalability, and a relational database is not automatically limited to small systems.
+
+A common architecture intentionally uses several stores: a relational database owns orders, CDC/outbox updates a search index, and object storage holds uploaded files. That creates propagation lag, schema mapping, deletion handling, rebuild, and reconciliation requirements. State the authoritative owner, allowed staleness, and how derived stores are recreated after corruption.
+
+In an interview, compare two plausible choices against the actual workload and explain the operational cost of each. Use the simplest storage model that meets the requirements and can be safely operated.
+
+## 17. Advanced HLD deep-dive Q&A
+
+This section connects cross-cutting principles to real architecture decisions. The questions test whether you can explain the mechanism, its guarantees, alternatives, and operational consequences—not simply name a pattern or product.
 
 ### Q119. How do you turn requirements into an architecture instead of jumping directly to components?
 
