@@ -2,7 +2,7 @@
 
 **Audience:** Java backend engineers with 5–10 years of experience preparing for senior and staff-leaning backend/product-company interviews.  
 **Purpose:** A progressive guide to architecture reasoning, capacity estimation, data ownership, consistency, failure handling, operations, and cost.  
-**Status:** Rebuilding for the 5–10 year experience band. Includes nine worked designs and 15 core-concept deep dives; the full 300-question bank and 80 scenarios have received substantial depth rewrites, with the remaining audit focused on topic coverage, technical verification, readability, and rendered diagrams. Not a final sign-off yet.
+**Status:** Rebuilding for the 5–10 year experience band. Includes eleven worked designs and 15 core-concept deep dives; the full 300-question bank and 80 scenarios have received substantial depth rewrites, with the remaining audit focused on topic coverage, technical verification, readability, and rendered diagrams. Not a final sign-off yet.
 
 > **How to use this guide:** Learn fundamentals in order, then practise scenarios aloud. State assumptions, identify the critical business invariant, estimate scale, draw the simplest viable architecture, and deepen the part the interviewer challenges. Naming technologies is not the goal; explaining why the design satisfies requirements is.
 
@@ -38,7 +38,7 @@ A strong answer is not necessarily longer in every interview. It is deep enough 
 14. [Observability and operations](#14-observability-and-operations)
 15. [Multi-region and disaster recovery](#15-multi-region-and-disaster-recovery)
 16. [Cost and architectural evolution](#16-cost-and-architectural-evolution)
-16a. [Core concept deep dives: databases, distributed coordination, and traffic infrastructure](#core-concept-deep-dives-partitioning-sharding-and-traffic-infrastructure)
+16a. [Core concept deep dives: partitioning, sharding, and traffic infrastructure](#core-concept-deep-dives-partitioning-sharding-and-traffic-infrastructure)
 17. [Advanced HLD deep-dive Q&A](#17-advanced-hld-deep-dive-qa)
 18. [Senior-level scenario bank](#18-senior-level-scenario-bank)
 19. [End-to-end case-study index](#19-end-to-end-case-study-index)
@@ -4996,6 +4996,117 @@ If the provider is unavailable, durably accept commands only when the API contra
 A single provider is operationally simpler but can create availability/quota concentration. Multi-provider routing can improve resilience, but different providers have different idempotency, authorization/capture, refund, and settlement semantics; failover must not create a second charge at the other provider while the first outcome is unknown. Synchronous confirmation gives immediate feedback but binds latency to the provider; asynchronous acceptance improves request latency but requires status visibility and durable workflow state.
 
 Expect follow-up questions about: timeout after successful charge; duplicate webhook; provider callback before response; partial capture/refund; reconciliation mismatch; outbox lag; regional outage; provider quota; ledger correction; and how you prove that retrying cannot duplicate a business effect. A strong answer draws the crash windows, states which guarantees are local versus provider-dependent, and explains the operational path for every UNKNOWN outcome.
+
+### Worked design 10: Video streaming platform
+
+### Requirements and user-visible guarantees
+
+A video platform lets creators upload large media files and viewers browse, play, pause, seek, and resume content across devices. Clarify live versus on-demand streaming, maximum upload size/duration, supported codecs/resolutions, time to publish, playback startup target, rebuffering objective, regional availability, DRM/licensing, content moderation, and retention. For the baseline, assume on-demand video, adaptive-bitrate playback, regional delivery through a CDN, and asynchronous transcoding.
+
+Separate the **control plane** (catalogue, upload sessions, authorization, processing status, playback manifest) from the **data plane** that transfers the video segments. The application servers should not proxy every byte of a multi-gigabyte upload or every playback segment.
+
+### Capacity model
+
+Bandwidth and storage dominate this design. Use explicit assumptions. If one million viewers are concurrently streaming an average bitrate of 5 Mbps, the aggregate edge egress is about 5 Tbps before protocol overhead and bitrate variation. That traffic must be served predominantly by CDN edges, not by the origin application or object-storage control APIs. A 1% CDN miss ratio can still generate substantial origin traffic at this scale, so cache hit ratio, regional popularity, and cold-content behavior matter.
+
+Estimate source uploads/day × average source size, plus encoded renditions, thumbnails, manifests, subtitles, replicas, lifecycle copies, and retention. A single source may produce several resolutions/codecs, so output storage can exceed the uploaded file size. Transcoding is a separate compute budget; estimate CPU/GPU seconds per minute of source video by codec/resolution profile and include retry/reprocessing cost.
+
+### Architecture and workflows
+
+```mermaid
+flowchart TD
+  U[Creator Client] --> A[Upload / Catalog API]
+  A --> M[(Media Metadata DB)]
+  A --> S[Scoped Upload URL]
+  S --> R[(Raw Object Storage)]
+  R --> E[Ingest Event / Queue]
+  E --> T[Transcoding Workers]
+  T --> O[(Encoded Renditions / Segments)]
+  T --> M
+  V[Viewer Client] --> P[Playback API]
+  P --> M
+  P --> Z[Entitlement / DRM Policy]
+  P --> C[Signed Manifest / CDN URL]
+  C --> D[CDN Edge]
+  D --> O
+  D -->|Cache miss| H[Origin Shield]
+  H --> O
+  T --> Q[Quality / Processing Events]
+```
+
+**Upload:** Authenticate the creator, check quotas and policy, create a durable upload session, and issue a short-lived URL scoped to an object key or multipart session. The client uploads directly to object storage. On completion, verify checksum/size, persist the object/version, and move the media state to INGESTED. Make create/complete calls idempotent because clients may retry after losing the response.
+
+**Processing:** Publish a durable processing command, often via an outbox or object-storage event. Workers probe the source, validate the container/codec, transcode into supported renditions, generate thumbnails/subtitles/manifests, and update a versioned state machine such as UPLOADED → PROCESSING → READY or FAILED. Processing should be restartable and idempotent by asset/version/rendition. Limit worker concurrency and use separate queues for urgent/live workflows versus bulk backfills.
+
+**Playback:** The client requests a playback session. The API checks publication status, entitlement, geography/age policy, and DRM requirements, then returns a signed manifest URL or token. The client retrieves the manifest and media segments from the CDN; the player selects bitrates based on network conditions. Do not query the metadata database for every segment request.
+
+### Data model and consistency
+
+Metadata may include asset ID, owner, lifecycle state, source-object version, rendition map, duration, codec, publish/visibility policy, content rating, and creation/update versions. Encoded files should use immutable versioned object keys so a partially completed reprocess does not corrupt currently published playback. Publish a new manifest/version only after required renditions are ready and validated.
+
+Catalogue/search indexes can be eventually consistent, but entitlement checks and signed-URL policies must be correct. When a creator replaces a video, use a version switch: build new renditions, validate them, then atomically point metadata/manifests to the new version. Deletes and moderation takedowns must propagate to catalogue, CDN caches, and manifests; purge propagation and token expiry form part of the revocation contract.
+
+### Scaling, failure modes, and operational signals
+
+CDNs reduce origin traffic but do not guarantee a warm cache for newly released or unpopular content. Use origin shielding, request coalescing, range-request support, cache-control policies, and bounded origin concurrency. A regional hit-rate drop can flood object storage; capacity-test cold-content premieres and CDN failover. Keep upload and playback traffic isolated so bulk uploads or transcodes do not starve playback APIs.
+
+If a transcode worker crashes, retry from durable job state and publish only completed renditions. If an upload completes but the callback is lost, reconcile the multipart/session/object state. If the metadata DB is unavailable, cached public catalogue pages may be served where safe, but do not issue new authorization/DRM grants without meeting the security contract. If processing lags, expose “processing” rather than displaying an unusable playback link.
+
+Track playback startup time, rebuffer ratio, bitrate distribution, CDN hit/miss and origin egress, origin errors, upload completion, transcode backlog/age, time-to-ready, playback authorization failures, and storage cost per viewing hour. In an interview, explain how you protect the origin during a cache miss storm, how you publish a new video version without serving partial outputs, and how moderation/revocation propagates.
+
+### Worked design 11: Ride-hailing platform
+
+### Requirements, workload, and invariants
+
+A ride-hailing platform lets riders request trips, matches a nearby eligible driver, tracks both participants, manages trip state, calculates an estimate/fare, and completes payment. Clarify whether the prompt includes dispatch, navigation, pooling, surge pricing, scheduled rides, payments, and customer support. The critical invariants include: one trip has at most one active driver assignment; a driver cannot accept two incompatible active trips; a trip state transition must not be applied twice; and location data must be fresh enough for safe matching.
+
+Location updates are a very high-volume stream. Suppose one million active drivers report location every three seconds: that is roughly 333,000 updates/second before retries and passenger telemetry. This is an illustrative rate, but it immediately shows why location writes should not each become a relational transaction and why geospatial indexing, batching, stream ingestion, and TTL policy matter.
+
+### Architecture and request flow
+
+```mermaid
+flowchart TD
+  D[Driver Apps] --> G[Realtime Gateway]
+  G --> L[Location Ingest]
+  L --> K[(In-memory Geo Index / TTL Store)]
+  L --> S[Location Stream]
+  R[Rider App] --> A[Trip API]
+  A --> T[(Trip / Assignment DB)]
+  A --> M[Dispatch / Matching]
+  M --> K
+  M --> D
+  D -->|Accept / Decline| M
+  M --> T
+  T --> E[Outbox / Trip Events]
+  E --> N[Notifications / ETA / Analytics]
+  T --> P[Pricing / Payment Workflow]
+```
+
+**Driver location flow:** Validate driver/session identity, sequence or version, timestamp, and basic coordinate sanity; ingest the update and overwrite the latest location in a short-lived geo index. Publish a stream for history/analytics if required, but do not make matching synchronously wait for the analytics pipeline. Reject or down-rank stale updates and expire disconnected drivers after a documented grace period.
+
+**Ride request:** The Trip API creates a durable trip request with a stable request ID, pickup/dropoff, rider, and state. Dispatch queries nearby geospatial cells, filters by driver availability, vehicle/service type, capacity, and policy, then ranks candidates using ETA and other product rules. Send an offer with an expiry. The driver acceptance is a command that must compete safely with other offers and concurrent trips.
+
+### Data model and consistency boundary
+
+Keep authoritative trip/assignment state in a transactional store: trip ID, rider, chosen driver, state/version, pickup/dropoff, timestamps, pricing version, and idempotency keys. Driver availability should be updated through a conditional state transition, not inferred solely from a location record. Use a unique/conditional claim so two competing acceptances cannot assign the same driver/trip in conflicting ways. For example, an UPDATE from AVAILABLE to ASSIGNED that checks the current version and expects one affected row can enforce the ownership transition.
+
+Location and nearby-driver indexes are approximate/ephemeral; trip assignment is correctness-critical. It is acceptable for the geo index to lag briefly if the matching service verifies current driver availability and claims the assignment atomically. If the geo index says a driver is nearby but the authoritative state says offline/assigned, reject that candidate and continue matching. Avoid making all location updates strongly consistent across regions; reserve strong coordination for assignment and trip-state transitions.
+
+A trip state machine might include REQUESTED → SEARCHING → DRIVER_ASSIGNED → DRIVER_ARRIVING → IN_PROGRESS → COMPLETED, with CANCELLED/EXPIRED branches. Each command carries a stable operation ID and expected state/version so duplicate mobile retries do not repeat cancellation, assignment, or fare settlement. Keep an auditable transition history for disputes.
+
+### Geospatial partitioning and scaling
+
+Partition location data by city/region and geospatial cell (such as geohash/H3-style cells), with neighboring-cell expansion when searching. The cell size trades search cost against candidate quality: small cells miss nearby drivers across boundaries, while large cells generate too many candidates. Dense city-centre cells can become hot, so split or sub-partition by cell/time/driver hash where query semantics allow. Matchmaking should have a bounded search radius and deadline, then expand the search gradually rather than querying every driver globally.
+
+Use per-city/region dispatch capacity and keep location streams, trip state, payments, and analytics on separate resource budgets. Driver pings can be coalesced when only the latest position matters, while trip-state transitions and payment events must not be silently dropped. Redis or an in-memory geo index may provide low-latency candidate lookup, but it is not the source of truth for whether a driver is available.
+
+### Failure handling, security, and operations
+
+If the driver disconnects, expire the latest location/availability after a defined heartbeat window and reassign only after the trip state is safely transitioned. If a driver accept response times out, query the trip/assignment state instead of accepting a second driver. If two drivers accept near-simultaneously, one conditional claim wins and the other receives a consistent rejection. If location ingestion lags, reduce confidence/eligibility for stale drivers instead of matching based on old coordinates.
+
+If the map/ETA provider is degraded, use a documented fallback estimate or broaden the search within limits; do not let unbounded geospatial queries exhaust the system. If payment succeeds but trip completion persistence fails, use a durable payment operation ID and reconciliation rather than charging again. Restrict location access to authorized trip participants and operational roles, minimize history retention, and audit sensitive lookups.
+
+Track location freshness, updates/s, geo-index lag, candidate count per request, match time, acceptance/timeout rate, driver double-assignment conflicts, trip-state transition errors, cancellation rate, ETA error, payment reconciliation, and per-city p99. In an interview, explain why location can be eventually consistent while assignment must be atomic, how a cell hotspot is mitigated without losing nearby matches, and what happens when two drivers accept the same trip at the same time.
 
 ### Core systems
 
