@@ -2055,36 +2055,53 @@ Then consider a failure: if one availability zone or a fraction of instances dis
 
 ### Scenario 66 — An emergency kill switch is needed during a rollout
 
-**Problem:** A new feature creates incorrect results, but the configuration service is partially unavailable.
+**Problem:** A new feature is producing incorrect results, but the feature-flag control plane is partially unavailable and some instances cannot fetch the latest flag state.
 
-**Approach:** Define a locally cached, versioned flag with a safe default and a clear propagation objective. Determine whether stale configuration is acceptable; for a high-risk feature, conservative behavior may be required. Record flag changes and actors, and verify that disabling the feature does not leave half-completed workflows or inconsistent data. Test the switch during control-plane failure before launch.
+**Design:** Decide the safe behavior for this particular feature rather than assuming every flag should default to false. Cache validated, versioned configuration locally and define how stale it may be. For a high-risk feature, a conservative local default may be safer; for other features, the last known value may preserve service. Emergency controls need a tested propagation objective and a fallback when the control plane itself fails.
+
+**Workflow safety:** Turning off a flag does not undo side effects already performed. Identify in-flight workflows, provide compensation or reconciliation where necessary, and ensure the disabled path can still read records created by the enabled path.
+
+**Validation:** Test kill-switch behavior during control-plane failure before rollout. Record who changed the flag and when, and monitor configuration age, propagation delay, and remaining active instances.
 
 ### Scenario 67 — A backup restore meets RPO but misses RTO
 
-**Problem:** Data can be restored with acceptable loss, but the restore takes much longer than the business can tolerate.
+**Problem:** A restore can recover data within the allowed loss window, but the full service takes longer than the business can tolerate to return.
 
-**Approach:** Measure restore throughput and identify bottlenecks: snapshot size, indexes, network, key retrieval, schema migrations, and validation. Consider incremental backups, parallel restore, warm standby, or replicated infrastructure depending on the required RTO and cost. Rehearse end-to-end restoration, including routing and application readiness, not only database startup.
+**Diagnosis:** RPO and RTO are separate objectives. Meeting RPO means the restored data is recent enough; it does not prove the service can be restored quickly enough. Measure time spent retrieving snapshots, restoring data, rebuilding indexes, replaying logs, applying migrations, validating invariants, fetching encryption keys, and routing traffic.
+
+**Options:** Improve restore throughput, parallelize independent work, retain prebuilt indexes, use incremental backups, or maintain a warm standby if the business value justifies the extra cost. A replica may shorten recovery but is not a substitute for backups after logical corruption.
+
+**Validation:** Rehearse the full service restoration, including application startup and user-path checks, and measure actual RTO. Track each phase so improvements target the real bottleneck.
 
 ### Scenario 68 — A fallback returns stale inventory during an outage
 
-**Problem:** The primary inventory service is unavailable, and the application continues selling from cached stock counts.
+**Problem:** The primary inventory service is unavailable, and a fallback cache still shows stock that may already have been sold.
 
-**Approach:** Decide whether overselling is allowed. If not, stale inventory cannot authorize a reservation; reject or queue the critical operation while allowing safe catalogue reads. If bounded overselling is a deliberate business policy, define limits, reconciliation, and customer remediation. A fallback must preserve the invariant or explicitly change the business contract.
+**Invariant:** If overselling is forbidden, cached stock cannot authorize a reservation. A display value can be stale without violating correctness, but a committed reservation must use an authoritative atomic operation.
+
+**Design:** During the outage, keep safe catalogue reads available but reject or durably queue the reservation attempt only if delayed execution is valid and the API clearly reports a pending state. Do not tell the customer the reservation is confirmed when no authoritative hold exists. If the business deliberately permits bounded overselling, define the limit, prioritization, reconciliation, and customer-remediation policy explicitly.
+
+**Recovery:** Reconcile reservations and stock before resuming normal writes. Monitor stale inventory age, rejected reservations, pending operations, and oversell incidents.
 
 ### Scenario 69 — A low-volume service violates its SLO but dashboards show no obvious issue
 
-**Problem:** A service with few requests experiences sporadic failures, making aggregate metrics noisy.
+**Problem:** A low-volume service violates its SLO, but dashboards show no clear pattern because the request sample is small.
 
-**Approach:** Use request-level SLI definitions, minimum sample awareness, synthetic checks for critical journeys, and structured event logging. Alert on user-impacting failures and meaningful error-budget burn rather than raw percentages alone. Inspect individual traces and dependency errors, and ensure low traffic does not hide a complete outage.
+**Diagnose:** Percentages can be noisy when there are few requests, and a dashboard averaged over a long window can hide a short complete outage. Inspect individual traces and structured events, verify the SLI denominator, and separate dependency errors from application errors. Check whether health probes are succeeding while the actual user journey fails.
+
+**Design:** Combine request-based SLOs with synthetic checks for critical journeys, alert on meaningful error-budget burn, and use a minimum-sample policy where appropriate. Do not suppress a real outage merely because the percentage is statistically unstable. For a low-volume service, a single failed high-value operation may deserve immediate attention.
+
+**Signals:** Track per-operation outcomes, latency, dependency failures, synthetic success, and error-budget consumption. Ensure alerts identify the affected user journey and an actionable next step.
 
 ### Scenario 70 — A team proposes active-active writes to reduce latency
 
-**Problem:** Two regions will accept concurrent updates to the same account and asynchronously replicate them.
+**Problem:** A team proposes active-active writes in two regions to reduce write latency, while both regions can update the same account or inventory item.
 
-**Approach:** Ask what happens when the same balance, inventory item, or profile field is updated concurrently during a partition. If the invariant requires one serial order, use a single writer per entity or a datastore/coordination protocol that enforces the needed consistency. Active-active reads and compute can coexist with owner-routed writes. Conflict resolution is acceptable only when the domain defines how conflicts are resolved without violating business correctness.
+**Clarify:** Is the data naturally partitionable by owner, can conflicting operations be merged, and what must happen during a network partition? Different fields may have different correctness requirements.
 
+**Design:** If the invariant requires a single serial order—for example, debiting a balance or reserving the final item—route writes to one authoritative owner per entity or use a datastore/coordination protocol that enforces the required global transaction semantics. Active-active reads and stateless compute can still reduce latency. Conflict-free or last-write-wins approaches are appropriate only when the domain defines why the merge is correct.
 
-
+**Trade-off:** Strong coordination adds latency and may reject writes during partitions. Explain the conflict policy, failover fencing, and reconciliation plan before claiming active-active writes are safe.
 
 ### Scenario 71 — Object uploads overload application servers
 
@@ -2114,47 +2131,73 @@ Then consider a failure: if one availability zone or a fraction of instances dis
 
 ### Scenario 74 — A cache key omission leaks tenant data
 
-**Problem:** Two tenants request the same resource ID, and the cache returns one tenant's representation to the other.
+**Problem:** A cache key omits the tenant identifier, so two tenants requesting the same resource ID can receive the same cached response.
 
-**Recommendation:** Treat tenant and authorization context as part of the response identity. Fix the key contract, invalidate exposed entries, review other cache layers and CDN behavior, and add automated cross-tenant tests. Assess whether sensitive data was exposed and follow incident response procedures. The origin database can be perfectly isolated while a shared cache still leaks data.
+**Immediate response:** Stop shared caching for the affected response class or correct the key and purge vulnerable entries. Determine what data may have been exposed and follow the security incident process; do not treat this as merely a cache hit-ratio bug.
+
+**Corrective design:** Define response identity from every dimension that changes the representation, including tenant, user/authorization scope, locale, and relevant query parameters. For sensitive personalized responses, private or non-cacheable behavior may be safer than shared caching. Keep authorization checks on every path where required; a cache entry must not act as proof of permission.
+
+**Validation:** Add automated cross-tenant tests across application caches and CDNs, and monitor cache-key variants and access anomalies. Review other cached response types for the same omission.
 
 ### Scenario 75 — A distributed ID generator returns duplicates after failover
 
-**Problem:** Two generator nodes start with overlapping worker IDs or both allocate the same sequence range.
+**Problem:** Two ID-generator nodes return duplicate IDs after failover because they use overlapping worker IDs or sequence ranges.
 
-**Recommendation:** Make worker/range ownership durable and exclusive, fence stale owners, and design restart behavior to avoid reusing IDs. If the algorithm relies on time, define clock rollback behavior. Validate uniqueness with property tests and failure injection. A standby generator must not simply inherit state without proving that its range cannot overlap the former owner.
+**Root cause:** The generator's uniqueness assumption depended on exclusive allocation that was not preserved during restart, promotion, or network partition. A standby cannot safely take over just because the old node is unreachable; the old process may still be running.
+
+**Design:** Allocate worker identities or sequence ranges durably and exclusively, and fence stale owners where the allocation system supports it. If IDs combine time and worker bits, define clock rollback, skew, restart, and worker-ID reuse behavior. Random IDs can avoid centralized coordination but require a sufficiently large namespace and collision handling.
+
+**Validation:** Test crash/restart and split-brain scenarios, not only steady-state generation. Check uniqueness across regions and generator epochs, and keep a repair plan for collisions if the system's guarantee is probabilistic.
 
 ### Scenario 76 — A read model rebuild disagrees with production results
 
-**Problem:** A new projection is rebuilt from retained events but produces different totals from the current projection.
+**Problem:** A rebuilt read model produces different totals or search results from the current production projection.
 
-**Approach:** Compare event offsets, schema versions, tombstones, ordering, deduplication, and business logic versions. Replay from a consistent point and capture concurrent updates. Use checksums and domain-level aggregates, not only row counts. Do not switch traffic until discrepancies are explained and an explicit acceptance threshold is met.
+**Diagnose:** Compare the snapshot boundary, event offsets, schema versions, tombstones, event ordering, deduplication rules, and projection code version. A row-count match does not prove the domain result is correct; totals may differ because of duplicate events or missing deletes.
+
+**Design:** Rebuild from a consistent point and capture concurrent changes, then replay them into the new projection. Compare domain-level aggregates and representative records, explain all discrepancies, and define an acceptance threshold before switching traffic. Keep the old projection available for rollback until the new one is verified.
+
+**Recovery:** If the mismatch is unexplained, do not cut over. Trace a specific entity from the authoritative source through its event history to the projection. Monitor rebuild progress, replay lag, mismatch counts, and freshness.
 
 ### Scenario 77 — A rate limiter allows bursts after instance scaling
 
-**Problem:** The global allowed rate increases whenever autoscaling adds application instances.
+**Problem:** The permitted rate increases when autoscaling adds instances because each instance has its own full-sized token bucket.
 
-**Approach:** The quota was implemented as independent local buckets without a shared budget. Allocate bounded local token budgets from a global allowance or use a shared atomic limiter. Decide whether limited overshoot is acceptable during budget refresh and limiter failure. Test scale-out, scale-in, and instance restart behavior.
+**Diagnosis:** If every instance independently allows the entire global quota, adding ten instances can permit roughly ten times the intended aggregate rate. A local limiter may be valid for protecting one process, but it does not enforce an account-wide contract by itself.
+
+**Design:** Use a shared atomic limiter when exact coordination is necessary, or allocate bounded local token budgets from a global quota to reduce per-request coordination. Define the tolerated overshoot during allocation refresh, and ensure instance restarts or scale-in do not mint fresh unaccounted tokens. Apply a separate local concurrency cap to protect each instance.
+
+**Validation:** Test scale-out, scale-in, restarts, and limiter-service failure. Monitor aggregate accepted rate, quota consumption, rejections, limiter latency, and provider throttling.
 
 ### Scenario 78 — A scheduled workflow misses several intervals
 
-**Problem:** A scheduler was unavailable for two hours and must decide whether to run every missed job.
+**Problem:** A scheduler was unavailable for two hours and must decide what to do with missed runs.
 
-**Clarify:** Are runs independent snapshots, periodic billing, cleanup, or time-sensitive notifications? Should missed intervals be skipped, coalesced into one run, or replayed individually?
+**Clarify:** Are the jobs independent snapshots, billing periods, cleanup tasks, or time-sensitive notifications? A missed hourly snapshot may be coalesced into one current snapshot; a billing run for every period may need every occurrence to be processed or explicitly reconciled.
 
-**Recommendation:** Define a misfire policy per job class. Coalesce only when intermediate intervals do not matter; replay idempotently when every interval has business significance. Bound catch-up concurrency so recovery does not overload dependencies. Record skipped or coalesced runs for audit.
+**Design:** Define a misfire policy per job class: skip, coalesce, or replay each missed interval. Give each scheduled occurrence a deterministic ID and make its effects idempotent so recovery does not duplicate work. Bound catch-up concurrency and prioritize jobs with deadlines; an unbounded catch-up can overload dependencies and delay current work.
+
+**Auditability:** Record which intervals ran, were skipped, or were coalesced, and why. Monitor missed-run count, oldest overdue run, catch-up rate, and duplicate effects.
 
 ### Scenario 79 — A region is healthy but cannot reach the identity provider
 
-**Problem:** Compute and database health checks pass, but users cannot authenticate in one region.
+**Problem:** Compute and database health checks pass in one region, but authentication fails because that region cannot reach the identity provider or refresh its signing keys.
 
-**Recommendation:** Treat dependency health and user-journey health separately. Determine whether tokens can be validated locally using cached signing keys, whether key freshness is acceptable, and which operations must fail closed. Do not route all traffic to a second region without understanding its capacity and data locality. Monitor authentication success and key-refresh age as business-path signals.
+**Diagnose:** Separate infrastructure health from the actual user journey. Determine whether tokens can be verified locally using cached public keys, how old those keys may be, and whether token revocation or policy updates must take effect immediately. Do not assume that routing every request to another region is safe; the target region may lack capacity or have different data access.
+
+**Design:** Cache validated key material with a defined refresh and expiry policy where the security model permits it. Fail closed for operations when identity cannot be established safely, and avoid accepting tokens based on stale or untrusted configuration. If regional failover is used, test authentication, authorization, and downstream data access end to end.
+
+**Signals:** Monitor authentication success, key-refresh age, identity-provider latency/errors, and user-journey synthetic checks.
 
 ### Scenario 80 — A new storage engine benchmarks faster but raises operational risk
 
-**Problem:** A prototype shows higher throughput, but the team lacks operational experience and restore tooling.
+**Problem:** A new storage engine benchmarks faster, but the team lacks operational experience and the restore process is not proven.
 
-**Recommendation:** Compare representative workload performance, tail latency, failover, backup/restore, data migration, observability, security, and on-call skill requirements. Run failure and recovery tests, not only happy-path benchmarks. Keep the existing store if the performance gain does not justify migration and operational risk; if adopting the new engine, plan a reversible migration and explicit exit criteria.
+**Evaluate:** Compare representative throughput and p95/p99 latency, data skew, transaction guarantees, failover, backup/restore, observability, security, migration, and on-call expertise. A benchmark that tests only the happy path can miss recovery behavior, compaction pressure, degraded performance, and operational toil.
+
+**Decision:** Keep the existing store if the measured gain does not justify migration risk and ongoing support cost. If adoption is justified, define success metrics, a reversible migration, data-validation checks, and explicit exit criteria before moving critical traffic. Run failure and restore exercises using production-like data and load.
+
+**Interview takeaway:** A technology choice is an investment in both runtime behavior and the team's ability to operate it. Faster benchmarks alone are not sufficient evidence.
 
 ### Multi-stage mock interview: Design a notification platform
 
