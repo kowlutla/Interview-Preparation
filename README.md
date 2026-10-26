@@ -7,7 +7,8 @@ A collection of focused interview-preparation handbooks for Java backend enginee
 Choose a handbook by topic:
 
 - [Java Interview Handbook](Java/Java-Interview-QA.md)
-- [Design Patterns & LLD Interview Handbook](Design-Patterns-LLD/Design-Patterns-LLD-Interview-QA.md) — object-oriented design, SOLID, GoF patterns, UML, concurrency-aware object models, and practical LLD case studies.\n- [System Design HLD Interview Handbook](System-Design-HLD/System-Design-HLD-Interview-QA.md) — 300 numbered Q&As, 80 senior-level scenarios, capacity estimation, consistency, scaling, resilience, and multi-stage mock interviews; make this a priority for dedicated HLD rounds.
+- [Design Patterns & LLD Interview Handbook](Design-Patterns-LLD/Design-Patterns-LLD-Interview-QA.md) — object-oriented design, SOLID, GoF patterns, UML, concurrency-aware object models, and practical LLD case studies.
+- [System Design HLD Interview Handbook](System-Design-HLD/System-Design-HLD-Interview-QA.md) — 300 numbered Q&As, 80 senior-level scenarios, capacity estimation, consistency, scaling, resilience, and multi-stage mock interviews; make this a priority for dedicated HLD rounds.
 - [Spring Framework + Spring Boot Interview Handbook](Spring/Spring-Interview-QA.md)
 - [Microservices & REST APIs Interview Handbook](Microservices-REST-APIs/Microservices-REST-APIs-Interview-QA.md)
 - [Distributed Systems & Event-Driven Architecture Interview Handbook](Distributed-Systems/Distributed-Systems-Interview-QA.md) — consistency, failure handling, consensus, distributed transactions, messaging semantics, sagas, and production scenarios.
@@ -41,10 +42,10 @@ Interview-Preparation/
 
 1. **Java** — language fundamentals, collections, concurrency, JVM, and modern Java.
 2. **Design Patterns & LLD** — object-oriented design, SOLID, design-pattern selection, UML, and realistic low-level design problems.
-3. **Spring** — dependency injection, Spring Boot, framework behavior, transactions, security, testing, and production behavior.
-4. **Microservices & REST APIs** — service boundaries, HTTP semantics, API contracts, resilience, security, and service-level communication.
-5. **Distributed Systems & Event-Driven Architecture** — cross-service correctness, consistency, failure handling, coordination, sagas, messaging semantics, and production reliability.
-6. **System Design HLD** — requirements, capacity estimates, architecture choices, data ownership, failure handling, and senior-level scenario practice. Revisit it throughout preparation; it is a dedicated interview-round skill, not merely another technology topic.
+3. **System Design HLD (highest priority)** — study this in parallel with the remaining guides. Start with the interview method and quality attributes, then capacity estimation, architecture fundamentals, and the senior scenario bank. Revisit it repeatedly; a dedicated HLD round requires deliberate practice, not just reading.
+4. **Spring** — dependency injection, Spring Boot, framework behavior, transactions, security, testing, and production behavior.
+5. **Microservices & REST APIs** — service boundaries, HTTP semantics, API contracts, resilience, security, and service-level communication.
+6. **Distributed Systems & Event-Driven Architecture** — cross-service correctness, consistency, failure handling, coordination, sagas, messaging semantics, and production reliability.
 7. **Hibernate + JPA** — persistence context, mappings, fetching, transactions, query performance, and concurrency.
 8. **SQL & databases** — query logic, joins, indexes, transactions, isolation, and database-specific behavior.
 9. **Redis & Caching** — Redis data structures, cache consistency, coordination, Spring integration, and resilience across the cache/database boundary.
