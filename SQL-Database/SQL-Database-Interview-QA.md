@@ -229,7 +229,7 @@ WHERE (
 ORDER BY o.customer_id, o.created_at DESC, o.order_id DESC;
 ```
 
-The count is the number of rows ordered ahead of the current row; fewer than three means the row belongs in the top three. This is easy to understand but can be expensive on large tables without a suitable index. If timestamps can be NULL, define the intended NULL ordering and adjust the predicate.
+The count is the number of rows ordered ahead of the current row; fewer than three means the row belongs in the top three. The unique `order_id` tie-breaker makes the ordering deterministic. This is easy to understand but can be expensive on large tables without a suitable index. If timestamps or grouping keys can be NULL, define the intended NULL behavior and adjust the predicate.
 
 ### Q16. How do you find customers who have never placed an order?
 
@@ -261,7 +261,7 @@ LEFT JOIN customer_events newer
 WHERE newer.event_id IS NULL;
 ```
 
-Define what “latest” means: event time, creation time, or update time can differ. This example assumes `updated_at` is non-NULL and `event_id` is unique and non-NULL. An index beginning with `customer_id` and including the ordering columns may help; measure the plan on representative data.
+Define what “latest” means: event time, creation time, or update time can differ. This example assumes `customer_id` and `updated_at` are non-NULL, and `event_id` is unique and non-NULL. If a grouping key or timestamp can be NULL, define the intended behavior and adjust the comparison accordingly. An index beginning with `customer_id` and including the ordering columns may help; measure the plan on representative data.
 
 ### Q18. How do you calculate a running total without window functions?
 
@@ -309,7 +309,7 @@ WHERE u1.email IS NOT NULL
 ORDER BY u1.email, u1.user_id;
 ```
 
-This preview assumes the row with the earliest `created_at` and then smallest `user_id` should survive. The delete example below keeps the smallest `user_id` instead; use matching survivor rules for preview and deletion in production.
+This preview and the DELETE statement both keep the row with the smallest `user_id` for each non-NULL email. The `created_at` column is displayed for inspection only; it does not determine which row survives. If the business rule is to keep the earliest-created record, change both the preview and deletion logic to use the same ordering rule.
 
 **MySQL — keep the row with the smallest `user_id`:**
 
@@ -403,7 +403,7 @@ Use a representative value and inspect the estimated access type, chosen index, 
 5. Measure before and after under comparable conditions.
 6. Roll out safely and monitor latency, load, and regressions.
 
-Use MySQL `EXPLAIN` to inspect the optimizer's estimated plan. Compare it with query latency, the slow query log, and application/database metrics to understand real workload behavior. An execution plan is evidence to interpret, not a score where any full scan is automatically bad.
+Use MySQL `EXPLAIN` to inspect the optimizer's estimated plan, then compare it with query latency, the slow query log, and application/database metrics. An execution plan is evidence to interpret, not a score where any full scan is automatically bad. Avoid repeating the same diagnosis steps: establish a baseline, make one evidence-based change, and measure the result under comparable conditions.
 
 ### Q26. What are covering indexes and index selectivity?
 
@@ -515,7 +515,7 @@ WHERE e.salary IS NOT NULL
 ORDER BY e.department_id, e.salary DESC, e.employee_id;
 ```
 
-The query gives higher salaries priority and uses the smaller `employee_id` to break ties, returning at most three rows per department. It may be more expensive than a window-function query on large tables, so inspect the execution plan and consider an index on `(department_id, salary, employee_id)`.
+The query gives higher salaries priority and uses the smaller `employee_id` to break ties, returning at most three rows per department—not necessarily the top three distinct salary levels. If the requirement is to include every employee tied within the top three salary ranks, the query needs different logic. This example assumes `department_id` is non-NULL. It may be more expensive than a window-function query on large tables, so inspect the execution plan and consider an index on `(department_id, salary, employee_id)`.
 
 ### Q35. How does COALESCE handle NULL values in MySQL?
 
@@ -526,7 +526,7 @@ SELECT COALESCE(nickname, preferred_name, 'Unknown') AS display_name
 FROM users;
 ```
 
-Use compatible expression types or explicit casts when needed, and avoid relying on implicit conversion. For example, the following MySQL query returns the first available display name:
+The expressions should have compatible result types; MySQL may perform type conversion when their types differ, so cast explicitly when that conversion could be surprising. In this example, `nickname` is used when present, otherwise `preferred_name`, and finally the literal `Unknown`. Note that `COALESCE` handles SQL NULL, not blank strings: if empty or whitespace-only names should count as missing, normalize or test those values explicitly.
 
 ### Q36. How does AUTO_INCREMENT work in MySQL, and why can IDs have gaps?
 
