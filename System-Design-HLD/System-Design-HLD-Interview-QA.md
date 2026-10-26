@@ -1273,6 +1273,257 @@ Use a controlled migration to a dedicated shard or new placement: establish rout
 Look for measured limits in storage, write throughput, index size, connection capacity, or maintenance windows that cannot be solved adequately with vertical scaling, indexing, query improvements, or replicas. Sharding adds routing, cross-shard query, rebalancing, and transaction complexity. Establish the bottleneck and estimate the cost of simpler alternatives before adopting it. Shard only when the expected benefit exceeds that complexity.
 
 
+
+
+### Q239. How do DNS-based global routing and application-level routing differ?
+
+DNS-based routing influences which endpoint a client resolves, often using geography, health, or policy. It is not an immediate per-request switch because resolvers and clients cache answers, and existing connections remain open. Application-level routing can make decisions per request but adds a routing hop and requires visibility into request identity and health. Neither mechanism alone guarantees data consistency or prevents an old region from continuing to accept writes.
+
+### Q240. What does connection draining accomplish during deployment?
+
+Connection draining stops assigning new work to an instance while allowing existing requests or streams to finish within a deadline. It reduces interrupted requests during rolling updates. Long-lived WebSockets and slow requests may not drain quickly, so define maximum drain time, reconnect behavior, and safe termination. Draining is most effective when readiness changes before the process exits and clients retry only operations that are safe to repeat.
+
+### Q241. What is the architectural role of TLS termination?
+
+TLS termination decrypts client traffic at a gateway, load balancer, or proxy. It can centralize certificate management and policy, but the path from that point to backend services may need TLS or mutual TLS depending on trust boundaries. Decide where identity is authenticated, how original client context is propagated safely, and how certificates rotate. Encrypting only the external hop does not automatically secure east-west traffic.
+
+### Q242. When does HTTP/2 help, and what are its limits?
+
+HTTP/2 multiplexes multiple streams over one connection and compresses headers, reducing connection overhead for many request patterns. It does not remove server queueing, dependency latency, or application bottlenecks. Because streams share a TCP connection, packet loss can affect progress across streams at the transport layer. Measure real workloads; protocol choice is less important than eliminating unnecessary round trips and managing concurrency.
+
+### Q243. What problem does HTTP/3 attempt to address?
+
+HTTP/3 uses QUIC over UDP and can reduce some connection-establishment and transport head-of-line blocking costs compared with HTTP/2 over TCP. It can improve behavior on changing or lossy networks, but adoption depends on clients, intermediaries, observability, and operational support. It does not guarantee faster application execution or fix slow databases. Evaluate end-to-end measurements rather than assuming a protocol upgrade solves latency.
+
+### Q244. How should an API gateway avoid becoming a single point of failure?
+
+Run redundant gateway instances across failure domains, keep routing/configuration changes safe, and ensure health checks reflect the ability to serve traffic. Avoid putting expensive business logic or a global synchronous dependency into every gateway request. Capacity-plan TLS handshakes, authentication, logging, and rate-limit operations. Gateway redundancy is not enough if all instances share one exhausted quota store or configuration control plane.
+
+### Q245. What is service discovery, and what failure modes matter?
+
+Service discovery maps a logical service name to healthy instances or endpoints. It may be DNS-based, registry-based, or provided by a platform. Stale records, slow health detection, registry outages, and uneven endpoint selection can cause failures. Cache discovery data with a deliberate freshness policy, use connection and request timeouts, and ensure clients can recover when endpoints change.
+
+### Q246. When should sticky sessions be used for WebSockets?
+
+A WebSocket connection is inherently attached to a server for the life of that connection, but new connections do not necessarily need sticky routing if session state is externalized. Sticky routing may help with connection ownership or locality, but it can create uneven load and complicate reconnects. Design reconnect tokens, presence state, and message delivery so a client can reconnect to another instance after failure.
+
+### Q247. How do you scale presence tracking in a chat system?
+
+Treat presence as ephemeral state with a lease or heartbeat rather than a permanent record. Clients can disconnect without a clean logout, so expiry and last-seen semantics matter. Partition presence by user or region, coalesce rapid changes, and avoid broadcasting every heartbeat to all contacts. Distinguish “online” as a best-effort indicator from durable message delivery guarantees.
+
+### Q248. How should a real-time system handle reconnects and missed events?
+
+Persist durable events or provide a cursor/sequence number that lets the client resume from its last acknowledged position. On reconnect, validate the cursor, replay retained events, and fall back to a state snapshot if history has expired. A live socket alone is not durable delivery. Deduplicate replayed events and document how clients detect a gap.
+
+### Q249. What is the difference between a CDN cache and an application cache?
+
+A CDN cache sits near clients and can reduce origin traffic and geographic latency for cacheable HTTP responses or assets. An application cache sits closer to service logic and can store domain objects or computed results. Their keys, invalidation, access control, and freshness rules differ. A response may pass through both, so define which layer owns cache policy and prevent one layer from accidentally preserving data after another has invalidated it.
+
+### Q250. How should you cache personalized responses safely?
+
+First decide whether shared caching is appropriate at all. If the response depends on identity, tenant, role, locale, or entitlement, those dimensions must be represented in the cache policy and key—or the response should be private/non-cacheable. Authorization must not be skipped merely because an entry exists. Test cross-user and cross-tenant requests, and consider revocation delay when cached permissions influence the response.
+
+### Q251. How do you prevent cache invalidation from racing with a refill?
+
+A reader may miss the cache, load old database data, then repopulate the cache after a writer has committed and invalidated the key. Possible mitigations include versioned values, write-through coordination, delayed refill, or invalidation protocols tied to source versions. The right choice depends on staleness tolerance. A simple delete-after-write pattern is common but is not an atomic transaction across database and cache.
+
+### Q252. How do you choose between time-based and event-based cache invalidation?
+
+TTL is simple and bounds cache residence under ordinary operation, but it may serve stale values until expiry. Event-driven invalidation can reduce staleness but depends on reliable event delivery and correct ordering. A hybrid uses events for prompt updates and TTL as a safety net. For critical invariants, neither should replace an authoritative read or a datastore consistency guarantee.
+
+### Q253. What does a Bloom filter help with in a high-volume lookup service?
+
+A Bloom filter can quickly indicate that a key is definitely absent or might be present, reducing expensive lookups for nonexistent keys. It has false positives but, under its standard design, no false negatives for inserted items. It does not return the value or guarantee freshness after updates/deletes without maintenance. Use it when negative lookups are common and filter memory/refresh costs are justified.
+
+### Q254. How should you choose between normalized data and a denormalized read model in an interview?
+
+Explain the write invariant first. Normalize authoritative transactional data to avoid conflicting copies, then denormalize for high-value read paths if measured query cost justifies it. Define how derived copies are updated, what staleness is allowed, and how to rebuild them. Avoid denormalizing the same fact into multiple independently writable authoritative stores.
+
+### Q255. How do database isolation levels influence HLD?
+
+Isolation determines which concurrent transaction effects can be observed and which anomalies may occur. A system must choose isolation and constraints based on business invariants, not merely accept defaults. Stronger isolation may increase contention or retries; weaker isolation can be safe when updates are independent or guarded by constraints. Verify the chosen database's actual semantics because isolation names and implementation details vary.
+
+### Q256. When is a unique constraint better than application-level validation?
+
+A prior “does this row exist?” query races with another request performing the same check. A unique constraint enforces the invariant at the authoritative storage boundary even under concurrency. The application should translate the conflict into a meaningful response and handle retries safely. Application validation remains useful for user experience but cannot replace a database-enforced uniqueness rule when duplicates are forbidden.
+
+### Q257. How should an API handle idempotency-key expiration?
+
+The key's retention must exceed the realistic client retry window and the time required to resolve uncertain outcomes. Expiring it too early can allow a late retry to create a duplicate operation. Retaining keys forever can grow storage, so use durable operation history or a documented retention policy and reject ambiguous replays when safe. The TTL must match the business operation's lifecycle, not just a convenient cache setting.
+
+### Q258. How do you design API pagination when the underlying data changes frequently?
+
+Use stable sort fields and a unique tie-breaker, and encode the cursor so clients cannot arbitrarily change internal query state. Decide whether pages represent a live view or a snapshot. A cursor avoids expensive large offsets but does not itself guarantee snapshot consistency. For audit or export workflows, a snapshot boundary or asynchronous export job may be more appropriate.
+
+### Q259. What is an API compatibility contract?
+
+It specifies which request/response shapes and semantics clients can rely on, including field meaning, error codes, ordering, pagination, and idempotency. A change can be breaking even if the JSON schema remains valid—for example, changing a field from gross to net amount. Use contract tests, deprecation telemetry, and mixed-version deployment tests. Document behavioral guarantees as carefully as field names.
+
+### Q260. How should a system manage external API quotas across retries and failover?
+
+Count attempts at the same scope the provider counts them, including retries and requests from multiple regions. A failover must not reset a local quota budget if the provider's quota is account-wide. Central coordination, preallocated budgets, or a durable scheduler may be appropriate. Respect retry-after instructions and avoid immediate catch-up traffic after an outage.
+
+### Q261. How should a service mesh affect application design?
+
+A mesh can standardize transport security, routing, retries, and telemetry, but it does not remove the need for application deadlines, idempotency, business authorization, and correct error handling. Mesh-level retries can interact with client-library retries and multiply attempts. Make retry ownership explicit and inspect effective policies across the whole call path. Operational complexity and sidecar/resource overhead also belong in the trade-off.
+
+### Q262. What should happen if service discovery returns stale endpoints?
+
+Clients should use connection/request timeouts, detect failed endpoints, refresh discovery data, and avoid synchronized retry storms. The platform's readiness and endpoint-removal semantics matter, especially during rolling deployments. A stale endpoint should fail within a bounded budget, not hold threads indefinitely. Observe discovery freshness and connection errors to distinguish routing problems from application failures.
+
+### Q263. How do you design a health endpoint that does not amplify outages?
+
+Separate liveness, readiness, and deeper diagnostic checks. A readiness check may include critical dependencies, but if every instance becomes unready due to a shared dependency failure, traffic may have nowhere to go and restart loops may follow. Keep probes cheap, use appropriate thresholds, and avoid making every probe trigger an expensive query. Business-path synthetic checks should complement—not replace—process health checks.
+
+### Q264. How should graceful degradation be represented in an API contract?
+
+Specify which fields or capabilities may be omitted, whether partial responses are marked, and which failures remain hard errors. Clients should not have to infer that missing data means a valid empty result. Use explicit status or metadata when partial results are supported. Never degrade a response in a way that silently violates authorization, financial correctness, or a user's understanding of completion.
+
+### Q265. How do you choose between blue-green and canary deployment?
+
+Canary is useful when gradual exposure and measurable comparison are possible; blue-green simplifies switching traffic between two complete environments but costs more temporary capacity. Both require compatible schemas, session behavior, and rollback planning. A rollback cannot undo external side effects or irreversible data transformations. Choose based on release risk, traffic controls, infrastructure cost, and how quickly health signals become meaningful.
+
+### Q266. What is a safe rollback strategy for a database migration?
+
+Design rollback before deployment. During the expand phase, old and new code should coexist; after new writes use an incompatible representation, rollback may require reverse transformation or forward-fix instead of simply reverting the application. Keep migration checkpoints and validated backups, and define the point beyond which rollback is unsafe. Prefer additive, reversible changes and delay destructive contract steps.
+
+### Q267. How do feature flags interact with data migrations?
+
+A feature flag can control which code path is active, but it does not make the database schema compatible by itself. Deploy compatible schema first, backfill and validate, then enable the new path gradually. Keep both code paths safe during rollout and define how to handle records written by the new path if the flag is turned off. Test the rollback path, not only flag activation.
+
+### Q268. How do you plan a canary for a low-volume service?
+
+Small percentages may produce too few requests to detect regressions quickly. Use representative synthetic transactions, longer observation windows, targeted tests, and business invariants in addition to aggregate latency/error metrics. Do not interpret a lack of observed errors as proof of safety when the sample is tiny. Choose rollout pace based on risk and statistical confidence.
+
+### Q269. What is the difference between horizontal scaling and workload isolation?
+
+Horizontal scaling adds capacity to handle more work. Workload isolation prevents one class of work from consuming capacity needed by another. Scaling all workloads together may not protect a critical payment path from a bulk export job. Separate queues, concurrency pools, database resources, or priority classes can improve isolation, though they add utilization and management trade-offs.
+
+### Q270. How should a design handle bursty batch workloads alongside interactive traffic?
+
+Schedule or throttle batch work according to spare capacity, use separate worker pools or resource quotas, and prioritize interactive requests. Batch jobs should checkpoint and resume safely. Observe database and network saturation, not just worker CPU. A batch job that is fast in isolation may violate interactive p99 latency when run concurrently.
+
+### Q271. How do you estimate whether a cache saves money?
+
+Compare cache infrastructure and operational costs with the source reads, database capacity, egress, and latency-related costs it avoids. Include cache misses, invalidation traffic, replica overhead, and engineering/operational complexity. A high hit ratio does not automatically mean lower total cost if values are huge or the database query is already cheap. Evaluate cost per successful business operation under representative load.
+
+### Q272. How do you choose a retention policy for logs and traces?
+
+Base retention on incident investigation needs, compliance, privacy, and storage cost. High-volume traces may need sampling, while error traces or security audit events may require stronger retention and access controls. Sampling policies must preserve enough information to debug rare tail-latency and distributed failures. Do not apply one retention rule to all telemetry without considering its purpose.
+
+### Q273. How should an architecture handle sensitive data in backups?
+
+Encrypt backups, restrict access, rotate and protect keys, audit restores, and define retention/deletion rules. Ensure restore tooling can access keys during disaster recovery without making keys broadly available. If a deletion request conflicts with immutable backup retention, define the policy for expiry and prevent restored data from silently reintroducing deleted records. Backup security is part of the system's trust boundary.
+
+### Q274. What is a data residency boundary in a multi-region system?
+
+It specifies which data classes may be stored, processed, or accessed in each jurisdiction. Map primary data, replicas, backups, logs, traces, search indexes, support exports, and analytics. A global control plane may hold limited metadata, but that exception must be explicit and approved. Automated placement policies and audits are more reliable than relying on teams to remember regional rules.
+
+### Q275. How do you design a safe administrative or repair tool?
+
+Require strong authentication, least privilege, scoped operations, audit logs, dry-run support, rate limits, and idempotency. Repair jobs should have checkpoints and preview affected records before destructive changes. Separate routine service credentials from elevated operator credentials. A one-off script can bypass all normal invariants, so production repair paths deserve the same review as application code.
+
+### Q276. How do you protect a system from a retry storm caused by clients outside your control?
+
+Apply edge admission control, quotas, request deadlines, and overload responses with clear retry guidance where appropriate. Use jittered server-directed delays if the protocol supports them, and protect expensive endpoints with concurrency limits. Do not assume clients obey retry policies. During an incident, preserve capacity for high-value operations and monitor incoming attempts versus unique logical requests.
+
+### Q277. How should a system handle overload when requests have different business priorities?
+
+Assign explicit classes such as critical transactions, user-facing reads, background exports, and low-priority analytics. Reserve or cap capacity per class, use fair scheduling, and shed lower-priority work first. Avoid relying solely on HTTP endpoint names; one endpoint may contain different workloads. Ensure priority cannot be abused by arbitrary clients and measure starvation across classes.
+
+### Q278. How do you model a workflow that can remain pending for hours?
+
+Persist workflow state, next-action time, retry count, deadline, and correlation IDs instead of holding threads or HTTP connections. Use durable timers or scheduled work and idempotent transitions. Define expiry and manual intervention paths. Long-running workflows need auditability and reconciliation because process memory and a single distributed trace are not sufficient records of progress.
+
+### Q279. How do you avoid duplicate side effects when replaying historical events?
+
+Replay should use a distinct mode or idempotent consumer contract that understands whether the target is being rebuilt or live business effects are being invoked. Use stable event IDs and versions, separate projection rebuilds from irreversible side effects, and gate external calls during replay unless explicitly intended. Document offset boundaries and verify counts before switching the rebuilt projection into service.
+
+### Q280. How do you design a poison-message remediation workflow?
+
+Store the original event, failure category, attempt history, and relevant code/schema version. Provide an owner, alert, safe inspection path, and controlled replay mechanism. Correct the underlying cause before replaying at scale. If ordering matters, define whether the partition remains blocked or later records can continue. Dead-letter storage without ownership and replay tooling merely hides the failure.
+
+### Q281. How do you select a partitioning strategy for multi-tenant data?
+
+Evaluate tenant skew, cross-tenant queries, regional placement, growth, and the need to isolate large tenants. Hashing tenant IDs distributes tenants but does not split one huge tenant; range partitioning may support locality but create hotspots. A hybrid can keep small tenants shared and move large tenants to dedicated shards. Routing changes need versioning and a migration plan.
+
+### Q282. How do you prevent a global counter from limiting write throughput?
+
+A single atomic counter serializes updates and can become a hotspot. Ask whether the exact global sequence is truly required. Alternatives include per-partition counters, preallocated ranges, approximate counts, or generated IDs with different ordering guarantees. If a strict global monotonic sequence is a business invariant, acknowledge the coordination cost and design for its availability requirements.
+
+### Q283. How do you handle clock skew in expiration and lease logic?
+
+Use a trusted datastore's time or a carefully defined clock source where possible, and avoid assuming clocks on different hosts are identical. A lease owner may pause past expiry while still working, so fencing is needed for protected writes. Expiry jobs should perform conditional state transitions rather than deleting records solely because one worker's clock says they are old. Define tolerated skew and test boundary conditions.
+
+### Q284. What is the difference between a lease and a lock with an explicit release?
+
+A lease expires automatically after a bounded period, which helps recover from crashed owners but risks overlap when an owner pauses beyond expiry. A lock with explicit release can remain stuck if the owner crashes unless there is recovery logic. Both need clear ownership identity; leases protecting writes often need fencing tokens. Neither mechanism makes external side effects safe without checking ownership at the resource.
+
+### Q285. How should a design handle a cache or broker that is itself replicated?
+
+Understand its own consistency, failover, durability, and data-loss guarantees. A replicated cache may still lose recent writes or serve stale data during promotion; a replicated broker may acknowledge records according to configured durability settings. Do not treat the word “cluster” as a guarantee. Verify acknowledgement, replication, persistence, and recovery behavior against the actual product and configuration.
+
+### Q286. How do you choose between synchronous and asynchronous audit logging?
+
+If an audit record is required to authorize or complete a regulated operation, it may need to be durably committed with the business change or through a reliable outbox. If it is operational telemetry, asynchronous buffering may be acceptable. Dropping audit records silently is different from sampling traces. Define required durability, tamper protection, retention, and behavior when the audit sink is unavailable.
+
+### Q287. How do you make an API safe for clients that retry after losing the response?
+
+Define idempotency for the logical operation, persist the result or operation state, and let clients query by stable request/operation ID. A timeout leaves the outcome uncertain; the client must not generate a new logical key for the same action. Document key scope, payload mismatch behavior, retention, and concurrent duplicate handling. This is especially important for payments, orders, and resource creation.
+
+### Q288. How should a service expose partial completion?
+
+Return a clear operation state or per-item result when the contract permits partial success. Avoid a generic success response that hides failed sub-operations. For bulk operations, persist item-level progress and allow safe retry of failed items. Define whether the operation is atomic, best-effort, or eventually completed, and make that semantic visible to clients.
+
+### Q289. How do you decide between one large service and several smaller services?
+
+Compare domain cohesion, team ownership, independent scaling, deployment cadence, fault isolation, and data transaction boundaries. Smaller services can isolate changes but increase network hops, contract management, and on-call complexity. A single service can be modular internally and scale adequately for many workloads. Use evidence from bottlenecks and team constraints rather than a preferred service count.
+
+### Q290. What is the role of a backend-for-frontend (BFF) in HLD?
+
+A BFF tailors an API to a specific client experience, reducing client fan-out and allowing aggregation. It can also duplicate business logic if responsibilities are unclear. Keep domain invariants in authoritative services and use the BFF for presentation-oriented composition and client-specific contracts. Consider whether one shared API is sufficient before introducing a separate BFF for every client.
+
+### Q291. How do you design a system for graceful regional failback?
+
+Failback is not simply reversing DNS. Verify the recovered region's data freshness, fence old ownership, synchronize missing changes, and decide which region becomes authoritative. Gradually shift traffic, monitor error and latency signals, and retain a rollback path. Avoid oscillating between regions due to transient health checks. Define how in-flight workflows and clients reconnect.
+
+### Q292. How do you decide whether to queue a write during a regional outage?
+
+Queue only if the operation can be durably accepted, its ordering and expiry semantics are clear, and delayed execution remains valid. A queued “reserve this seat” may be invalid after the event sells out; a queued analytics event may be harmless. Do not claim success for an in-memory queued write. Expose pending status and reconcile conflicts when the authoritative system returns.
+
+### Q293. How should a system respond when a replica is too far behind?
+
+Route freshness-sensitive reads elsewhere, reduce replica load, or temporarily stop sending those read classes to the lagging replica. Identify whether lag comes from write volume, long transactions, network limits, or replica saturation. Do not wait a fixed arbitrary duration and assume it caught up. Define freshness thresholds and monitor replication position/lag.
+
+### Q294. How do you design an API gateway's rate limiting for authenticated and anonymous traffic?
+
+Anonymous traffic may need IP/network and abuse signals, while authenticated traffic can be limited by account, API key, tenant, and endpoint cost. Shared NAT makes IP-only limits unfair, and distributed attackers make them insufficient. Apply inexpensive edge limits before expensive work and keep privileged operations under stronger controls. Define behavior when identity or limiter infrastructure is unavailable.
+
+### Q295. How do you evaluate a fallback provider for critical traffic?
+
+Verify semantic compatibility, regional availability, rate limits, data handling, latency, cost, idempotency, and whether failover can duplicate effects. Provider switching may require different credentials, request formats, or reconciliation. Test health-based switching and failback. Having a second provider on a diagram does not establish that it can safely take over.
+
+### Q296. How do you prevent queue starvation across priorities?
+
+Use separate queues or weighted fair scheduling rather than a strict high-priority queue that can starve lower classes indefinitely. Set reserved capacity or aging rules and measure wait time per class. Critical work should remain responsive without making normal work permanently unserviceable. The policy should be explicit and tested under sustained overload.
+
+### Q297. How do you distinguish a capacity problem from a correctness problem during an incident?
+
+Capacity problems typically show saturation, queue growth, timeouts, or rising latency; correctness problems show invariant violations, mismatched state, duplicate effects, or impossible transitions. They can co-occur: overload can trigger retries and duplicate work. Use traces and resource metrics alongside business-level reconciliation and state-transition logs. Mitigation must not improve availability by weakening critical correctness guarantees.
+
+### Q298. How do you decide what should be included in a design diagram?
+
+Include components that own data, enforce a critical invariant, create a network boundary, process asynchronous work, or define a failure domain. Show the main request and event flows, data stores, and trust boundaries. Omit implementation details that do not change the architecture discussion. Add deeper diagrams only when a critical path, transaction boundary, or failure sequence needs explanation.
+
+### Q299. How should a senior candidate respond when an interviewer challenges a technology choice?
+
+Return to the requirement and compare alternatives against measurable constraints. Acknowledge the cost and failure modes of your chosen option, explain what evidence would change the decision, and simplify if the added component is not justified. Do not defend a technology by popularity or claim universal superiority. The interviewer is evaluating your reasoning and adaptability, not loyalty to a stack.
+
+### Q300. What is the final checklist for defending an HLD design?
+
+Be ready to state the requirements and assumptions; core business invariant; rough traffic/storage/throughput estimates; authoritative data owner; request and event flows; consistency and idempotency guarantees; scaling bottleneck; timeout/retry/overload behavior; failure-domain and recovery plan; security and tenant boundaries; operational signals; cost drivers; and the simplest viable alternative. Clearly state which guarantees are provided, which are best-effort, and what remains out of scope.
+
+
 ## 18. Senior-level scenario bank
 
 For every scenario, state assumptions, identify the invariant, analyse evidence, recommend a design, explain alternatives, describe failure behavior, and name operational signals. These are connected design discussions, not technology flashcards.
