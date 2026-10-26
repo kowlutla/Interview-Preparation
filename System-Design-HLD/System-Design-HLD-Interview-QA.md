@@ -2,7 +2,7 @@
 
 **Audience:** Java backend engineers with 5–10 years of experience preparing for senior and staff-leaning backend/product-company interviews.  
 **Purpose:** A progressive guide to architecture reasoning, capacity estimation, data ownership, consistency, failure handling, operations, and cost.  
-**Status:** Rebuilding for the 5–10 year experience band. Includes eight worked designs and 15 core-concept deep dives; quality attributes, capacity, API/networking, scaling/backpressure, load shedding, and autoscaling answers have been rewritten in greater depth. Full coverage, technical accuracy, readability, and rendered diagram validation remain in progress; not final sign-off.
+**Status:** Rebuilding for the 5–10 year experience band. Includes eight worked designs and 15 core-concept deep dives; partitioning, hashing, schema migration, denormalization, TTL, PACELC, and poison-message answers now explain mechanisms, trade-offs, and operational failure modes in greater depth. Full coverage, technical accuracy, readability, and rendered diagram validation remain in progress; not final sign-off.
 
 > **How to use this guide:** Learn fundamentals in order, then practise scenarios aloud. State assumptions, identify the critical business invariant, estimate scale, draw the simplest viable architecture, and deepen the part the interviewer challenges. Naming technologies is not the goal; explaining why the design satisfies requirements is.
 
@@ -623,15 +623,23 @@ Before choosing a key, list the top queries and write paths, estimate per-key tr
 
 ### Q56. What is a hot partition?
 
-A hot partition receives a disproportionate share of requests or data, so one partition becomes the bottleneck while others remain underused. Common causes include a popular account or tenant, a sequential key that directs writes to the newest range, or a partition key that does not match the actual workload.
+A hot partition receives a disproportionate share of traffic or data, so it becomes the bottleneck while other partitions remain underused. Common causes include one popular user/tenant/item, a monotonic key that directs new writes to the newest range, or a partition key that does not match the workload's common access patterns. A dataset can be balanced by row count and still be heavily skewed by request frequency or query cost.
 
-Mitigations depend on the access pattern. Key salting or sub-partitioning can spread writes but makes reads and aggregation more complex; caching can reduce repeated reads for hot keys; a large tenant may need dedicated capacity. Before changing the key, measure skew and identify which operations must remain ordered or colocated. A more even distribution is not an improvement if it breaks the queries or invariants the design depends on.
+Diagnose using per-partition throughput, CPU/I/O, queueing, lock waits, p95/p99, storage growth, cache hit rates, and top keys/tenants. Fleet averages conceal hot spots. Separate read-hot from write-hot behavior: caching or request coalescing may reduce hot reads, but it will not fix a serialized write to a global counter or a single mutable row.
+
+Mitigations depend on the invariant. A hot read key can use local/shared caching or replicated read paths if freshness allows. A large tenant may move to a dedicated shard. A hot write key may be split into buckets or sharded counters, but that changes query/aggregation complexity and may break ordering. A time-range hotspot may need hash/bucket distribution or partition splitting. If the key must remain globally serialized for correctness, the throughput limit may be inherent and should be explicit.
+
+Do not add partitions blindly: a hot logical key may still map to one physical partition. Validate the new design under realistic skew, including reads/aggregations, rebalancing, and failure. In an interview, explain how you found the bottleneck, which mitigation is compatible with the invariant, and how you prevent the hotspot from reappearing after migration.
 
 ### Q57. What is consistent hashing?
 
-Consistent hashing maps keys and nodes onto a logical ring so that adding or removing a node typically remaps only a portion of keys, rather than reshuffling nearly everything. Virtual nodes can improve distribution when physical nodes have different capacities or the key space is uneven.
+Consistent hashing maps keys and nodes onto a logical ring or equivalent hash space so that adding or removing a node typically remaps only a portion of keys rather than reshuffling nearly every key. Virtual nodes (vnodes) let each physical node own multiple ranges, improving distribution when nodes have different capacity or when the key space is uneven. This can reduce cache churn or data movement during membership changes.
 
-It is a placement technique, not a complete storage architecture. It does not guarantee perfectly balanced load, prevent a hot key, or define replication and consistency by itself. Real systems still need to specify replicas, membership changes, failure handling, and how clients discover the current ring. Use it when reducing remapping during topology changes is valuable, and verify distribution under realistic key skew.
+It is a **placement technique**, not a complete storage architecture. Consistent hashing does not guarantee perfectly balanced request load, prevent a hot key, provide replication, or define data consistency. If one product ID receives 40% of traffic, its key remains hot regardless of how evenly other keys are distributed. Systems still need membership changes, replica selection, failure detection, routing metadata, rebalancing, and read/write semantics.
+
+Compare it with other strategies. Simple modulo hashing can remap many keys when node count changes. Range partitioning supports range queries but may create hotspots; hash-based placement spreads keys but can make range scans scatter-gather. Rendezvous hashing is another option that ranks candidate nodes per key and can simplify weighted placement in some environments.
+
+In an interview, explain what you want to minimize—remapping, hotspot risk, range-query cost, or operational complexity—and why consistent hashing fits. Describe what happens when a node is added/removed, how replicas are selected, how data moves, and how clients find the current owner. Do not claim that consistent hashing alone guarantees elasticity or even load distribution.
 
 ### Q58. What are read replicas good for, and what can go wrong?
 
@@ -659,7 +667,13 @@ Do not assume splitting will improve throughput automatically. Replicas can beco
 
 ### Q60. How do you perform a zero-downtime schema migration?
 
-Use expand–migrate–contract. Add a backward-compatible schema element, deploy code that handles old and new representations, backfill in bounded batches, verify, switch reads/writes, and remove the old schema only after clients migrate. Plan for locks, index creation, rollback, and mixed-version behavior.
+Use an **expand–migrate–contract** approach so old and new application versions can coexist while production writes continue. First add the compatible schema element (new column/table/index or new field). Deploy code that can operate with the old and new representation. Backfill existing rows in bounded batches, capture concurrent changes, validate results, switch reads/writes gradually, and remove the old schema only in a later contract step.
+
+The dangerous race is a backfill reading an old row, a live request committing a newer value, and the backfill overwriting it. Use version-aware conditional writes, a consistent snapshot plus CDC from a known log position, or another explicit strategy to reconcile the snapshot with concurrent changes. Include deletes and retries. A job completing without error is not proof that the migrated data is correct.
+
+Plan for database-specific operational risks: locks, long transactions, index creation, write amplification, replication lag, storage growth, and query-plan changes. Throttle the backfill so it does not starve production requests. Use checkpoints and make each batch idempotent and restartable.
+
+Rollback must be designed before deployment. A previous application version may not understand data written in the new representation, so define the compatibility window and point after which a forward fix is safer than reverting. Validate counts, checksums, invariants, and shadow reads before cutover. In an interview, explain mixed-version behavior, concurrent-write capture, rollback boundaries, and which metrics stop the migration if production health deteriorates.
 
 ```mermaid
 flowchart LR
@@ -671,13 +685,15 @@ flowchart LR
   F --> G[Contract: remove old schema later]
 ```
 
-The migration is complete only after the backfill and concurrent-write stream agree, the new path has been observed in production, and rollback no longer depends on the old representation.
-
 ### Q61. Normalization versus denormalization?
 
-Normalization stores each fact in a well-defined place and relates entities through keys. It reduces duplicated data and avoids update anomalies—for example, changing a customer's address should not require finding and updating copies in many order rows. Denormalization duplicates or precomputes information to make common reads faster, such as storing a product summary in a search index.
+Normalization organizes authoritative facts so each fact has a well-defined owner and updates do not require changing inconsistent copies. For example, storing a customer's address once avoids updating many duplicated order rows when the address changes. Normalization can reduce storage and prevent update anomalies, but heavily normalized read paths may require joins and can be expensive at high read volume.
 
-Denormalization is often valuable for read-heavy systems, but it creates a consistency problem: which copy is authoritative, how are changes propagated, and how stale may a copy become? Keep the transactional source of truth clear and add derived copies only when the read benefit justifies the write and repair complexity.
+Denormalization duplicates or precomputes information to optimize a specific read pattern—for example, a product-search document or a customer order-history projection. It can reduce joins and improve latency, but creates new obligations: how changes propagate, how stale the copy may be, how deletes/tombstones are handled, and how the view is rebuilt when events are missed or the schema changes.
+
+The key distinction is **authoritative write model versus derived read model**. It is often reasonable to normalize the transactional source and denormalize for search, feeds, dashboards, or other read-heavy access patterns. But avoid several independently writable “sources of truth” for the same fact unless a conflict-resolution protocol is explicit. A stale read model should not authorize a payment/refund or finalize inventory if the operation needs current authoritative state.
+
+Choose from measured query cost, read/write ratio, update frequency, freshness target, and operational capability. In an interview, explain the source of truth, the propagation method (transactional update, outbox, CDC, or batch), the staleness contract, and the reconciliation/rebuild plan. “Denormalization makes reads faster” is incomplete unless you account for the write and correctness costs.
 
 ### Q62. How do you recover from database failure?
 
@@ -731,9 +747,13 @@ Analyze cache miss reason, key distribution, origin QPS, refill concurrency, TTL
 
 ### Q67. How should TTLs be chosen?
 
-Choose a TTL by balancing how costly stale data is, how often the source changes, and how much load the backend can handle. A product description may tolerate a longer TTL than an inventory value shown immediately before checkout. Randomize TTLs for large sets of keys so they do not all expire together and create a synchronized burst.
+Choose a time-to-live (TTL) based on the cost of stale data, how frequently the source changes, reuse/access patterns, memory budget, and how much load the origin can handle when entries expire. A public description may tolerate minutes of staleness; an inventory value shown before checkout may tolerate staleness for display but must not make the final reservation decision. Authorization data needs a clear revocation policy.
 
-A TTL is not a full consistency guarantee. It does not prevent a request that started before an update from repopulating stale data afterward, nor does it ensure every replica or client sees the same value. Combine TTL with invalidation or versioning when needed, and bypass the cache for decisions that require authoritative current state.
+TTL is not a complete consistency guarantee. It does not prevent a stale reader from repopulating a cache after an update, and it does not ensure a replica or upstream projection is current when the cache is filled. If a source update event is delayed beyond the TTL or a read starts before a write and finishes afterward, stale state can persist longer than expected.
+
+Use TTL with other mechanisms according to the requirement: randomize expiry with jitter to avoid synchronized cache misses; use refresh-ahead for very hot keys; coalesce concurrent misses; use version-aware fills or reliable invalidation when stale overwrite is dangerous; and serve stale-while-revalidate only for data whose contract permits it. Sensitive/personalized responses also need correct tenant/user dimensions and cache-control rules.
+
+Estimate cache memory using actual serialized entry sizes plus metadata/allocator overhead, and measure hit ratio alongside p99, stale-read rate, eviction, origin load, and refresh concurrency. In interviews, explain the allowed stale window, how TTL interacts with invalidation, and what the system does after a cache outage or mass expiration.
 
 ### Q68. What if Redis becomes unavailable?
 
@@ -799,9 +819,13 @@ Example: during a regional partition, a catalogue may accept independent view co
 
 ### Q74. What does PACELC add?
 
-PACELC extends the CAP discussion by making the normal-operation trade-off explicit. During a **Partition** (P), a system may need to trade **Availability** (A) against **Consistency** (C); **Else** (E), when there is no partition, it may still trade **Latency** (L) against **Consistency** (C). A globally coordinated read may be more current but require a slower cross-region round trip, while a local replica can respond faster with a staleness risk.
+PACELC extends the CAP discussion by naming the trade-off present during normal operation as well as during a network partition. In the shorthand, during a **Partition (P)** a system may trade **Availability (A)** against **Consistency (C)**; **Else (E)**, when no partition occurs, it may still trade **Latency (L)** against **Consistency (C)**. For example, a local replica can answer quickly but may be stale, while a read coordinated with a remote leader may provide a stronger guarantee at the cost of a cross-region round trip.
 
-Use PACELC as a way to frame questions, not as a complete classification of a database. Read the product's actual guarantees for transactions, replication, failover, and consistency levels before making a design claim.
+The value of PACELC is that it stops the discussion from focusing only on rare partitions. Geographic placement, quorum settings, leader routing, and consistency levels can all influence normal request latency. A system may also use different policies for different operations rather than making one global choice.
+
+Use the model to frame the design question, not as a complete classification of a database. The actual behavior depends on the product's replication protocol, read/write API, configuration, and failure semantics. CAP consistency generally means linearizable/single-copy consistency in that formulation; product documentation may use “consistency” more broadly, so be precise about the guarantee being discussed.
+
+In an interview, connect the trade-off to a real operation. A catalogue may prefer local low-latency reads and tolerate a small lag; a financial write may require one authoritative owner even if the region is temporarily unable to reach it. State what the user observes during normal operation and during partition, and how the design recovers afterward.
 
 ### Q75. What are quorum reads and writes, and what does the quorum formula not guarantee?
 
@@ -917,9 +941,13 @@ Example: an order saga may reserve inventory, authorize payment, and arrange shi
 
 ### Q86. How do you handle poison messages?
 
-A poison message repeatedly fails because of malformed data, an incompatible schema, a deterministic application bug, or another condition that retries will not fix. Classify the failure, cap automatic attempts, and move the record to a dead-letter or quarantine path with its payload, error context, attempt history, and correlation ID preserved.
+A poison message repeatedly fails because of malformed data, an incompatible schema, a deterministic consumer bug, or another non-transient condition. Retrying without classifying the failure wastes capacity and may block other work. Capture the original event or a secure reference, event ID, source offset/partition, schema version, attempt history, error class, and correlation context, then move it to a monitored dead-letter/quarantine path when the policy permits.
 
-Do not assume it is always safe to skip the message. If later events depend on it, skipping can corrupt the entity's state; the partition may need to pause until the issue is repaired. Provide an owner and a controlled replay process, and alert on DLQ growth so the queue does not become a silent graveyard.
+The critical question is whether later events depend on the failed one. If ordering matters per account/order, skipping the poison event can corrupt state; pause or isolate the affected partition/key, repair the payload/consumer, then replay it before dependent events. If the domain explicitly allows skipping, record that decision and run reconciliation to establish the resulting state. Do not treat “put it in a DLQ” as an automatic correctness-preserving action.
+
+Classify deterministic failures separately from transient ones. Use bounded attempts and backoff for transient dependency errors; permanent schema/validation errors require repair rather than a faster retry. Replay must be rate-limited and idempotent, preserve event identity for deduplication, and avoid re-triggering irreversible side effects. For privacy-sensitive data, ensure the DLQ has appropriate access and retention controls.
+
+Monitor DLQ count and age, blocked-partition duration, repeated failure reason, and affected business entities. Assign ownership and a controlled remediation process; an unattended DLQ is delayed data loss. In interviews, state whether ordering is global, per partition, or per entity, then explain how remediation preserves or intentionally relaxes that guarantee.
 
 ## 11. Transactions and business correctness
 
