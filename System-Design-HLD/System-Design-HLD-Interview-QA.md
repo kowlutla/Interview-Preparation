@@ -311,6 +311,18 @@ Some reads require fresh data or influence a subsequent write. A lagging replica
 
 Use expand–migrate–contract. Add a backward-compatible schema element, deploy code that handles old and new representations, backfill in bounded batches, verify, switch reads/writes, and remove the old schema only after clients migrate. Plan for locks, index creation, rollback, and mixed-version behavior.
 
+```mermaid
+flowchart LR
+  A[Expand: add compatible schema] --> B[Deploy code supporting old and new]
+  B --> C[Backfill in bounded batches]
+  C --> D[Capture concurrent changes]
+  D --> E[Validate counts and versions]
+  E --> F[Switch reads and writes]
+  F --> G[Contract: remove old schema later]
+```
+
+The migration is complete only after the backfill and concurrent-write stream agree, the new path has been observed in production, and rollback no longer depends on the old representation.
+
 ### Q61. Normalization versus denormalization?
 
 Normalization reduces duplicated facts and update anomalies. Denormalization duplicates or derives data to improve read locality. It creates a synchronization obligation: define the authoritative copy, propagation method, freshness contract, and reconciliation process.
@@ -440,6 +452,28 @@ A poison message repeatedly fails due to malformed data, schema incompatibility,
 
 Create a durable payment-operation record with a unique business/idempotency key before calling the provider. Repeated submissions resolve to the same operation. Pass an idempotency key to the provider if supported and persist provider references. Treat timeouts as unknown outcomes, query status or reconcile, and do not blindly initiate a new charge.
 
+```mermaid
+sequenceDiagram
+  participant C as Client
+  participant A as Payment API
+  participant D as Payment DB
+  participant P as Provider
+  C->>A: Pay with idempotency key
+  A->>D: Create or load operation
+  A->>P: Submit with stable provider key
+  alt Provider confirms
+    P-->>A: Result / reference
+    A->>D: Persist outcome
+    A-->>C: Return operation result
+  else Timeout / unknown outcome
+    A->>D: Mark pending or unknown
+    A-->>C: Return pending operation ID
+    Note over A,D: Reconcile or process authenticated callback
+  end
+```
+
+The operation record is created before the external side effect. A timeout moves the workflow into an uncertain state; it must not trigger a new logical payment with a new key.
+
 ### Q88. How do you prevent double booking a seat?
 
 The invariant is that at most one active reservation owns a seat for a show. Enforce it in the authoritative datastore with a unique constraint, conditional update, or transactionally guarded state transition. A cache or distributed lock alone is insufficient. Holds need expiry and an atomic transition to confirmed.
@@ -543,6 +577,17 @@ Recovery Time Objective is the target maximum time to restore service after disr
 ### Q111. How do you handle a regional outage without conflicting financial writes?
 
 Define a single authoritative write owner per financial entity or use a datastore with required global consistency. If regions cannot coordinate and correctness is mandatory, reject or queue some writes rather than allow conflicting updates. Fence the old leader and reconcile before restoring normal writes. Double-charging customers is not an acceptable availability trade-off.
+
+```mermaid
+flowchart TD
+  R[Request arrives in either region] --> O{Can authoritative owner be confirmed?}
+  O -->|Yes| W[Route write to owner]
+  W --> C[Commit under business invariant]
+  O -->|No| Q[Reject or durably queue write]
+  Q --> X[Reconcile ownership after recovery]
+```
+
+Serving reads from both regions can remain possible, but accepting conflicting writes is a separate decision. Routing a request to a healthy region is not proof that the region owns the right to commit it.
 
 ### Q112. What is split brain?
 
@@ -1246,7 +1291,7 @@ This section is an **index only**. Practise full designs separately; the Q&A abo
 | System | Level / concepts | References |
 |---|---|---|
 | URL shortener | Intermediate: IDs, redirects, cache, hot keys | [URL shortener design walkthrough](https://systemdesign.cloud/part3-design-problems/url-shortener) |
-| Pastebin | Intermediate: expiry, storage, read-heavy traffic | [System Design Primer](https://github.com/donnemartin/system-design-primer) |
+| Pastebin | Intermediate: expiry, storage, read-heavy traffic | [System Design Primer — Pastebin / Bitly](https://github.com/donnemartin/system-design-primer#design-pastebincom-or-bitly) |
 | Distributed unique ID generator | Advanced: uniqueness, time, coordination | [System Design Primer](https://github.com/donnemartin/system-design-primer) |
 | Distributed rate limiter | Advanced: token bucket, atomicity, quotas | [System Design Primer](https://github.com/donnemartin/system-design-primer) |
 | Notification service | Advanced: queues, priorities, retries | [AWS Builders’ Library](https://aws.amazon.com/builders-library/) |
@@ -1257,7 +1302,7 @@ This section is an **index only**. Practise full designs separately; the Q&A abo
 | System | Level / concepts | References |
 |---|---|---|
 | Chat/messaging platform | Advanced: WebSockets, ordering, delivery | [System Design Primer](https://github.com/donnemartin/system-design-primer) |
-| News feed | Advanced: fan-out, ranking, caching | [System Design Primer](https://github.com/donnemartin/system-design-primer) |
+| News feed | Advanced: fan-out, ranking, caching | [System Design Primer — Twitter timeline / Facebook feed](https://github.com/donnemartin/system-design-primer#design-the-twitter-timeline-and-search-or-facebook-feed-and-search) |
 | Photo-sharing platform | Advanced: object storage, metadata, CDN | [System Design Primer](https://github.com/donnemartin/system-design-primer) |
 | Email service | Advanced: queues, abuse controls, delivery status | [Google SRE Books](https://sre.google/books/) |
 | Real-time collaboration | Advanced: concurrent edits, conflicts | [Designing Data-Intensive Applications](https://dataintensive.net/) |
@@ -1289,7 +1334,7 @@ This section is an **index only**. Practise full designs separately; the Q&A abo
 | System | Level / concepts | References |
 |---|---|---|
 | Distributed cache | Senior: sharding, eviction, consistency | [System Design Primer](https://github.com/donnemartin/system-design-primer) |
-| Key-value store | Senior: replication, partitioning, quorum | [Designing Data-Intensive Applications](https://dataintensive.net/) |
+| Key-value store | Senior: replication, partitioning, quorum | [System Design Primer — key-value store](https://github.com/donnemartin/system-design-primer#design-a-key-value-store-for-a-search-engine) · [Designing Data-Intensive Applications](https://dataintensive.net/) |
 | Metrics and logging platform | Senior: ingestion, cardinality, retention | [Google SRE Books](https://sre.google/books/) |
 | Event ingestion and analytics | Senior: partitioning, backpressure | [Confluent Developer](https://developer.confluent.io/) |
 | Distributed task execution | Senior: scheduling, leases, retries | [Temporal documentation](https://docs.temporal.io/) |
@@ -1325,7 +1370,7 @@ The repository's focused guides provide implementation depth; this handbook reta
 
 ### Authoritative and practical references
 
-- [System Design Primer](https://github.com/donnemartin/system-design-primer) — concepts and practice problems.
+- [System Design Primer](https://github.com/donnemartin/system-design-primer) — concepts and practice problems; its [interview approach](https://github.com/donnemartin/system-design-primer#how-to-approach-a-system-design-interview-question) is a useful companion to this handbook.
 - [Google SRE Books](https://sre.google/books/) — reliability, monitoring, incident response.
 - [AWS Builders’ Library](https://aws.amazon.com/builders-library/) — operational lessons and distributed design; see also [timeouts, retries, and backoff with jitter](https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/).
 - [Google Cloud Architecture Framework](https://cloud.google.com/architecture/framework) — reliability, security, cost.
