@@ -739,6 +739,169 @@ Record the context and constraints, decision, alternatives considered, consequen
 Name the guarantees you provide, the failure modes you handle, and the ones you do not. For example: “The order write is durable before acceptance; notification delivery is asynchronous and at-least-once, with deduplication. A provider outage can delay delivery, and the queue-age SLO will alert us.” This is more credible than claiming “exactly once,” “zero downtime,” or “infinite scalability” without defining scope and assumptions.
 
 
+
+
+### Q159. How do you decide whether an index belongs in the database or a search engine?
+
+Use database indexes for queries that are part of transactional access patterns and can be served efficiently by the primary datastore. A search engine is useful for full-text relevance, faceting, typo tolerance, and search-specific ranking at scale. It adds another derived data store, indexing lag, schema management, and operational cost. The search engine should not silently become the authority for transaction-critical facts unless the architecture explicitly supports that role.
+
+### Q160. What is CQRS, and when is it worth the complexity?
+
+Command Query Responsibility Segregation separates the model used to change state from the model used to read it. It can help when read and write workloads have very different shapes, or when complex read views need independent scaling. It does not require separate microservices or databases. The cost is duplicated models, propagation delay, replay/rebuild logic, and more difficult debugging. Use it to solve a concrete workload or domain problem, not as a default architecture.
+
+### Q161. What is change data capture (CDC), and how is it different from application events?
+
+CDC captures committed changes from a database's log or change mechanism and publishes them downstream. It is useful when existing applications cannot reliably publish events themselves or when downstream systems need a faithful data-change feed. Application domain events express business meaning—such as “OrderConfirmed”—while row-level CDC may expose implementation details like a column update. CDC pipelines need schema evolution, delete handling, offsets, retention, replay, and monitoring.
+
+### Q162. How do you handle deletes in a replicated read model?
+
+A delete must propagate as a durable tombstone or explicit deletion event; simply removing a row from the source does not automatically remove copies elsewhere. Include entity identity and version so delayed older updates cannot resurrect deleted records. Define retention for tombstones, rebuild behavior, and deletion propagation to caches, search indexes, analytics, and legally relevant stores. Verify deletion with reconciliation rather than assuming a successful source delete completes the entire workflow.
+
+### Q163. How do you choose between soft deletes and hard deletes?
+
+Soft deletes retain a marker and can support recovery, audit, or business workflows, but queries must consistently exclude deleted rows and uniqueness rules may need adjustment. Hard deletes reduce retained data but complicate recovery and downstream propagation. Privacy or regulatory deletion requirements may require removal from active stores and a defined policy for backups and logs. Choose based on domain lifecycle, legal requirements, and recovery needs; soft delete is not a universal compliance solution.
+
+### Q164. What is a data retention policy, and how does it affect architecture?
+
+Retention defines how long each class of data is stored, where it resides, and when it is deleted or archived. It affects primary storage, indexes, replicas, caches, logs, backups, analytics, and replay capability. Retention must account for legal holds, deletion obligations, restore procedures, and the ability to rebuild derived views. “Keep it forever” creates cost and risk; “delete after 30 days” is incomplete unless all copies and downstream systems are addressed.
+
+### Q165. How do you handle online backfills without overwriting newer data?
+
+Use idempotent batches and compare entity versions or timestamps under a well-defined ordering rule. A backfill snapshot may be older than live updates, so an unconditional upsert can revert current state. Use a high-water mark plus change capture, version-aware writes, or a dual-read validation phase. Checkpoint progress, rate-limit work, and reconcile mismatches before switching reads.
+
+### Q166. How do you estimate shard count?
+
+Start with independent constraints: data size per shard, sustained read/write throughput per shard under representative load, connection/query overhead, and desired failure headroom. Calculate candidate shard counts from each constraint and use the largest credible requirement, then add migration and growth margin. Avoid false precision: real shard capacity depends on query mix, key skew, index size, and operational limits. Load testing is required to validate the estimate.
+
+### Q167. What makes re-sharding difficult?
+
+The difficulty is not just creating more partitions; clients and services must agree on routing while data moves and writes continue. Common strategies include dual routing with versioned ownership, copying a bounded snapshot, capturing concurrent changes, validating, switching reads/writes, and retiring the old placement. Every stage needs retry-safe migration logic and rollback criteria. Monitor hot shards, copy lag, mismatch counts, and the duration of mixed routing.
+
+### Q168. How do you generate unique IDs across regions?
+
+Options include database sequences, centrally allocated ranges, random identifiers, and time/worker-based schemes. A central sequence is simple but adds coordination and availability constraints. Random IDs reduce coordination but need a sufficiently large space and collision handling. Time/worker schemes require worker-ID allocation, clock assumptions, and handling clock rollback. Choose based on uniqueness, sortability, index locality, ID leakage, coordination cost, and whether IDs must be allocated while disconnected.
+
+### Q169. Why can time-based IDs cause problems?
+
+Clock skew or clock rollback can produce ordering anomalies or collisions if the scheme assumes time always moves forward. Sequential IDs may expose approximate creation volume and create write hotspots in some indexes. Mitigations depend on the algorithm: worker allocation, sequence bits, logical time, or waiting for clock recovery. Do not assume a timestamp is globally unique or a perfect ordering of distributed events.
+
+### Q170. How should timestamps and event ordering be represented?
+
+Use a clear timestamp standard, normally UTC for persisted instants, and distinguish event time from processing time. Wall clocks can skew, so timestamps alone are not a reliable total order across machines. For critical ordering, use entity versions, sequence numbers, database commit order, or a defined coordination mechanism. Preserve timezone and locale as presentation concerns rather than encoding ambiguous local times into stored instants.
+
+### Q171. How do you prevent stale updates from overwriting newer state?
+
+Use optimistic concurrency with a version or compare-and-set condition. The update succeeds only if the stored version matches the caller's expected version; otherwise, reload and resolve the conflict. For event consumers, reject versions older than the last applied version. Last-write-wins timestamps can be unsafe when clocks skew or when business precedence differs from wall-clock order.
+
+### Q172. What is a reconciliation loop, and why is it useful?
+
+A reconciliation loop repeatedly compares observed state with desired or authoritative state and applies safe corrections. It is common in infrastructure controllers and can also repair stale projections, incomplete workflows, and missing external confirmations. Reconciliation must be idempotent, bounded, observable, and careful not to undo legitimate newer work. It is a recovery mechanism, not a substitute for preventing avoidable inconsistency.
+
+### Q173. How do you decide between synchronous replication and asynchronous replication?
+
+Synchronous replication waits for acknowledgements according to a configured durability/consistency policy, potentially increasing write latency and making writes unavailable when required replicas cannot respond. Asynchronous replication lowers write latency and can improve availability, but recent acknowledged writes may be missing from a replica promoted after failure. Understand the exact commit and failover semantics of the selected datastore; “synchronous” alone does not specify every guarantee.
+
+### Q174. How do you reason about database connection-pool size?
+
+The pool should provide enough concurrency to use the database effectively without creating excessive contention. If each application instance opens a large pool, horizontal scaling can multiply total connections beyond database capacity. Consider query duration, transaction duration, database limits, number of instances, and workload mix. Monitor acquisition wait and connection hold time; increasing the pool may only move queueing from the application to the database.
+
+### Q175. What is the difference between a database lock wait and connection-pool wait?
+
+A pool wait means a request cannot obtain a connection; a lock wait means a transaction has a connection but is blocked by conflicting database work. The remedies differ: pool sizing and connection leaks may affect pool waits, while transaction duration, lock order, query plans, and contention affect lock waits. Instrument both separately so a pool saturation symptom is not mistaken for the root cause.
+
+### Q176. How do you choose a storage model for time-series data?
+
+Consider write rate, timestamp ordering, retention, aggregation windows, cardinality, late-arriving data, and query patterns. Time partitioning and compression can improve retention and scans, but a timestamp-only partition key may create write hotspots. Downsampling or rollups reduce cost but lose detail. Separate raw retention from aggregate retention, and define how corrections and late events update aggregates.
+
+### Q177. How do you design a search index rebuild?
+
+Build a new index generation alongside the current one, backfill from a consistent snapshot or replayable change stream, and continue applying concurrent changes. Validate document counts and representative query results, then switch an alias or routing pointer atomically where supported. Retain the old index for rollback until the new generation is healthy. Rebuild capacity must not starve production queries or ingestion.
+
+### Q178. How do you make pagination stable while records are changing?
+
+Use a deterministic ordering with a unique tie-breaker and cursor based on the last seen values. Offset pagination can shift as records are inserted or deleted. Cursor pagination reduces this drift but does not automatically provide a consistent snapshot across pages. If snapshot semantics matter, use a supported snapshot/version boundary or explain that pages reflect a changing dataset.
+
+### Q179. How do you design a webhook delivery system?
+
+Persist the event and delivery attempt state, sign requests, use bounded retries with backoff and jitter, and expose delivery status. The receiver may time out after processing, so delivery is generally at-least-once and the receiver should deduplicate. Isolate endpoints so one slow receiver cannot block others; enforce quotas and per-endpoint concurrency limits. Provide safe replay and protect against SSRF and secret leakage when users configure destinations.
+
+### Q180. How should a system handle poison records without violating ordering?
+
+First determine whether later records depend on the failed record. If strict per-key order is required, pausing that key/partition may be necessary while other partitions continue. If records are independent, quarantine the failed item and continue under an explicit policy. Preserve the original payload and error details, alert owners, and make replay controlled and idempotent. Automatically skipping a record can silently corrupt state.
+
+### Q181. What is the difference between a queue's depth and age?
+
+Depth counts pending items; age measures how long the oldest or representative item has waited. A large backlog of low-priority work may be tolerable if deadlines are distant, while a small queue of time-critical events may already violate an SLO. Track both, plus arrival rate, completion rate, retries, and estimated drain time. Queue depth alone does not describe user impact.
+
+### Q182. How do you prevent one slow consumer from affecting others?
+
+Use independent consumer groups or subscriptions when consumers need separate progress, bounded per-consumer concurrency, and workload isolation. In a shared queue where each task is assigned to one worker, one slow worker can still hold a task or partition. Use visibility timeouts/leases carefully, poison-message policy, and separate queues for different service-level objectives. Isolation increases storage and operational cost but limits blast radius.
+
+### Q183. How do you choose a message retention period?
+
+Estimate the longest realistic consumer outage, recovery and replay duration, event rate, record size, replication overhead, and safety margin. Include legal retention constraints and the cost of keeping records. If events are needed to rebuild a projection, retention must cover rebuild time or an archive/source-of-truth must exist. Retention is a recovery design choice, not just a broker setting.
+
+### Q184. How do you avoid retrying permanent failures forever?
+
+Classify errors by semantics: validation or unsupported schema errors are usually permanent until data/code changes; throttling, transient network errors, and temporary unavailability may be retryable. Use bounded retries, backoff, a dead-letter or quarantine path, and clear ownership for remediation. Error classification must be based on actual provider contracts rather than assuming all 4xx or 5xx responses have universal meaning.
+
+### Q185. What should happen when a circuit breaker opens?
+
+Stop sending calls that are unlikely to succeed, fail fast or use an allowed fallback, and probe recovery in a controlled half-open state. Ensure callers do not all resume at once. Keep timeout and concurrency limits because breaker thresholds can lag behind sudden failures. Monitor open duration, rejected calls, probe success, and whether fallback is serving valid data.
+
+### Q186. How do you choose between fail-open and fail-closed behavior?
+
+Fail-open prioritizes continued operation when a control or dependency is unavailable; fail-closed prioritizes safety or enforcement. A recommendation service may fail open by omitting recommendations. Authorization, fraud controls, or a strict quota may need to fail closed. Make the choice per operation and risk, document the user-visible behavior, and test the failure path instead of letting it emerge accidentally.
+
+### Q187. How should a feature degrade during overload?
+
+Rank features by business value and correctness. Preserve core operations, reject or defer optional work, reduce expensive personalization, and apply explicit deadlines. Degradation should be deterministic and visible in metrics; silent partial correctness is dangerous. Use separate capacity budgets where possible so optional traffic cannot consume resources required for critical work.
+
+### Q188. How do you design an operational kill switch?
+
+Define the exact behavior to disable, the identity authorized to activate it, propagation target, audit trail, and rollback. Cache configuration locally for availability but specify how quickly emergency changes must propagate and what happens if the control plane is down. A kill switch should disable a risky path without accidentally disabling unrelated safety checks or making data inconsistent.
+
+### Q189. How do you measure the quality of an asynchronous workflow?
+
+Measure acceptance success, completion success, end-to-end duration, age of pending work, retries, terminal failures, and reconciliation discrepancies. Segment by event type, tenant, and provider without creating unbounded metric cardinality. A broker's healthy status and low consumer lag do not prove the business workflow completed correctly.
+
+### Q190. How do you test a system's capacity before launch?
+
+Define representative workload distributions, data volume, key skew, payload size, concurrency, and dependency behavior. Test normal, peak, burst, cold-cache, node-loss, and degraded-dependency conditions. Increase load until throughput stops scaling or latency/error objectives fail; inspect the bottleneck before adding capacity. Repeat after material architecture changes and preserve the test assumptions with results.
+
+### Q191. What is the difference between load, stress, spike, and soak testing?
+
+Load testing checks expected traffic; stress testing pushes beyond normal capacity to find failure behavior; spike testing checks sudden traffic changes; soak testing checks long-duration issues such as leaks, compaction pressure, or gradual queue growth. All are useful for HLD validation because average throughput alone does not expose burst recovery or resource exhaustion.
+
+### Q192. How do you design chaos experiments safely?
+
+Start with a specific hypothesis, limited blast radius, measurable steady-state indicators, and a rollback/stop condition. Inject one class of failure at a time—such as dependency latency or a worker crash—then verify both user-visible behavior and recovery. Run in representative environments and communicate with responders. Chaos testing is not random disruption without a learning objective.
+
+### Q193. How do you define useful alerts from SLOs?
+
+Alert on symptoms that represent user impact or a rapidly burning error budget, not every infrastructure fluctuation. Use windows appropriate to the objective, include actionable context, and distinguish urgent pages from tickets. Avoid alerting on a metric simply because it is easy to collect. A low-traffic service may need different alert logic than a high-volume API.
+
+### Q194. How do you reason about a dependency's error budget?
+
+A dependency's failures consume the caller's reliability budget according to how often and how critically the caller depends on it. Optional calls with safe fallbacks have a different impact from a dependency required for every transaction. Establish dependency SLOs, timeouts, fallback semantics, and ownership escalation. Do not assume the dependency's published availability equals your end-to-end availability.
+
+### Q195. What is a failure domain, and how do you reduce correlated failures?
+
+A failure domain is a set of resources likely to fail together, such as a host, rack, availability zone, region, shared credential, or common database. Place replicas across genuinely independent domains, remove shared bottlenecks, and avoid synchronized deployments or retry schedules. Geographic separation does not help if every region depends on the same control plane or credential provider.
+
+### Q196. How do you evaluate a fallback's correctness?
+
+Define what data the fallback uses, how stale it may be, and which invariants still hold. A stale product description may be acceptable; stale available inventory can create overselling. Test fallback activation, recovery, and transitions back to the primary path. Track fallback rate and age, and ensure fallback behavior does not hide a persistent primary failure.
+
+### Q197. How should a design account for data privacy in observability?
+
+Avoid putting secrets, payment credentials, tokens, or unnecessary personal data in logs and traces. Use redaction, access controls, retention limits, and audited access to sensitive diagnostics. Correlation IDs should support troubleshooting without encoding sensitive data. Ensure exports and third-party telemetry follow the same residency and deletion requirements as primary systems.
+
+### Q198. What is the difference between technical success and business success?
+
+An HTTP request can succeed while an order remains unfulfilled, a payment is unresolved, or a notification never reaches its intended terminal state. Define business outcomes and valid state transitions, then instrument them alongside transport and infrastructure metrics. Design reconciliation and operator tooling for incomplete workflows. Senior-level architecture must explain how the system detects and repairs silent business failures.
+
+
 ## 18. Senior-level scenario bank
 
 For every scenario, state assumptions, identify the invariant, analyse evidence, recommend a design, explain alternatives, describe failure behavior, and name operational signals. These are connected design discussions, not technology flashcards.
@@ -1008,6 +1171,71 @@ For every scenario, state assumptions, identify the invariant, analyse evidence,
 **Recommendation:** If the boundary is not cohesive or independently valuable, retain a module inside the monolith and improve internal interfaces. If extraction is justified, establish data ownership, contract compatibility, observability, deployment strategy, and rollback before migration.
 
 **Follow-up:** “Microservices are more scalable” is not a sufficient rationale. A poorly bounded service can make both scalability and reliability worse.
+
+
+
+### Scenario 61 — A search-index rebuild must not lose live updates
+
+**Problem:** A new index schema is required while product updates continue arriving.
+
+**Approach:** Build a separate index generation from a consistent snapshot, then replay changes from a captured position so updates that occur during the backfill are included. Validate counts, versions, and representative queries before switching traffic. Retain the old index for rollback. Make index updates version-aware so replayed older data cannot overwrite newer state.
+
+**Operational signals:** Backfill progress, change-stream lag, indexing errors, mismatch counts, query latency, and index freshness.
+
+### Scenario 62 — A deleted account reappears in a downstream system
+
+**Problem:** The primary database shows an account deleted, but an old event later recreates it in a read model.
+
+**Analysis:** A delayed create/update event was applied after deletion, or the deletion was not propagated as a durable tombstone. Add entity versions or lifecycle epochs and reject updates older than the deletion version. Ensure consumers and rebuild processes preserve tombstones long enough to prevent resurrection. Reconcile the read model and audit all derived stores.
+
+### Scenario 63 — Global ID generation fails during a network partition
+
+**Problem:** Two regions cannot reach the central ID allocator.
+
+**Approach:** Determine whether ID allocation must continue in both regions and whether IDs need ordering or only uniqueness. Preallocated disjoint ranges or region/worker bits can allow local generation, but require safe allocation and handling of worker identity and clock assumptions. A central allocator is simpler but can become an availability bottleneck. Never claim a time-based scheme is collision-free without stating its assumptions.
+
+### Scenario 64 — A data backfill silently overwrites current values
+
+**Problem:** A backfill started from yesterday's snapshot writes records after newer live updates have already committed.
+
+**Approach:** Use entity versions, conditional writes, a captured change stream, or a high-water mark so older backfill data cannot overwrite newer state. Make batches resumable and idempotent. Validate the new model against the authoritative source and stop the migration automatically when mismatch or replication lag exceeds defined limits.
+
+### Scenario 65 — A provider returns throttling errors after scaling workers
+
+**Problem:** Worker throughput decreases when more instances are added because the provider enforces an account-wide quota.
+
+**Approach:** Centralize or coordinate quota budgets, use a bounded queue, and schedule calls at the permitted rate. More workers should increase local processing capacity only up to the provider's sustainable rate. Use jittered retries and priority classes, and expose backlog age to product teams. Keep per-tenant fairness if one tenant can consume the entire provider quota.
+
+### Scenario 66 — An emergency kill switch is needed during a rollout
+
+**Problem:** A new feature creates incorrect results, but the configuration service is partially unavailable.
+
+**Approach:** Define a locally cached, versioned flag with a safe default and a clear propagation objective. Determine whether stale configuration is acceptable; for a high-risk feature, conservative behavior may be required. Record flag changes and actors, and verify that disabling the feature does not leave half-completed workflows or inconsistent data. Test the switch during control-plane failure before launch.
+
+### Scenario 67 — A backup restore meets RPO but misses RTO
+
+**Problem:** Data can be restored with acceptable loss, but the restore takes much longer than the business can tolerate.
+
+**Approach:** Measure restore throughput and identify bottlenecks: snapshot size, indexes, network, key retrieval, schema migrations, and validation. Consider incremental backups, parallel restore, warm standby, or replicated infrastructure depending on the required RTO and cost. Rehearse end-to-end restoration, including routing and application readiness, not only database startup.
+
+### Scenario 68 — A fallback returns stale inventory during an outage
+
+**Problem:** The primary inventory service is unavailable, and the application continues selling from cached stock counts.
+
+**Approach:** Decide whether overselling is allowed. If not, stale inventory cannot authorize a reservation; reject or queue the critical operation while allowing safe catalogue reads. If bounded overselling is a deliberate business policy, define limits, reconciliation, and customer remediation. A fallback must preserve the invariant or explicitly change the business contract.
+
+### Scenario 69 — A low-volume service violates its SLO but dashboards show no obvious issue
+
+**Problem:** A service with few requests experiences sporadic failures, making aggregate metrics noisy.
+
+**Approach:** Use request-level SLI definitions, minimum sample awareness, synthetic checks for critical journeys, and structured event logging. Alert on user-impacting failures and meaningful error-budget burn rather than raw percentages alone. Inspect individual traces and dependency errors, and ensure low traffic does not hide a complete outage.
+
+### Scenario 70 — A team proposes active-active writes to reduce latency
+
+**Problem:** Two regions will accept concurrent updates to the same account and asynchronously replicate them.
+
+**Approach:** Ask what happens when the same balance, inventory item, or profile field is updated concurrently during a partition. If the invariant requires one serial order, use a single writer per entity or a datastore/coordination protocol that enforces the needed consistency. Active-active reads and compute can coexist with owner-routed writes. Conflict resolution is acceptable only when the domain defines how conflicts are resolved without violating business correctness.
+
 
 ## 19. End-to-end case-study index
 
