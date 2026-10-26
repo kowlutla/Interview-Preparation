@@ -2,7 +2,7 @@
 
 **Audience:** Java backend engineers with 5–10 years of experience preparing for senior and staff-leaning backend/product-company interviews.  
 **Purpose:** A progressive guide to architecture reasoning, capacity estimation, data ownership, consistency, failure handling, operations, and cost.  
-**Status:** Rebuilding for the 5–10 year experience band. Includes eight worked designs and 15 core-concept deep dives; scenarios 1–60 are being strengthened around invariants, diagnosis, capacity, failure windows, recovery, security boundaries, and operational signals. Full content coverage, technical accuracy, readability, and rendered-diagram validation remain in progress; not final sign-off.
+**Status:** Rebuilding for the 5–10 year experience band. Includes eight worked designs and 15 core-concept deep dives; scenarios 1–70 are being strengthened around invariants, diagnosis, capacity, failure windows, recovery, security boundaries, and operational signals. Full content coverage, technical accuracy, readability, and rendered-diagram validation remain in progress; not final sign-off.
 
 > **How to use this guide:** Learn fundamentals in order, then practise scenarios aloud. State assumptions, identify the critical business invariant, estimate scale, draw the simplest viable architecture, and deepen the part the interviewer challenges. Naming technologies is not the goal; explaining why the design satisfies requirements is.
 
@@ -4156,41 +4156,63 @@ Do not solve the issue solely by adding a user ID to every cache key without che
 
 ### Scenario 61 — A search-index rebuild must not lose live updates
 
-**Problem:** A new search index is being rebuilt while live product updates continue. If the rebuild switches to the new index without capturing concurrent changes, some updates may disappear.
+**Problem:** The search index is being rebuilt to change analyzers, mappings, or storage layout while product writes continue. If the new index is populated from a moving source without capturing live changes, updates can be lost or overwritten.
 
-**Approach:** Build a separate index generation from a consistent source snapshot and capture the change-stream position associated with that snapshot. Replay all later changes into the new index, using entity versions so older updates cannot overwrite newer documents. Compare counts, versions, important queries, and domain-level aggregates before switching traffic.
+**Establish a snapshot boundary:** Build a new index generation rather than deleting the live index. Capture a consistent snapshot and the corresponding database log/CDC position. Bulk-load the snapshot, then replay all later changes in order for each entity. If the change log expires before catch-up, restart from a new consistent boundary rather than cutting over with a gap.
 
-**Cutover:** Pause or coordinate writes only if the system cannot safely capture concurrent changes. Otherwise, track replay lag and switch when the new index has caught up to a defined position. Keep the old index for rollback until the new generation is verified.
+**Prevent stale overwrites:** Include entity versions or source sequence numbers. A document loaded from the snapshot must not overwrite a newer update already applied from the change stream. Preserve delete tombstones long enough so a replayed older create/update cannot resurrect a deleted document. Make retries and upserts idempotent.
 
-**Signals:** Monitor snapshot progress, change-stream lag, indexing errors, mismatch counts, freshness, and query latency.
+**Validate before cutover:** Compare document counts, versions, required fields, domain aggregates, deletion behavior, and representative queries/relevance—not only that the index returns HTTP 200. Shadow queries can compare new/old results without exposing the candidate to users. Track indexing lag, error rate, and query p99.
+
+**Cutover and rollback:** Switch an alias/routing pointer only after the new index reaches the required freshness boundary. Keep the old generation for a bounded rollback period, but define how writes occurring after cutover are reflected if rollback is needed. Account for the temporary storage/compute cost of two indexes.
+
+**Follow-up:** Explain the snapshot/CDC boundary, how deletes and late events are handled, and why “bulk load completed” is not proof of a correct rebuild.
 
 ### Scenario 62 — A deleted account reappears in a downstream system
 
-**Problem:** A deleted account reappears in a downstream read model because a delayed create/update event was applied after the deletion.
+**Problem:** A deleted account reappears in search, analytics, cache, or another downstream service because a delayed create/update event was applied after the delete. Deletion has propagated to some stores but not all.
 
-**Root cause:** Deleting a row from the source does not automatically erase derived copies, and a late older event can resurrect an entity if the consumer treats every message as an unconditional upsert.
+**Root cause:** Removing a row from the source does not automatically erase derived copies, and a consumer that treats every event as an unconditional upsert can resurrect the entity. An old event may also be replayed during a rebuild after the tombstone was discarded.
 
-**Design:** Publish a durable tombstone or deletion event with the entity identity and a version/lifecycle epoch. Consumers should apply updates only when their version is newer than the last applied version, and retain deletion metadata long enough to reject delayed events and replayed history. Ensure rebuild pipelines, caches, search indexes, and analytics respect deletion semantics.
+**Design:** Publish a durable deletion/tombstone event with the entity identity and a version or lifecycle epoch. Consumers should apply an update only if its version is newer than the last applied version, and retain deletion metadata long enough to reject delayed updates and replayed history. Use explicit deletion semantics for search indexes, caches, analytics, object storage, exports, and downstream processors. A boolean soft-delete alone is not enough if the event pipeline later treats old records as active.
 
-**Recovery:** Reconcile derived stores against the authoritative source and verify the account is absent from all required locations. Track deletion propagation lag, resurrection attempts, and failed downstream deletes.
+**Privacy and retention:** Determine whether the requirement is logical hiding, physical erasure, or deletion from all derived copies within a stated time. Backups may retain data until their retention expires, so restore procedures must also reapply current deletion records or tombstones before exposing restored data. Preserve only audit evidence permitted by policy.
+
+**Recovery:** Reconcile every required downstream location against the authoritative deletion state. Repair with version-aware operations and verify the data does not reappear after a consumer replay or index rebuild.
+
+**Signals and tests:** Monitor deletion propagation latency, resurrection attempts, failed downstream deletes, tombstone expiry, and per-store mismatches. Test out-of-order events, full rebuild, replay, and restore.
+
+**Follow-up:** Explain the tombstone retention window and how it exceeds the maximum credible event/replay delay.
 
 ### Scenario 63 — Global ID generation fails during a network partition
 
-**Problem:** A central ID allocator becomes unreachable during a network partition, and services in two regions need to continue creating records.
+**Problem:** A central ID allocator is unreachable during a network partition, while services in multiple regions need to create records. A naive failover can allocate the same sequence range or worker identity twice.
 
-**Clarify:** Does the system require only uniqueness, or also monotonic ordering, approximate time ordering, and compact IDs? Those requirements change the design.
+**Clarify requirements:** Is the system requiring uniqueness only, global monotonic order, approximate time ordering, compact IDs, or the ability to generate IDs while disconnected? These goals conflict. A globally monotonic sequence requires coordination; a decentralized scheme generally provides uniqueness with weaker ordering properties.
 
-**Options:** Preallocated disjoint ranges or region/worker bits can allow local generation without contacting a central allocator for every ID. These approaches require durable exclusive allocation, safe worker identity, and restart/failover rules. A random identifier avoids coordination but needs a sufficiently large space and collision handling. A central sequence is simple but makes allocation availability depend on the allocator.
+**Design choices:** Preallocate disjoint sequence ranges, use region/worker bits with durable exclusive worker assignment, or generate sufficiently large random identifiers. A central sequence is simple but adds latency and becomes an availability dependency. Range allocation reduces per-ID coordination but must ensure a failover node cannot reuse an active range. Time/worker/sequence schemes need rules for clock rollback, worker-ID reuse, sequence exhaustion, and startup after a pause.
 
-**Correctness:** Never let two regions reuse the same range or worker identity. If the scheme relies on time, specify clock rollback and skew behavior. Test allocator failover and process restart, not only normal generation.
+**Prevent split-brain allocation:** Do not promote a standby based only on a heartbeat timeout if the old allocator could still issue IDs. Use epoch/fencing or exclusive lease ownership that the allocation resource enforces. Persist range/worker assignments and quarantine uncertain assignments after failover. A local check alone cannot prevent an isolated old process from continuing.
+
+**Validation and repair:** Test process restart, node replacement, region loss, clock skew/rollback, and concurrent allocator promotion. Enforce a unique constraint at the destination where feasible; if collisions occur, preserve referential integrity and define a repair path rather than silently overwriting records.
+
+**Signals:** Monitor duplicate-key violations, worker-ID reuse, range allocation history, clock drift, and generator failover. In an interview, state clearly whether ID uniqueness is guaranteed by protocol or only probabilistically.
 
 ### Scenario 64 — A data backfill silently overwrites current values
 
-**Problem:** A backfill reads an older snapshot and writes it after a newer live update, silently reverting current state.
+**Problem:** A backfill reads an old snapshot, then writes it after a newer live update, silently reverting current state. The job completes successfully and row counts match, but the resulting data is incorrect.
 
-**Design:** Make each backfilled record carry a source version or timestamp governed by a clear ordering rule, and apply it with a conditional write that rejects older versions. For large migrations, combine a consistent snapshot with a captured change stream or high-water mark so writes that occur during the copy are replayed before cutover. Batches should be idempotent and checkpointed.
+**Root cause:** The backfill is a concurrent writer. If its writes are unconditional, the order in which operations reach the destination—not the age of the data—determines the final value.
 
-**Validation:** Compare versions and domain-level values between source and target, not just row counts. Set thresholds for mismatches and replication lag that pause the migration automatically. Keep a rollback path and do not switch reads until the concurrent-update window has been accounted for. A backfill is a concurrent production writer and should be rate-limited accordingly.
+**Design:** Define a snapshot/high-water mark or source version, and apply records with conditional writes so an older version cannot overwrite a newer live value. For a large migration, copy a consistent baseline and capture all later changes through CDC/log replay. If dual writes are used, define which side is authoritative and how partial success is repaired; naive writes to both stores can diverge.
+
+**Deletes and ordering:** Capture deletes/tombstones as well as updates, preserve per-entity ordering, and ensure replayed events cannot resurrect a deleted record. A wall-clock timestamp can be unsafe if hosts have skew; database-generated versions or source log positions are preferable when available.
+
+**Operational control:** Run bounded, checkpointed, idempotent batches and throttle them against production p99, database I/O, lock waits, and replication lag. Pause automatically when mismatches or lag cross a threshold. Keep progress and failure records so a restarted worker does not repeat unsafe work.
+
+**Validation:** Compare versions and domain-level values, not only row counts; use checksums where they are meaningful. Do not switch reads until concurrent updates have converged and discrepancy rules are understood. Keep rollback or forward repair for partially migrated data.
+
+**Follow-up:** Explain how the migration identifies and rejects a stale write, including the crash window when the worker restarts.
 
 ### Scenario 65 — A provider returns throttling errors after scaling workers
 
@@ -4208,53 +4230,73 @@ Do not solve the issue solely by adding a user ID to every cache key without che
 
 ### Scenario 66 — An emergency kill switch is needed during a rollout
 
-**Problem:** A new feature is producing incorrect results, but the feature-flag control plane is partially unavailable and some instances cannot fetch the latest flag state.
+**Problem:** A newly released feature produces incorrect business results, but the feature-flag control plane is partially unavailable and some instances cannot fetch the latest flag value. Turning a flag off everywhere is not instantaneous, and already completed effects may remain.
 
-**Design:** Decide the safe behavior for this particular feature rather than assuming every flag should default to false. Cache validated, versioned configuration locally and define how stale it may be. For a high-risk feature, a conservative local default may be safer; for other features, the last known value may preserve service. Emergency controls need a tested propagation objective and a fallback when the control plane itself fails.
+**Define safe behavior first:** Classify the feature. An optional recommender can often be disabled safely; a feature involved in a database migration, payment state, or authorization may require a specific compatibility path. Do not assume “default false” is safe if old and new code interpret persisted data differently.
 
-**Workflow safety:** Turning off a flag does not undo side effects already performed. Identify in-flight workflows, provide compensation or reconciliation where necessary, and ensure the disabled path can still read records created by the enabled path.
+**Control path:** Keep a validated, versioned last-known-good configuration local and define a maximum freshness age. Emergency controls need a tested propagation objective, authenticated and audited changes, and a fallback if the control plane cannot be reached. For high-risk behavior, use a conservative safe default or fail-closed policy where feasible. Avoid a design where every request synchronously calls the flag service.
 
-**Validation:** Test kill-switch behavior during control-plane failure before rollout. Record who changed the flag and when, and monitor configuration age, propagation delay, and remaining active instances.
+**In-flight operations:** Disabling a feature stops future work; it does not undo side effects already performed. Identify workflows that started under the new behavior, decide whether to finish, cancel, compensate, or reconcile them, and ensure the disabled path can still read records created by the enabled path.
+
+**Rollout and recovery:** Stage the change, verify configuration version/age across instances, pause further release, and monitor business outcomes after the switch. Re-enable only after the root cause is addressed and tests cover the failure.
+
+**Signals and follow-up:** Track flag propagation delay, stale instances, active workflow state, and errors by version. Explain how the kill switch works during control-plane failure and how you prevent already-started work from becoming orphaned.
 
 ### Scenario 67 — A backup restore meets RPO but misses RTO
 
-**Problem:** A restore can recover data within the allowed loss window, but the full service takes longer than the business can tolerate to return.
+**Problem:** A restore recovers data from within the allowed loss window, satisfying RPO, but the full service takes longer than the business can tolerate to return, violating RTO.
 
-**Diagnosis:** RPO and RTO are separate objectives. Meeting RPO means the restored data is recent enough; it does not prove the service can be restored quickly enough. Measure time spent retrieving snapshots, restoring data, rebuilding indexes, replaying logs, applying migrations, validating invariants, fetching encryption keys, and routing traffic.
+**Separate the objectives:** RPO is the age of the recovery point/data loss the business tolerates. RTO is the time to restore an acceptable user journey. A database restore that finishes in two hours can meet a six-hour RPO but still miss a one-hour RTO. The entire path matters, not just database startup.
 
-**Options:** Improve restore throughput, parallelize independent work, retain prebuilt indexes, use incremental backups, or maintain a warm standby if the business value justifies the extra cost. A replica may shorten recovery but is not a substitute for backups after logical corruption.
+**Measure the recovery timeline:** Record time for detection, decision/approval, snapshot retrieval, data restore, log replay, schema migrations, index rebuild, key/secret retrieval, application deployment, DNS/routing, cache/read-model warm-up, and business validation. Find the dominant stage; optimizing backup frequency may improve RPO without improving RTO.
 
-**Validation:** Rehearse the full service restoration, including application startup and user-path checks, and measure actual RTO. Track each phase so improvements target the real bottleneck.
+**Options:** Increase restore bandwidth and parallelism, use incremental/PITR techniques, retain prebuilt artifacts/indexes where safe, automate deployment/configuration recovery, pre-provision a warm standby, or keep a replica for faster node failover. A replica is not a substitute for backups after logical corruption because corruption can replicate. A warm standby costs more and must be tested for actual capacity and data freshness.
+
+**Validate end to end:** Run periodic restores at production-like volume, verify business invariants and application dependencies, and record measured RPO/RTO rather than target-only values. Include KMS/identity/DNS/operator access outages and the possibility that the restored data requires reconciliation with external providers.
+
+**Follow-up:** Explain which step dominates RTO, how your chosen mitigation changes the full recovery timeline, and how you prove the target has been met.
 
 ### Scenario 68 — A fallback returns stale inventory during an outage
 
-**Problem:** The primary inventory service is unavailable, and a fallback cache still shows stock that may already have been sold.
+**Problem:** The authoritative inventory service is unavailable, and a fallback cache displays stock that may already have been sold. The system wants to remain available but must not confirm a reservation based on stale inventory.
 
-**Invariant:** If overselling is forbidden, cached stock cannot authorize a reservation. A display value can be stale without violating correctness, but a committed reservation must use an authoritative atomic operation.
+**Define the invariant:** If overselling is prohibited, only an authoritative atomic reservation/hold can confirm stock. A cached count may be acceptable for browse/display, but it cannot prove the unit is available at commit time. If the business intentionally allows oversell, that must be a stated product policy with bounded limits and remediation—not an accidental consequence of fallback.
 
-**Design:** During the outage, keep safe catalogue reads available but reject or durably queue the reservation attempt only if delayed execution is valid and the API clearly reports a pending state. Do not tell the customer the reservation is confirmed when no authoritative hold exists. If the business deliberately permits bounded overselling, define the limit, prioritization, reconciliation, and customer-remediation policy explicitly.
+**Degraded design:** Keep safe catalogue reads available, but disable or defer the final reservation decision while authoritative state is unreachable. Queue a command only if delayed execution remains valid and the API explicitly reports pending rather than confirmed; a seat or flash-sale item may be gone before the queue drains. For a pending operation, persist the operation ID and idempotency key durably, then revalidate stock before any commit when service returns.
 
-**Recovery:** Reconcile reservations and stock before resuming normal writes. Monitor stale inventory age, rejected reservations, pending operations, and oversell incidents.
+**Avoid misleading status:** Do not return “reserved” or “order confirmed” unless the invariant is durably enforced. If payment has already been captured but reservation cannot be confirmed, define a refund/compensation workflow and reconciliation. Avoid charging before inventory commitment unless the business workflow can handle the failure safely.
+
+**Recovery:** Reconcile holds, reservations, payment attempts, and inventory before resuming normal writes. Use conditional transitions and idempotency to avoid duplicates. Monitor stale-stock age, pending reservations, rejected attempts, oversell/compensation counts, and inventory service recovery.
+
+**Follow-up:** Explain what can remain available during the outage, what must be rejected, and how the API represents uncertain or pending outcomes.
 
 ### Scenario 69 — A low-volume service violates its SLO but dashboards show no obvious issue
 
-**Problem:** A low-volume service violates its SLO, but dashboards show no clear pattern because the request sample is small.
+**Problem:** A low-volume service violates its SLO, but dashboards look normal because aggregates and percentiles are based on a small number of requests or a long observation window.
 
-**Diagnose:** Percentages can be noisy when there are few requests, and a dashboard averaged over a long window can hide a short complete outage. Inspect individual traces and structured events, verify the SLI denominator, and separate dependency errors from application errors. Check whether health probes are succeeding while the actual user journey fails.
+**Diagnose carefully:** Verify the SLI denominator, window, exclusions, and whether the service measures business success or only HTTP response codes. With few requests, one failure can move a percentage sharply; conversely, an hour-long outage between synthetic checks may be hidden by a 30-day aggregate. Inspect individual traces and structured events, dependency errors, state transitions, and the affected user journey.
 
-**Design:** Combine request-based SLOs with synthetic checks for critical journeys, alert on meaningful error-budget burn, and use a minimum-sample policy where appropriate. Do not suppress a real outage merely because the percentage is statistically unstable. For a low-volume service, a single failed high-value operation may deserve immediate attention.
+**Design indicators at the right level:** Use request-based SLOs where eligible request counts are meaningful, plus synthetic checks for critical workflows and business-level indicators for low-volume high-impact operations. A single failed payment or broken administrative workflow may merit immediate action even when statistical significance is low. Set alert policies that combine burn rate with minimum signal and clear severity rather than suppressing all low-sample alarms.
 
-**Signals:** Track per-operation outcomes, latency, dependency failures, synthetic success, and error-budget consumption. Ensure alerts identify the affected user journey and an actionable next step.
+**Avoid false confidence:** Health probes can be green while a required provider, credential, or data path is broken. Test real actions safely—for example, synthetic read/auth flows that do not create irreversible effects. Preserve per-operation traces and correlation IDs for manual diagnosis.
+
+**Signals:** Track successful user journeys, per-operation error category, latency, dependency outcomes, synthetic success, and remaining error budget. Compare deployment/change markers and region/tenant context. Do not use high-cardinality identifiers as metric labels; keep detailed records in logs/traces.
+
+**Follow-up:** Explain what alert is actionable despite low traffic, and how you distinguish a genuine issue from percentile noise without ignoring a critical single failure.
 
 ### Scenario 70 — A team proposes active-active writes to reduce latency
 
-**Problem:** A team proposes active-active writes in two regions to reduce write latency, while both regions can update the same account or inventory item.
+**Problem:** A team proposes active-active writes in two regions to reduce write latency, but both regions can update the same account, inventory unit, or username. During a network partition, both may accept conflicting mutations.
 
-**Clarify:** Is the data naturally partitionable by owner, can conflicting operations be merged, and what must happen during a network partition? Different fields may have different correctness requirements.
+**Clarify mergeability:** Can the data be partitioned so each entity has one home writer? Are updates independent and commutative, or does each operation depend on the latest global state? Counters and append-only telemetry may allow merge rules; debiting a balance, reserving the last item, or claiming a unique username generally needs stronger coordination or a deliberate product trade-off.
 
-**Design:** If the invariant requires a single serial order—for example, debiting a balance or reserving the final item—route writes to one authoritative owner per entity or use a datastore/coordination protocol that enforces the required global transaction semantics. Active-active reads and stateless compute can still reduce latency. Conflict-free or last-write-wins approaches are appropriate only when the domain defines why the merge is correct.
+**Design options:** Active-active compute with a single authoritative writer per entity can preserve a serialization point while letting users read locally from replicas. Use global consistency/consensus semantics if the business requires a globally ordered transaction. True multi-writer designs need an explicit conflict model, versioning, merge semantics, and a plan for deletes, uniqueness, and idempotency; last-write-wins based on wall-clock timestamps is unsafe for many business facts.
 
-**Trade-off:** Strong coordination adds latency and may reject writes during partitions. Explain the conflict policy, failover fencing, and reconciliation plan before claiming active-active writes are safe.
+**Partition behavior:** State which writes are rejected, deferred, or accepted locally during a partition. If accepted writes can conflict, explain how that conflict is resolved and why the business invariant remains valid. Do not claim a payment or reservation committed when the region cannot establish authority. Failover requires fencing the former owner; DNS routing alone is not a write-ownership protocol.
+
+**Trade-offs:** Coordination increases latency and can reduce availability. Local writes reduce latency but may require reconciliation and customer-visible conflicts. Model cost, replication lag, residency, and operational complexity.
+
+**Follow-up:** Distinguish active-active stateless servers, regional read replicas, single-writer-per-entity, and true multi-writer state. They are different architecture choices.
 
 ### Scenario 71 — Object uploads overload application servers
 
