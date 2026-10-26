@@ -2,7 +2,7 @@
 
 **Audience:** Java backend engineers with 5–10 years of experience preparing for senior and staff-leaning backend/product-company interviews.  
 **Purpose:** A progressive guide to architecture reasoning, capacity estimation, data ownership, consistency, failure handling, operations, and cost.  
-**Status:** Rebuilding for the 5–10 year experience band. Includes eight worked end-to-end designs, 15 core-concept deep dives, and expanded senior scenarios. Foundational interview-method answers are being rewritten for architectural reasoning, not one-line recall. Full topic coverage, technical accuracy, readability, and rendered diagram validation remain in progress; not final sign-off.
+**Status:** Rebuilding for the 5–10 year experience band. Includes eight worked end-to-end designs and 15 core-concept deep dives; the quality-attribute and capacity-estimation answers are being expanded with quantitative reasoning and realistic failure trade-offs. Full coverage, technical accuracy, readability, and rendered diagram validation remain in progress; not final sign-off.
 
 > **How to use this guide:** Learn fundamentals in order, then practise scenarios aloud. State assumptions, identify the critical business invariant, estimate scale, draw the simplest viable architecture, and deepen the part the interviewer challenges. Naming technologies is not the goal; explaining why the design satisfies requirements is.
 
@@ -190,15 +190,23 @@ For example, a catalogue can remain available while showing a slightly stale pro
 
 ### Q14. Latency versus throughput: what is the difference?
 
-Latency is how long one operation takes from the relevant start point to completion. Throughput is how many operations complete per unit of time. They are related but not interchangeable: batching can increase throughput while making each request wait longer, and a service can look fast at low load but become slow when queues form near saturation.
+**Latency** is the time an operation takes from the relevant start point to completion. **Throughput** is the amount of work completed per unit of time, such as successful requests/second or events/second. They are related, but they are not interchangeable. Batching can raise throughput while making an individual request wait longer; conversely, a service can have low latency at light load but collapse as arrival rate approaches its sustainable capacity.
 
-For example, a worker may process 10,000 events per second overall while an individual event waits 30 seconds in the queue. Track latency percentiles and successful throughput together, and include queueing time in end-to-end latency. Higher request rate is not useful if it mainly produces timeouts or work that completes after its deadline.
+Queueing is the key connection. When incoming work approaches the rate a component can complete, small increases in load can cause a disproportionate increase in waiting time. If arrivals exceed completions for long enough, queues grow without bound. Therefore, report successful throughput and latency together—high throughput made mostly of retries or work completed after its deadline is not useful capacity.
+
+Measure latency by stage: queue wait, connection acquisition, application processing, database time, downstream calls, and response transfer. Distinguish average latency from percentiles, and separate request latency from time-to-complete for asynchronous work. A service that returns 202 in 20 ms but takes 15 minutes to finish the operation has low acceptance latency, not necessarily good end-to-end latency.
+
+In an interview, state which metric represents the user's objective and which shows resource capacity. For a real-time API, p95/p99 and successful requests within deadline may be decisive. For a batch pipeline, sustained processing rate and time-to-drain may matter more, provided data correctness and completion deadlines are preserved.
 
 ### Q15. Why do P95 and P99 latency matter?
 
-P95 is the value at or below which 95% of measured requests complete; P99 is the equivalent threshold for 99% of requests. If average latency is 80 ms but p99 is 2.5 seconds, the average hides a painful experience for a meaningful subset of users. Tail latency often reveals queueing, lock contention, garbage-collection pauses, hot keys, or slow downstream dependencies.
+P95 is the value at or below which 95% of measured requests complete; P99 is the corresponding threshold for 99%. They reveal the **tail** of the latency distribution, which averages can hide. If average latency is 80 ms but p99 is 2.5 seconds, a meaningful subset of users is experiencing a very different service than the average suggests.
 
-Fan-out makes this especially important. If an endpoint waits for several required services, the whole response may be delayed by the slowest call. Measure percentiles by endpoint and request class, and always state the measurement window and population; percentile values from different windows or samples are not directly comparable.
+Tail latency often comes from queueing near saturation, hot keys, lock contention, slow database plans, connection-pool waits, garbage-collection pauses, network loss, retries, or an unusually slow downstream dependency. A fan-out endpoint can be dominated by its slowest required dependency even when the others are fast. Retries may improve eventual success while increasing p99 and consuming extra capacity.
+
+Percentiles must be interpreted carefully. State the endpoint/request class, measurement window, traffic population, success/error treatment, and whether the percentile is measured at the client or server. Low-volume services can have unstable p99 estimates, and comparing percentiles from different workloads or windows can mislead. Per-route and per-tenant views can reveal a hotspot that a fleet-wide percentile hides.
+
+Use traces to decompose the slow path and metrics to track trends. A useful investigation compares successful throughput, timeout rate, queueing, saturation, and p95/p99 before and after a change. In interviews, explain which user journey has the tail problem, where its time is spent, and which intervention reduces the tail without merely moving the queue downstream.
 
 ### Q16. What are SLI, SLO, and SLA?
 
@@ -218,27 +226,43 @@ The error budget is not a target to spend and not permission to neglect low-volu
 
 ### Q18. How do you estimate end-to-end availability across dependencies?
 
-If a request succeeds only when every required dependency succeeds, and their failures are independent, multiply their availability estimates. For example, three serial dependencies each available 99.9% of the time give approximately \(0.999^3 = 99.70\%\) end-to-end availability. The request path is less available than any one dependency because any required component can make it fail.
+If a request succeeds only when every required dependency succeeds, and their failures are independent, multiply their availability estimates. For example, three serial dependencies each available 99.9% of the time give roughly (0.999^3 = 99.70%) end-to-end availability. The user journey is less available than any one dependency because any required component can cause the request to fail.
 
-Treat this as a first-order model, not a production forecast. Failures are often correlated: several services may share a database, network, identity provider, or deployment. Conversely, caching, retries within a deadline, and valid fallback behavior can improve user-visible success. Model only dependencies that are truly required for the response, and explain what the system does when each one is unavailable.
+This is a first-order estimate, not a precise production prediction. Failures are often correlated: several services may share a database, network, identity provider, control plane, deployment, or external quota. Conversely, caching, bounded retries within the caller's deadline, replicas, and safe fallbacks may preserve user-visible success even when a component fails. The model needs to reflect which components are truly required for the specific operation.
+
+Use the dependency graph to classify each edge as required or optional. If recommendations fail, a product page might still succeed without that section. If payment authorization fails or its outcome is unknown, returning a fabricated success is not an acceptable availability improvement. Likewise, a fallback to a stale cache is only valid when its freshness and security contract permits it.
+
+Measure availability at the user-journey boundary and separately track dependency health to aid diagnosis. Define the eligible request set and what counts as success; HTTP 200 alone can misrepresent business completion. In an interview, show the simple calculation, state its independence assumption, then explain graceful degradation, correlated failure, and which correctness-critical operations must fail safely.
 
 ### Q19. What is graceful degradation?
 
-Graceful degradation means preserving the most valuable, correct parts of a service when some capabilities are unavailable or overloaded. A shopping page might continue to show product details while hiding recommendations; a video service might lower resolution instead of failing playback. The degraded behavior should be deliberate, documented, and measurable—not a collection of accidental fallbacks.
+Graceful degradation means preserving the most valuable and correct parts of a service when a dependency is unavailable or the system is overloaded. A shopping page might display product details but omit recommendations; a video service might lower resolution to sustain playback. The degraded behavior should be designed and tested rather than improvised during an incident.
 
-First classify dependencies as critical or optional for each user journey. If recommendations fail, omitting them may be safe. If the inventory check fails, accepting a reservation based on stale data may violate the core business invariant. Define what can be omitted, what can be stale, and what must fail closed; then test those behaviors under dependency failure.
+Start by separating critical dependencies from optional capabilities for each user journey. For a read endpoint, a cached description may be safe if its freshness is within the contract. For checkout, a stale inventory count may be fine for display but must not authorize the final reservation. For payments, a timeout must be represented as pending/unknown until status is reconciled—not converted into success or a definitive failure without evidence.
+
+A degraded mode has to preserve security, business invariants, and API meaning. Do not return an empty list when the correct semantic is “search unavailable” unless the contract distinguishes those outcomes. Expose partial-result metadata where clients need to know completeness. Decide how long stale data may be served, what happens after that limit, and how the system recovers when the dependency returns.
+
+Graceful degradation also requires capacity planning. Serving cached data or switching to a secondary provider can overload the fallback if every request moves at once. Use bounded concurrency, load shedding, priorities, and controlled recovery. In an interview, state what capability is sacrificed, which invariant remains protected, what the caller sees, and how metrics show the degraded mode is active.
 
 ### Q20. How do you prioritize conflicting quality attributes?
 
-Start with business impact rather than trying to maximize every attribute at once. Identify which errors are reversible, which are costly, and which would violate a contractual, safety, or financial invariant. Then make the trade-off explicit and apply it to the specific operation—not necessarily to the entire system.
+Start from business impact and the cost of an incorrect result instead of trying to maximize every attribute simultaneously. Identify which errors are reversible, which are costly, and which would violate a financial, security, safety, regulatory, or contractual invariant. The right trade-off can vary by operation inside the same system.
 
-For example, a product catalogue may serve slightly stale descriptions during a regional outage, while checkout must revalidate price and inventory. A payment service may reject a write when it cannot establish the authoritative owner instead of risking a duplicate debit. State the degraded behavior users will see and the recovery path.
+For example, a catalogue may remain available with slightly stale descriptions during a regional outage, while checkout must revalidate price and inventory. A payment service may reject a write when it cannot establish an authoritative owner rather than risk a duplicate charge. That design sacrifices write availability in some failure states to preserve correctness. Conversely, analytics can often accept delayed events and catch up later.
+
+Make quality attributes measurable: p99 latency, availability SLO, maximum staleness, RTO/RPO, durable acceptance, cost per successful operation, or the permitted error rate. If the requirements conflict, show which one wins and why. Explain the user-visible degradation and whether the system fails open, fails closed, queues work, or returns a pending state.
+
+Do not label a design “highly available” without saying what happens during partition, dependency loss, or overload. A senior answer explains the trade-off for a specific invariant and states what evidence could change the decision—for example, a new latency target, legal requirement, or verified alternative consistency protocol.
 
 ### Q21. What is blast radius?
 
-Blast radius is the scope of impact when something fails: how many users, tenants, regions, or business functions are affected. A bad release that breaks one optional feature has a smaller blast radius than a shared authentication failure that prevents every service from accepting requests.
+Blast radius is the scope of impact when something fails: the number of users, tenants, regions, operations, or business functions affected. A failure isolated to a recommendation worker has a smaller blast radius than a shared identity-provider failure that prevents every service from authenticating requests. A bad release deployed everywhere can turn a minor code issue into a platform-wide outage.
 
-Reduce blast radius through bulkheads, bounded queues, tenant quotas, separate capacity for critical workloads, staged rollouts, and genuinely independent failure domains. Redundancy alone is not enough if every replica shares the same overloaded database, credentials, or control plane. In an interview, identify the common dependency that could turn a local problem into a platform-wide incident.
+Reduce blast radius by isolating workloads and failure domains: bulkheads, bounded queues, per-tenant quotas, separate capacity for critical traffic, staged rollouts, canaries, and independent regional resources where justified. Ensure one noisy tenant cannot exhaust shared connection pools or one poison message cannot block unrelated work. For stateful systems, isolate write ownership and prevent a stale leader from committing.
+
+Redundancy alone is insufficient if replicas share the same database, credentials, network, control plane, policy store, or faulty release. Similarly, adding service instances may expand the blast radius if they all connect to a saturated shared dependency. Model what happens after losing one instance, zone, region, or critical service—not only the normal healthy topology.
+
+Track impact by user journey and tenant, time to detect, time to mitigate, and the number of components affected. In interviews, identify the most dangerous shared dependency and explain what boundary limits its impact. Then describe how you would test that boundary through a staged rollout or controlled failure exercise.
 
 ## 3. Capacity estimation
 
@@ -252,9 +276,13 @@ Estimate each major resource separately: edge requests, application CPU, databas
 
 ### Q23. Why is average traffic insufficient?
 
-Average traffic hides how demand is distributed over time. A service averaging 1,000 requests per second may receive 5,000 requests per second during a campaign or flash sale. If it is provisioned only for the average, requests queue, latency rises, clients time out, and retries can create even more load.
+Average traffic hides the distribution of demand over time. A service averaging 1,000 requests/second may receive 5,000/s during a campaign or flash sale. If capacity is provisioned only for the average, queues grow, tail latency rises, clients time out, and retries can add even more load. The length of the burst matters as much as its peak.
 
-Estimate peak-to-average ratio and burst duration, then decide whether the excess work can wait. A report export may be queued; an interactive seat reservation may need a quick rejection rather than a long wait that ends in failure. Load tests should include realistic bursts and dependency degradation, not just a steady average rate.
+Estimate peak-to-average ratio, burst duration, read/write mix, request cost, and downstream fan-out. A request that triggers three database reads and a provider call is more expensive than a cache hit. Also include background jobs, message consumers, retries, cache misses after deployment, mobile reconnects, and batch replay. An average external-provider quota can hide brief bursts that exceed the provider's fixed limit.
+
+Whether excess demand may wait depends on the business contract. A report export can be durably queued and return an operation ID; a seat reservation may need a fast rejection or waiting room rather than allowing requests to time out while competing for the final seat. Admission control and per-tenant fairness are often more effective than simply adding instances.
+
+Load-test steady-state, burst, cold-cache, and dependency-degraded conditions. Track successful throughput, p95/p99, queue age, saturation, and rejected work. In interviews, state how peak assumptions were chosen, which resource saturates first, and whether the system should queue, shed, or reject excess work.
 
 ### Q24. How do you estimate storage?
 
@@ -290,9 +318,13 @@ Track queue age as well as depth: ten million old events and ten million newly a
 
 ### Q27. How do retries affect capacity?
 
-Capacity must be sized for **attempts**, not only original logical requests. If 1,000 requests per second each trigger two retries, the dependency can receive up to 3,000 attempts per second for that traffic, before considering retries at other layers. During an outage, this amplification can push a partially unhealthy service into a cascading failure.
+Capacity must be sized for **attempts**, not only original logical requests. If 1,000 requests/s each trigger two retries, the dependency can receive up to 3,000 attempts/s for that traffic. The real amplification may be larger when retries occur at multiple layers—client, gateway, service library, mesh, and broker—or when timed-out operations continue running while retries begin.
 
-Use bounded retries with exponential backoff and jitter, stop when the end-to-end deadline expires, and retry only operations that are safe to repeat. Choose a clear retry owner where possible; client, gateway, service, and broker retries can multiply. Monitor attempts per logical operation as well as raw request rate.
+Retries can help transient failures but also create positive feedback: a dependency slows, requests time out, callers retry, concurrency rises, and the dependency becomes slower. During an outage, retries may consume the capacity needed for fresh requests and delay recovery. Attempts can also duplicate side effects if the operation is not idempotent.
+
+Use bounded attempts, exponential backoff with jitter, an end-to-end deadline, and a retry budget. Classify failures: retrying validation errors or permanent business rejection does not help. Assign a clear retry owner where possible and avoid retries that cannot complete within the remaining deadline. For mutations, use a stable idempotency/operation identity and reconcile uncertain outcomes; a timeout does not prove the first attempt failed.
+
+Measure original requests separately from physical attempts, retry success rate, downstream saturation, timeout rate, and queue age. In interviews, quantify the worst-case amplification and explain how the retry policy changes during partial failure and recovery. Retrying more is not equivalent to higher reliability if it overwhelms the dependency.
 
 ### Q28. How do you estimate cache memory?
 
@@ -312,9 +344,13 @@ The correct response may involve query optimization, batching, admission control
 
 ### Q30. What is capacity headroom?
 
-Headroom is the unused capacity available above expected demand. It gives the system room to absorb traffic bursts, a node or availability-zone failure, rolling deployments, and uncertainty in capacity estimates. The right amount depends on how quickly demand can spike, how fast new capacity becomes ready, and whether the system must continue serving peak load after a failure.
+Capacity headroom is the usable capacity available above expected demand. It absorbs bursts, workload uncertainty, rolling-deployment surge, a node/zone loss, maintenance, and the extra traffic that can appear during failover. The right margin depends on burst speed, provisioning delay, request variability, and the failure model the service must tolerate.
 
-Do not treat autoscaling as instant capacity: provisioning, startup, cache warming, and connection establishment all take time. A service with sudden traffic spikes may need warm instances, reserved critical-path capacity, admission control, or load shedding in addition to autoscaling. Validate the chosen headroom with load and failure tests.
+Do not treat autoscaling as instant capacity. New instances take time to provision, start, fetch configuration, establish connections, and warm caches. If traffic rises in seconds, the system may need minimum warm capacity, admission control, a waiting room, or load shedding while scaling catches up. A service sized to 100% utilization under normal conditions has no room for recovery or variance.
+
+Calculate capacity after a failure, not just with every node healthy. Two regions each running near 80% utilization cannot necessarily absorb all traffic after one region fails, even if the combined nominal capacity looks adequate. Also account for bottlenecks that do not scale with the application tier, such as a primary database, global lock, fixed external quota, or hot partition.
+
+Measure successful throughput and latency under normal peak and at least one failure scenario. Headroom should be tied to an explicit SLO and tested with load/stress exercises rather than a generic percentage. In interviews, state which failure must be tolerated, which component limits throughput, and how fast spare capacity becomes usable.
 
 ## 4. Networking and request delivery
 
