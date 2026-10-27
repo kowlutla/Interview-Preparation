@@ -399,63 +399,111 @@ Test negative cases: a user from tenant A cannot retrieve tenant B's document by
 
 ## 10. Production scenarios
 
-For each scenario, explain likely causes, evidence to collect, first safe action, and prevention. Avoid jumping to “increase heap” or “add shards” without proving the cause.
+Treat each scenario like an interview discussion. State what you would verify first, explain why the symptom may happen, then propose the smallest safe correction and a way to prevent regression. A senior answer distinguishes evidence from guesses and considers data correctness as well as latency.
 
 ### Scenario 1. A term query returns no product-name hits.
 
-Check whether name is a text or keyword field. A text field is analyzed into terms and term does not analyze the input the way match does. Inspect the document and use the Analyze API to see indexed tokens. Use match for full-text search or the appropriate keyword field for exact matching. Add a regression test so the mapping/query assumption is explicit.
+**How I would reason about it:** I would not start by changing cluster settings. I would inspect the mapping for the field, fetch a known document, and use the Analyze API with the field's analyzer. If name is mapped as text, a value such as “Wireless Headphones” may be indexed as separate lowercase terms. A term query does not analyze the supplied phrase like a match query does, so it may look for a single term that does not exist.
+
+**Safe fix:** Use match for full-text retrieval, or use a keyword multi-field if the requirement is an exact whole-value match. Do not switch the entire field to keyword just to make one exact query pass; that can break relevance search and require reindexing.
+
+**Prevention and follow-up:** Put the field's intended semantics in the mapping and add integration tests for both full-text and exact lookup. An interviewer may ask why a match query still returns no results; I would then inspect the target alias, analyzer output, filters, and whether the document has been refreshed for search.
 
 ### Scenario 2. Search returns results, but the most relevant product is far down the list.
 
-Reproduce the exact query and inspect mappings, analyzer output, clause behavior, and boosts. Compare top results against a small set of human-judged queries, and use Explain on a misranked document. Adjust query structure or analyzer deliberately rather than multiplying every boost. Keep eligibility conditions in filters and add a ranking regression set.
+**How I would reason about it:** I would collect representative user queries and expected good results before tuning. Then I would inspect the actual request, field mappings and analyzers, the bool clause defaults, field boosts, synonyms, and top results. Explain can show why a known document received its score, but it does not tell me whether the overall ranking is useful; that requires judged queries or product search-quality metrics.
 
-### Scenario 3. A write succeeds, but immediate search cannot find the document.
+**Safe fix:** Separate eligibility from relevance. Put stock, tenant, status, and price constraints in filter context, and use match or multi_match for scoring. If names should outweigh descriptions, apply a measured boost or add a phrase clause where it improves precision. Avoid stacking arbitrary boosts until one example looks right.
 
-Check refresh behavior, target index/alias, routing, and filters. A successful index response does not guarantee immediate search visibility. If the API requires searchable read-after-write, evaluate refresh=wait_for for the relevant operation or batch; avoid forcing refresh=true for every document. Make the visibility promise part of the API contract and test it under load.
+**Prevention and follow-up:** Maintain a small relevance regression set and compare the top results before and after every analyzer or ranking change. Track metrics such as successful clicks or add-to-cart events with care, since behavior signals can be noisy. Be ready to explain how you would evaluate top-k relevance and roll back a ranking change that reduces quality.
+
+### Scenario 3. A write succeeds, but an immediate search cannot find the document.
+
+**How I would reason about it:** A successful index response is not the same guarantee as search visibility. Elasticsearch refreshes recent Lucene changes for search periodically, so a search immediately after a write can legitimately miss the new document. I would also verify that the write and read target the same index or alias, and check routing, tenant filters, status filters, and the actual document ID.
+
+**Safe fix:** If this particular workflow requires the write to be visible before responding, consider refresh=wait_for on the relevant index, update, delete, or bulk operation. It waits for a refresh rather than normally forcing an immediate one. Avoid refresh=true on every write because refresh is resource-intensive. If the user simply needs the saved entity response, returning the authoritative result from the write path may be cheaper than immediately querying search.
+
+**Prevention and follow-up:** Document whether an endpoint promises “saved” or “searchable now,” then test that contract. If a document is missing well after refresh, check indexing failures and aliases rather than treating every missing result as a refresh problem.
 
 ### Scenario 4. Search latency rises during a large import.
 
-Correlate ingestion rate with search p95/p99, CPU, disk I/O, heap/GC, merge pressure, rejected requests, and bulk item failures. Reduce concurrency or throttle the import if live search is suffering, then tune batch size with measured throughput. Establish rate limits and alerts for search latency during future imports.
+**How I would reason about it:** I would line up the time of the latency increase with bulk request rate, batch size, concurrent writers, merge activity, CPU, disk I/O, heap and garbage collection, thread-pool rejections, and search p95/p99. The fact that the import is running is a clue, not proof that every slow request is caused by indexing. A specific expensive query or a hot shard could be the real bottleneck.
+
+**Safe fix:** If import pressure is degrading live search, throttle the importer or reduce its concurrency first. Then change batch size gradually and measure throughput, item failures, indexing pressure, and search latency together. A larger bulk request is not automatically better: very large batches can increase memory and latency, while excessive concurrency can saturate disks or merging.
+
+**Prevention and follow-up:** Run realistic mixed-load tests and define an ingestion budget or rate limit. Alert on bulk failures, rejected requests, and search p99 during imports. If asked whether adding replicas fixes the issue, I would explain that replicas may help distribute search reads but also add write and storage work; they are not a free throughput multiplier.
 
 ### Scenario 5. Cluster health turns yellow after a node failure.
 
-Yellow means all primaries are allocated but one or more replicas are not. Inspect allocation explanations, eligible nodes, watermarks, and recovery progress. Restore capacity or resolve allocation constraints instead of reducing replica count as a reflex. Confirm redundancy has been restored and the cluster can tolerate another failure.
+**How I would reason about it:** Yellow means primaries are allocated but at least one replica is not. The immediate question is whether the cluster still has all primary data and why it cannot place the missing replica. I would inspect allocation explanations, surviving-node capacity, disk watermarks, shard placement constraints, and recovery progress instead of assuming the replica count is wrong.
 
-### Scenario 6. Cluster health turns red and some results disappear.
+**Safe fix:** Restore the failed capacity or resolve the allocation constraint. Check whether another eligible node has enough disk and whether awareness or allocation filtering prevents placement. Reducing the replica count may make the color green, but it can also hide the redundancy gap rather than fix the underlying capacity problem; it should be a deliberate, approved trade-off, not a reflex.
 
-Identify the unassigned primary shards and inspect allocation explanations, logs, remaining copies, and storage capacity. Preserve valid shard copies and snapshots. Do not force-allocate stale or empty primaries merely to turn the cluster green without understanding the data-loss implications. Restore valid data through the approved recovery process, then improve the runbook.
+**Prevention and follow-up:** Keep sufficient capacity across failure domains and test node-loss behavior. Verify that replicas are reallocated and recovery finishes without harming live latency. An interviewer may ask why yellow matters if searches still work: the cluster has less fault tolerance, so another relevant failure can cause data unavailability.
+
+### Scenario 6. Cluster health turns red and some search results disappear.
+
+**How I would reason about it:** Red means at least one primary shard is unassigned, so some data may be unavailable. I would identify the exact index and shard, inspect allocation explanation and node logs, and determine whether a valid copy exists but cannot be allocated or whether the copies are actually lost. Disk watermarks, failed nodes, allocation rules, and corrupt or unavailable storage are different causes and need different responses.
+
+**Safe fix:** Preserve existing shard copies and snapshots and restore the valid primary through the normal recovery process. Do not force-allocate a stale copy or create an empty primary merely to make the health indicator green; that can knowingly discard newer writes. If a data-loss operation is the only remaining option, it requires explicit impact assessment and approval.
+
+**Prevention and follow-up:** Test snapshots and restoration, retain enough capacity for recovery, and rehearse the incident runbook. The right recovery path depends on which copy is authoritative and the acceptable RPO. An interviewer may ask which API you would inspect first; I would use cluster health plus allocation explanation for the affected shard, then correlate with node and recovery logs.
 
 ### Scenario 7. Bulk HTTP status is successful, but some documents are missing.
 
-Inspect item-level failures. Group them by mapping/parsing error versus transient overload; they require different treatment. Retry transient failures with bounded backoff, send permanent errors to a recoverable dead-letter path, and track IDs and source versions. Verify that the source stream can replay failed documents after the issue is corrected.
+**How I would reason about it:** Bulk is a collection of independent item operations, not an all-or-nothing transaction. I would inspect the response's errors flag and each item's status, ID, and error type. Mapping or parsing failures usually need data or schema correction; overload and temporary availability failures may be retryable. I would also check whether the consumer incorrectly committed its Kafka offset before safely handling failed items.
+
+**Safe fix:** Retry only retryable items with bounded exponential backoff and jitter. Store permanent failures in a durable dead-letter path with the source event, document ID, version, and error so they can be corrected and replayed. Avoid retrying the whole bulk blindly if successful items may be applied again, unless the operation is idempotent.
+
+**Prevention and follow-up:** Alert on item-level failure rate, preserve enough metadata for replay, and reconcile expected source IDs against indexed documents. A strong answer explains why HTTP 200 alone does not prove all documents indexed and how the pipeline recovers without losing or endlessly retrying a poison document.
 
 ### Scenario 8. A nested variant query matches an impossible color/size combination.
 
-Check the mapping. With ordinary arrays of objects, fields may be flattened so color can match one object and size another. A nested mapping and nested query require both predicates to match the same child. Mapping it as nested usually requires a new index, so verify expected and deliberately invalid combinations before migrating.
+**How I would reason about it:** I would inspect the mapping first. With an array of ordinary object fields, Elasticsearch can flatten values so color=blue may match one variant while size=L matches another. The parent product can then match even though no individual variant has both properties. This is a data-model issue, not a random bool-query bug.
 
-### Scenario 9. Later pages are slow or contain duplicates.
+**Safe fix:** If the requirement is that color and size must belong to the same variant, map variants as nested and use a nested query with both conditions inside the same nested clause. Nested mapping has additional indexing and query cost, and changing an existing object field to nested generally requires a new index and reindexing. Verify the query with both a valid pair and a deliberately invalid cross-pair.
 
-Look for deep from/size offsets and non-deterministic sort fields. Use search_after for sequential deep paging and PIT when the view must remain stable. Return a short-lived opaque cursor scoped to the authenticated user and query, and preserve the full sort array. Do not let clients choose arbitrary sort values or keep PIT contexts open indefinitely.
+**Prevention and follow-up:** Add tests from real catalogue edge cases and document when object versus nested is appropriate. Use inner_hits when it is helpful to inspect which child variant matched. An interviewer may ask why not make every object nested; I would explain that nested preserves relationships but increases storage and query overhead.
+
+### Scenario 9. Later pages are slow or contain duplicate/missing hits.
+
+**How I would reason about it:** I would check page depth and sorting first. from/size makes each shard collect hits for skipped pages as well as the current page, so deep offsets consume extra CPU and memory. If the sort fields contain ties, page boundaries may also shift between requests, causing duplicates or omissions when the index refreshes.
+
+**Safe fix:** For interactive shallow pages, from/size is simple. For deep sequential navigation, use search_after with the same query and sort on every request. Add a unique tie-breaker when not using PIT. If the result set must remain stable across refreshes, open a point in time and keep using the latest PIT ID plus the complete sort array returned with the last hit. Do not fabricate or reconstruct sort values.
+
+**Prevention and follow-up:** Expose a bounded, short-lived cursor that is scoped to the user, tenant, filters, and sort contract. Close the PIT when finished. The follow-up trade-off is that PIT consumes resources while alive, so it should not be kept open indefinitely or used as a permanent session token.
 
 ### Scenario 10. A mapping change works in staging but fails in production.
 
-Compare actual mappings, settings, templates, aliases, analyzer output, sample documents, and client/server versions. Remember that templates affect future index creation; production may still use an older index. If a field type or analyzer is incompatible, use a versioned index and reindex, validate realistic queries, then switch the alias.
+**How I would reason about it:** I would compare actual index mappings and settings, index/component templates, aliases and write index, analyzer output, sample documents, and server/client versions. Comparing source-controlled template files alone is not enough: a template change affects newly created indices but does not rewrite an already-existing production index. Dynamic mapping can also cause staging and production to infer different types from their first documents.
 
-### Scenario 11. Kafka replay overwrites a newer search document with old data.
+**Safe fix:** For an incompatible type or index-time analyzer change, create a versioned destination index with the intended mapping. Backfill from the source, replay concurrent changes and deletes, validate counts and representative search behavior, then switch aliases atomically. Keep track of writes around cutover so rollback does not silently lose updates.
 
-Check deterministic IDs and whether the consumer enforces source versions or ordering. Indexing an old event last can restore stale state. Use an explicit source-version strategy or supported external versioning, and test duplicate and out-of-order delivery. Monitor event lag and reconcile the projection against the authoritative source.
+**Prevention and follow-up:** Version mappings and templates, test index creation from scratch in CI, and validate deployment-specific settings before release. An interviewer may ask what alias cutover guarantees: it makes the routing change atomic, but by itself does not guarantee that the new index is caught up or that rollback is data-safe.
+
+### Scenario 11. A Kafka replay overwrites a newer search document with older data.
+
+**How I would reason about it:** Deterministic document IDs prevent duplicate logical documents, but they do not by themselves prevent stale overwrites. If event version 41 is processed after version 42 and the consumer performs an ordinary index operation, version 41 can become the current document. I would inspect source event ordering, retry behavior, consumer offset commits, and the source entity's version semantics.
+
+**Safe fix:** Use an explicit monotonic source version and enforce it through a supported versioning or conditional-write strategy. Handle version conflicts as expected control flow, not an endlessly retryable failure. Be careful with external versioning modes: the producer must define whether equal versions are allowed and whether a retry is truly idempotent.
+
+**Prevention and follow-up:** Test duplicate and out-of-order events, including updates followed by deletes, and reconcile the projection against the authoritative store. Do not claim end-to-end exactly-once delivery simply because Kafka idempotence is enabled. The goal is that replay converges to source state and stale events cannot silently replace newer state.
 
 ### Scenario 12. A tenant can see another tenant's search data.
 
-Treat this as a security incident. Verify authenticated identity and central query construction, then audit every path: search, direct lookup, aggregation, autocomplete, export, and cursor reuse. Enforce tenant scope server-side, invalidate exposed cursors if needed, and add negative isolation tests. Consider defense-in-depth controls such as document-level security or separate indices based on the threat model.
+**How I would reason about it:** Treat it as a security incident and contain access before doing a long root-cause analysis. Check how authenticated identity is translated to tenant scope and inspect every retrieval path: standard search, direct GET by ID, aggregations, autocomplete, exports, and cursor continuation. A tenant filter missing from one endpoint is enough to leak records even if the main search page is correctly filtered.
+
+**Safe fix:** Derive tenant scope on the server from trusted authentication/authorization context and apply it centrally. Do not accept a client-supplied tenant ID as proof of authorization. Depending on the threat model, use defense-in-depth such as document-level security or separate indices. Routing by tenant can improve locality but is not an access-control mechanism.
+
+**Prevention and follow-up:** Add negative integration tests proving tenant A cannot fetch tenant B's known document ID, infer protected counts, reuse another tenant's cursor, or access suggestions and exports. Audit access logs without recording secrets, invalidate exposed cursors where practical, assess what data was accessed, and follow the incident-response process. A senior answer covers containment, root cause, blast radius, and a regression barrier.
 
 ---
 
 ## 11. Query DSL cookbook: 18 useful patterns
 
-These examples assume a products index with productId, brand, category, status, and tenantId as keyword fields; name and description as text; price as numeric; inStock as boolean; createdAt as a date; rating as numeric; and variants mapped as nested. Adapt field names and types to the actual mapping. Valid JSON does not guarantee correct results when mapping assumptions are wrong.
+The examples assume a products index with productId, brand, category, status, and tenantId as keyword fields; name and description as text; price as numeric; inStock as boolean; createdAt as a date; rating as numeric; and variants mapped as nested. Adapt field names and types to the actual mapping. A query can be valid JSON and still be wrong for the data model, so each example explains what its mapping assumptions mean.
 
-### Pattern 1. Full-text search on product name
+### Pattern 1. Full-text search on a product name
 
 ~~~json
 GET products-v1/_search
@@ -468,9 +516,9 @@ GET products-v1/_search
 }
 ~~~
 
-This analyzes the query input. Match commonly uses OR-like semantics by default; use an explicit operator or minimum_should_match if the business rule requires more terms.
+Use match when the user is searching words in a text field. Elasticsearch analyzes the query input and matches the resulting tokens against the analyzed field. With the default operator, matching either term can be sufficient, so this can return documents that contain only “wireless” or only “headphones”. That is often useful for recall, but it may be too broad for some products. If the business needs more terms to match, set operator or minimum_should_match explicitly and evaluate the impact on recall. If this returns nothing, inspect the field mapping and Analyze output before changing the query.
 
-### Pattern 2. Exact product identifier
+### Pattern 2. Find an exact product identifier
 
 ~~~json
 GET products-v1/_search
@@ -483,9 +531,9 @@ GET products-v1/_search
 }
 ~~~
 
-This assumes productId is mapped for exact matching, such as keyword. If the identifier is the Elasticsearch document ID, GET by ID may be simpler.
+This assumes productId is mapped as keyword or another exact-match type. term looks for an exact indexed term and does not analyze the query value as a full-text match query would. It is a good fit for SKUs, codes, status values, and identifiers that must not be tokenized. If productId is the Elasticsearch document ID rather than a source field, GET by ID is usually more direct. Keep the source identifier type and normalization consistent; an accidental numeric mapping can cause leading zeroes to be lost.
 
-### Pattern 3. Full-text search plus stock, brand, and price filters
+### Pattern 3. Combine relevance with stock, brand, and price filters
 
 ~~~json
 GET products-v1/_search
@@ -510,9 +558,9 @@ GET products-v1/_search
 }
 ~~~
 
-The text clause determines relevance; filters decide eligibility without adding score. This is a common production search shape.
+This is one of the most useful production patterns. The full-text clause decides how matching products are ranked, while stock, brand, and price determine which products are eligible. Putting these structured conditions in filter context means they do not add relevance score. Confirm that brand is keyword and price is numeric; if brand is a text field, its indexed terms may not support the exact semantics you expect. The inclusive gte/lte range includes both endpoints, which is a business decision worth making explicit.
 
-### Pattern 4. Search multiple fields with boosts
+### Pattern 4. Search multiple text fields with boosts
 
 ~~~json
 GET products-v1/_search
@@ -526,9 +574,9 @@ GET products-v1/_search
 }
 ~~~
 
-Boosts express a preference, not a guaranteed multiplier of business relevance. Validate them against real searches.
+This says a name match is usually stronger evidence of relevance than a description match. The boost changes score contribution; it is not a fixed multiplier of business quality and does not guarantee that every name hit outranks every description hit. Start with a simple field list, gather representative queries, then compare ranking quality after changing boosts. Avoid including fields whose values are not analyzed as text. If exact phrase matches deserve additional weight, add a phrase clause deliberately and test that it does not suppress useful results.
 
-### Pattern 5. Search an exact phrase
+### Pattern 5. Search an exact phrase or ordered phrase
 
 ~~~json
 GET products-v1/_search
@@ -541,9 +589,9 @@ GET products-v1/_search
 }
 ~~~
 
-Phrase matching is stricter about order and token positions than a simple match. Use it as a ranking clause or a required condition based on the desired recall.
+match_phrase analyzes the query text and checks token positions so terms must occur in the expected order by default. It is stricter than a simple match query, but it is not the same as comparing the original source string character-for-character. Analyzer choices, stop words, and token positions affect what counts as a phrase. Use it for names, titles, and important expressions, often as an additional relevance signal. If you require exact whole-field equality, use a keyword field with term instead.
 
-### Pattern 6. Require a minimum number of alternatives
+### Pattern 6. Require a minimum number of matching alternatives
 
 ~~~json
 GET products-v1/_search
@@ -561,9 +609,9 @@ GET products-v1/_search
 }
 ~~~
 
-This requires at least two alternatives. If the bool query also has must or filter clauses, set the parameter explicitly when the should clauses are required.
+Here a document must match at least two of the three clauses. This illustrates minimum_should_match on the bool query itself, where each clause is an alternative. Do not confuse this with minimum_should_match inside a match query, where it applies to analyzed query terms. Another common trap is the bool default: should clauses are required by default only when there is no must or filter clause. Set the value explicitly whenever these alternatives are part of the business rule rather than optional boosts.
 
-### Pattern 7. Exclude discontinued products
+### Pattern 7. Filter multiple accepted values and exclude discontinued products
 
 ~~~json
 GET products-v1/_search
@@ -571,7 +619,8 @@ GET products-v1/_search
   "query": {
     "bool": {
       "filter": [
-        { "term": { "inStock": true } }
+        { "term": { "inStock": true } },
+        { "terms": { "brand": ["Acme", "Globex"] } }
       ],
       "must_not": [
         { "term": { "status": "discontinued" } }
@@ -581,9 +630,9 @@ GET products-v1/_search
 }
 ~~~
 
-This is structured eligibility logic. Ensure status supports the intended exact-match semantics.
+terms means the brand can equal any value in the supplied list; it is an exact-value alternative, not a full-text OR query. All filter clauses must match, while must_not removes discontinued documents. This is useful for eligibility rules and filters selected in a UI. Make sure brand and status are mapped for exact matching, and validate empty or very large input lists in application code. Do not let a client pass arbitrary status restrictions that bypass the server's own business rules.
 
-### Pattern 8. Filter a date range
+### Pattern 8. Filter a date range with clear boundaries
 
 ~~~json
 GET products-v1/_search
@@ -599,9 +648,9 @@ GET products-v1/_search
 }
 ~~~
 
-A half-open interval avoids overlap between adjacent windows. Ensure createdAt is mapped as date and the application's timezone policy is clear.
+A range query on a date field is useful for reports, log exploration, and time-bounded search. This example uses a half-open interval: start is included and the next period's start is excluded. That avoids double-counting a record that sits exactly on a boundary when adjacent periods are queried. Confirm that the field is mapped as date and that the application has an explicit timezone policy. For high-volume log search, constrain the time range to a reasonable window instead of accepting an unbounded query.
 
-### Pattern 9. Match color and size on the same nested variant
+### Pattern 9. Require color and size to match the same nested variant
 
 ~~~json
 GET products-v1/_search
@@ -622,7 +671,7 @@ GET products-v1/_search
 }
 ~~~
 
-This requires variants to be mapped as nested. With ordinary object arrays, separate child objects can accidentally satisfy the two predicates.
+This only works as intended when variants is mapped as nested. The nested query evaluates both conditions against the same child variant. With an ordinary array of objects, flattened indexing may allow color to match one variant and size to match another, producing a false positive at the parent product level. Nested fields have additional storage and query cost, so use them when the relationship must be preserved. During debugging, inner_hits can show which child object matched the nested query.
 
 ### Pattern 10. Sort by price with a stable tie-breaker
 
@@ -642,9 +691,9 @@ GET products-v1/_search
 }
 ~~~
 
-The unique productId makes ties deterministic if it is sortable. Keep sort and query unchanged when paginating.
+The sort returns the cheapest eligible products first and uses productId to order products with the same price. This assumes productId is sortable and unique within the searched result set. Stable sorting matters for pagination; without a unique tie-breaker, equal-price hits can move between requests and produce duplicates or gaps. When paginating deeply, use search_after and copy the last hit's actual sort values. When a PIT is used, preserve the full sort array returned by Elasticsearch, including its implicit tiebreaker.
 
-### Pattern 11. Get top categories as facets
+### Pattern 11. Return category facets without fetching hits
 
 ~~~json
 GET products-v1/_search
@@ -666,9 +715,9 @@ GET products-v1/_search
 }
 ~~~
 
-Size zero avoids returning hits when only aggregations are needed. Terms returns top buckets rather than an unlimited exact list of every value.
+This returns the top ten category buckets for documents matching the text query, without returning the regular hit list. It is a common search-page facet. category should normally be a keyword field or another suitable aggregatable field; aggregating a text field can fail or require an expensive and usually discouraged fielddata configuration. A terms aggregation returns selected buckets, not an unlimited exact catalogue of all unique values, and distributed document counts can be approximate in some cases.
 
-### Pattern 12. Build price ranges
+### Pattern 12. Build price-band facets
 
 ~~~json
 GET products-v1/_search
@@ -689,9 +738,9 @@ GET products-v1/_search
 }
 ~~~
 
-This is useful for price facets. Label the bucket boundaries consistently in the UI so users do not see ambiguous bands.
+Range aggregation groups documents into explicit numeric intervals. The lower and upper boundary semantics matter: ranges are commonly inclusive at the lower bound and exclusive at the upper bound, so the example creates bands below 50, from 50 up to but not including 150, and 150 or more. Use business-friendly labels in the UI and test values exactly on the boundaries. Apply the same search query or filters if the facets should describe only currently eligible products.
 
-### Pattern 13. Find documents where rating is missing
+### Pattern 13. Find documents that lack an indexed rating
 
 ~~~json
 GET products-v1/_search
@@ -706,9 +755,9 @@ GET products-v1/_search
 }
 ~~~
 
-This checks whether Elasticsearch has an indexed value, not simply whether the source JSON visibly contains a property.
+exists asks whether Elasticsearch has an indexed value for the field. It does not simply check whether the raw JSON object visually contains the property. For example, null values and empty arrays are commonly treated as having no indexed value, while a configured null_value or indexing settings can affect the result. This query is useful for finding products that need enrichment, but validate the field mapping and ingestion rules before using the result as proof that the source database has no rating.
 
-### Pattern 14. Type-ahead search with search_as_you_type
+### Pattern 14. Implement type-ahead with search_as_you_type
 
 ~~~json
 GET products-v1/_search
@@ -727,9 +776,9 @@ GET products-v1/_search
 }
 ~~~
 
-This assumes name was mapped as search_as_you_type, which provides those sub-fields. It is not a drop-in query for a plain text mapping. Test partial words and multi-word inputs against your desired autocomplete behavior.
+This assumes name is mapped as search_as_you_type, which creates the shown shingle sub-fields. The bool_prefix query lets terms match flexibly and scores documents higher when terms appear together in the shingle fields. It is useful when the user types part of a multi-word product name. It is not a drop-in query for a plain text field, and the field's analyzer and indexed subfields affect the behavior. Compare it with phrase-prefix or a completion suggester based on the UX, typo requirements, and index-size budget.
 
-### Pattern 15. Allow a limited number of typos
+### Pattern 15. Allow a limited number of typing mistakes
 
 ~~~json
 GET products-v1/_search
@@ -746,27 +795,24 @@ GET products-v1/_search
 }
 ~~~
 
-Fuzzy matching can recover typing mistakes but increases work and may broaden results. Apply it selectively, especially for short terms and high-volume autocomplete requests.
+Fuzzy matching can recover a misspelling such as “headphnes”, but it expands the terms considered and may increase latency or bring in noisy results. AUTO chooses an edit-distance allowance based on term length; prefix_length keeps the first character exact in this example. Fuzziness is not equally useful for all terms, particularly very short words and identifiers. Apply it selectively and evaluate typo queries against a judged set. A keyword SKU lookup should generally remain exact rather than becoming a fuzzy text query.
 
-### Pattern 16. Highlight matched text
+### Pattern 16. Let users enter a simple query expression safely
 
 ~~~json
 GET products-v1/_search
 {
   "query": {
-    "match": {
-      "description": "wireless headphones"
-    }
-  },
-  "highlight": {
-    "fields": {
-      "description": {}
+    "simple_query_string": {
+      "query": "wireless + headphones - refurbished",
+      "fields": ["name^4", "description"],
+      "default_operator": "and"
     }
   }
 }
 ~~~
 
-Highlighting is presentation, not a relevance guarantee. Escape returned fragments appropriately before rendering HTML; do not assume highlights are trusted markup.
+Use this only when the product intentionally supports a small search syntax, such as required terms and exclusions. simple_query_string is more forgiving about invalid syntax than query_string, but operators still change the meaning of the query; it is not just an ordinary match query. Keep the searchable field list controlled by the server, document which operators are supported, and test punctuation and special characters. For a normal search box that should interpret everything as plain text, build match or multi_match in application code instead.
 
 ### Pattern 17. Scope search to the authenticated tenant
 
@@ -786,17 +832,17 @@ GET products-v1/_search
 }
 ~~~
 
-This illustrates query shape, not a recommendation to accept tenant-123 from an untrusted parameter. The server must derive tenant scope from authenticated context on every search path.
+The tenant filter is a mandatory security boundary, not a preference supplied by the user. In a real API, derive tenantId from validated authentication and authorization context on the server; do not trust tenant-123 from a query parameter. Ensure the same scope is applied to direct reads, autocomplete, aggregations, exports, and cursor continuation. Test cross-tenant negative cases. Depending on the threat model, application filters may need defense-in-depth from document-level security or separate indices. Routing can improve locality but is not authorization.
 
-### Pattern 18. Deep pagination with PIT and search_after
+### Pattern 18. Deep pagination with a point in time and search_after
 
-Open a point in time and use the returned PIT ID in the search:
+First open a point in time and keep the returned ID:
 
 ~~~json
 POST /products-v1/_pit?keep_alive=1m
 ~~~
 
-Use the returned PIT ID in the first search. For later pages, keep the query and sort unchanged, use the latest PIT ID returned, and add a search_after array containing the complete sort array from the last hit exactly as Elasticsearch returned it.
+Use the returned PIT ID for the first search. Keep the query and sort unchanged for later pages, and use the latest PIT ID returned by Elasticsearch. A PIT automatically adds a _shard_doc tie-breaker to the sort, so copy the complete sort array from the last hit rather than reconstructing it.
 
 ~~~json
 POST /_search
@@ -812,12 +858,34 @@ POST /_search
     }
   },
   "sort": [
-    { "createdAt": "desc" }
+    { "createdAt": { "order": "desc", "format": "epoch_millis" } }
   ]
 }
 ~~~
 
-Replace the PIT placeholder with the ID returned by the open-PIT request. The first page omits search_after; do not invent sort values for subsequent pages. Close the PIT when paging is complete and keep its lifetime bounded.
+For the next page, copy the exact values in the last hit's sort array into search_after. With the sort above and a PIT, that array includes the date value and the implicit tie-breaker; the following values are illustrative only.
+
+~~~json
+POST /_search
+{
+  "size": 50,
+  "pit": {
+    "id": "REPLACE_WITH_LATEST_PIT_ID",
+    "keep_alive": "1m"
+  },
+  "query": {
+    "term": {
+      "inStock": true
+    }
+  },
+  "sort": [
+    { "createdAt": { "order": "desc", "format": "epoch_millis" } }
+  ],
+  "search_after": [1772360130000, 4294967298]
+}
+~~~
+
+Replace the example sort values with the complete array returned for the actual last hit, and use the latest PIT ID from the previous response. Omit search_after on the first page. Close the PIT when traversal is complete and keep its lifetime bounded; open PIT contexts consume resources.
 
 ---
 
