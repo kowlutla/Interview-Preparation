@@ -1,40 +1,25 @@
 # Project Experience and Technical Deep Dives
 
-> Numbered learning checklist. Use the existing handbook in this repository for detailed explanations and interview Q&A.
+## Project and System Understanding
 
-### 51. Product Engineering and Software Delivery
-- [ ] Requirements Analysis and Acceptance Criteria
-- [ ] Translating Business Rules into Domain Models
-- [ ] Technical Design Documents
-- [ ] API and Database Design Reviews
-- [ ] Code Review and Maintainability
-- [ ] Refactoring and Technical Debt
-- [ ] Backward-Compatible Releases
-- [ ] Production Incident Ownership
-- [ ] Feature Delivery and Stakeholder Communication
-- [ ] Agile Planning and Estimation
-- [ ] Jira and Issue Tracking
-- [ ] Engineering Documentation
-- [ ] Secure Coding and Privacy-by-Design
-- [ ] Reliability and Operational Ownership
+- [ ] Informatica CDGC/CDMP: product purpose, core workflows, and domain concepts
+- [ ] Current project architecture, service responsibilities, dependencies, and data flows
+- [ ] Oracle DBX / Order Entry Point microservice and integration context
+- [ ] UIM, BRM, OSM, ASAP, and external-system interaction patterns
+- [ ] REST API design, OpenAPI/Swagger contracts, and API Gateway integration
+- [ ] Authentication, JWT/bearer tokens, and service-to-service security
+- [ ] Docker, Kubernetes, Helm, OCI/OKE, and deployment/runtime decisions
+- [ ] SQL/JPA query tuning, pagination, data access, and transaction behavior
+- [ ] Kafka notifications/events, retries, consumer behavior, and failure handling
+- [ ] Elasticsearch/search integration and synchronization patterns
+- [ ] Spark/data-platform exposure, workload behavior, and performance issues where applicable
 
-## Phase 10 — Interview Preparation and Job Search
+## Senior-Level Deep Dives
 
-### 53. Project and Experience Deep Dives
-- [ ] Current Role: Informatica CDGC / CDMP
-- [ ] Data Governance and Data Marketplace Domain
-- [ ] Oracle DBX / Order Entry Point Microservice
-- [ ] UIM, BRM, OSM, and ASAP Integration Context
-- [ ] REST API Design and OpenAPI/Swagger
-- [ ] Authentication, JWT, and API Gateway Integration
-- [ ] Docker, Kubernetes, Helm, and OCI/OKE
-- [ ] Database Query Optimization and Pagination
-- [ ] Kafka-Based Notification and Event Flows
-- [ ] Elasticsearch / Search Integration
-- [ ] Spark Workloads and Performance Issues
-- [ ] Test Strategy: Unit, ST, SIT, and Regression
-- [ ] Production Troubleshooting Examples
-- [ ] Design Decisions and Alternatives
-- [ ] Measurable Performance / Reliability Improvements
-- [ ] Failure Scenarios and Recovery
-- [ ] Cross-Team Collaboration and Technical Ownership
+- [ ] Unit, system, integration, SIT, regression, and contract-testing strategy
+- [ ] A difficult production defect: investigation, root cause, fix, and prevention
+- [ ] A design decision: alternatives considered, trade-offs, and consequences
+- [ ] A performance/reliability improvement with measurable outcomes
+- [ ] Failure scenarios, recovery behavior, backward compatibility, and rollout strategy
+- [ ] Cross-team collaboration, technical ownership, and business impact
+- [ ] Be precise about personal contribution, team contribution, and technologies actually used
