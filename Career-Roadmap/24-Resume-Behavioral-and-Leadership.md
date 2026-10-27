@@ -1,33 +1,23 @@
 # Resume, Behavioral, and Leadership
 
-> Numbered learning checklist. Use the existing handbook in this repository for detailed explanations and interview Q&A.
+## Resume and Professional Profile
 
-### 52. Resume and Professional Profile
-- [ ] Resume Targeted to Senior Java Backend Roles
-- [ ] ATS-Friendly Structure and Keywords
-- [ ] Quantified Impact and Outcome-Based Bullet Points
-- [ ] Project and Technology Ownership
-- [ ] Technical Skills Alignment with Job Descriptions
-- [ ] Resume Versioning by Role Type
-- [ ] LinkedIn Profile and Headline
-- [ ] GitHub Profile and Pinned Repositories
-- [ ] Portfolio Project Documentation
-- [ ] Professional Summary and Career Narrative
+- [ ] Senior Java backend resume tailored to target role and job description
+- [ ] Clear impact statements with measurable outcomes, scope, and ownership
+- [ ] Technical skills aligned with actual experience and interview expectations
+- [ ] Career narrative across Informatica, Oracle, Altimetrik, and earlier experience
+- [ ] LinkedIn/GitHub profile, relevant repositories, and project documentation
+- [ ] Resume consistency, ATS readability, and concise project descriptions
 
-### 54. Behavioral and Leadership Interviews
-- [ ] Tell Me About Yourself
-- [ ] Career Transition and Motivation
-- [ ] STAR / CAR Answer Structure
-- [ ] Technical Challenge and Debugging Story
-- [ ] Production Incident and Recovery Story
-- [ ] Conflict and Disagreement
-- [ ] Mistake, Failure, and Learning
-- [ ] Ambiguous Requirements
-- [ ] Prioritization Under Time Pressure
-- [ ] Ownership Beyond Assigned Tasks
-- [ ] Mentoring and Knowledge Sharing
-- [ ] Influence Without Authority
-- [ ] Balancing Quality, Cost, and Delivery
-- [ ] Working Across Teams and Time Zones
-- [ ] Why This Company and Product
-- [ ] Strengths, Growth Areas, and Career Goals
+## Behavioral and Leadership Interviews
+
+- [ ] Tell-me-about-yourself introduction and career motivation
+- [ ] STAR/CAR stories for technical challenge, debugging, and problem solving
+- [ ] Production incident, mistake/failure, learning, and prevention stories
+- [ ] Ambiguous requirements, prioritization, and decisions under time pressure
+- [ ] Conflict, disagreement, and influencing without authority
+- [ ] Ownership beyond assigned tasks and end-to-end delivery
+- [ ] Mentoring, knowledge sharing, and cross-team collaboration
+- [ ] Balancing technical quality, delivery speed, cost, and business needs
+- [ ] Communication with stakeholders and distributed teams
+- [ ] Why this company/product, career goals, strengths, and growth areas
