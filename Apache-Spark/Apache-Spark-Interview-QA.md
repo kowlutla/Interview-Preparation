@@ -502,7 +502,22 @@ Append emits rows considered new/final under the query's semantics; event-time a
 
 ### Q72. What does a trigger control?
 
-A processing-time trigger requests periodic micro-batches. Available-now (where supported) processes currently available data in one or more batches and terminates, useful for catch-up workloads. Default processing starts a new batch when possible. A trigger interval is not a guarantee of batch completion time. Continuous processing is separate and limited in documented versions.
+A processing-time trigger requests periodic micro-batches. If a batch finishes before the interval, Spark waits for the interval boundary; if it takes longer, the next batch starts when the prior one completes. An available-now trigger processes data available at query start in one or more micro-batches and then terminates, provided the source supports it. It is useful for scheduled catch-up jobs. The default trigger starts another micro-batch as soon as the prior one completes and data is available.
+
+~~~java
+query = stream.writeStream()
+    .trigger(Trigger.ProcessingTime("10 seconds"))
+    .option("checkpointLocation", checkpointPath)
+    .start();
+
+// For a supported source, process available data and then stop:
+catchUp = stream.writeStream()
+    .trigger(Trigger.AvailableNow())
+    .option("checkpointLocation", checkpointPath)
+    .start();
+~~~
+
+A trigger interval is not a batch-completion SLA. If processing takes longer than the interval, the query cannot catch up unless sustainable throughput exceeds input rate. Continuous processing is separate, documented as experimental, and has different operation and sink constraints.
 
 ### Q73. What is a checkpoint directory?
 
