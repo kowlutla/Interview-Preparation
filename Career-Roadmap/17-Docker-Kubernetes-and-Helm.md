@@ -1,67 +1,30 @@
 # Docker, Kubernetes, and Helm
 
-> Numbered learning checklist. Use the existing handbook in this repository for detailed explanations and interview Q&A.
+## Docker
 
-### 38. Docker
-- [ ] Images, Containers, and Registries
-- [ ] Dockerfile Instructions and Layer Caching
-- [ ] Multi-Stage Builds
-- [ ] Build Context and .dockerignore
-- [ ] Non-Root Containers
-- [ ] Environment Variables and Secrets
-- [ ] Volumes and Bind Mounts
-- [ ] Container Networking
-- [ ] Port Publishing and DNS
-- [ ] Health Checks and Shutdown
-- [ ] Resource Limits
-- [ ] Image Tagging and Digest Pinning
-- [ ] Image Scanning and Supply Chain
-- [ ] Docker Compose
-- [ ] Logs and Container Troubleshooting
-- [ ] Java Container Memory and JVM Flags
-- [ ] Container Image Optimization
+- [ ] Images, containers, registries, tags, and immutable digests
+- [ ] Dockerfiles, build context, layer caching, multi-stage builds, and image optimization
+- [ ] Non-root execution, secrets, environment configuration, and image security
+- [ ] Volumes, bind mounts, container networks, ports, and DNS
+- [ ] Health checks, graceful shutdown, logs, and resource constraints
+- [ ] Docker Compose, Java container memory, JVM flags, and container troubleshooting
 
-### 39. Kubernetes
-- [ ] Cluster Architecture
-- [ ] Control Plane and Worker Nodes
-- [ ] Pods and Controllers
-- [ ] Deployments, ReplicaSets, StatefulSets, DaemonSets
-- [ ] Jobs and CronJobs
-- [ ] Services and Service Discovery
-- [ ] Ingress and Gateway API Fundamentals
-- [ ] ConfigMaps and Secrets
-- [ ] Namespaces and Resource Quotas
-- [ ] Requests, Limits, and QoS Classes
-- [ ] Liveness, Readiness, and Startup Probes
-- [ ] Rolling Updates and Rollbacks
-- [ ] Autoscaling: HPA and VPA Concepts
-- [ ] Pod Disruption Budgets
-- [ ] Scheduling, Affinity, Taints, and Tolerations
-- [ ] Persistent Volumes and Claims
-- [ ] DNS and Cluster Networking
-- [ ] Network Policies
-- [ ] RBAC and Service Accounts
-- [ ] Security Contexts and Pod Security
-- [ ] Secrets and Workload Identity
-- [ ] Logs, Events, and Metrics
-- [ ] kubectl Debugging
-- [ ] OOMKilled, CrashLoopBackOff, ImagePullBackOff
-- [ ] Graceful Shutdown and Connection Draining
-- [ ] Kubernetes Upgrade and Failure Recovery
+## Kubernetes
 
-### 40. Helm
-- [ ] Chart Structure
-- [ ] Chart.yaml and values.yaml
-- [ ] Templates and Template Functions
-- [ ] Values Precedence and Overrides
-- [ ] Helpers and Named Templates
-- [ ] Dependencies and Subcharts
-- [ ] Schema Validation
-- [ ] Environment-Specific Values
-- [ ] Secrets and Sensitive Values
-- [ ] helm lint, template, diff, install, upgrade, rollback
-- [ ] Hooks and Lifecycle Jobs
-- [ ] Release History and Failed Releases
-- [ ] Chart Versioning and OCI Registries
-- [ ] Reusable Chart Design
-- [ ] Helm Troubleshooting
+- [ ] Cluster architecture, control plane, worker nodes, and core controllers
+- [ ] Pods, Deployments, ReplicaSets, StatefulSets, DaemonSets, Jobs, and CronJobs
+- [ ] Services, DNS/service discovery, Ingress, and Gateway API fundamentals
+- [ ] ConfigMaps, Secrets, namespaces, service accounts, and RBAC
+- [ ] Requests/limits, QoS, autoscaling, scheduling, affinity, taints, and tolerations
+- [ ] Liveness/readiness/startup probes, rollout strategies, rollback, and graceful termination
+- [ ] Persistent storage, cluster networking, and NetworkPolicies
+- [ ] Security contexts, workload identity, image security, and least privilege
+- [ ] kubectl troubleshooting: events, logs, OOMKilled, CrashLoopBackOff, and image-pull failures
+- [ ] Availability, disruption budgets, upgrades, and failure recovery
+
+## Helm
+
+- [ ] Chart structure, values, templates, helpers, and values precedence
+- [ ] Dependencies, subcharts, schema validation, and environment-specific configuration
+- [ ] Install/upgrade/rollback, diff/template/lint, hooks, and release history
+- [ ] Chart versioning, OCI registries, reusable chart design, and Helm troubleshooting
