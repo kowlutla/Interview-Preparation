@@ -340,7 +340,7 @@ Broadcast a small dimension table when the materialized relation can safely fit 
 
 ### Q43. What is Adaptive Query Execution?
 
-AQE uses runtime statistics to revise eligible parts of a query plan. Depending on Spark version and configuration, it can coalesce shuffle partitions, handle certain skewed joins, and change some join strategies. It cannot fix incorrect join logic, huge output cardinality, or every skew pattern. Verify it is enabled and inspect the final adaptive plan.
+AQE uses runtime statistics to revise eligible parts of a query plan. In the current Spark 4.2 configuration reference, `spark.sql.adaptive.enabled` defaults to true; verify the effective setting for the actual Spark distribution/application. Depending on version and query shape, AQE can coalesce shuffle partitions, handle qualifying skewed joins, and revise certain join strategies. Inspect the final adaptive plan rather than assuming an adaptive change was beneficial. AQE cannot fix incorrect join logic, huge output cardinality, or every skew pattern.
 
 ### Q44. Why can distinct be expensive?
 
@@ -505,16 +505,20 @@ Append emits rows considered new/final under the query's semantics; event-time a
 A processing-time trigger requests periodic micro-batches. If a batch finishes before the interval, Spark waits for the interval boundary; if it takes longer, the next batch starts when the prior one completes. An available-now trigger processes data available at query start in one or more micro-batches and then terminates, provided the source supports it. It is useful for scheduled catch-up jobs. The default trigger starts another micro-batch as soon as the prior one completes and data is available.
 
 ~~~java
-query = stream.writeStream()
+import org.apache.spark.sql.streaming.Trigger;
+
+// Option A: long-running query with periodic micro-batches.
+StreamingQuery query = stream.writeStream()
     .trigger(Trigger.ProcessingTime("10 seconds"))
     .option("checkpointLocation", checkpointPath)
     .start();
 
-// For a supported source, process available data and then stop:
-catchUp = stream.writeStream()
-    .trigger(Trigger.AvailableNow())
-    .option("checkpointLocation", checkpointPath)
-    .start();
+// Alternative for a scheduled catch-up run: use this instead of Option A,
+// not concurrently with it. The source must support AvailableNow.
+// StreamingQuery catchUp = stream.writeStream()
+//     .trigger(Trigger.AvailableNow())
+//     .option("checkpointLocation", checkpointPath)
+//     .start();
 ~~~
 
 A trigger interval is not a batch-completion SLA. If processing takes longer than the interval, the query cannot catch up unless sustainable throughput exceeds input rate. Continuous processing is separate, documented as experimental, and has different operation and sink constraints.
@@ -1572,6 +1576,7 @@ Clarify latency, lateness, replay horizon, schema ownership, and consistency. Ex
 Use documentation matching the deployed Spark version; the latest URLs change as releases publish.
 
 - [Apache Spark overview and current Java/Scala runtime requirements](https://spark.apache.org/docs/latest/index.html)
+- [Spark Java API documentation (Javadoc)](https://spark.apache.org/docs/latest/api/java/index.html)
 - [Apache Spark documentation](https://spark.apache.org/docs/latest/)
 - [RDD programming guide](https://spark.apache.org/docs/latest/rdd-programming-guide.html)
 - [Spark SQL, DataFrames, and Datasets](https://spark.apache.org/docs/latest/sql-programming-guide.html)
