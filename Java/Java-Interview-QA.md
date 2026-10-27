@@ -1624,7 +1624,7 @@ Virtual threads became final in Java 21 and make a thread-per-task style viable 
 
 Use `Executors.newVirtualThreadPerTaskExecutor()` when its task lifecycle fits the service, but apply explicit limits around scarce downstream resources. Do not pool virtual threads just to limit their count; limit the actual constrained resource. Monitor latency, carrier utilization, downstream pools, and memory under load.
 
-Version detail matters: Java 21 introduced virtual threads as final; Java 24's JEP 491 changed monitor behavior so that `synchronized` no longer pins virtual threads in the former common case. Native/foreign calls and other cases can still constrain carrier unmounting. Check the exact JDK and library behavior when diagnosing pinning rather than repeating outdated blanket claims. See [JEP 444: Virtual Threads](https://openjdk.org/jeps/444) and [JEP 491: Synchronize Virtual Threads without Pinning](https://openjdk.org/jeps/491).
+Version detail matters: Java 21 introduced virtual threads as final. In Java 21, blocking while holding a monitor could pin a virtual thread to its carrier in some cases. Java 24's JEP 491 changed monitor implementation so that using synchronized no longer causes this form of pinning. Native or foreign-function calls and other situations can still limit unmounting, so do not claim that all pinning is impossible. Diagnose against the exact JDK build and library behavior. See [JEP 444: Virtual Threads](https://openjdk.org/jeps/444) and [JEP 491: Synchronize Virtual Threads without Pinning](https://openjdk.org/jeps/491).
 
 ### Q341. What is the difference between a scheduled task's fixed rate and fixed delay?
 
@@ -1636,7 +1636,7 @@ Choose fixed rate for cadence-oriented work and fixed delay when the pause shoul
 
 - **Java 8:** Core threads, locks, atomics, executors, ForkJoinPool, and CompletableFuture are available. Use Java 8-compatible APIs if the target runtime requires it.
 - **Java 17:** Virtual threads are not a final Java 17 feature. The established executor and CompletableFuture model remains central; do not paste Java 21 examples into a Java 17 project unchanged.
-- **Java 21:** Virtual threads are final. Structured concurrency and scoped values are not both final in this release; check the exact JEP and preview flags before using them.
+- **Java 21:** Virtual threads are final. Structured concurrency and scoped values were preview/incubating APIs in this release; check their individual status rather than treating them as a single feature.
 - **Java 25:** ScopedValue is final (JEP 506). Structured concurrency remains a preview API in the Java 25 release line (JEP 505), so its API and compiler/runtime flags are version-sensitive. Virtual-thread monitor pinning behavior also differs from Java 21 because of JEP 491 in Java 24.
 
 For version-sensitive claims, prefer the [Java SE API specification](https://docs.oracle.com/en/java/javase/25/docs/api/), [OpenJDK JEP index](https://openjdk.org/jeps/0), and the specific JEP over blog summaries. A feature's presence in a JDK does not by itself mean its API is final or enabled without preview flags.
@@ -2092,6 +2092,24 @@ For runtime or performance features, define baseline metrics and test under repr
 A feature may first appear as preview or incubating, evolve over multiple releases, and only later become final—or be withdrawn. A reliable version reference should distinguish the initial release, preview/incubator iterations, finalization release, and any later status changes.
 
 When answering an interview question, state the status in the specific release being discussed rather than saying a feature is simply “available since” the first release where it appeared. See Section 16 for the release-by-release reference and verify details against the official JDK documentation.
+
+### Additional senior-level accuracy checks: Java 21–25
+
+**What changed for virtual-thread pinning between Java 21 and Java 24?**
+
+Virtual threads became final in Java 21, but a virtual thread could remain pinned to its carrier while blocking inside certain synchronized regions. JEP 491, delivered in Java 24, changed monitor implementation so monitor use no longer causes this form of pinning. This does not mean every blocking operation can always unmount a virtual thread; native calls and other constraints can still matter. When diagnosing a Java 21 service, inspect monitor-heavy blocking paths. On Java 24 or later, do not repeat the blanket claim that synchronized always pins virtual threads. Test the actual JDK and dependencies used in production.
+
+**Which Java 25 changes could break an older application's startup or runtime behavior?**
+
+Do not guess from the major version alone. Read the official release notes for removed options, changed APIs, security updates, and deprecated behavior, then search application code, launch scripts, agents, and dependencies for actual use. Java 25 removed the optional experimental Graal JIT compiler; certain deprecated Socket constructors now reject stream=false; and use of sun.misc.Unsafe memory-access methods warns as the platform moves toward safer alternatives. The Security Manager is permanently disabled. Identify whether the application relies on the affected feature, update the dependency or configuration, and run integration tests on the exact target JDK. A release-note entry is a risk to investigate, not proof that every service will fail.
+
+**A Java service becomes slower after a JDK upgrade. How do you prove whether the JDK caused it?**
+
+First make the comparison controlled: same workload, traffic mix, container CPU and memory limits, dependency versions, configuration, warm-up, and measurement duration. Compare throughput, p50/p95/p99 latency, CPU, allocation rate, GC logs, JFR profiles, thread states, and downstream latency. Separate startup/warm-up behavior from steady-state performance. Test one hypothesis at a time—for example, collector configuration, JIT warm-up, allocation hot spots, TLS behavior, or a dependency that selected a different code path. Use JMH for isolated microbenchmarks and production-like load tests for end-to-end behavior. Preserve the old baseline and avoid concluding that the JDK alone caused the regression until evidence supports it.
+
+**When should a backend team adopt a Java preview feature?**
+
+Adopt one only when the expected benefit justifies compatibility and maintenance costs. Verify its status in the exact JDK release, required --enable-preview compiler/runtime options, build and deployment support, and whether the feature appears in public APIs or serialized/persisted contracts. Isolate use where practical, add tests, document an owner, and plan to revisit it during JDK upgrades. For ordinary backend business logic, a finalized API is usually safer if the preview feature offers only stylistic convenience. LTS status does not make preview features final.
 
 ## 13. Code-reading and output questions
 
@@ -2987,7 +3005,7 @@ Java 25 includes runtime changes that can matter even when application source co
 - **Generational Shenandoah (JEP 521, final):** adds generational operation to Shenandoah, separating objects by age to improve collection efficiency for suitable workloads. Collector choice remains workload-dependent.
 - **JFR CPU-time profiling (JEP 509, experimental):** adds diagnostic capability for investigating CPU consumption. Check JDK 25 documentation and platform support before relying on it in a production workflow.
 
-These changes are reasons to test Java 25 with representative data, not to assume automatic performance improvement. Record the JDK build, GC, heap/container limits, warm-up conditions, throughput, p95/p99 latency, allocation rate, and CPU/memory use when comparing versions.
+These changes are reasons to test Java 25 with representative data, not to assume automatic performance improvement. Record the exact JDK distribution/build, GC, heap/container limits, warm-up conditions, throughput, p95/p99 latency, allocation rate, and CPU/memory use when comparing versions. JEP 515's ahead-of-time method profiling depends on generating and reusing profiling data through the supported workflow; it is not a guarantee that every application starts faster.
 
 #### Primitive patterns and other preview distinctions
 
@@ -3006,6 +3024,10 @@ Java 25 introduced the KDF API as a preview API for deriving keys from input key
 - **Stable Values:** preview in Java 25.
 - **PEM Encodings of Cryptographic Objects:** preview in Java 25.
 - **Other preview features:** check the exact JDK release documentation and build/runtime flags before experimenting.
+
+#### Java 25 migration checks
+
+The Java 25 release notes identify compatibility changes beyond language features. Review the official removed/deprecated-features list and security updates for the exact distribution. For example, the experimental Graal JIT option was removed; the deprecated java.net.Socket constructors that accepted a stream parameter now throw IllegalArgumentException when stream is false; and use of sun.misc.Unsafe memory-access methods produces warnings as the platform moves toward safer alternatives. The Security Manager is permanently disabled in this release line. These details matter mainly when applications, agents, libraries, or launch scripts depend on the affected behavior; do not assume every Java service is impacted. See [JDK 25 release notes](https://www.oracle.com/java/technologies/javase/25-relnote-issues.html) and [JDK 25 removed tools and components](https://docs.oracle.com/en/java/javase/25/migrate/removed-tools-and-components.html).
 
 ### LTS migration checklist: Java 8 → 11 → 17 → 21 → 25
 
