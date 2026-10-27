@@ -26,3 +26,5 @@
 - [ ] Review resume and validate every claimed skill and impact statement
 - [ ] Identify recurring weak areas and complete focused remediation
 - [ ] Confirm interview schedule, setup, sleep, and recovery time
+- [ ] Coding-round execution: clarify constraints, work through examples, optimize from a baseline, analyze complexity, and test edge cases
+- [ ] Backend technical mock rounds across Java, Spring, persistence, distributed systems, messaging, and production debugging
