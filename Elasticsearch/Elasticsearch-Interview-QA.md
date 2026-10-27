@@ -1633,7 +1633,7 @@ public class ProductSearchService {
 }
 ~~~
 
-Product must be serializable by the configured JSON mapper. This is representative code; compile against the exact declared client version and add domain error handling, validation, metrics, and tests. Do not create a new client per request.
+This example assumes Product is a Java record, so product.productId() is a record accessor, and that the configured JSON mapper can serialize and deserialize it. If your application uses a JavaBean-style POJO, adapt the accessor and constructor configuration accordingly. This is representative code; compile against the exact declared client version and add domain error handling, validation, metrics, and tests. Do not create a new client per request.
 
 ### Q79. How should Java bulk indexing work?
 
