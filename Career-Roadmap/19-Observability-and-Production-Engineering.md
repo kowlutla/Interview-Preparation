@@ -1,31 +1,21 @@
 # Observability and Production Engineering
 
-> Numbered learning checklist. Use the existing handbook in this repository for detailed explanations and interview Q&A.
+## Observability
 
-### 43. Observability and Production Troubleshooting
-- [ ] Structured Logging
-- [ ] Log Levels and Correlation IDs
-- [ ] Metrics, Logs, and Distributed Traces
-- [ ] OpenTelemetry Concepts
-- [ ] Prometheus and Grafana Fundamentals
-- [ ] ELK Stack
-  - [ ] Elasticsearch
-  - [ ] Logstash / Ingestion Pipelines
-  - [ ] Kibana Queries and Dashboards
-- [ ] Distributed Tracing and Trace Context
-- [ ] RED and USE Methods
-- [ ] Golden Signals
-- [ ] SLI, SLO, and SLA
-- [ ] Alert Design and Alert Fatigue
-- [ ] Error Budgets
-- [ ] JVM, Thread, Heap, and GC Diagnostics
-- [ ] Database Slow Query Investigation
-- [ ] API Latency and Error-Rate Analysis
-- [ ] Kafka Lag and Consumer Health
-- [ ] Kubernetes Events and Resource Pressure
-- [ ] Incident Triage and Timeline Building
-- [ ] Root Cause Analysis and Blameless Postmortems
-- [ ] Runbooks and Operational Readiness
-- [ ] Capacity Planning and Load Testing
+- [ ] Structured logging, log levels, correlation IDs, and sensitive-data redaction
+- [ ] Metrics, logs, traces, context propagation, and OpenTelemetry fundamentals
+- [ ] Prometheus/Grafana, ELK stack, dashboards, and alerting fundamentals
+- [ ] RED/USE methods, golden signals, and service-level indicators/objectives/agreements
+- [ ] Alert quality, error budgets, alert fatigue, and on-call readiness
 
-## Phase 8 — Data Engineering and Platform Technologies
+## Production Engineering
+
+- [ ] JVM, thread, heap, GC, and memory-pressure diagnosis
+- [ ] API latency/error analysis, slow SQL investigation, and Kafka lag troubleshooting
+- [ ] Kubernetes events, container resource pressure, and service connectivity diagnosis
+- [ ] Incident triage, timeline building, root-cause analysis, and blameless postmortems
+- [ ] Runbooks, operational readiness, load testing, and capacity planning
+- [ ] Requirements/acceptance criteria, design reviews, code review, and maintainability
+- [ ] Refactoring, technical debt, release safety, and backward-compatible changes
+- [ ] Production ownership, stakeholder communication, estimation, and engineering documentation
+- [ ] Secure coding, privacy-by-design, reliability, and continuous improvement
