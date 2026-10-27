@@ -786,11 +786,11 @@ The classifier determines each map key. If a department can be null, decide how 
 
 ### Q123. How do you count employees in each department?
 
-    Map<String, Long> countByDepartment = employees.stream()
-        .collect(Collectors.groupingBy(
-            Employee::getDepartment, Collectors.counting()));
+Map<String, Long> countByDepartment = employees.stream()
+    .collect(Collectors.groupingBy(
+        Employee::getDepartment, Collectors.counting()));
 
-This is a downstream collector. It retains counts rather than lists of employees, which is more efficient when the grouped objects are not needed later.
+The grouping key comes from the classifier, and the downstream counting collector stores only a count for each department instead of retaining a list of employees. This is useful when the later operation needs totals rather than employee details. The result uses Long because counting returns Long. Decide how missing departments should be represented: the standard groupingBy collector rejects a null classifier result, so normalize missing values or validate them before grouping.
 
 ### Q124. How do you find the second-highest distinct salary?
 
@@ -818,26 +818,32 @@ Counting first avoids shared mutable state inside the stream. A side-effect-base
 
 ### Q126. How do you remove duplicates while preserving encounter order?
 
-    List<String> unique = values.stream()
-        .distinct()
-        .toList();
+List<String> unique = values.stream()
+    .distinct()
+    .toList();
 
-For an ordered stream, distinct preserves the first encountered occurrence. Equality relies on equals, so custom objects need correct equality semantics.
+For an ordered stream, distinct preserves the first encountered occurrence and uses equals to identify duplicates, so the result keeps the original encounter order of each unique value. Correct equality behavior is important for custom objects; distinct does not compare every field automatically unless equals is implemented that way.
+
+Stream.toList() was added in Java 16 and returns an unmodifiable list. For Java 8–15, use collect(Collectors.toList()); if the contract specifically requires a mutable ArrayList, request one explicitly because Collectors.toList() does not promise a particular implementation or mutability.
 
 ### Q127. How do you partition numbers into even and odd groups?
 
-    Map<Boolean, List<Integer>> result = numbers.stream()
-        .collect(Collectors.partitioningBy(n -> n % 2 == 0));
+Map<Boolean, List<Integer>> result = numbers.stream()
+    .collect(Collectors.partitioningBy(n -> n % 2 == 0));
 
-partitioningBy is appropriate when there are exactly two logical groups. groupingBy is better when the number of categories is variable.
+partitioningBy is designed for a binary predicate and creates two groups keyed by Boolean: true for even numbers and false for odd numbers in this example. Both keys are present even when one group has no elements. This differs from groupingBy, which creates groups based on arbitrary classifier values.
+
+The code assumes numbers contains non-null Integer values; unboxing a null element will fail. If the input is large, consider whether retaining both lists is necessary or whether counts or separate processing would use less memory.
 
 ### Q128. How do you flatten a list of lists?
 
-    List<String> flattened = nested.stream()
-        .flatMap(List::stream)
-        .toList();
+List<String> flattened = nested.stream()
+    .flatMap(List::stream)
+    .toList();
 
-map would produce a stream of lists; flatMap combines the inner streams into one stream. Decide how null inner lists should be handled rather than allowing accidental failures.
+Each inner list is converted to a stream, and flatMap concatenates the elements into one output stream. By contrast, map(List::stream) would produce a stream of streams rather than a stream of strings. The output order follows the outer stream and each inner list's encounter order when those sources are ordered.
+
+This example assumes the outer collection and every inner list are non-null. If null inner lists are permitted, define a policy such as filtering them or treating them as empty lists. Stream.toList() returns an unmodifiable result in Java 16 and later; use a suitable collector for older Java versions.
 
 ### Q129. How do you split sentences into distinct words?
 
@@ -857,36 +863,44 @@ toMap throws IllegalStateException when duplicate keys occur. If duplicates are 
 
 ### Q131. How do you sum values when multiple objects share the same key?
 
-    Map<String, Integer> totals = items.stream()
-        .collect(Collectors.toMap(
-            Item::getType, Item::getAmount, Integer::sum));
+Map<String, Integer> totals = items.stream()
+    .collect(Collectors.toMap(
+        Item::getType, Item::getAmount, Integer::sum));
 
-The merge function combines values with the same key. Consider overflow and make sure summing matches the business rule.
+The third argument is the merge function invoked when more than one item maps to the same type. Integer.sum combines those amounts, but the business rule must actually call for addition; other domains may need to keep the latest value, reject duplicates, or combine records differently.
+
+Consider overflow and nulls. Integer totals can overflow, so use Long or another suitable representation if the domain range requires it. Decide how missing types or amounts should be handled before collecting, and test duplicate keys explicitly because omitting a merge function would cause toMap to throw on duplicates.
 
 ### Q132. How do you sort strings by length and then alphabetically?
 
-    List<String> sorted = words.stream()
-        .sorted(Comparator.comparingInt(String::length)
-            .thenComparing(Comparator.naturalOrder()))
-        .toList();
+List<String> sorted = words.stream()
+    .sorted(Comparator.comparingInt(String::length)
+        .thenComparing(Comparator.naturalOrder()))
+    .toList();
 
-Comparator composition expresses the primary and tie-breaker order. A deterministic tie-breaker makes results and tests more predictable.
+The primary comparator orders strings by length; thenComparing breaks ties using natural lexicographic order. The tie-breaker makes ordering deterministic for equal-length values and easier to test. Sorting requires O(n log n) comparisons and creates a sorted result rather than changing the source list.
+
+This example assumes every string is non-null. If null values are allowed, use a null-aware comparator or filter them according to the business contract. Stream.toList() is available from Java 16; use a collector when targeting Java 8–15.
 
 ### Q133. How do you calculate sum, average, minimum, and maximum in one pass?
 
-    IntSummaryStatistics stats = numbers.stream()
-        .mapToInt(Integer::intValue)
-        .summaryStatistics();
+IntSummaryStatistics stats = numbers.stream()
+    .mapToInt(Integer::intValue)
+    .summaryStatistics();
 
-Primitive streams can reduce boxing. Be mindful of numeric overflow and precision; floating-point statistics are not a substitute for decimal arithmetic in financial domains.
+summaryStatistics calculates count, sum, minimum, maximum, and average in one traversal of the primitive stream. mapToInt avoids boxing each integer during aggregation, and the result exposes all five statistics through accessor methods. For an empty stream, count and sum are zero while min/max and average use their documented empty-result conventions.
+
+The example assumes non-null Integer elements. IntSummaryStatistics stores its sum as a long, but even long can overflow for sufficiently large totals. Use BigInteger for exact large integer totals and BigDecimal with an explicit scale/rounding policy for financial values.
 
 ### Q134. How do you join strings with a delimiter?
 
-    String joined = names.stream()
-        .filter(Objects::nonNull)
-        .collect(Collectors.joining(", "));
+String joined = names.stream()
+    .filter(Objects::nonNull)
+    .collect(Collectors.joining(", "));
 
-joining supports delimiters, prefixes, and suffixes. Decide explicitly whether null values should be rejected, filtered, or represented.
+Collectors.joining concatenates the character sequences with the chosen delimiter and also supports prefix and suffix arguments. This example deliberately filters null names; that is a policy decision, not a requirement of joining. Depending on the contract, rejecting nulls or rendering a placeholder may be more appropriate.
+
+joining does not trim values, normalize whitespace, or remove duplicates. Perform those transformations explicitly if the output format requires them. For large inputs, the collector is preferable to repeatedly concatenating strings in a loop because it avoids building a chain of intermediate immutable strings.
 
 ### Q135. How do you test whether any, all, or none of the elements match?
 
@@ -910,29 +924,35 @@ Parallel execution can split input into chunks and combine partial results in a 
 
 ### Q139. How do you get a set of employee names per department?
 
-    Map<String, Set<String>> namesByDepartment = employees.stream()
-        .collect(Collectors.groupingBy(
-            Employee::getDepartment,
-            Collectors.mapping(Employee::getName, Collectors.toSet())));
+Map<String, Set<String>> namesByDepartment = employees.stream()
+    .collect(Collectors.groupingBy(
+        Employee::getDepartment,
+        Collectors.mapping(Employee::getName, Collectors.toSet())));
 
-The downstream mapping collector transforms each employee to a name before collecting. This avoids collecting full employee lists and then traversing them again.
+groupingBy creates a group for each department, while the downstream mapping collector converts each Employee to a name before the values are collected into a set. This avoids storing full employee objects when only names are required and removes duplicate names according to String equality.
+
+The set implementation returned by toSet does not promise a specific iteration order. If stable ordering matters, choose an ordered set collector or sort the names explicitly. Also normalize or validate null department values because groupingBy does not accept a null classifier result.
 
 ### Q140. How do you calculate average salary per department?
 
-    Map<String, Double> averageByDepartment = employees.stream()
-        .collect(Collectors.groupingBy(
-            Employee::getDepartment,
-            Collectors.averagingDouble(Employee::getSalary)));
+Map<String, Double> averageByDepartment = employees.stream()
+    .collect(Collectors.groupingBy(
+        Employee::getDepartment,
+        Collectors.averagingDouble(Employee::getSalary)));
 
-This produces one average per group. For financial values, choose a decimal representation and explicit rounding policy when binary floating-point is not appropriate.
+averagingDouble calculates the average salary for each department and returns a Double per group. The downstream collector avoids creating an intermediate list of employees. It uses binary floating-point arithmetic, so it is suitable for general statistical summaries but may not match strict decimal financial requirements.
+
+For financial calculations, define the numeric representation, scale, and rounding policy explicitly, often using BigDecimal. Consider whether salary values can be null or departments missing, and validate or normalize those cases before grouping. If exact decimal averages are required, use a collector designed for that domain rather than converting a Double result afterward.
 
 ### Q141. How do you collect entries into a sorted map?
 
-    Map<String, Long> counts = words.stream()
-        .collect(Collectors.groupingBy(
-            Function.identity(), TreeMap::new, Collectors.counting()));
+Map<String, Long> counts = words.stream()
+    .collect(Collectors.groupingBy(
+        Function.identity(), TreeMap::new, Collectors.counting()));
 
-The map factory selects TreeMap, which sorts keys. Use it when sorted iteration is a requirement, not simply because sorted output looks convenient.
+The three-argument groupingBy accepts a classifier, a map factory, and a downstream collector. TreeMap makes the keys iterate in sorted order, while counting stores a Long count for each word. The map factory changes the result implementation, not the grouping rule.
+
+Use a sorted map when ordered iteration is part of the requirement, such as producing deterministic output. It adds ordering cost compared with a hash-based map. If case-insensitive ordering or another domain order is required, provide an appropriate comparator to the TreeMap factory rather than relying on natural String order.
 
 ### Q142. Why should peek() not be used for required business side effects?
 
@@ -940,7 +960,9 @@ peek is primarily an inspection/debugging operation. Stream optimizations may sk
 
 ### Q143. Why can a Stream only be consumed once?
 
-A Stream is a pipeline, not a reusable collection. After a terminal operation, it is consumed and a second terminal operation normally fails. Create a new stream from a reusable source when multiple traversals are needed.
+A Stream is a one-use pipeline over a source, not a container that stores reusable results. Intermediate operations are generally lazy, so creating a pipeline does not process the elements; a terminal operation such as collect, count, or findFirst triggers evaluation. After the terminal operation, the stream is consumed and a second terminal operation normally throws IllegalStateException.
+
+If the source can be traversed again, create a fresh stream from it for each calculation, for example by calling list.stream() twice. If the source is a one-shot resource or expensive supplier, decide whether it can be reopened safely or whether materializing a result once is more appropriate. Do not store a consumed stream in a field and expect to reuse it.
 
 ### Q144. When is parallelStream() a poor choice?
 
@@ -970,23 +992,29 @@ The set gives efficient average membership checks and the output preserves the f
 
 ### Q147. How do you safely handle an empty numeric stream?
 
-    OptionalInt maximum = numbers.stream()
-        .mapToInt(Integer::intValue)
-        .max();
+OptionalInt maximum = numbers.stream()
+    .mapToInt(Integer::intValue)
+    .max();
 
-The optional result represents the absence of a maximum. Avoid retrieving a value without checking presence or defining a fallback.
+max returns OptionalInt because an empty stream has no maximum. Check isPresent or use orElse/orElseThrow according to the domain contract instead of calling getAsInt without considering emptiness. A fallback such as zero is correct only if zero is a valid business representation for “no value”; otherwise it can hide missing data.
+
+The example also assumes the list contains non-null Integer values, because Integer::intValue unboxes each element. Validate or filter nulls explicitly if they are possible. Choose the numeric type based on the expected range, since primitive stream sums and comparisons still have finite numeric limits.
 
 ### Q148. How do you compose methods that return Optional values?
 
-    Optional<Country> country = person
-        .flatMap(Person::getAddress)
-        .flatMap(Address::getCountry);
+Optional<Country> country = person
+    .flatMap(Person::getAddress)
+    .flatMap(Address::getCountry);
 
-flatMap avoids nested Optional values when each function already returns Optional. The example assumes the methods use Optional consistently; normalize nullable boundaries deliberately.
+flatMap is useful when each method already returns Optional, because it avoids nested types such as Optional<Optional<Address>>. If an intermediate Optional is empty, later functions are not invoked and the final result remains empty. This makes a chain of optional lookups easier to read than repeated presence checks.
+
+The example assumes person itself is non-null and the accessor methods return non-null Optional instances. A method that returns null instead of an Optional violates the expected contract and breaks composition. Validate ordinary nullable inputs at the boundary, and use Optional consistently to represent expected absence rather than operational failure.
 
 ### Q149. When is a loop better than a stream?
 
-Loops can be clearer for early exits, complex state changes, coordinated mutation, or detailed error handling. Streams are often concise for filter-map-reduce and collector-based transformations. Explain readability and complexity rather than claiming one style is always faster.
+A loop is often clearer when the algorithm needs early exit, several state changes, complex branching, detailed exception handling, or coordinated side effects. A stream is often expressive for filter-map-reduce pipelines and collector-based grouping, counting, or aggregation.
+
+Choose the form that makes the data flow and correctness easiest to understand. Do not claim streams are automatically faster or loops are always more efficient: performance depends on allocation, source size, operation cost, and optimization. For hot paths, benchmark representative data, but do not sacrifice clear handling of edge cases merely to use a functional style.
 
 ### Q150. How do you implement a collector for a custom aggregation?
 
@@ -2085,7 +2113,9 @@ Long transactions hold connections and may retain locks or snapshots, increasing
 
 ### Q267. What is SQL injection and how does Java code prevent it?
 
-SQL injection occurs when untrusted input is interpreted as SQL syntax. Use PreparedStatement parameters for values, allowlist dynamic identifiers, apply least-privilege database permissions, and avoid leaking query details in public error responses. Manual escaping is fragile and should not replace parameterization.
+SQL injection occurs when untrusted input is interpreted as part of SQL syntax rather than as data. Use PreparedStatement parameters for values, allowlist dynamic identifiers such as table names or sort directions, and apply least-privilege database permissions. Parameterization is the primary defense for values; manual escaping and string replacement are fragile substitutes.
+
+Validation is still needed for business rules, and authorization must be checked independently of SQL injection prevention. Avoid returning raw SQL or database details in public errors, while preserving safe diagnostic context in internal logs. Test negative cases with malicious-looking input and ensure all query paths—including reporting and dynamic sorting—follow the same parameterization policy.
 
 ### Q268. How should secrets be handled in a Java service?
 
@@ -2109,9 +2139,9 @@ Unit tests verify a small piece of behavior in isolation and should be fast and 
 
 ### Q273. What is contract testing?
 
-Contract testing verifies that independently developed components honor an agreed interface, such as an HTTP request/response contract or a Kafka event schema. Consumer-driven contracts can capture what a consumer relies on, while provider verification checks that a service still satisfies those expectations. This can catch incompatible changes before independently deployed components meet in production.
+Contract testing verifies that independently developed components honor an agreed interface, such as an HTTP request/response contract or a Kafka event schema. Consumer-driven contracts capture what a consumer relies on, while provider verification checks that the service still satisfies those expectations. This can catch incompatible changes before independently deployed components meet in production.
 
-Contract tests do not prove that the whole system works end to end and do not replace unit or integration tests. Keep contracts focused on observable behavior, version event schemas deliberately, and include compatibility rules for optional fields, defaults, and error responses. They are most valuable when they protect a real deployment boundary rather than duplicate implementation details.
+Contract tests do not prove the entire system works end to end and do not replace unit or integration tests. Keep contracts focused on observable behavior, version event schemas deliberately, and include compatibility rules for optional fields, defaults, and error responses. They are most valuable when they protect a real deployment boundary rather than duplicate implementation details.
 
 ### Q274. How do you test asynchronous code without arbitrary sleeps?
 
