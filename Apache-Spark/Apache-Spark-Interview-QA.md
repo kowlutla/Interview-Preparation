@@ -124,7 +124,7 @@ Lazy does not mean free. Calling show, then count, then write may recompute the 
 
 ### Q13. What are client and cluster deployment modes?
 
-In client mode, the driver runs in the submitting environment; convenient for interactive work, but the client is often unsuitable as a production host. In cluster mode, the driver runs in the cluster-managed environment. The choice affects logs, network reachability, credentials, dependency distribution, and restart behavior, not the logical meaning of DataFrame expressions.
+In client mode, the driver runs in the environment that submitted the application; this is convenient for development and interactive work, but a laptop or CI worker is rarely a resilient production driver host. In cluster mode, the driver is launched in the cluster-managed environment. Spark Standalone is a simple Spark-native cluster manager, YARN integrates with Hadoop resource management, and Kubernetes schedules the driver/executors as pods with container resource and identity controls. The deployment mode affects where logs live, whether executors can reach the driver, how credentials/dependencies are supplied, and how failed applications are restarted—not the meaning of a DataFrame expression.
 
 ---
 
@@ -254,7 +254,7 @@ csv.write().mode(SaveMode.Append)
     .parquet(outputPath);
 ~~~
 
-CSV is text and needs typing; JSON handles nested records; Parquet is columnar and well suited to analytical reads because it can skip unused columns and use statistics. partitionBy creates directory-level partitioning; it does not promise one file per partition or one file overall. Write atomicity depends on the filesystem and committer.
+CSV is text, so numeric/date columns need parsing and schema decisions; JSON supports nested objects and arrays but may cost more to parse; Parquet is a typed columnar format that can skip unneeded columns and use file/row-group statistics to reduce reads. Compression is usually effective for analytical files, but the codec and row-group/file layout still affect CPU, I/O, and parallelism. `partitionBy("order_date")` writes a directory layout such as `order_date=2026-10-27/`; it does not promise one file per date, per task, or for the whole dataset. For evolving schemas, validate types rather than relying on inference.
 
 ### Q27. How do nested types and explode work?
 
@@ -290,9 +290,9 @@ Each action may require Spark to execute the upstream plan. Calling count and th
 
 ### Q33. What is a partition, and how does it relate to parallelism?
 
-A partition is a chunk of distributed data processed as a task unit for many operations. A stage with 100 partitions can expose about 100 tasks of parallel work, subject to dependencies and resources. Executor count is not partition count: executors can run multiple task slots over time.
+A partition is a logical chunk of distributed data that a task processes for an operation. A stage with 100 runnable partitions can expose about 100 tasks of parallel work, but concurrency is limited by available executor task slots; partitions and executors are different quantities. Input-file partitions, shuffle partitions, and output directory partitions are also different concepts.
 
-Too few partitions limit parallelism and create large tasks; too many tiny partitions increase scheduling overhead and small files. The right count depends on data size, operation, cluster capacity, and source layout.
+For DataFrames, `repartition(n, col("customer_id"))` redistributes rows using hash partitioning on the supplied expression(s), which is useful when equal keys need to be brought together. `repartitionByRange(n, col("event_time"))` lays out partitions by ordered ranges, which can help range-oriented workloads but has its own sampling and shuffle cost. Neither guarantees even work if the key distribution is skewed. Too few partitions limit parallelism; too many tiny partitions add scheduling overhead and may create small files. Choose based on stage metrics, row sizes, and cluster capacity.
 
 ### Q34. What causes a shuffle and why is it expensive?
 
@@ -356,7 +356,7 @@ High-cardinality grouping creates many distinct keys and intermediate state. Ske
 
 ### Q46. Explain Spark SQL's planning pipeline.
 
-DataFrame expressions or SQL become a logical plan. Spark resolves names/types and validates operations, then Catalyst applies eligible optimizations such as predicate pushdown, projection pruning, and constant folding. The planner chooses a physical plan with concrete scans, exchanges, joins, and aggregates. AQE may revise parts of the physical plan using runtime statistics. The exact rules depend on query, source, version, and configuration.
+Spark SQL moves through several planning steps. It first parses the SQL or builds a logical plan from DataFrame expressions. Analysis resolves column names, data types, functions, and table references; unresolved or invalid expressions fail before execution. Catalyst then applies eligible logical optimizations—such as constant folding, predicate and projection pushdown, and some join reordering—and the planner selects a physical plan with concrete scans, exchanges, joins, sorts, and aggregates. Adaptive Query Execution (AQE) can revise eligible parts of the physical plan after runtime statistics become available. Not every rule applies to every query or data source, so inspect `explain("formatted")` and the final adaptive plan rather than assuming an optimization occurred.
 
 ### Q47. Predicate pushdown versus projection pruning?
 
@@ -364,7 +364,7 @@ Predicate pushdown tries to filter close to the source; projection pruning avoid
 
 ### Q48. What are Tungsten and whole-stage code generation?
 
-Tungsten describes Spark's execution-efficiency work, including memory management and binary processing. Whole-stage code generation combines eligible operators into generated JVM code to reduce per-row overhead. Internals evolve and not every query is fully code-generated. Opaque UDFs or unsupported operators can limit optimization.
+Tungsten is the name historically used for Spark's work on more efficient execution, including memory use and binary representation; it is not a single feature that can be toggled to make a query faster. Whole-stage code generation can fuse eligible operators into generated JVM code and reduce per-row virtual-call overhead. Spark SQL also uses columnar processing in supported scans and operators, especially with columnar file formats such as Parquet. The exact execution path depends on the operators, source, and version: a UDF, unsupported expression, or transition between row and columnar representations can limit these optimizations. Use the physical plan and runtime metrics to judge the effect.
 
 ### Q49. What can the optimizer not fix?
 
@@ -380,7 +380,7 @@ Driver memory supports planning, scheduling metadata, task results, and objects 
 
 ### Q51. Execution memory versus storage memory?
 
-Execution memory supports joins, sorts, and aggregations; storage memory supports cached data. Spark's unified memory manager allows these uses to share a region, and cached blocks may be evicted under pressure. Caching competes with execution memory and can increase spill. Cache only data that is expensive to recompute and reused.
+Execution memory is used by work such as joins, sorts, and aggregations; storage memory holds cached/persisted blocks. Under Spark's unified memory manager, the execution/storage region can be shared, and cached blocks may be evicted when execution needs room. This is why caching a large intermediate can make a later join slower rather than faster: it competes with the memory the join needs and can increase spill or recomputation. Cache expensive data only when it will be reused enough to repay materialization and memory costs, and unpersist it when the reuse period ends.
 
 ### Q52. Why does Spark spill to disk?
 
@@ -468,7 +468,7 @@ Schema evolution is a change to fields or types over time. File formats and tabl
 
 ### Q67. What should you know about object storage?
 
-Object storage is scalable and durable, but listing and commit behavior differ from local filesystems/HDFS. Many small objects can be expensive, and atomic rename assumptions may not hold. Use the recommended connector and committer for the environment and test failure behavior.
+Object storage scales well for durable lake data, but its request, listing, and commit behavior differs from a local filesystem or HDFS. Many small objects increase listing/open overhead, and a rename is not universally an atomic filesystem operation on object stores. A failed Spark write can leave temporary or partial objects depending on the connector and committer. Use the deployment's supported filesystem connector and output committer, and test failed writes and retries. Plain Parquet files do not, by themselves, provide the same table-level transaction protocol as a transactional lakehouse table format; choose a table format when atomic table commits, concurrent writers, or schema evolution are requirements.
 
 ---
 
@@ -502,7 +502,7 @@ Append emits rows considered new/final under the query's semantics; event-time a
 
 ### Q72. What does a trigger control?
 
-A processing-time trigger requests periodic micro-batches. If a batch finishes before the interval, Spark waits for the interval boundary; if it takes longer, the next batch starts when the prior one completes. An available-now trigger processes data available at query start in one or more micro-batches and then terminates, provided the source supports it. It is useful for scheduled catch-up jobs. The default trigger starts another micro-batch as soon as the prior one completes and data is available.
+A processing-time trigger requests micro-batches on a fixed interval. If a batch finishes early, Spark waits for the next interval; if it runs long, the next batch cannot begin until the current one finishes. `Trigger.AvailableNow()` is useful for scheduled catch-up jobs: for sources that support it, Spark processes all data available at the start of that query execution, possibly across multiple batches, and then terminates. It also processes pending batches from a previous run and may run a final no-data batch to advance watermarks. A source that does not support AvailableNow can cause fallback behavior, so check connector support. The default trigger starts another micro-batch as soon as the previous one finishes and data is available.
 
 ~~~java
 import org.apache.spark.sql.streaming.Trigger;
@@ -545,16 +545,23 @@ Event time is when an event happened; processing time is when Spark handles it. 
 
 ### Q77. Tumbling versus sliding windows?
 
-A tumbling window has fixed duration and does not overlap, such as 10:00–10:05 and 10:05–10:10. Sliding windows overlap; a 10-minute window sliding every 5 minutes includes an event in multiple windows, increasing work and state.
+A tumbling window has a fixed duration and does not overlap, such as 10:00–10:05 and 10:05–10:10. A sliding window can overlap; for example, a 10-minute window sliding every 5 minutes can count one event in two windows, increasing work and state. Spark also supports session windows: instead of a fixed window end, a session grows while events for a key arrive within the configured inactivity gap. Session-window behavior and supported combinations should be checked for the deployed Spark version.
 
 ~~~java
 Dataset<Row> perWindow = events
     .withWatermark("event_time", "10 minutes")
     .groupBy(window(col("event_time"), "5 minutes"), col("customer_id"))
     .agg(sum("amount").alias("total_amount"));
+
+// Session windows: sessions for a customer extend when activity continues
+// within the gap duration (API availability depends on Spark version).
+Dataset<Row> sessions = events
+    .withWatermark("event_time", "10 minutes")
+    .groupBy(session_window(col("event_time"), "5 minutes"), col("customer_id"))
+    .agg(count(lit(1)).alias("event_count"));
 ~~~
 
-The watermark communicates expected lateness relative to event-time progress; it is not a promise that every event within ten minutes is guaranteed to arrive.
+The watermark communicates an event-time lateness threshold; it does not mean that each event gets a ten-minute wall-clock timer.
 
 ### Q78. What does a watermark do?
 
@@ -572,7 +579,23 @@ Stateful aggregation retains partial results by key/window across triggers. Stre
 
 ### Q81. Stream-static versus stream-stream joins?
 
-A stream-static join enriches each streaming record with a bounded relation, often simpler but with deliberate handling needed for refreshed dimension data. A stream-stream join matches events from two unbounded streams and must retain state because matching records can arrive at different times. It requires careful event-time constraints and watermarks for bounded state in supported patterns. Verify join-type compatibility.
+A stream-static join enriches a streaming row using a bounded DataFrame and is not stateful, so it does not retain stream-side join state for future matches. However, do not assume it is a point-in-time slowly changing dimension lookup: freshness and snapshot behavior depend on how the static source is read and planned. If business correctness requires matching an event to the dimension version valid at that event's time, model effective-from/effective-to or version information explicitly.
+
+A stream-stream join must buffer rows from both unbounded inputs because a future event may match an earlier row. To bound state, add watermarks on the event-time columns and an event-time constraint that tells Spark when old rows cannot match future records. For example, an impression can be joined to a click only when the click follows the impression and arrives within a defined hour-long window. Outer joins have stricter requirements because Spark must know when it is safe to emit a no-match result.
+
+~~~java
+Dataset<Row> impressions = impressionStream
+    .withWatermark("impression_time", "2 hours");
+Dataset<Row> clicks = clickStream
+    .withWatermark("click_time", "3 hours");
+Dataset<Row> matched = impressions.join(clicks,
+    expr("impression_id = click_impression_id AND " +
+         "click_time >= impression_time AND " +
+         "click_time <= impression_time + INTERVAL 1 HOUR"),
+    "inner");
+~~~
+
+This is a pattern, not a complete application; valid join types and state cleanup rules depend on the chosen query and Spark release.
 
 ### Q82. What is the state store?
 
@@ -602,7 +625,7 @@ Dataset<Row> parsed = kafka.selectExpr(
     "timestamp AS kafka_timestamp", "topic", "partition", "offset");
 ~~~
 
-Include the Kafka connector version compatible with Spark and its Scala binary version. Kafka key/value are binary columns; parse explicitly. startingOffsets applies when initializing a new query/checkpoint; an existing checkpoint's progress governs recovery.
+Include the Kafka connector artifact compatible with the Spark and Scala binary versions. Kafka `key` and `value` arrive as binary columns, so cast to string only when the payload encoding is text. Parse JSON with an explicit schema rather than assuming every record is valid or has the same shape. For example, `from_json(col("value").cast("string"), eventSchema).alias("event")` lets you select nested fields such as `col("event.order_id")`; rows where parsing returns null can be routed to quarantine with topic/partition/offset metadata. Set `.option("includeHeaders", "true")` when the query needs Kafka headers; otherwise the headers field is not included by default. `startingOffsets` initializes a new query; an existing checkpoint's recorded progress governs restart.
 
 ### Q85. How do you write to Kafka?
 
@@ -628,7 +651,7 @@ Not exactly. By default, each Kafka TopicPartition maps to a Spark input partiti
 
 ### Q87. How do offsets and restart work?
 
-Spark's Kafka source stores offset progress in its checkpoint and can replay according to recorded progress. Kafka consumer-group committed offsets are not the sole authority for query restart. startingOffsets matters for a new checkpoint, not for overriding an established query's progress. Replay may be correct for Spark state but can repeat an external side effect if the sink is not idempotent.
+Spark's Kafka source records offset progress in the Structured Streaming checkpoint; Kafka consumer-group commits are not the sole restart authority. `startingOffsets` applies when a new query starts without prior checkpoint progress and does not override offsets already recorded in an existing checkpoint. This is why deleting a checkpoint is not a routine restart technique: it creates a new query history and can replay data or lose prior state. Also check Kafka retention. If the consumer falls behind until required offsets have expired, Spark cannot recreate the missing records from the checkpoint. The `failOnDataLoss` option can make the query fail when Spark detects that offsets may no longer be available; investigate before disabling it. Even correct replay of source offsets can repeat external side effects unless the sink is idempotent.
 
 ### Q88. How do you make database writes idempotent?
 
@@ -636,7 +659,7 @@ Use stable event identifiers and upserts/unique constraints so a retry converges
 
 ### Q89. What is backpressure and how do you handle Kafka lag?
 
-Lag grows when arrival rate exceeds sustainable processing and sink throughput. Diagnose input/processing rate, batch duration, topic partition count, shuffle, state-store time, and sink latency. Optimize the measured bottleneck, add source partitions when appropriate, and tune admission/trigger settings according to version docs. If the sink is slow, more executors may increase pressure rather than throughput.
+Lag grows when sustained arrival rate exceeds sustainable processing throughput. Compare input and processing rates, batch duration, per-partition traffic, shuffle/spill, state-store time, and sink latency. The Kafka connector supports `maxOffsetsPerTrigger` to cap how many offsets enter a micro-batch; this can protect a fragile sink during recovery, but it does not increase the pipeline's long-term capacity. The connector's `minPartitions` option can split large Kafka offset ranges into more Spark tasks when default source parallelism is too low, but it's a hint and should be benchmarked. Scale or optimize the component that is actually limiting throughput. If the sink is slow, more executors can increase pressure rather than throughput.
 
 ### Q90. How do you handle malformed messages and schema evolution?
 
@@ -692,20 +715,20 @@ Use the appropriate output mode and add shutdown hooks and query-health metrics 
 
 ### Q93. How do you use foreachBatch safely?
 
-foreachBatch provides a bounded DataFrame for each micro-batch, useful for custom sinks. It does not make arbitrary code exactly once. The callback may be retried after a failure, so writes must be idempotent or transactional.
+`foreachBatch` supplies a bounded DataFrame and a unique micro-batch ID (`batchId`) to custom write logic. The callback is retried as part of streaming recovery, so an arbitrary append is not automatically exactly once. Spark's guide notes that the batch ID can support exactly-once output only when the sink uses it to deduplicate safely. For a database, a robust design might write records and a processed-batch marker in the same database transaction, with a uniqueness constraint on the batch ID; if the marker and records are committed separately, a partial failure can still duplicate output. A stable event ID/upsert is useful when deduplication must work at record level.
 
 ~~~java
 stream.writeStream()
     .foreachBatch((batch, batchId) -> {
-      // Use a stable event key and idempotent upsert/transaction protocol.
-      // Plain append may duplicate rows after a retry.
+      // Application-specific: atomically write/upsert the batch and record batchId,
+      // or make every record write idempotent. Plain append can duplicate rows.
       writeBatchIdempotently(batch, batchId);
     })
     .option("checkpointLocation", checkpointPath)
     .start();
 ~~~
 
-The method writeBatchIdempotently is intentionally application-specific, not a Spark API. Design it around unique event keys and the sink's transactional capabilities. Keep credentials in a secret manager.
+`writeBatchIdempotently` is a placeholder for your sink protocol, not a Spark method. If you perform multiple actions or write the same micro-batch to multiple sinks, persist the batch DataFrame during the callback and unpersist it afterward to avoid recomputing a stateful micro-batch multiple times. Keep credentials outside source code.
 
 ### Q94. What should observability and exception handling include?
 
@@ -737,7 +760,7 @@ Define schema and parsing policy. Quarantine malformed records with source metad
 
 ### Q100. What should a production Spark pipeline monitor?
 
-Monitor application/query health, batch/stage duration, input/processing rates, Kafka lag, failed tasks, executor loss, shuffle, spill, GC, state size, watermark progress, sink latency, output counts, malformed records, and data freshness. Alert on SLOs and trends. Reconcile source/sink counts or business totals because green infrastructure metrics do not prove correct output.
+Monitor application/query health, batch and stage duration, input/processing rates, Kafka lag, task failures, executor loss, shuffle, spill, GC, state size, watermark progress, sink latency, rejected records, and data freshness. In Java, the running `StreamingQuery` exposes `status()`, `lastProgress()`, and `recentProgress()` so the application can publish query status and batch metrics; the exact progress fields depend on source and Spark version. Correlate these with Spark UI/event logs and sink/database metrics. Alert on service-level objectives and trends, not only process uptime. Reconcile input/output counts and business totals because green infrastructure metrics do not prove correct results.
 
 ---
 
@@ -745,7 +768,7 @@ Monitor application/query health, batch/stage duration, input/processing rates, 
 
 ### Q101. What changes on Kubernetes?
 
-Kubernetes schedules driver/executor pods and enforces resource limits. Configure compatible images/dependencies, service-account permissions, network access, credentials, and checkpoint storage. Container memory includes more than JVM heap; pod events help distinguish Java OOM from a container kill. Kubernetes is a deployment environment, not an automatic solution to application-level recovery.
+Kubernetes schedules the driver and executor pods and enforces their resource requests and limits. Choose executor memory, memory overhead, and cores with both Spark's task behavior and the pod's total memory limit in mind; JVM heap is not the whole container footprint. Executor cores influence concurrent task slots, while more executors add capacity only when the workload has enough independent partitions and the cluster has resources. Configure the service account, network access, secrets, compatible image and connector dependencies, and durable checkpoint storage. Use pod events plus driver/executor logs to tell a Java heap OOM from a container OOM kill. Kubernetes manages processes and resources, but application-level sink idempotency and checkpoint recovery remain application design responsibilities.
 
 ### Q102. What matters when packaging a Java Spark application?
 
