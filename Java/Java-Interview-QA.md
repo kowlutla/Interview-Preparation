@@ -2408,93 +2408,93 @@ Track percentiles alongside throughput, error rates, saturation, and dependency 
 
 ### Q308. A service starts slowly after a JDK upgrade. How do you investigate?
 
-Compare cold-start timing and logs against a baseline, then inspect class loading, JIT warm-up, dependency initialization, configuration, network calls, and runtime flags. Use JFR or startup diagnostics where available. Separate application initialization from JDK/runtime changes and validate the cause before adding AOT or caching options.
+Separate cold-start time from the time needed to reach steady state, then compare repeated runs using the same image, configuration, dependencies, CPU and memory limits, and startup workload. Review timestamps for class loading, dependency injection, configuration fetches, DNS/TLS setup, database connection creation, and remote calls. Use startup diagnostics or JFR where supported, and check whether an agent or dependency changed behavior.
 
-Separate cold-start time from time to reach steady state, and compare repeated runs using the same image, configuration, dependencies, CPU/memory limits, and startup workload. Review timestamps for class loading, dependency injection, configuration fetches, DNS/TLS setup, and database connection creation. Use startup diagnostics or JFR where supported, and check whether an agent or dependency changed behavior. Do not enable an AOT option or change several JVM flags before identifying the dominant delay; test one hypothesis and compare the same startup phases.
+Do not enable an AOT option or change several JVM flags before identifying the dominant delay. Form a hypothesis, test one targeted change, and compare the same startup phases. Also distinguish a genuine JDK regression from a cold cache, a changed container limit, slower infrastructure, or a dependency that now performs more initialization.
 
 ### Q309. A service has many blocked threads. What do you investigate?
 
-Capture thread dumps during the incident and group stacks by state and blocking location. Check connection pools, synchronized monitors, downstream waits, queue saturation, and lock contention. Correlate with request latency and resource metrics; increasing the thread count may worsen the issue if the true bottleneck is a database or remote dependency.
+Capture multiple thread dumps during the incident and compare stable stacks. Group threads by state and blocking location, then correlate them with executor active/queued counts, connection-pool waiters, downstream latency, retry rates, and request percentiles. Look for threads blocked entering monitors, waiting on futures or queues, or waiting for database/HTTP connections.
 
-Capture more than one thread dump during the incident and compare stable stacks. Correlate thread states with executor active/queued counts, connection-pool waiters, downstream latency, and retry rates. A large number of WAITING threads may simply be waiting for a saturated pool; a deadlock requires a wait cycle. Increasing thread count before identifying the constrained resource can create more queued work and increase memory pressure.
+A large number of WAITING threads is not proof of deadlock; workers may simply be waiting for a saturated pool. A deadlock requires a wait cycle. Identify the constrained resource or lock owner before increasing thread counts, because more workers can create more queued work and increase memory pressure without improving throughput.
 
 ### Q310. How do you diagnose connection-pool exhaustion?
 
-Inspect active, idle, pending, and timed-out connection metrics, then look for long-running queries, unclosed resources, long transactions, and slow remote work inside transaction boundaries. Confirm whether the pool size matches database capacity. Raising the pool size without understanding the database limit can make contention worse.
+Inspect active, idle, pending-waiter, acquisition-timeout, and connection-usage metrics at the time of the incident. Determine why connections are held: slow queries, long transactions, database locks, unclosed resources, or remote calls performed while a transaction keeps a connection checked out. Use traces and database-side diagnostics to separate time waiting for a connection from time executing SQL.
 
-Inspect active, idle, pending-waiter, acquisition-timeout, and connection-usage metrics at the time of the incident. Determine whether connections are held by slow queries, long transactions, database locks, unclosed resources, or remote calls performed inside transaction boundaries. Check database-side load and lock waits before increasing the pool; a larger pool can overload the database rather than improve throughput. Use traces to separate time waiting to acquire a connection from time executing SQL.
+Check whether the pool size is compatible with the database's safe connection capacity. Increasing the pool can worsen database overload rather than improve throughput. Fix leaks, shorten transaction boundaries where correctness permits, and address slow queries or lock contention before changing the pool limit.
 
 ### Q311. How should retries be designed for transient failures?
 
-Use bounded retries with backoff and jitter, honor a request deadline, and retry only failures that are plausibly transient. Writes need idempotency or deduplication so a timeout does not create duplicate effects. Avoid retry storms and align retry budgets across service layers so every layer does not independently multiply attempts.
+Retry only failures that are plausibly transient and only when repeating the operation is safe. Define retryable error categories, maximum attempts, exponential backoff with jitter, and an overall deadline. Avoid retrying validation or authorization failures, and prevent each service layer from independently multiplying attempts into a retry storm.
 
-For each retry, define which failures are retryable, the maximum attempts, the backoff and jitter, and the overall deadline. Avoid retrying validation or authorization failures and avoid layered retry policies that multiply attempts. For writes, use idempotency keys, durable deduplication, or reconciliation because a timeout may happen after the remote operation committed. Track retry rate and success rate so retries do not silently amplify an outage.
+For writes, a timeout can occur after the remote service committed the operation. Use idempotency keys, durable deduplication, unique constraints, or reconciliation so a retry does not create duplicate effects. Track retry rate and success rate, and stop when the remaining deadline cannot accommodate a useful attempt.
 
 ### Q312. What is bulkheading in a Java backend?
 
-Bulkheading isolates resource pools or concurrency limits so failure or saturation in one dependency does not consume all capacity for unrelated work. Separate executors, semaphores, connection pools, or bounded queues can provide isolation. Too many isolated pools increase operational complexity, so boundaries should follow real failure domains.
+Bulkheading isolates capacity so that saturation or failure in one dependency does not consume resources needed by unrelated work. Separate bounded executors, semaphores, connection pools, or concurrency limits can isolate workload classes; for example, a stalled recommendation service should not exhaust the workers needed for account operations.
 
-A bulkhead should have a clear failure-domain boundary and an explicit saturation policy. For example, a stalled recommendation dependency should not consume all workers needed for account operations. Separate bounded executors, semaphores, or connection pools can isolate workloads, but excessive fragmentation can strand capacity and complicate tuning. Monitor queue depth, rejection rate, dependency latency, and utilization for each boundary, and decide whether overload should reject, wait briefly, or shed optional work.
+Pair each boundary with an explicit overload policy: queue briefly, reject quickly, or shed optional work. Too many independent pools can strand capacity and make tuning harder, so choose boundaries around real failure domains and monitor queue depth, rejection rate, latency, and resource utilization for each one.
 
 ### Q313. What is graceful shutdown for a Java service?
 
-Graceful shutdown stops accepting new work, allows in-flight work to complete within a deadline, closes executors and clients, and releases resources. It should also define what happens to queued tasks and interrupted work. Kubernetes termination grace periods and application shutdown hooks need to be configured consistently.
+Graceful shutdown stops accepting new work, allows in-flight requests and background tasks to finish within a bounded deadline, then closes executors, clients, and other resources. If the deadline expires, request cancellation or interruption and define what happens to queued tasks. Shutdown hooks alone are not sufficient if the platform terminates the process before cleanup completes.
 
-In a containerized deployment, align the application shutdown deadline with the orchestrator's termination grace period and load-balancer/readiness behavior. Stop accepting new traffic before waiting for in-flight work, then close executors and clients. Define what happens to queued tasks, interrupted transactions, and messages whose acknowledgment has not yet been committed. Test shutdown during active requests and partial failures, not only when the process is idle.
+In a containerized deployment, align the application deadline with the orchestrator's termination grace period and readiness/load-balancer behavior. Test shutdown during active requests, transaction processing, queue consumption, and dependency failures. Ensure message acknowledgment and partial-work semantics remain safe when a task is interrupted.
 
 ### Q314. How do you prevent duplicate processing of a Kafka or queue message in Java?
 
-Design the handler to be idempotent where possible, use stable message or business identifiers, and coordinate durable state changes with acknowledgment or offset commits. A crash can occur between processing and acknowledgment, so delivery semantics alone do not guarantee exactly-once external side effects. Use transactions, deduplication records, or an outbox/inbox pattern where the domain requires it.
+A consumer can crash after committing a business change but before acknowledging the message, so the message may be delivered again. Make the handler idempotent using a stable message ID or business key, and coordinate the processed marker with the business change—often through a database transaction and unique constraint.
 
-For Kafka, understand exactly when offsets are committed relative to processing and database side effects. Broker-level transactions do not automatically make an external database or payment provider exactly once. Durable deduplication should use a stable message/business identifier and coordinate the processed marker with the business change, often through a database transaction and unique constraint. Also design for consumer rebalances, poison messages, retries, and crashes between a side effect and acknowledgment.
+For Kafka, understand when offsets are committed relative to processing and database side effects. Broker-level exactly-once features do not automatically make an external database or payment provider exactly once. Design for rebalances, retries, poison messages, and crashes between a side effect and acknowledgment. An in-memory map is not durable deduplication across restarts or service replicas.
 
 ### Q315. What is the transactional outbox pattern, and why might a Java service use it?
 
-The service writes its business change and an outgoing event record in the same database transaction. A separate publisher delivers the event and marks it processed, allowing retries after failures. This avoids the dual-write problem of committing a database change and publishing a message as unrelated operations, although duplicates still need handling.
+The transactional outbox addresses the dual-write problem: a database update and a message publish are two separate operations that can fail independently. The service writes its business change and an outbox row in the same database transaction. A separate publisher reads pending rows, sends events, and records delivery progress.
 
-The publisher can crash after sending an event but before marking the outbox row as published, so duplicate publication is still possible and consumers should be idempotent. Define event ordering, retry behavior, retention/cleanup, monitoring for old pending rows, and schema evolution. The outbox solves the atomic database-write-plus-event-record problem; it does not by itself guarantee exactly-once delivery across every downstream system.
+The publisher can crash after sending but before marking the row as published, so duplicate delivery is still possible and consumers should be idempotent. Define retry behavior, event ordering, retention and cleanup, monitoring for old pending rows, and schema evolution. The outbox makes the database change and event record atomic; it does not guarantee exactly-once delivery across every downstream system.
 
 ### Q316. How do you make a scheduled Java job safe to retry?
 
-Make the operation idempotent, persist progress or a stable execution identifier where necessary, define what happens after partial failure, and use bounded retry/backoff. In distributed deployments, ensure only the intended number of instances run the job or make concurrent runs safe. Log and measure each execution without exposing sensitive payloads.
+Make the job idempotent so repeating an execution does not corrupt state or duplicate side effects. For large jobs, persist progress using stable business keys or checkpoints and make each unit of work independently retryable. Explicitly handle the crash window where a side effect succeeds but the completion marker is not stored; use a transaction, uniqueness constraint, idempotency key, or reconciliation step to close it.
 
-For large jobs, persist progress using stable business keys or checkpoints and make each unit of work independently retryable. Consider the crash window where a side effect succeeds but the completion marker is not stored; use a transaction, uniqueness constraint, idempotency key, or reconciliation process to close it. A local scheduler does not guarantee single execution across replicas, so either coordinate ownership or make concurrent executions safe.
+If several replicas can run the scheduler, either coordinate ownership with a distributed lock/lease or make concurrent executions safe. A local scheduler does not guarantee cluster-wide single execution. Bound retries, use backoff, expose execution duration and failure metrics, and test restarts and partial failures.
 
 ### Q317. What is the difference between throughput and latency?
 
-Throughput measures how much work completes per unit of time; latency measures how long an individual operation takes. Improving throughput can increase queueing and worsen tail latency if the system is saturated. Evaluate both alongside error rate and resource saturation rather than optimizing a single metric.
+Throughput measures how much work completes per unit of time; latency measures how long an individual operation takes. As a system approaches saturation, throughput may flatten while queueing causes latency to rise sharply. Increasing throughput at the expense of tail latency may violate the service-level objective.
 
-As a system approaches saturation, throughput may flatten while queueing makes latency rise sharply. Compare both metrics with error rate and saturation indicators such as queue depth, CPU, connection-pool use, and downstream response time. State the workload and measurement window when comparing versions; a throughput improvement is not a success if it violates the service's latency objective or increases failures.
+Evaluate both metrics alongside error rate and saturation indicators such as CPU, queue depth, connection-pool utilization, and downstream latency. State the workload and measurement window when comparing results. A useful optimization improves the metric that matters to the service without hiding regressions in reliability or user-visible response time.
 
 ### Q318. Why are p95 and p99 latency important in distributed systems?
 
-Percentiles reveal the tail of the latency distribution, which averages can hide. Slow requests can consume connection pools, trigger retries, and amplify delays across a call chain. Track percentiles with sufficient volume and correlate them with dependency timings, queueing, GC, and resource saturation.
+p95 is the latency at or below which 95% of observed requests complete; p99 is the corresponding 99th percentile. Percentiles reveal slow-tail behavior that an average can hide. In a distributed call chain, a small fraction of slow dependency calls can hold threads and connections, trigger retries, and amplify latency for the entire request.
 
-Correlate tail latency with queue wait, slow dependency calls, retries, GC pauses, lock contention, and resource saturation. Percentiles need enough traffic and a meaningful time window; p99 can be noisy for low-volume endpoints. Track throughput and error rate too, because rejecting or dropping slow requests can make a latency chart look better without improving user outcomes.
+Correlate percentiles with dependency timings, queue wait, GC pauses, lock contention, and resource saturation. Percentiles need enough traffic and a meaningful time window; p99 can be noisy for low-volume endpoints. Track throughput and error rate too, because rejecting or dropping slow requests can make a latency chart look better without improving user outcomes.
 
 ### Q319. How do you choose between caching and recomputing a result?
 
-Consider computation cost, access frequency, freshness requirements, memory use, invalidation complexity, and consistency. A cache can reduce latency but introduces stale-data and stampede risks. Start with measurement, define TTL or invalidation rules, and make cache misses and backend overload safe.
+Compare the cost of recomputation with the cost and risk of maintaining cached state. Caching is attractive when a value is expensive to compute or fetch, read frequently, and can tolerate a defined freshness window. Recomputing can be safer when data changes frequently, computation is cheap, or invalidation is difficult to make correct.
 
-Before adding a cache, measure the hot path and define the freshness contract: TTL, explicit invalidation, versioning, or stale-while-revalidate. Include cache-key cardinality, memory bounds, cold-start behavior, miss amplification, and the source system's capacity. If the data changes frequently or invalidation cannot be made reliable, recomputation may be safer. A cache is an optimization with correctness and operational costs, not simply a faster lookup.
+Before adding a cache, measure the hot path and define the consistency contract: TTL, explicit invalidation, versioning, or stale-while-revalidate. Consider memory bounds, cache-key cardinality, cold starts, cache-miss amplification, and source-system capacity. A cache is an optimization with correctness and operational costs, not simply a faster lookup.
 
 ### Q320. What is a cache stampede and how can it be reduced?
 
-A cache stampede occurs when many requests miss the same key and simultaneously recompute or fetch the value. Use single-flight coordination, bounded refresh concurrency, jittered expiration, stale-while-revalidate where appropriate, or prewarming. Ensure the coordination itself does not become a bottleneck or deadlock.
+A cache stampede occurs when many requests miss or expire the same key and simultaneously perform an expensive load, potentially overloading the database or downstream service. Single-flight coordination can let one request load a key while others share its result; jittered expiration spreads refreshes, and stale-while-revalidate can serve bounded-age data when the business permits it.
 
-Single-flight coordination can let one request load a missing key while other requests share its result; jittered expiration spreads refreshes across keys, and stale-while-revalidate can serve bounded-age data when the business permits it. Ensure waiters are released on load failure and that the refresh mechanism is itself bounded. Monitor miss rate, load latency, stale responses, and source-service saturation.
+Choose the mitigation based on freshness requirements and failure behavior. Ensure waiters are released on load failure and that refresh work is bounded rather than becoming another unbounded queue. Monitor miss rate, load latency, stale responses, and source-service saturation.
 
 ### Q321. How should a Java service manage configuration across environments?
 
-Separate configuration from code, validate required settings at startup, keep secrets in a secret manager, and document units and timeout semantics. Avoid silent fallback values for critical security or reliability settings. Configuration changes should be observable, tested, and rolled out with the same care as code changes.
+Keep environment-specific settings outside the application artifact, validate required values at startup, and use an approved secret-management mechanism for credentials. Centralize parsing and validation so invalid combinations are caught before the first request. Document units and semantics for timeouts, retry counts, memory limits, and pool sizes; ambiguous configuration can cause subtle production incidents.
 
-Centralize parsing and validation so invalid combinations are caught at startup rather than failing on the first request. Document units and semantics for timeouts, retry counts, memory limits, and pool sizes. Make effective configuration observable without exposing secrets, control who can change it, and treat risky configuration changes like code changes with testing, staged rollout, and rollback.
+Make effective configuration observable without exposing secrets, control who can change it, and treat risky configuration changes like code changes with testing, staged rollout, and rollback. Avoid scattered environment-variable reads throughout business logic, and fail clearly rather than silently using unsafe defaults for critical security or reliability settings.
 
 ### Q322. How should you handle a third-party library upgrade?
 
-Read release notes and compatibility guidance, review transitive dependency changes, compile and run unit/integration/contract tests, and test security-sensitive paths. Run representative performance tests if the library is on a hot path. Upgrade in a controlled change with a rollback option rather than bundling unrelated refactors.
+Read release notes and compatibility guidance, inspect transitive dependency changes, and verify support for the target JDK and framework versions. Test changed defaults, error handling, thread usage, retry behavior, serialization, reflection, native agents, and security-sensitive paths—not only public method signatures. Run representative performance tests if the library is on a hot path.
 
----
+Keep the upgrade isolated enough that regressions are attributable, and retain a rollback option. Compilation alone does not establish runtime compatibility; integration and contract tests should exercise the actual deployment path. For urgent security updates, prioritize the fix while still verifying the relevant application flows and dependency interactions.
 
 ## 15. Last-minute revision
 
