@@ -14,7 +14,7 @@ Choose a handbook by topic:
 - [Distributed Systems & Event-Driven Architecture Interview Handbook](Distributed-Systems/Distributed-Systems-Interview-QA.md) — consistency, failure handling, consensus, distributed transactions, messaging semantics, sagas, and production scenarios.
 - [Hibernate + JPA + Spring Data JPA Interview Handbook](Hibernate-JPA/Hibernate-JPA-Interview-QA.md)
 - [SQL & Database Engineering Interview Handbook](SQL-Database/SQL-Database-Interview-QA.md)
-- [Elasticsearch & Search Systems Interview Handbook](Elasticsearch/Elasticsearch-Interview-QA.md) — Query DSL cookbook, relevance, indexing, aggregations, pagination, production troubleshooting, Java integration, and SQL/Kafka synchronization.
+- [Elasticsearch & Search Systems Interview Handbook](Elasticsearch/Elasticsearch-Interview-QA.md) — 42 detailed high-value Q&As, 12 production scenarios, 18 Query DSL patterns, relevance, mappings, pagination, production operations, Java integration, and SQL/Kafka synchronization.
 - [Redis & Caching Interview Handbook](Redis-Caching/Redis-Caching-Interview-QA.md) — Redis data structures, cache design, distributed coordination, Spring integration, and Redis–database consistency.
 - [Apache Kafka Interview Handbook](Kafka/KAFKA_INTERVIEW_GUIDE.md)
 - [Docker, Kubernetes & Helm Interview Handbook](Docker-Kubernetes-Helm/Docker-Kubernetes-Helm-Interview-QA.md) — Java application containerization, runtime behavior, Kubernetes workloads and networking, Helm releases, security basics, and developer-focused production troubleshooting.
@@ -50,7 +50,7 @@ Interview-Preparation/
 6. **Distributed Systems & Event-Driven Architecture** — cross-service correctness, consistency, failure handling, coordination, sagas, messaging semantics, and production reliability.
 7. **Hibernate + JPA** — persistence context, mappings, fetching, transactions, query performance, and concurrency.
 8. **SQL & databases** — query logic, joins, indexes, transactions, isolation, and database-specific behavior.
-9. **Elasticsearch & Search Systems** — Query DSL, relevance, mappings, aggregations, pagination, production operations, Java integration, and SQL/Kafka indexing pipelines.
+9. **Elasticsearch & Search Systems** — focused interview Q&A, practical Query DSL examples, relevance, mappings, pagination, production troubleshooting, Java integration, and SQL/Kafka indexing pipelines.
 10. **Redis & Caching** — Redis data structures, cache consistency, coordination, Spring integration, and resilience across the cache/database boundary.
 11. **Kafka** — broker architecture, topics and partitions, producer/consumer behavior, delivery semantics, and production scenarios.
 12. **Docker, Kubernetes & Helm** — containerize and run the service, understand its runtime constraints, configure workload health and resources, debug connectivity, and deliver releases safely.
