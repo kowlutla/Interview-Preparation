@@ -1066,7 +1066,7 @@ GET products-v1/_search
         { "range": { "price": { "gte": 1000, "lte": 10000 } } }
       ],
       "must_not": [{ "term": { "discontinued": true } }],
-      "should": [{ "range": { "rating": { "gte": 4.5, "boost": 1.5 } }]
+      "should": [{ "range": { "rating": { "gte": 4.5, "boost": 1.5 } } }]
     }
   },
   "sort": [
