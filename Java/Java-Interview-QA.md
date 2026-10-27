@@ -48,7 +48,6 @@ Java is **always pass-by-value**. For a primitive, the method receives a copy of
 
 That allows a method to mutate the referenced object's state, but reassigning its parameter does not change the caller's variable. This distinction explains why a method can modify a passed-in list but cannot make the caller's list variable refer to a newly created list simply by assigning to its parameter.
 
-### Equality and string contracts
 
 ### Q3. What is the difference between a primitive and a reference type?
 
@@ -252,7 +251,6 @@ If two objects are equal according to `equals()`, they must return the same `has
 
 Hash-based collections use the hash to find a candidate bucket and equality to identify the key. If equality is overridden without a compatible `hashCode()`, lookups can fail even for logically equal keys. Mutable fields used in equality or hashing are particularly dangerous: changing them after insertion can make an entry difficult to find or remove.
 
-### Exception handling and API contracts
 
 ### Q39. What is the difference between String, StringBuilder, and StringBuffer?
 
@@ -912,13 +910,15 @@ It can be slower for small inputs, cheap operations, blocking I/O, pipelines wit
 
 ### Q145. How do you find the top three most frequent words?
 
+Assume `counts` is a previously computed `Map<String, Long>` where each key is a word and each value is its frequency. The following returns up to three entries, ordered by descending frequency and then alphabetically for ties.
+
     List<Map.Entry<String, Long>> top = counts.entrySet().stream()
         .sorted(Map.Entry.<String, Long>comparingByValue().reversed()
             .thenComparing(Map.Entry.comparingByKey()))
         .limit(3)
         .toList();
 
-Sorting all k distinct entries costs O(k log k). For huge k and very small top-N, a bounded heap may be more efficient; this solution is straightforward and readable.
+Sorting all k distinct entries costs O(k log k). For huge k and very small top-N, a bounded heap can reduce the selection cost to approximately O(k log N); this sort-based solution is simpler and readable. If the input counts are built from text, normalize case and punctuation consistently before counting.
 
 ### Q146. How do you find common elements between two lists efficiently?
 
@@ -2101,7 +2101,7 @@ JMH is a harness designed for JVM microbenchmarking. Naive timing loops can be d
 
 ## 12. Java version evolution and migration: Java 8–25
 
-This section focuses on interview questions about compatibility, upgrade decisions, and safe migration—not a second feature-by-feature release history. For the detailed Java 8–25 feature timeline, examples, and release status, see [Section 16: Java Version Features (Java 8–25)](#16-java-version-features-java-8-25).
+This section focuses on interview questions about compatibility, upgrade decisions, and safe migration—not a second feature-by-feature release history. For the detailed Java 8–25 feature timeline, examples, and release status, see [Section 16: Java Version Features (Java 8–25)](#16-java-version-features-java-825).
 
 ### Q279. What is the difference between source, binary, and behavioral compatibility?
 
@@ -2510,7 +2510,7 @@ Use these links to revisit a single canonical question instead of repeating its 
 8. Concurrency, the Java Memory Model, executors, and virtual threads — [Section 9](#9-concurrency-java-memory-model-executors-and-asynchronous-programming).
 9. JVM, garbage collection, and diagnostics — [Section 10](#10-jvm-internals-garbage-collection-and-diagnostics).
 10. I/O, JDBC, security, tests, and performance — [Section 11](#11-io-networking-jdbc-security-testing-and-performance).
-11. Java-version milestones and migration — [Section 12](#12-java-version-evolution-and-migration-java-8-25).
+11. Java-version milestones and migration — [Section 12](#12-java-version-evolution-and-migration-java-825).
 12. Finish with [code-reading questions](#13-code-reading-and-output-questions) and [production/senior scenarios](#14-production-senior-level-scenarios-and-engineering-judgement).
 
 Review changed defaults, transitive dependencies, threading and retry behavior, serialization, reflection, and native-agent compatibility—not only public method signatures. If the library is on a hot path, compare representative latency, throughput, allocation, and resource use. Keep the upgrade isolated enough that regressions are attributable, and retain a rollback option. Compilation alone does not establish runtime compatibility.
