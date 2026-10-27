@@ -36,11 +36,15 @@ The question numbering restarts at Q1 within each topic section so questions are
 
 ### Q1. What is Git, and why is it distributed?
 
-Git is a distributed version-control system that records repository history as a graph of commits. Developers can commit locally, inspect history, create branches, and compare changes without a network connection; a remote is used to exchange objects and references with other repositories. Unlike a centralized system where the server is normally the primary history store, each ordinary clone contains the repository history it has fetched (a shallow clone is an intentional exception). Distribution improves offline work and flexibility, but it does not automatically provide code review, access control, backups, or release policy—those are team and hosting-platform responsibilities.
+Git is a distributed version-control system that records project snapshots as commits connected in a directed acyclic graph. Its central benefit is that most everyday operations—committing, branching, inspecting history, comparing revisions, and experimenting—happen locally without waiting for a server. A remote repository is used to exchange objects and references, not to perform every operation on behalf of the developer.
+
+In a centralized version-control system, the central server is usually the primary history store and many operations depend on reaching it. In Git, a normal clone contains the history it has fetched and can support local work even when offline; a shallow clone intentionally has limited history. This gives teams flexibility, but it does not itself provide code review, access control, backups, or release governance. Those depend on repository hosting, team policy, and operational practices.
 
 ### Q2. Explain the working tree, index, and repository.
 
-The **working tree** is the checked-out files you edit. The **index** (staging area) is the proposed snapshot for the next commit. The **repository** stores Git objects and references, including commit history. A tracked file can be modified in the working tree, staged in the index, and then committed. These are separate states, so a file can have staged changes and additional unstaged changes at the same time.
+The **working tree** is the set of checked-out files you edit. The **index**, also called the staging area, records the exact content and file metadata Git intends to include in the next commit. The **repository** stores objects—such as blobs, trees, and commits—and references that make history reachable.
+
+These are three distinct layers, which is why a file can contain staged changes and additional unstaged edits at the same time. `git diff` compares the working tree with the index, while `git diff --staged` compares the index with HEAD. This separation lets you build a focused commit from only part of your current work. Before committing, inspect both staged and unstaged changes so that you know exactly what the commit will contain.
 
 ```bash
 git status
@@ -57,15 +61,11 @@ Review both staged and unstaged changes before committing. `git diff HEAD` is us
 
 A repository is the object database plus references and metadata. A working tree is a checked-out directory associated with a repository. A **bare repository** has no checked-out working tree and is commonly used as a shared remote repository. In a normal non-bare repository, Git metadata is usually in `.git/`; linked worktrees and submodules can use a `.git` file that points elsewhere. Do not assume `.git` is always a directory.
 
-### Q4. What do the core commands do?
+### Q4. What do the core commands do, and how do they fit together?
 
-- `git init` initializes a repository in the current directory.
-- `git clone URL` creates a local copy and configures a remote, commonly named `origin`.
-- `git status` reports staged, unstaged, and untracked changes.
-- `git add` updates the index from the working tree; it does not itself create a commit.
-- `git commit` records the index as a commit.
-- `git diff` compares file states; the endpoints depend on options.
-- `git log` displays reachable commit history.
+I use `git status` first to understand the current state. I edit files in the working tree, use `git diff` to inspect unstaged changes, and use `git add` to select the exact content that belongs in the next snapshot. I then review that snapshot with `git diff --staged` and create a commit with `git commit`. `git log` helps me verify the resulting history, while `git clone` obtains an existing repository and `git init` initializes a new one.
+
+The key distinction is that `git add` changes the index, not the commit history. If I edit a file after staging it, the index still contains the previously staged version until I stage again. This is intentional: staging is a deliberate selection step, not merely a synonym for “save the file.”
 
 Git generally determines tracked-file changes by comparing content and relevant metadata with the index and HEAD, using stat information to avoid rereading unchanged files where possible. It does not rely only on modification timestamps. Line-ending conversion, clean/smudge filters, file mode settings, and filesystem behavior can affect what appears as a change.
 
@@ -87,7 +87,9 @@ A commit references its snapshot and parent commit(s). A normal commit has one p
 
 ### Q3. What are a branch, HEAD, and detached HEAD?
 
-A branch is a movable reference to a commit. `HEAD` normally symbolically refers to the currently checked-out branch; committing advances that branch reference. In a detached HEAD state, HEAD points directly to a commit rather than a branch. You can inspect or test an older commit while detached, but commits made there may not be reachable from a named branch. Preserve such work by creating a branch: `git switch -c investigation`.
+A branch is a named reference that normally points to the latest commit on that line of work. `HEAD` usually points symbolically to the currently checked-out branch; when you commit, Git creates a commit whose parent is the previous tip and advances that branch reference.
+
+In a **detached HEAD** state, HEAD points directly to a commit instead of a branch name. This is useful for checking an old release or testing a historical revision. You can even create commits while detached, but no branch automatically advances to retain them. Before switching away, preserve useful work with `git switch -c investigation`. Detached HEAD is not an error by itself; the risk is forgetting to anchor new commits to a branch.
 
 Example: if `main` points to C1, committing C2 while `main` is checked out moves `main` from C1 to C2. Creating `feature` at C2 creates another pointer; it does not copy the commit history.
 
@@ -155,7 +157,9 @@ A squash merge combines the net changes from a branch into one new commit on the
 
 ### Q1. What does rebase do?
 
-Rebase takes commits from a branch and replays their changes on a new base. It creates new commit objects, so the replayed commits normally have new IDs even when the resulting file content is the same. Rebase can produce a linear history, but it changes ancestry and can require conflict resolution. Example: `git fetch origin` followed by `git switch feature` and `git rebase origin/main` replays feature-only commits on the updated mainline.
+Rebase identifies the commits unique to the branch being rebased, then reapplies their changes one by one onto a new base. Conceptually, if main advances from C to D while a feature branch has commits F1 and F2 based on C, rebasing replays the changes from F1 and F2 on top of D. The resulting commits have new parent relationships and therefore normally new commit IDs, even if their file content is unchanged.
+
+A common workflow is `git fetch origin`, `git switch feature`, and `git rebase origin/main`. This updates the feature branch without creating a merge commit, but conflicts may occur while replaying individual commits. Rebase is most straightforward when the branch is private or its owner can coordinate the rewrite. If teammates already depend on the published commits, rewriting them can disrupt their work.
 
 ### Q2. Rebase versus merge: how do you choose?
 
@@ -183,11 +187,9 @@ Ordinary rebase generally linearizes the selected commits and does not preserve 
 
 ### Q1. Fetch versus pull versus push.
 
-- `git fetch origin` downloads reachable objects and updates remote-tracking refs; it does not integrate them into the checked-out branch.
-- `git pull` fetches and then integrates the selected upstream using merge or rebase behavior determined by options and configuration.
-- `git push origin feature` sends reachable objects and updates the remote branch if the update is permitted, normally requiring a fast-forward unless a force option is used.
+These commands operate at different stages of collaboration. `git fetch origin` downloads objects needed from the remote and updates local remote-tracking references such as `origin/main`; it does not merge anything into your current branch. That makes fetch useful when you want to inspect incoming work first.
 
-Fetch first when you want to inspect incoming changes before deciding how to integrate them.
+`git pull` is a convenience operation that fetches and then integrates the configured upstream. Integration may use merge or rebase depending on command-line options and configuration such as `pull.rebase`; teams should make this behavior explicit rather than assuming every developer's pull works the same way. `git push` sends local objects and asks the remote to update a reference. Normal pushes generally require a fast-forward update, and the server may apply additional permissions or branch rules. A push rejection is a signal to inspect the remote state, not an invitation to force-push blindly.
 
 ### Q2. What do origin and upstream mean?
 
@@ -290,11 +292,15 @@ Use `--soft` to undo a local commit while keeping its contents staged, `--mixed`
 
 ### Q2. Reset versus revert.
 
-Reset changes where a branch points and is mainly appropriate for local history cleanup. Revert creates a new commit whose patch reverses an earlier commit; it preserves published history and is generally preferred for undoing changes already shared. Revert may not perfectly restore the old state if later commits depend on the change, so tests and follow-up fixes may be needed.
+Reset and revert both help undo work, but they operate on history in different ways. `git reset` moves the current branch reference to another commit and, depending on the mode, also changes the index and working tree. It is therefore commonly used to reshape local, unpublished history. If the commit has already been shared, resetting and force-pushing can make collaborators' histories diverge.
+
+`git revert` leaves existing commits in place and creates a new commit that applies the inverse of an earlier change. That is usually safer for shared branches because other developers can continue building on the same history. Revert is not a magic time machine: later commits may depend on the reverted behavior, and reversing a code change cannot automatically undo external side effects or database changes. Run relevant tests and plan any data or deployment recovery separately.
 
 ### Q3. What does restore do?
 
-`git restore file` restores working-tree content from the index by default. `git restore --staged file` removes a file's staged changes from the index while keeping working-tree content. `git restore --source=<commit> -- file` restores the chosen version into the working tree; it does not move the branch pointer. Review before staging or committing restored content.
+`git restore` is for restoring file content, not moving branch history. By default, `git restore path` copies the index version into the working tree, discarding unstaged edits to that path. `git restore --staged path` resets the index entry to HEAD while leaving the working-tree file untouched, which is useful when you staged the wrong file or staged too much.
+
+To retrieve a file from another revision, use `git restore --source=<commit> -- path`; this normally updates the working tree, and you still need to stage and commit if you want the restored content recorded in history. Because restore can overwrite edits, inspect the file and status first. Unlike reset, it does not move the current branch pointer.
 
 ### Q4. What about checkout?
 
@@ -374,7 +380,9 @@ Use `git diff v2.4.0..main` to compare the two trees and `git log --oneline v2.4
 
 ### Q1. Lightweight versus annotated tags.
 
-A lightweight tag is a ref to an object. An annotated tag creates a tag object with a message and tagger metadata and can be signed. Annotated tags are usually better release markers because they can carry provenance and release notes. A tag points to a specific object, not a moving branch; creating a tag from a branch resolves the branch to its current commit at that time.
+A lightweight tag is simply a reference to an object, usually a commit. An annotated tag creates a separate tag object containing the target, tagger identity and timestamp, a message, and optionally a cryptographic signature. For a release, an annotated tag is often preferable because it can record release context and can be verified under a signing policy.
+
+A tag created from a branch resolves to the branch's current target at that moment; it does not follow the branch as it moves. Git itself does not enforce immutability, so protecting release tags and preventing accidental retagging is a repository or hosting-policy responsibility. For production traceability, record the tag alongside the exact source commit and built artifact identifier.
 
 ### Q2. Create, inspect, and publish a tag.
 
@@ -441,7 +449,9 @@ A valid signature can establish that a commit object was signed by a particular 
 
 ### Q1. A secret was committed and pushed. What first?
 
-**Revoke or rotate it immediately.** Treat it as compromised even if the repository is private. Check logs and access scope, replace the secret in the application/configuration system, and identify downstream consumers. Then remove it from current files and decide whether history rewriting is warranted. History rewriting is not a substitute for rotation: existing clones, forks, CI artifacts, caches, logs, and screenshots may retain the value.
+**Revoke or rotate the credential immediately.** Treat it as compromised even if the repository is private, because other users, automation, forks, logs, or caches may already have copied it. Check the credential's scope and usage logs, replace it through the approved secret-management system, and verify that dependent services are using the replacement.
+
+After containment, remove the secret from the current source and search for other occurrences. Decide whether to rewrite history using a tool such as `git filter-repo`; this changes commit IDs and requires coordination across branches, remotes, and contributors. History rewriting reduces future accidental exposure, but cannot guarantee removal from existing clones, forks, CI artifacts, caches, logs, or backups. Rotation is the security control; history cleanup is a separate hygiene step.
 
 ### Q2. When is git-filter-repo appropriate?
 
