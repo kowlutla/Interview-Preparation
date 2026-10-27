@@ -76,7 +76,7 @@ Lucene also uses immutable segments and doc values. Segments are created as data
 
 When Elasticsearch accepts a write, it records the operation in the translog for recovery and indexes the document into its internal indexing structures. A successful indexing response means the operation was accepted according to the request's acknowledgement semantics; it does not necessarily mean a search can retrieve the new document immediately.
 
-A refresh opens newly written Lucene data for search. This is why Elasticsearch is near-real-time rather than strictly real-time for search visibility. The default refresh interval depends on deployment and index settings; it is commonly one second in Elastic Stack and differs in Serverless. The refresh request option can force immediate visibility, wait for a scheduled refresh, or leave normal behavior alone. Forcing refresh on every write can create many small segments and reduce throughput, so use it only when the freshness requirement justifies the cost.
+A refresh opens newly written Lucene data for search. This is why Elasticsearch is near-real-time rather than strictly real-time for search visibility. The default refresh interval depends on deployment and index settings: it is 1 second in Elastic Stack and 5 seconds in Elastic Cloud Serverless by default. An index can override this setting. The refresh request option can force immediate visibility, wait for a scheduled refresh, or leave normal behavior alone. Forcing refresh on every write can create many small segments and reduce throughput, so use it only when the freshness requirement justifies the cost.
 
 A flush is different: it commits Lucene changes and rolls the translog to a new generation so older translog data can eventually be removed. Do not use refresh, flush, and durability as synonyms. A concise explanation is: acknowledgement concerns the response to the write, translog and replication concern recovery, and refresh determines when search can see the change.
 
@@ -796,7 +796,7 @@ Open a point in time and use the returned PIT ID in the search:
 POST /products-v1/_pit?keep_alive=1m
 ~~~
 
-Then issue a search request and copy the complete sort array from the last hit into search_after for the next page. Use the latest PIT ID returned by Elasticsearch.
+Use the returned PIT ID in the first search. For later pages, keep the query and sort unchanged, use the latest PIT ID returned, and add a search_after array containing the complete sort array from the last hit exactly as Elasticsearch returned it.
 
 ~~~json
 POST /_search
@@ -813,12 +813,11 @@ POST /_search
   },
   "sort": [
     { "createdAt": "desc" }
-  ],
-  "search_after": ["COPY_SORT_VALUES_FROM_LAST_HIT"]
+  ]
 }
 ~~~
 
-The PIT ID and sort values are placeholders, not literal values. Omit search_after on the first page. Close the PIT when paging is complete and keep its lifetime bounded.
+Replace the PIT placeholder with the ID returned by the open-PIT request. The first page omits search_after; do not invent sort values for subsequent pages. Close the PIT when paging is complete and keep its lifetime bounded.
 
 ---
 
