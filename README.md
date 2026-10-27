@@ -73,3 +73,7 @@ Interview-Preparation/
 The order moves from language and application fundamentals toward distributed behavior and then application delivery. You can study Docker/Kubernetes earlier if your current project requires it. For data-engineering interviews, study Kafka and distributed systems before Spark, then revisit system design and operational reliability.
 
 Use the handbooks as revision material, and verify version-sensitive details against the official documentation for the JDK, framework, ORM provider, database, messaging technology, or deployment platform relevant to the role.
+
+## Career Roadmap
+
+Use the [numbered Senior Java Backend Learning Roadmap](Career-Roadmap/README.md) to track learning progress by technology. It links to the existing interview handbooks and keeps the checklist separate from detailed Q&A notes.
