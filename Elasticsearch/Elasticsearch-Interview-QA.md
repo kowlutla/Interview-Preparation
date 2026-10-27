@@ -841,18 +841,49 @@ Replace the example sort values with the complete array returned for the actual 
 
 ## 12. Revision checklist and official references
 
-Before an interview, be able to explain these in your own words:
+Use this section for last-minute revision. These are not unanswered prompts: each question has a short model answer. The earlier sections provide the fuller explanation and examples.
 
-- Why SQL remains the source of truth for transactional decisions while Elasticsearch serves a search projection.
-- What a shard does, why replicas improve resilience but cost storage and write work, and why more shards can make a cluster slower.
-- Why match and term differ, and how mappings and analysis determine what is searchable.
-- How must, filter, should, must_not, and minimum_should_match work, including the default behavior of should.
-- Why a write can succeed before a search sees it, and the difference between acknowledgement, durability, refresh, and flush.
-- How to design facets, understand terms aggregation approximation, and choose search_after with PIT for deep pagination.
-- How to diagnose a slow request with evidence before changing heap, shard count, or timeouts.
-- How to reindex safely while writes continue, including replay, deletes, validation, alias cutover, and rollback.
-- How to build an idempotent SQL/Kafka-to-Elasticsearch projection and reconcile drift.
-- How to enforce tenant isolation, test backup restores, and define freshness, RPO, and RTO.
+### Quick revision questions and answers
+
+#### Q1. Why keep SQL as the source of truth while Elasticsearch serves search?
+
+SQL is usually the authoritative store for transactions, constraints, and business updates that must remain correct. Elasticsearch is often a denormalized search projection built from that source so queries can retrieve text, filters, facets, and relevance-ranked results efficiently. Because projection updates are asynchronous, search can be stale or temporarily unavailable. Critical decisions such as charging a payment or confirming inventory should be checked against the authoritative system.
+
+#### Q2. What do shards and replicas do, and why are more shards not always better?
+
+Primary shards divide an index's documents so storage and work can be distributed. Replicas keep copies of primary shards, improve fault tolerance, and can serve search requests, but they use additional disk and must also handle replicated writes. Too few large shards can limit parallelism and increase recovery time; too many small shards create metadata, file-handle, heap, and coordination overhead. Choose shard count from realistic data volume and workload tests, not a fixed rule.
+
+#### Q3. What is the practical difference between match and term?
+
+The match query analyzes the query text and is normally used on text fields for full-text search. The term query looks for an exact indexed term without analyzing the supplied value, so it is commonly used with keyword, numeric, boolean, and other structured fields. If a name is analyzed into separate tokens, a term query for the whole original phrase may return no hits. Check the mapping and Analyze API output before changing the query.
+
+#### Q4. How do must, filter, should, must_not, and minimum_should_match work?
+
+must requires a match and contributes to scoring; filter requires a match without affecting the score; must_not excludes documents; and should adds optional scoring matches or alternatives. The important default is that should clauses are required by default when the bool query has no must or filter clauses, but become optional by default when a must or filter clause is present. Set minimum_should_match explicitly when the business rule requires some of those alternatives.
+
+#### Q5. Why can a successful write be missing from search, and how are refresh and flush different?
+
+A successful indexing response does not necessarily mean the document is already searchable. A refresh opens recent Lucene changes to search, which is why Elasticsearch is near-real-time. A flush is different: it commits Lucene changes and rolls the translog to a new generation so older translog data can eventually be removed. If an operation must be searchable before the request returns, consider refresh=wait_for; avoid forcing refresh on every write because it can reduce throughput.
+
+#### Q6. How should I choose aggregations and deep pagination?
+
+Use a terms aggregation for common top-N facets such as the most frequent brands or categories, but remember that distributed bucket counts can be approximate depending on shard candidate selection and ordering. Use composite aggregation when you need to paginate through many buckets. from/size is suitable for shallow page-number navigation; for deep sequential pagination, use search_after with a stable sort. Add a unique tie-breaker, and use a point in time (PIT) when the result set must remain stable while the user pages through it.
+
+#### Q7. How do I diagnose a slow query instead of guessing at a fix?
+
+First establish whether the slowdown affects every query, one query shape, one tenant, or one index. Compare p95/p99 latency, request rate, timeouts, shard failures, rejections, indexing load, CPU, heap/GC, disk, and per-shard load. Use slow logs to identify recurring outliers and Profile to inspect a representative query; Explain is for understanding why an individual document received its score. Fix the bottleneck supported by the evidence, then test the same workload again. Raising timeouts or adding shards without diagnosis can hide or worsen the issue.
+
+#### Q8. How do I change an incompatible mapping without downtime?
+
+Create a new versioned index with the intended mapping and settings, then backfill the data. Since writes can continue during the backfill, capture and replay changes and deletes from a durable source or change stream, and validate counts plus representative search results. Switch the application-facing alias atomically only after the destination is caught up. Keep the old index for a planned rollback window, but remember that switching the alias back is safe only if post-cutover writes can be reconciled.
+
+#### Q9. How do I keep an Elasticsearch projection correct when updates arrive through SQL and Kafka?
+
+Avoid relying on an application to write independently to SQL and Elasticsearch, because one write can succeed while the other fails. A transactional outbox or CDC can publish committed source changes to Kafka, and an idempotent consumer can update Elasticsearch using deterministic document IDs. If events can be duplicated or arrive out of order, enforce a source-version strategy so older events cannot silently replace newer state. Handle permanent failures in a dead-letter workflow, preserve deletes, and reconcile the search projection against the authoritative source.
+
+#### Q10. How should tenant isolation, snapshots, RPO, and RTO be handled?
+
+Derive tenant scope from trusted server-side authentication and apply it consistently to search, direct reads, aggregations, suggestions, exports, and pagination cursors. Routing by tenant can improve locality but is not authorization; add defensive negative tests and consider document-level security or separate indices when the threat model requires them. Snapshots protect against loss or accidental changes that replicas may not protect against, so test restoring them. RPO defines the tolerable amount of data loss in time, while RTO defines the target time to restore service; a snapshot schedule alone does not prove either target will be met.
 
 ### Official documentation used for technical cross-checking
 
