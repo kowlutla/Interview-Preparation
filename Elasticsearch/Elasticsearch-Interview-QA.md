@@ -1,7 +1,7 @@
 # Elasticsearch & Search Systems Interview Handbook
 
 **Audience:** Java backend engineers preparing for mid-level and senior backend interviews.  
-**Approach:** 42 high-value questions with explanatory answers, 12 production scenarios, and 18 practical Query DSL patterns. The aim is understanding and technical reasoning, not maximizing the question count.
+**Approach:** 40 high-value questions with explanatory answers, 12 production scenarios, and 18 practical Query DSL patterns. The aim is understanding and technical reasoning, not maximizing the question count.
 
 > **Version note:** REST examples use current Elasticsearch Query DSL style. Some settings and capabilities differ by release and deployment model. The Java example uses the official Java API Client style; align the client major version with your Elasticsearch server and the Java version supported by that client. Treat examples as patterns to test against your actual mappings and environment.
 
@@ -14,11 +14,11 @@ Start with mapping and Query DSL. Many real Elasticsearch bugs come from a field
 1. [Elasticsearch fundamentals](#1-elasticsearch-fundamentals)
 2. [Indexing, Lucene, and mappings](#2-indexing-lucene-and-mappings)
 3. [Query DSL: the questions interviewers ask most](#3-query-dsl-the-questions-interviewers-ask-most)
-4. [Relevance and autocomplete](#4-relevance-and-autocomplete)
-5. [Aggregations and pagination](#5-aggregations-and-pagination)
-6. [Performance and production operations](#6-performance-and-production-operations)
-7. [Index lifecycle and safe migrations](#7-index-lifecycle-and-safe-migrations)
-8. [Consistency and Java integration](#8-consistency-and-java-integration)
+4. [Modern search, aggregations, and pagination](#4-modern-search-aggregations-and-pagination)
+5. [Shards, performance, and production operations](#5-shards-performance-and-production-operations)
+6. [Index lifecycle and safe migrations](#6-index-lifecycle-and-safe-migrations)
+7. [Consistency, concurrency, and recovery](#7-consistency-concurrency-and-recovery)
+8. [Java integration](#8-java-integration)
 9. [SQL, Kafka, and search projections](#9-sql-kafka-and-search-projections)
 10. [Production scenarios](#10-production-scenarios)
 11. [Query DSL cookbook: 18 useful patterns](#11-query-dsl-cookbook-18-useful-patterns)
@@ -190,9 +190,17 @@ Evaluate with realistic partial input, including short prefixes, multiple words,
 
 ---
 
-## 4. Relevance and autocomplete
+## 4. Modern search, aggregations, and pagination
 
-### Q20. What are aggregations? Explain bucket versus metric aggregation.
+### Q20. When should you use vector search or hybrid search instead of traditional full-text search?
+
+Traditional lexical search, commonly ranked with BM25, is strong when the words themselves matter: product IDs, error messages, names, exact phrases, and terms users expect to match. Vector search represents content as embeddings and retrieves documents by semantic similarity. It can find conceptually related content even when the query and document use different wording, but it may be weaker for exact identifiers or strict wording.
+
+Hybrid search combines lexical and vector retrieval. One practical method is reciprocal rank fusion (RRF), which combines the rankings from the two retrieval methods without requiring their raw scores to be directly comparable. Elasticsearch's supported hybrid-search APIs and syntax depend on the server release and deployment, so verify the exact implementation against the target version.
+
+Do not add vectors just because they are fashionable. Embeddings introduce model choice, inference cost, indexing/update workflows, latency, storage, and another relevance dimension to evaluate. Keep eligibility rules such as tenant, access control, and availability as explicit filters, and compare lexical-only, vector-only, and hybrid results on a judged query set. For many backend search applications, a strong lexical baseline plus measured hybrid improvements is safer than replacing lexical search wholesale.
+
+### Q21. What are aggregations? Explain bucket versus metric aggregation.
 
 Aggregations summarize the documents matched by a search request. A bucket aggregation groups documents, such as one bucket per brand or category. A metric aggregation calculates values such as average price, minimum, maximum, sum, or statistics. Aggregations can be nested to answer questions such as “for the matching products, show the top categories and average rating in each category”.
 
@@ -200,7 +208,7 @@ This is how search facets work: a user searches for headphones and the response 
 
 Aggregations consume resources. High-cardinality fields, deeply nested buckets, or huge result sets can cause memory pressure and expensive coordinator reductions. Bound the number of buckets and return only what the interface needs. When you must enumerate many distinct buckets, consider composite aggregation rather than setting terms size to a huge number.
 
-### Q21. Why can a terms aggregation return approximate counts? When would you use composite aggregation?
+### Q22. Why can a terms aggregation return approximate counts? When would you use composite aggregation?
 
 A terms aggregation often returns the top buckets by document count. Each shard sends candidate buckets to the coordinating node, which merges them. A term that sits just below the local candidate cutoff on several shards could still have a large global count; if those shards do not return it, the merged count may be incomplete. Increasing shard_size can improve candidate coverage for the default count-descending order, but costs network traffic and coordinator memory and does not guarantee accuracy in every ordering.
 
@@ -208,7 +216,7 @@ Inspect response metadata such as count-error information and sum_other_doc_coun
 
 Composite aggregation is designed to paginate through many distinct buckets or combinations, such as every category-and-brand pair. For a small top-N facet on a search page, terms aggregation is usually simpler and more appropriate.
 
-### Q22. How do from/size, search_after, PIT, and scroll differ?
+### Q23. How do from/size, search_after, PIT, and scroll differ?
 
 from/size is easiest for shallow page-number pagination. For a deep page, each shard must collect candidates for skipped hits as well as the page being returned, which increases CPU and memory. The default result window is commonly 10,000 hits. Raising it is not the general fix for deep pagination.
 
@@ -216,7 +224,7 @@ For deep sequential traversal, use search_after. Sort the hits, then send the co
 
 Scroll is primarily for batch processing of large result sets, not interactive page navigation. Current Elasticsearch guidance favors PIT plus search_after for deep pagination requiring a consistent view. Keep the PIT lifetime bounded and close it when finished.
 
-### Q23. Why does deterministic sorting matter?
+### Q24. Why does deterministic sorting matter?
 
 If multiple documents have identical values for all sort fields, their order can change between requests or across shard copies. That can create duplicates or omissions when continuing pagination. Ordinary search_after pagination should therefore end with a unique tie-breaker, such as a sortable productId keyword field.
 
@@ -226,9 +234,9 @@ This is also relevant when ranking by business criteria. Decide whether relevanc
 
 ---
 
-## 5. Aggregations and pagination
+## 5. Shards, performance, and production operations
 
-### Q24. How do you choose a sensible shard strategy for a production index?
+### Q25. How do you choose a sensible shard strategy for a production index?
 
 Estimate primary data size after indexing, document size, growth, write throughput, search concurrency, and recovery requirements. Add replica storage and operational headroom to estimate physical disk needs. Test plausible shard layouts with realistic indexing and queries instead of relying on document count alone.
 
@@ -236,7 +244,7 @@ Too many small shards add coordination and metadata overhead. Too few very large
 
 Review shard distribution, per-shard load, recovery times, and query patterns. A hot tenant or time partition may create a hotspot even when cluster-wide averages look fine. Add shards or replicas only after telemetry identifies the bottleneck; they are not interchangeable solutions.
 
-### Q25. What makes an Elasticsearch query expensive?
+### Q26. What makes an Elasticsearch query expensive?
 
 Common causes include broad wildcard or regexp patterns, fuzzy expansions, scripts, high-cardinality aggregations, deep from/size pagination, wide time ranges, nested queries, exact total-hit counts when unnecessary, and searches that fan out to too many shards. Mapping matters too: a keyword field with doc values has different costs and capabilities from an analyzed text field that would require fielddata for aggregation.
 
@@ -244,7 +252,7 @@ Bound user-controlled input. Limit page sizes, time windows, pattern complexity,
 
 Use slow logs to identify recurring outliers, Profile to examine a representative query, and node/index metrics to distinguish query complexity from CPU saturation, disk latency, heap pressure, or rejected work. Profile adds overhead and is a diagnostic tool, not a setting to enable blindly for every production request.
 
-### Q26. How do heap, filesystem cache, CPU, disk, and network affect search?
+### Q27. How do heap, filesystem cache, CPU, disk, and network affect search?
 
 Heap holds JVM objects and metadata. Excessive heap use can cause garbage-collection pauses and reduce memory left for the operating system. Lucene benefits from the filesystem cache, so giving all memory to the JVM can hurt search performance. The right balance depends on mappings, workload, and cluster size.
 
@@ -252,7 +260,7 @@ CPU is used for analysis, scoring, scripts, aggregation reduction, and concurren
 
 Diagnose with heap and post-GC heap, GC pauses, CPU saturation, disk latency, filesystem-cache behavior, thread-pool rejections, merge pressure, network, and per-shard load. Do not increase heap or shard count just because latency rose; first establish which resource is under pressure.
 
-### Q27. How do you investigate slow searches and production timeouts?
+### Q28. How do you investigate slow searches and production timeouts?
 
 Establish the scope first: are all searches slow, only one query shape, one tenant, one index, or only deep pages? Compare p50/p95/p99 latency, request rate, timeouts, shard failures, rejections, and indexing load. Also check whether the application timed out before Elasticsearch did, and whether the response contains partial results.
 
@@ -260,7 +268,7 @@ Use slow logs for recurring requests and Profile for a representative query. Exp
 
 A good mitigation targets the evidence: narrow an unbounded range, reduce bucket counts, correct mapping, throttle bulk imports, or add capacity to the saturated resource. Increasing client timeouts can hide overload while more work piles up. Verify the fix against the same workload and add a regression test or alert.
 
-### Q28. What do green, yellow, and red cluster health mean, and how do you respond to node failure?
+### Q29. What do green, yellow, and red cluster health mean, and how do you respond to node failure?
 
 Green means all primary and replica shards are allocated. Yellow means all primaries are allocated but one or more replicas are not, so the index can remain searchable with reduced redundancy. Red means at least one primary shard is unassigned, so some data may be unavailable. The color describes the symptom, not the cause.
 
@@ -268,7 +276,7 @@ After a node failure, Elasticsearch may promote an available replica and recover
 
 Inspect health, allocation explanations, failed-node logs, disk watermarks, and recovery progress. Preserve valid copies and snapshots. Avoid force-allocating stale primaries or invoking data-loss commands before understanding the consequences and getting approval. Resilience means having enough remaining capacity to restore redundancy, not merely having configured one replica.
 
-### Q29. What are disk watermarks and circuit breakers?
+### Q30. What are disk watermarks and circuit breakers?
 
 Disk watermarks guide shard allocation when nodes approach their disk capacity. At flood stage, Elasticsearch can apply a read-only-allow-delete block to indices with shards on the affected node. This is protection against running out of disk, not simply an application permission problem. Exact thresholds depend on configuration and deployment.
 
@@ -278,9 +286,9 @@ Circuit breakers estimate memory use and reject operations before they exhaust t
 
 ---
 
-## 6. Performance and production operations
+## 6. Index lifecycle and safe migrations
 
-### Q30. What are aliases, templates, ILM, rollover, and data streams?
+### Q31. What are aliases, templates, ILM, rollover, and data streams?
 
 An alias is a logical name that can point to one or more indices. Applications can search an alias rather than embedding a physical index name in code. Aliases can also support an atomic switch from an old index to a new one. Write aliases must be configured deliberately so writes reach the intended destination.
 
@@ -288,7 +296,7 @@ Index templates define settings and mappings for indices created in the future; 
 
 ILM can automate rollover and configured lifecycle actions such as moving data through supported tiers or deleting expired data. Data streams provide a named abstraction over backing indices for append-oriented time-series data. Capabilities vary by deployment. Design retention, rollover, and shard sizing together so the cluster does not accumulate thousands of tiny shards.
 
-### Q31. How do you change an incompatible field type or analyzer without downtime?
+### Q32. How do you change an incompatible field type or analyzer without downtime?
 
 You generally cannot change an existing field's type or re-index its old values with a new analyzer in place. Create a versioned destination index with the correct settings and mapping, populate it, validate it, and then switch the application-facing alias. Updating a template alone only affects future indices.
 
@@ -298,9 +306,9 @@ Keep the old index available for a defined rollback window, and understand how w
 
 ---
 
-## 7. Index lifecycle and safe migrations
+## 7. Consistency, concurrency, and recovery
 
-### Q32. Explain write acknowledgement, durability, and search visibility. Are they the same?
+### Q33. Explain write acknowledgement, durability, and search visibility. Are they the same?
 
 No. A write acknowledgement describes how an operation was accepted under the request's replication and acknowledgement conditions. Durability concerns recovery after a failure. Search visibility is when refresh makes the new indexed data available to search. These are separate dimensions.
 
@@ -308,7 +316,7 @@ An indexing request can return successfully while an immediate search still miss
 
 State the contract clearly: “saved”, “searchable”, and “committed to the authoritative source” are different promises. A local test may pass by chance due to timing; test the required visibility behavior under realistic traffic and refresh settings.
 
-### Q33. What is optimistic concurrency control in Elasticsearch?
+### Q34. What is optimistic concurrency control in Elasticsearch?
 
 Optimistic concurrency control prevents an update based on an old document version from silently overwriting newer state. Elasticsearch exposes sequence number and primary term metadata for conditional writes. If two callers read the same version and both update, a conditional write lets one proceed while detecting the stale write from the other caller.
 
@@ -316,7 +324,7 @@ The application decides whether to retry, reload, merge, or reject a conflict. D
 
 For a search projection, source versions can prevent an older replayed event from replacing newer state, but only if versioning is enforced by the write path. A JSON field named sourceVersion does not automatically protect the document. Choose a documented versioning strategy and test duplicate and out-of-order events.
 
-### Q34. How should snapshots and recovery objectives be designed?
+### Q35. How should snapshots and recovery objectives be designed?
 
 A snapshot is a repository-managed backup using Elasticsearch's supported snapshot API. It is not the same as copying a live data directory. Configure a supported repository, monitor snapshot success and age, and retain snapshots according to recovery, compliance, and cost requirements.
 
@@ -326,9 +334,9 @@ Run restore drills and validate the recovered indices, required settings, aliase
 
 ---
 
-## 8. Consistency and Java integration
+## 8. Java integration
 
-### Q35. Which Java client should a new application use, and what should the integration layer handle?
+### Q36. Which Java client should a new application use, and what should the integration layer handle?
 
 Use the official Elasticsearch Java API Client for new Java applications instead of starting new work with the deprecated High Level REST Client. The official client offers typed request and response objects, synchronous and asynchronous APIs, and object-mapper integration. Match the client major version to the server using Elastic's compatibility guidance; compatibility does not mean an older client automatically supports every feature introduced by a newer server.
 
@@ -336,7 +344,7 @@ Create the client as an application-scoped bean rather than constructing one per
 
 Validate user input before building queries. Derive tenant identity from authenticated server context, allowlist sort fields, cap page sizes and date ranges, and never accept arbitrary raw DSL or scripts from public clients. Translate failures into clear application behavior without exposing credentials, internal hostnames, or sensitive request details.
 
-### Q36. How should Java code search and index documents safely?
+### Q37. How should Java code search and index documents safely?
 
 Prefer the typed Java API Client builders for application-owned queries because the request is easier to review and many structural mistakes become more visible in code. This example shows the important design choice: text relevance is a scoring clause, while inventory eligibility is a filter. Exact generated builder signatures should be verified against the client dependency version used by the application.
 
@@ -363,7 +371,7 @@ Unit tests can verify query construction, but integration tests catch analyzer, 
 
 ## 9. SQL, Kafka, and search projections
 
-### Q37. Why is dual-writing SQL and Elasticsearch unsafe? How do outbox and CDC patterns help?
+### Q38. Why is dual-writing SQL and Elasticsearch unsafe? How do outbox and CDC patterns help?
 
 Suppose a service commits an order to SQL and then writes its search document to Elasticsearch. If SQL commits but Elasticsearch fails, the two stores disagree. If Elasticsearch is written first and SQL later fails, search exposes a change that never committed in the source database. This dual-write gap is a common consistency bug.
 
@@ -371,7 +379,7 @@ A transactional outbox writes both the business change and an event record in th
 
 Define freshness explicitly. If search may lag by seconds, measure event age and consumer lag. If a critical decision needs current stock or payment state, re-check the authoritative system. Elasticsearch is a search projection, not the authority for a transaction that may not yet have been indexed.
 
-### Q38. How do you handle duplicate, out-of-order, and delete events?
+### Q39. How do you handle duplicate, out-of-order, and delete events?
 
 Consumers may retry after timeouts or restart from an offset, so duplicate delivery is normal. Use deterministic document IDs and make projection updates idempotent where possible. If events can be out of order, carry a source version or sequence and enforce a policy that prevents an older event from replacing newer state.
 
@@ -379,7 +387,7 @@ Deletes need the same care as creates and updates. If a delete event is lost, a 
 
 “Exactly once” is not a magic end-to-end guarantee obtained by enabling a Kafka option. Think through producer guarantees, consumer offset commits, idempotent Elasticsearch writes, replay, deletes, and reconciliation. The practical objective is a projection that converges to source state and makes drift visible early.
 
-### Q39. How do you prevent cross-tenant data leakage in search?
+### Q40. How do you prevent cross-tenant data leakage in search?
 
 Apply tenant restrictions on the server using authenticated identity, not an untrusted tenantId provided by a caller. Centralize query construction so every path includes tenant scope: normal search, direct document lookup, aggregations, autocomplete, exports, and pagination cursors. A single forgotten path can leak data even when the main search endpoint is correct.
 
@@ -445,7 +453,7 @@ Treat this as a security incident. Verify authenticated identity and central que
 
 ## 11. Query DSL cookbook: 18 useful patterns
 
-These examples assume a products index with productId and brand as keyword fields; name and description as text; category as keyword; price as numeric; inStock as boolean; createdAt as date; rating as numeric; tenantId as keyword; and variants mapped as nested. Adapt field names and types to the actual mapping. Valid JSON does not guarantee correct results when mapping assumptions are wrong.
+These examples assume a products index with productId, brand, category, status, and tenantId as keyword fields; name and description as text; price as numeric; inStock as boolean; createdAt as a date; rating as numeric; and variants mapped as nested. Adapt field names and types to the actual mapping. Valid JSON does not guarantee correct results when mapping assumptions are wrong.
 
 ### Pattern 1. Full-text search on product name
 
@@ -512,7 +520,7 @@ GET products-v1/_search
   "query": {
     "multi_match": {
       "query": "noise cancelling headphones",
-      "fields": ["name^5", "category^2", "description"]
+      "fields": ["name^5", "description"]
     }
   }
 }
