@@ -539,13 +539,13 @@ The watermark communicates expected lateness relative to event-time progress; it
 
 ### Q78. What does a watermark do?
 
-A watermark advances based on observed event-time progress and a configured delay. It lets supported stateful operations finalize eligible windows and clean old state. Without bounded cleanup, a long-running aggregation can retain state indefinitely.
+A watermark is derived from the maximum event time observed by the query minus the configured delay threshold. In supported stateful operations, it allows Spark to decide when older windows/state can be finalized or cleaned. It does not advance just because wall-clock time passes; the source must make event-time progress. Without effective state cleanup, a long-running query can retain state indefinitely.
 
-Shorter thresholds reduce state sooner but may exclude late updates; longer thresholds tolerate delay at higher state and recovery cost. Multiple streams and stateful operators have additional semantics, so verify the rules for the deployed Spark version.
+For windowed aggregation, Spark documents a one-sided guarantee: records less than the configured delay behind the latest event time processed will not be dropped as too late. Records delayed beyond that threshold may or may not be processed; the watermark is not a promise that every older record is immediately discarded. Longer thresholds usually retain state longer and tolerate more event-time lateness, at additional memory/checkpoint cost. Multiple streams and stateful operator types introduce further semantics, so validate the exact query shape against the deployed version.
 
 ### Q79. What happens to records later than the watermark?
 
-For a window aggregation, records too late to affect retained/finalized state may no longer update results. Exact behavior depends on operation and output mode. A watermark is not a universal filter that drops every old record immediately. Choose the lateness policy from business requirements and provide correction/reconciliation if very late updates matter.
+For supported window aggregations, an event that is less than the configured watermark delay behind the latest event time processed is guaranteed not to be dropped as late. That is an event-time relationship, not simply the elapsed wall-clock time since the event happened. Records beyond the threshold are not guaranteed to be dropped: Spark may still aggregate them if the relevant state has not been cleaned. The watermark is therefore neither a universal pre-filter nor a promise that every very late event is ignored. Choose the delay from business requirements and provide correction/reconciliation if very late updates matter.
 
 ### Q80. How do stateful aggregation and deduplication work?
 
@@ -601,7 +601,7 @@ StreamingQuery query = output.writeStream()
     .start();
 ~~~
 
-Confirm output-mode compatibility and connector documentation for your Spark version. Checkpointing supports Spark recovery; downstream consumers still need duplicate-safe business handling where required.
+Confirm output-mode compatibility and connector documentation for your Spark version. Important guarantee: the official Spark Kafka integration documents Kafka sink writes as at-least-once, so a retry can create duplicate records even if the broker accepted an earlier attempt. Checkpointing supports recovery of query progress; it does not turn the Kafka sink into an exactly-once business-effect protocol. Use a stable event key and make downstream consumers idempotent or deduplicate where required.
 
 ### Q86. Are Spark tasks the same as Kafka consumer-group members?
 
@@ -1025,9 +1025,9 @@ events.withWatermark("event_time", "20 minutes")
     .agg(sum("amount").alias("revenue"));
 ~~~
 
-**Trade-offs and prevention:** Validate event clocks and monitor late-event distribution against the chosen delay.
+**Trade-offs and prevention:** Validate event clocks and monitor late-event distribution against the chosen delay. The precise Spark guarantee compares event-time progress, not a fixed wall-clock arrival stopwatch: within-threshold data is guaranteed not to be dropped as late for supported window aggregations; beyond-threshold data may still be processed if state remains.
 
-**Follow-ups:** Does a 20-minute watermark guarantee every event arriving within 20 minutes is included? What business rule chooses the delay?
+**Follow-ups:** What is the difference between event-time delay and real elapsed arrival delay? Why can an event older than the watermark still appear in an aggregate?
 
 ### Scenario 16. Watermarks do not reduce state as expected.
 
