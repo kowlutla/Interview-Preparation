@@ -1,76 +1,36 @@
 # Microservices and Distributed Systems
 
-> Numbered learning checklist. Use the existing handbook in this repository for detailed explanations and interview Q&A.
+## Microservices Architecture
 
-### 24. Microservices Architecture
-- [ ] Monolith, Modular Monolith, and Microservices
-- [ ] Domain-Driven Design Fundamentals
-- [ ] Bounded Contexts and Context Mapping
-- [ ] Service Boundaries and Data Ownership
-- [ ] Database per Service
-- [ ] Synchronous and Asynchronous Communication
-- [ ] API Gateway and Backend-for-Frontend
-- [ ] Service Discovery
-- [ ] Configuration and Secret Distribution
-- [ ] Service Decomposition and Migration
-- [ ] Anti-Corruption Layer
-- [ ] Strangler Pattern
-- [ ] Distributed Configuration and Feature Flags
-- [ ] Microservice Testing Strategies
-- [ ] Microservices Deployment and Release Coordination
-- [ ] Common Microservices Anti-Patterns
+- [ ] Monolith, modular monolith, and microservices trade-offs
+- [ ] Domain-driven design, bounded contexts, and service boundary decisions
+- [ ] Service ownership, database-per-service, and data encapsulation
+- [ ] Synchronous REST/gRPC vs asynchronous messaging and event-driven communication
+- [ ] Service discovery, API gateways, ingress, and internal communication patterns
+- [ ] Orchestration vs choreography and workflow coordination
+- [ ] Saga patterns, compensating actions, and long-running business transactions
+- [ ] Transactional outbox/inbox, idempotent consumers, and duplicate handling
+- [ ] API/event contract versioning and backward-compatible evolution
+- [ ] Distributed configuration, secrets, and multi-tenant service design
 
-### 25. Distributed Systems Fundamentals
-- [ ] Distributed System Models
-- [ ] Partial Failure and Failure Detection
-- [ ] Latency, Timeouts, and Uncertain Outcomes
-- [ ] Clock Skew and Physical Clocks
-- [ ] Logical Clocks and Lamport Timestamps
-- [ ] Vector Clocks
-- [ ] Causality and Happens-Before
-- [ ] Linearizability, Sequential Consistency, and Causal Consistency
-- [ ] Strong and Eventual Consistency
-- [ ] Read-Your-Writes and Monotonic Reads
-- [ ] CAP Theorem
-- [ ] PACELC
-- [ ] Quorums and Read/Write Consistency
-- [ ] Leader Election
-- [ ] Consensus Fundamentals
-- [ ] Raft and Paxos Concepts
-- [ ] Split Brain and Fencing Tokens
-- [ ] Leases and Distributed Locks
-- [ ] Idempotency and Deduplication
-- [ ] At-Most-Once, At-Least-Once, and Effectively-Once Processing
-- [ ] Distributed Transactions
-- [ ] Sagas and Compensating Actions
-- [ ] Transactional Outbox and CDC
-- [ ] Retry, Replay, and Reconciliation
-- [ ] Backpressure and Load Shedding
-- [ ] Failure Domains and Bulkheads
-- [ ] Durable State and Recovery
+## Distributed Systems Fundamentals
 
-### 26. Resilience and Reliability Engineering
-- [ ] Timeouts and Deadline Propagation
-- [ ] Retry Policies and Retry Budgets
-- [ ] Exponential Backoff and Jitter
-- [ ] Idempotent Retry Design
-- [ ] Circuit Breakers
-- [ ] Bulkheads and Concurrency Limits
-- [ ] Rate Limiting
-- [ ] Token Bucket and Leaky Bucket
-- [ ] Load Shedding and Admission Control
-- [ ] Fallbacks and Graceful Degradation
-- [ ] Health Checks and Readiness
-- [ ] Fail-Fast vs Fail-Safe Design
-- [ ] Cascading Failures and Retry Storms
-- [ ] Resilience4j
-  - [ ] Circuit Breaker
-  - [ ] Retry
-  - [ ] Rate Limiter
-  - [ ] Bulkhead
-  - [ ] Time Limiter
-  - [ ] Fallback Composition
-- [ ] Service-Level Indicators and Objectives
-- [ ] Error Budgets
-- [ ] Availability and Reliability Calculations
-- [ ] Incident Response and Postmortems
+- [ ] Partial failure, network partitions, failure detection, and timeouts
+- [ ] Replication, consistency models, quorum reads/writes, and read-after-write behavior
+- [ ] CAP, PACELC, availability, durability, and consistency trade-offs
+- [ ] Leader/follower replication, failover, split-brain, and fencing
+- [ ] Partitioning, sharding, rebalancing, and hot partitions
+- [ ] Ordering, clocks, logical time, event time, and causality
+- [ ] At-most-once, at-least-once, effectively-once, and deduplication
+- [ ] Distributed locks, leases, fencing tokens, and coordination trade-offs
+- [ ] Consensus and leader election at a conceptual level
+- [ ] Eventual consistency, CQRS, materialized views, and reconciliation
+
+## Resilience and Reliability
+
+- [ ] Timeouts, bounded retries, exponential backoff, and jitter
+- [ ] Circuit breakers, bulkheads, rate limiting, and concurrency limits
+- [ ] Load shedding, backpressure, queue bounds, and graceful degradation
+- [ ] Health checks, readiness, failover, and graceful shutdown
+- [ ] Dead-letter queues, replay, poison messages, and recovery workflows
+- [ ] Reliability testing, failure injection, SLOs, and incident-driven improvements
