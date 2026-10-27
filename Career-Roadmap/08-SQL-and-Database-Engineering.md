@@ -1,98 +1,43 @@
 # SQL and Database Engineering
 
-> Numbered learning checklist. Use the existing handbook in this repository for detailed explanations and interview Q&A.
+## SQL and Relational Database Fundamentals
 
-### 20. SQL and Relational Database Engineering
-- [ ] Relational Model and Data Types
-- [ ] DDL, DML, DCL, and TCL
-- [ ] Primary, Foreign, Unique, and Check Constraints
-- [ ] NULL Semantics and Three-Valued Logic
-- [ ] SELECT, WHERE, ORDER BY, DISTINCT
-- [ ] JOINs
-  - [ ] INNER, LEFT, RIGHT, FULL, CROSS
-  - [ ] Self-Joins and Anti-Joins
-  - [ ] Join Cardinality and Duplicate Rows
-- [ ] Aggregation and GROUP BY
-- [ ] HAVING and Conditional Aggregation
-- [ ] Subqueries and Correlated Subqueries
-- [ ] CTEs and Recursive CTEs
-- [ ] Window Functions
-  - [ ] ROW_NUMBER, RANK, DENSE_RANK
-  - [ ] LAG, LEAD, FIRST_VALUE, LAST_VALUE
-  - [ ] Running Totals and Moving Averages
-- [ ] Set Operations
-- [ ] CASE Expressions and Conditional Logic
-- [ ] Date/Time and Time-Zone Queries
-- [ ] String and Numeric Functions
-- [ ] INSERT, UPDATE, DELETE, MERGE / Upsert
-- [ ] Transactions and ACID
-- [ ] Isolation Levels and Anomalies
-- [ ] Locks, Deadlocks, and MVCC
-- [ ] Index Fundamentals
-  - [ ] B-Tree and Hash Indexes
-  - [ ] Composite and Covering Indexes
-  - [ ] Selectivity and Cardinality
-  - [ ] Function-Based and Partial Indexes
-  - [ ] Index Maintenance and Write Cost
-- [ ] Execution Plans and Query Optimizers
-- [ ] Statistics and Cardinality Estimation
-- [ ] Sargability and Predicate Pushdown
-- [ ] Pagination Strategies
-  - [ ] OFFSET/FETCH
-  - [ ] Keyset / Seek Pagination
-  - [ ] Oracle ROWNUM and ROW_NUMBER
-- [ ] Normalization and Denormalization
-- [ ] Schema Design and Data Modeling
-- [ ] Partitioning and Table Maintenance
-- [ ] Replication, Backup, Restore, and Recovery
-- [ ] Connection Pooling and Query Timeouts
-- [ ] SQL Performance Tuning
+- [ ] Relational model, data types, constraints, keys, and schema design
+- [ ] SELECT, filtering, ordering, DISTINCT, NULL semantics, and conditional expressions
+- [ ] INNER/OUTER joins, self joins, aggregation, GROUP BY, and HAVING
+- [ ] Subqueries, correlated subqueries, CTEs, recursive queries, and set operations
+- [ ] Window functions, ranking, running aggregates, and common analytical queries
+- [ ] INSERT/UPDATE/DELETE/MERGE, upserts, and safe bulk changes
+- [ ] Date/time, time-zone, string, numeric, and JSON query operations
+- [ ] Transactions, ACID, isolation levels, MVCC, locks, and deadlocks
+- [ ] Index fundamentals, composite indexes, execution plans, and query optimizers
+- [ ] Sargability, statistics, cardinality, pagination, and query performance tuning
+- [ ] Normalization/denormalization, OLTP modeling, partitioning, and table maintenance
 
-### 21. Oracle Database Focus
-- [ ] Oracle Data Types and Conversion Rules
-- [ ] Oracle NULL and Empty String Behavior
-- [ ] DUAL and Pseudocolumns
-- [ ] ROWNUM and ROW_NUMBER()
-- [ ] Sequences and Identity Columns
-- [ ] MERGE
-- [ ] Analytic Functions
-- [ ] Hierarchical Queries
-- [ ] Common Table Expressions
-- [ ] Packages, Procedures, Functions, and Triggers
-- [ ] Views and Materialized Views
-- [ ] Sequences and Synonyms
-- [ ] Index Types and Function-Based Indexes
-- [ ] Explain Plan and DBMS_XPLAN
-- [ ] Undo, Redo, and Read Consistency
-- [ ] Oracle Locks and Wait Events
-- [ ] Oracle Pagination and Query Tuning
-- [ ] Oracle SQL Developer and Diagnostic Tooling
+## Oracle Database
 
-### 22. MySQL Focus
-- [ ] MySQL Storage Engines and InnoDB
-- [ ] Clustered and Secondary Indexes
-- [ ] InnoDB Transactions and MVCC
-- [ ] Isolation and Gap / Next-Key Locks
-- [ ] EXPLAIN and EXPLAIN ANALYZE
-- [ ] Composite Indexes and Index Condition Pushdown
-- [ ] Generated Columns and Functional Indexes
-- [ ] JSON Data Types and Operators
-- [ ] Replication and Binary Logs
-- [ ] Deadlock Detection and Troubleshooting
-- [ ] MySQL Backup and Recovery
-- [ ] MySQL Query Performance Tuning
+- [ ] Oracle data types, conversion rules, NULL/empty-string behavior, and DUAL
+- [ ] ROWNUM, ROW_NUMBER, sequences/identity, MERGE, and pagination
+- [ ] Analytic functions, CTEs, and hierarchical queries
+- [ ] Views/materialized views, procedures/functions/packages, and triggers
+- [ ] Index types, function-based indexes, explain plans, and DBMS_XPLAN
+- [ ] Undo/redo, read consistency, locks, wait events, and transaction behavior
+- [ ] Oracle SQL tooling, query diagnostics, and performance tuning
 
-### 23. Database Engineering Beyond SQL
-- [ ] Data Modeling for OLTP Workloads
-- [ ] Relational vs NoSQL Databases
-- [ ] Key-Value, Document, Wide-Column, Graph, and Time-Series Models
-- [ ] Read Replicas and Replication Lag
-- [ ] Partitioning, Sharding, and Rebalancing
-- [ ] Hot Keys and Hot Partitions
-- [ ] Database Connection Capacity
-- [ ] Schema and Data Migration
-- [ ] Backup Validation and Restore Drills
-- [ ] Data Retention, Archival, and Deletion
-- [ ] PII Handling and Data Masking
+## MySQL Database
 
-## Phase 5 — Distributed Backend Systems
+- [ ] Storage engines and InnoDB internals
+- [ ] Clustered/secondary indexes, composite indexes, and index condition pushdown
+- [ ] Transactions, MVCC, isolation, gap/next-key locks, and deadlock diagnosis
+- [ ] EXPLAIN/EXPLAIN ANALYZE, statistics, and slow-query optimization
+- [ ] JSON columns, generated columns, and functional indexes
+- [ ] Replication/binlogs, backup/recovery, and operational considerations
+
+## Database Engineering Beyond SQL
+
+- [ ] Relational vs NoSQL and key-value/document/wide-column/graph/time-series models
+- [ ] Replication, read replicas, replication lag, and consistency trade-offs
+- [ ] Partitioning, sharding, rebalancing, hot keys, and hot partitions
+- [ ] Connection capacity, pooling, timeouts, and overload protection
+- [ ] Schema/data migration, backup validation, restore drills, and retention
+- [ ] PII handling, masking, deletion requirements, and data lifecycle
