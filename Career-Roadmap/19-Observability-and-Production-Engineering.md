@@ -19,3 +19,4 @@
 - [ ] Refactoring, technical debt, release safety, and backward-compatible changes
 - [ ] Production ownership, stakeholder communication, estimation, and engineering documentation
 - [ ] Secure coding, privacy-by-design, reliability, and continuous improvement
+- [ ] Agile planning, estimation, Jira/issue tracking, and clear engineering documentation
