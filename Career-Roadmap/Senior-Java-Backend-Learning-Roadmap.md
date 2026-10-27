@@ -1,0 +1,1604 @@
+# Senior Java Backend Engineer — Learning & Interview Readiness Roadmap
+
+- [ ] Track progress by checking off each topic only after reviewing it and completing hands-on practice where applicable.
+- [ ] Follow the phases in order; revisit earlier topics during revision.
+- [ ] Primary target: Senior Software Engineer / Senior Java Backend Engineer at product-based companies, with remote roles preferred.
+
+## Phase 1 — Core Computer Science Foundations
+
+### 1. Data Structures and Algorithms (DSA)
+- [ ] Complexity Analysis
+  - [ ] Big-O, Big-Theta, Big-Omega
+  - [ ] Time and Space Complexity
+  - [ ] Amortized Analysis
+  - [ ] Best, Average, and Worst Cases
+- [ ] Arrays and Matrices
+  - [ ] Traversal, Searching, Insertion, and Deletion
+  - [ ] Prefix Sums and Difference Arrays
+  - [ ] Two Pointers
+  - [ ] Sliding Window
+  - [ ] Sorting-Based Array Problems
+  - [ ] Binary Search on Arrays
+  - [ ] Rotated and Nearly Sorted Arrays
+  - [ ] Kadane's Algorithm
+  - [ ] Matrix Traversal and Transformations
+- [ ] Strings
+  - [ ] Character Frequency and Counting
+  - [ ] Anagrams and Palindromes
+  - [ ] Two Pointers and Sliding Window
+  - [ ] String Matching
+  - [ ] Pattern Searching
+  - [ ] StringBuilder and String Immutability
+- [ ] Linked Lists
+  - [ ] Singly, Doubly, and Circular Linked Lists
+  - [ ] Reversal and In-Place Modification
+  - [ ] Fast and Slow Pointers
+  - [ ] Cycle Detection and Removal
+  - [ ] Merge and Intersection Problems
+- [ ] Stacks and Queues
+  - [ ] Array- and Linked-List-Based Implementations
+  - [ ] Monotonic Stack and Queue
+  - [ ] Deque
+  - [ ] Expression Evaluation
+  - [ ] Next Greater/Smaller Element
+  - [ ] Queue Using Stacks and Stack Using Queues
+- [ ] Hashing
+  - [ ] Hash Tables and Collision Handling
+  - [ ] HashMap/HashSet Problem Patterns
+  - [ ] Frequency Maps
+  - [ ] Prefix-Sum Hashing
+  - [ ] Custom Keys and Equality Contracts
+- [ ] Trees and Binary Search Trees
+  - [ ] Binary Tree Traversals
+  - [ ] Recursive and Iterative DFS
+  - [ ] BFS and Level-Order Traversal
+  - [ ] Height, Depth, Diameter, and Balance
+  - [ ] Lowest Common Ancestor
+  - [ ] Binary Search Tree Operations
+  - [ ] Tree Serialization and Deserialization
+  - [ ] Trie / Prefix Tree
+- [ ] Heaps and Priority Queues
+  - [ ] Min-Heap and Max-Heap
+  - [ ] Heap Construction and Heapify
+  - [ ] Top-K Problems
+  - [ ] K-Way Merge
+  - [ ] Running Median
+- [ ] Graphs
+  - [ ] Adjacency List and Adjacency Matrix
+  - [ ] BFS and DFS
+  - [ ] Connected Components
+  - [ ] Cycle Detection
+  - [ ] Topological Sorting
+  - [ ] Shortest Paths: BFS, Dijkstra, Bellman-Ford
+  - [ ] Minimum Spanning Trees: Prim and Kruskal
+  - [ ] Union-Find / Disjoint Set Union
+  - [ ] Strongly Connected Components
+  - [ ] Bipartite Graphs
+- [ ] Recursion and Backtracking
+  - [ ] Recursion Trees and Base Cases
+  - [ ] Subsets and Subsequences
+  - [ ] Permutations and Combinations
+  - [ ] Combination Sum
+  - [ ] Constraint-Based Search
+  - [ ] Pruning and Memoization
+- [ ] Greedy Algorithms
+  - [ ] Interval Scheduling and Merging
+  - [ ] Activity Selection
+  - [ ] Sorting-Based Greedy Strategies
+  - [ ] Proof of Greedy Choice
+- [ ] Dynamic Programming
+  - [ ] Memoization and Tabulation
+  - [ ] State Definition and Transitions
+  - [ ] 1D and 2D DP
+  - [ ] Knapsack Variants
+  - [ ] Coin Change
+  - [ ] Longest Common Subsequence / Substring
+  - [ ] Longest Increasing Subsequence
+  - [ ] Grid and Path Problems
+  - [ ] Interval DP
+  - [ ] Tree DP
+  - [ ] Bitmask DP
+- [ ] Bit Manipulation
+  - [ ] Bitwise Operators
+  - [ ] Masks, Shifts, and XOR
+  - [ ] Set/Clear/Toggle/Test Bits
+  - [ ] Subsets Using Bitmasks
+- [ ] Searching and Sorting
+  - [ ] Binary Search Templates
+  - [ ] Merge Sort and Quick Sort
+  - [ ] Heap Sort
+  - [ ] Counting Sort and Bucket Sort
+  - [ ] Stability and In-Place Sorting
+- [ ] Advanced Problem Patterns
+  - [ ] Sweep Line
+  - [ ] Difference/Prefix Techniques
+  - [ ] Segment Trees
+  - [ ] Fenwick Trees / Binary Indexed Trees
+  - [ ] LRU/LFU Cache Design
+  - [ ] Topological and Dependency Ordering
+- [ ] Interview Coding Practice
+  - [ ] Easy, Medium, and Hard Problem Sets
+  - [ ] Timed Problem Solving
+  - [ ] Edge-Case Identification
+  - [ ] Complexity Explanation
+  - [ ] Code Review and Refactoring
+  - [ ] Verbal Problem-Solving Walkthroughs
+
+### 2. Operating Systems and Computer Systems
+- [ ] Processes and Threads
+- [ ] Process Lifecycle and Context Switching
+- [ ] User Mode and Kernel Mode
+- [ ] CPU Scheduling
+- [ ] Memory Management
+  - [ ] Virtual Memory
+  - [ ] Paging and Page Tables
+  - [ ] Stack and Heap
+  - [ ] Memory Mapping
+  - [ ] Page Faults
+- [ ] Synchronization Primitives
+  - [ ] Mutexes, Semaphores, Monitors
+  - [ ] Condition Variables
+  - [ ] Deadlocks, Livelocks, and Starvation
+- [ ] File Systems and File Descriptors
+- [ ] I/O, Blocking, Non-Blocking, and Asynchronous I/O
+- [ ] System Calls and Signals
+- [ ] Linux Process and Resource Inspection
+- [ ] CPU, Memory, Disk, and Network Diagnostics
+
+### 3. Networking Fundamentals
+- [ ] OSI and TCP/IP Models
+- [ ] Ethernet, MAC, ARP, and MTU
+- [ ] IPv4, IPv6, CIDR, and Subnetting
+- [ ] Routing and NAT
+- [ ] TCP
+  - [ ] Three-Way Handshake and Connection Teardown
+  - [ ] Flow Control and Congestion Control
+  - [ ] Retransmission, Sequence Numbers, and ACKs
+  - [ ] Keepalive and Connection Reset
+- [ ] UDP and QUIC Fundamentals
+- [ ] DNS Resolution and Caching
+- [ ] DHCP and TLS
+- [ ] HTTP/1.1, HTTP/2, and HTTP/3
+- [ ] HTTPS and Certificate Validation
+- [ ] Proxies, Reverse Proxies, and Load Balancers
+- [ ] WebSockets and Server-Sent Events
+- [ ] Latency, Bandwidth, Throughput, Packet Loss, and Jitter
+- [ ] Network Troubleshooting: curl, dig, nslookup, ping, traceroute, ss, netstat, tcpdump
+
+## Phase 2 — Java Core and Modern Java
+
+### 4. Java Language Fundamentals
+- [ ] JDK, JVM, Runtime Images, and Java Execution Flow
+- [ ] Primitive Types, Reference Types, and Type Conversion
+- [ ] Operators, Control Flow, and Expressions
+- [ ] Pass-by-Value Semantics
+- [ ] Classes, Objects, Constructors, and Initialization Order
+- [ ] Access Modifiers and Packages
+- [ ] static, final, this, and super
+- [ ] Object-Oriented Programming
+  - [ ] Encapsulation
+  - [ ] Abstraction
+  - [ ] Inheritance
+  - [ ] Polymorphism
+  - [ ] Composition vs Inheritance
+- [ ] Method Overloading and Overriding
+- [ ] Covariant Return Types
+- [ ] Abstract Classes and Interfaces
+- [ ] Nested, Inner, Local, and Anonymous Classes
+- [ ] Enums
+- [ ] Records
+- [ ] Sealed Classes and Interfaces
+- [ ] Immutability and Defensive Copying
+- [ ] equals(), hashCode(), and toString()
+- [ ] Comparable and Comparator
+- [ ] String Pool, String, StringBuilder, and StringBuffer
+- [ ] Wrapper Types, Boxing, and Unboxing
+- [ ] Exception Hierarchy
+  - [ ] Checked and Unchecked Exceptions
+  - [ ] try/catch/finally
+  - [ ] try-with-resources
+  - [ ] Suppressed Exceptions
+  - [ ] Custom Exceptions
+- [ ] Generics
+  - [ ] Type Parameters and Bounds
+  - [ ] Wildcards and PECS
+  - [ ] Type Erasure
+  - [ ] Generic Methods and Types
+  - [ ] Heap Pollution and Reifiable Types
+- [ ] Annotations and Custom Annotations
+- [ ] Reflection and Runtime Type Information
+- [ ] Class Loading, Linking, and Initialization
+- [ ] Java Assertions
+- [ ] Serialization Fundamentals and Risks
+- [ ] Locale, Currency, Unicode, and Character Encoding
+- [ ] Date and Time API
+- [ ] BigDecimal and Floating-Point Precision
+
+### 5. Java Collections Framework
+- [ ] Collection, List, Set, Queue, Deque, and Map Interfaces
+- [ ] ArrayList and LinkedList
+- [ ] Vector and Stack Legacy Considerations
+- [ ] HashSet, LinkedHashSet, and TreeSet
+- [ ] HashMap, LinkedHashMap, TreeMap, Hashtable
+- [ ] PriorityQueue and ArrayDeque
+- [ ] HashMap Internals
+  - [ ] Hashing and Bucket Indexing
+  - [ ] Collision Resolution
+  - [ ] Resizing and Load Factor
+  - [ ] Tree Bins
+  - [ ] equals() / hashCode() Contract
+- [ ] ConcurrentHashMap Internals
+- [ ] WeakHashMap, IdentityHashMap, EnumMap, and EnumSet
+- [ ] Iterator and ListIterator
+- [ ] Fail-Fast and Weakly Consistent Iteration
+- [ ] Iterable and Spliterator
+- [ ] Collections Utility Methods and Immutable Collections
+- [ ] Ordering, Equality, and Mutability
+- [ ] Choosing Data Structures by Workload
+- [ ] Thread-Safe Collections and Synchronization Strategies
+
+### 6. Java Functional Programming and APIs
+- [ ] Functional Interfaces
+- [ ] Lambda Expressions and Method References
+- [ ] Default and Static Interface Methods
+- [ ] Predicate, Function, Consumer, Supplier, UnaryOperator, BinaryOperator
+- [ ] Function Composition
+- [ ] Stream API
+  - [ ] Intermediate and Terminal Operations
+  - [ ] Stateless and Stateful Operations
+  - [ ] Lazy Evaluation
+  - [ ] map(), flatMap(), filter(), reduce(), collect()
+  - [ ] Grouping, Partitioning, and Mapping Collectors
+  - [ ] Primitive Streams
+  - [ ] Parallel Streams and ForkJoinPool
+  - [ ] Stateful Side Effects and Stream Safety
+  - [ ] Stream Ordering and Short-Circuiting
+- [ ] Optional
+- [ ] java.time
+- [ ] java.util.concurrent and CompletableFuture APIs
+- [ ] I/O and NIO.2
+- [ ] Files, Paths, Channels, Buffers, and Selectors
+- [ ] Regular Expressions
+- [ ] Base64, UUID, Random, SecureRandom
+- [ ] Resource Management and AutoCloseable
+
+### 7. Modern Java Version Roadmap
+- [ ] Java 8
+  - [ ] Lambdas and Functional Interfaces
+  - [ ] Stream API
+  - [ ] Optional
+  - [ ] Default and Static Interface Methods
+  - [ ] java.time
+  - [ ] CompletableFuture
+  - [ ] New Date/Time and Collection APIs
+- [ ] Java 9
+  - [ ] Module System (JPMS)
+  - [ ] JShell
+  - [ ] Collection Factory Methods
+  - [ ] Private Interface Methods
+  - [ ] Process API Updates
+  - [ ] Reactive Streams Interfaces
+- [ ] Java 10
+  - [ ] Local Variable Type Inference (var)
+  - [ ] Unmodifiable Collector Results
+- [ ] Java 11
+  - [ ] Standard HTTP Client
+  - [ ] String and Files API Updates
+  - [ ] var in Lambda Parameters
+  - [ ] Single-File Source Execution
+  - [ ] Removed/Deprecated Java EE and CORBA Modules
+- [ ] Java 12–16
+  - [ ] Switch Expressions
+  - [ ] Text Blocks
+  - [ ] Records
+  - [ ] Pattern Matching for instanceof
+  - [ ] Helpful NullPointerExceptions
+  - [ ] Sealed Classes Preview/Evolution
+  - [ ] Stream.toList()
+  - [ ] Unix-Domain Socket Channels
+- [ ] Java 17
+  - [ ] LTS Features and Migration
+  - [ ] Sealed Classes
+  - [ ] Pattern Matching for instanceof
+  - [ ] Strong Encapsulation
+  - [ ] Removed and Deprecated APIs
+- [ ] Java 18–20
+  - [ ] UTF-8 by Default
+  - [ ] Simple Web Server
+  - [ ] Pattern Matching for switch
+  - [ ] Record Patterns
+  - [ ] Virtual Threads Preview and Evolution
+  - [ ] Structured Concurrency Preview
+  - [ ] Scoped Values Preview
+- [ ] Java 21
+  - [ ] Virtual Threads
+  - [ ] Pattern Matching for switch
+  - [ ] Record Patterns
+  - [ ] Sequenced Collections
+  - [ ] Structured Concurrency Status
+  - [ ] Scoped Values Status
+- [ ] Java 22–24
+  - [ ] Foreign Function and Memory API
+  - [ ] Stream Gatherers
+  - [ ] Flexible Constructor Bodies
+  - [ ] Class-File API
+  - [ ] Module Import Declarations
+  - [ ] Primitive Types in Patterns / instanceof / switch Evolution
+- [ ] Java 25
+  - [ ] LTS Upgrade Considerations
+  - [ ] Finalized Language and API Features
+  - [ ] Preview and Incubator Features
+  - [ ] Deprecations and Removals
+  - [ ] JVM and GC Evolution
+  - [ ] Migration from Java 8 / 11 / 17 / 21
+- [ ] Java Upgrade and Compatibility
+  - [ ] Source, Binary, and Behavioral Compatibility
+  - [ ] Dependency and Build Tool Compatibility
+  - [ ] --release and Compiler Toolchains
+  - [ ] Runtime Flags and Removed Options
+  - [ ] Dependency Scanning and SBOM
+  - [ ] Migration Testing and Rollback
+  - [ ] JFR and Performance Baselines
+
+### 8. Java Concurrency and Multithreading
+- [ ] Thread Lifecycle and Thread API
+- [ ] Runnable, Callable, Future, and FutureTask
+- [ ] Thread Safety and Shared Mutable State
+- [ ] Race Conditions and Atomicity
+- [ ] Java Memory Model
+  - [ ] Visibility and Ordering
+  - [ ] Happens-Before Relationships
+  - [ ] volatile Semantics
+  - [ ] Safe Publication
+  - [ ] Final-Field Semantics
+- [ ] synchronized and Intrinsic Locks
+- [ ] ReentrantLock, ReadWriteLock, StampedLock
+- [ ] wait(), notify(), and notifyAll()
+- [ ] Thread Interruption and Cancellation
+- [ ] Atomic Variables and CAS
+- [ ] LongAdder and Contention
+- [ ] Concurrent Collections
+- [ ] Executor Framework
+  - [ ] ThreadPoolExecutor
+  - [ ] Queue Selection and Rejection Policies
+  - [ ] Core/Max Pool Sizing
+  - [ ] Workload Isolation and Bulkheads
+  - [ ] ScheduledExecutorService
+- [ ] ForkJoinPool and Work Stealing
+- [ ] CompletableFuture
+  - [ ] Composition and Exception Handling
+  - [ ] Async Execution and Executor Selection
+  - [ ] Timeouts and Cancellation
+- [ ] Virtual Threads
+  - [ ] Blocking I/O Workloads
+  - [ ] Thread-Per-Request Model
+  - [ ] Pinning and Native Calls
+  - [ ] Thread-Local Considerations
+  - [ ] Resource Limits and Backpressure
+- [ ] Locks, Conditions, Semaphores, and Latches
+- [ ] CyclicBarrier, Phaser, and Exchanger
+- [ ] Deadlock Detection and Avoidance
+- [ ] Lock-Free and Wait-Free Concepts
+- [ ] Producer–Consumer and Bounded Queues
+- [ ] Thread Confinement and Immutable Objects
+- [ ] Structured Concurrency and Scoped Values
+- [ ] Concurrency Testing and Stress Testing
+- [ ] Thread Dumps and Deadlock Diagnostics
+
+### 9. JVM, Garbage Collection, and Performance
+- [ ] JVM Architecture
+- [ ] Class Loaders and Class Loader Leaks
+- [ ] Runtime Data Areas
+  - [ ] Heap and Generational Layout
+  - [ ] Java Stacks and Native Method Stacks
+  - [ ] Metaspace
+  - [ ] Program Counter and Code Cache
+- [ ] Bytecode and JIT Compilation
+- [ ] Interpreted vs Compiled Execution
+- [ ] Escape Analysis and Scalar Replacement
+- [ ] Deoptimization and Inlining
+- [ ] Garbage Collection Fundamentals
+  - [ ] Reachability and Object Lifecycles
+  - [ ] Young and Old Generation Concepts
+  - [ ] Stop-the-World Pauses
+  - [ ] G1 GC
+  - [ ] ZGC and Other Collector Overview
+  - [ ] GC Logs and Tuning
+- [ ] Memory Leaks and Retained Objects
+- [ ] OutOfMemoryError Types
+- [ ] StackOverflowError
+- [ ] Native Memory and Direct Buffers
+- [ ] JVM Flags and Container Awareness
+- [ ] JFR, JMC, jcmd, jstack, jmap, and jstat
+- [ ] Heap Dumps and Thread Dumps
+- [ ] CPU Profiling and Allocation Profiling
+- [ ] JMH and Benchmark Design
+- [ ] Latency, Throughput, Warm-Up, and Contention
+- [ ] Production JVM Troubleshooting
+
+## Phase 3 — Build, Testing, Code Quality, and Development Workflow
+
+### 10. Git and Version Control
+- [ ] Working Tree, Index, and Repository
+- [ ] Objects: Blob, Tree, Commit, and Tag
+- [ ] HEAD, Refs, and Reflog
+- [ ] Staging and Commit Best Practices
+- [ ] Branching Models
+- [ ] Merge, Rebase, Squash, and Cherry-Pick
+- [ ] Conflict Resolution
+- [ ] Reset, Restore, Revert, and Reflog Recovery
+- [ ] Interactive Rebase and Commit Amendments
+- [ ] Bisect, Blame, and History Inspection
+- [ ] Tags and Release Branches
+- [ ] Trunk-Based Development and Git Flow
+- [ ] Pull Requests and Code Review
+- [ ] Conventional Commits and Commit Hygiene
+- [ ] .gitignore and Repository Hygiene
+- [ ] Signed Commits, Secrets Scanning, and Token Safety
+- [ ] Git Worktrees and Advanced Recovery
+
+### 11. Maven
+- [ ] POM Structure and Project Coordinates
+- [ ] Lifecycle Phases and Goals
+- [ ] Plugins and Plugin Management
+- [ ] Dependency Scopes
+- [ ] Transitive Dependencies and Exclusions
+- [ ] Dependency Mediation and Conflict Resolution
+- [ ] Dependency Management and BOMs
+- [ ] Parent POMs and Inheritance
+- [ ] Multi-Module Projects
+- [ ] Profiles and Properties
+- [ ] Repositories and Artifact Resolution
+- [ ] Surefire and Failsafe
+- [ ] Compiler, Jar, Shade, and Spring Boot Plugins
+- [ ] Wrapper and Toolchains
+- [ ] Reproducible Builds
+- [ ] Dependency Convergence and Enforcer Rules
+- [ ] Build Cache and Build Performance
+- [ ] SNAPSHOT vs Release Artifacts
+- [ ] Maven Debugging and Dependency Tree
+
+### 12. Gradle
+- [ ] Groovy DSL and Kotlin DSL
+- [ ] Settings, Build Scripts, and Project Model
+- [ ] Tasks and Task Graph
+- [ ] Plugins and Plugin Management
+- [ ] Dependency Configurations
+- [ ] Version Catalogs
+- [ ] Dependency Constraints and Platforms
+- [ ] Multi-Project and Composite Builds
+- [ ] Convention Plugins
+- [ ] Gradle Wrapper and Toolchains
+- [ ] Incremental and Reproducible Builds
+- [ ] Build Cache and Configuration Cache
+- [ ] Test Tasks and Test Fixtures
+- [ ] Gradle Troubleshooting and Build Scans
+- [ ] Maven vs Gradle Trade-Offs
+
+### 13. Testing and Code Quality
+- [ ] Test Pyramid and Testing Strategy
+- [ ] Unit, Integration, Component, Contract, and End-to-End Tests
+- [ ] JUnit 5 / Jupiter
+  - [ ] Assertions and Assumptions
+  - [ ] Parameterized Tests
+  - [ ] Lifecycle Callbacks
+  - [ ] Nested and Dynamic Tests
+  - [ ] Extensions and Test Interfaces
+  - [ ] Tags and Test Suites
+- [ ] Mockito
+  - [ ] Mocks, Stubs, Spies, and Captors
+  - [ ] Strict Stubbing
+  - [ ] Argument Matchers
+  - [ ] Verification and Interaction Testing
+  - [ ] Static/Constructor Mocking Trade-Offs
+- [ ] Spring Boot Test
+  - [ ] @SpringBootTest
+  - [ ] MVC Slice Tests
+  - [ ] Data JPA Slice Tests
+  - [ ] Security Test Support
+  - [ ] Test Profiles and Configuration
+- [ ] Testcontainers
+- [ ] WireMock and HTTP Service Virtualization
+- [ ] REST Assured and API Testing
+- [ ] Consumer-Driven Contract Testing
+- [ ] Database Test Isolation and Test Data Management
+- [ ] Concurrency and Performance Testing
+- [ ] Mutation Testing
+- [ ] Code Coverage and Coverage Limits
+- [ ] Static Analysis and Linting
+- [ ] SonarQube / Quality Gates
+- [ ] Flaky Test Diagnosis
+- [ ] Testability, Dependency Boundaries, and Deterministic Tests
+
+## Phase 4 — Backend Engineering with Spring and Persistence
+
+### 14. Spring Framework
+- [ ] Spring Core and IoC
+- [ ] Dependency Injection
+  - [ ] Constructor, Setter, and Field Injection
+  - [ ] Bean Resolution and @Qualifier
+  - [ ] Circular Dependencies
+- [ ] ApplicationContext and BeanFactory
+- [ ] Bean Lifecycle and Lifecycle Callbacks
+- [ ] Bean Scopes and Scope Proxies
+- [ ] Component Scanning and Configuration Classes
+- [ ] @Configuration and @Bean
+- [ ] Conditional Configuration
+- [ ] Profiles and Property Sources
+- [ ] Environment and Type-Safe Configuration
+- [ ] Spring Expression Language
+- [ ] Events and Application Listeners
+- [ ] Resource Abstraction
+- [ ] AOP and Proxies
+  - [ ] JDK Dynamic Proxies and CGLIB
+  - [ ] Pointcuts and Advices
+  - [ ] Proxy Invocation and Self-Invocation
+  - [ ] Introduction and Aspect Ordering
+- [ ] Transaction Abstraction
+- [ ] Validation and Conversion
+- [ ] Spring MVC Request Lifecycle
+- [ ] Filters, Interceptors, Argument Resolvers, and Controller Advice
+
+### 15. Spring Boot
+- [ ] Spring Boot Architecture and Starters
+- [ ] Auto-Configuration and Conditional Beans
+- [ ] Application Startup and Failure Analysis
+- [ ] Configuration Properties and Binding
+- [ ] YAML and Properties Configuration
+- [ ] Profiles and Externalized Configuration
+- [ ] Logging Configuration
+- [ ] Embedded Servlet Containers
+- [ ] Executable JARs and Layered JARs
+- [ ] Spring Boot Actuator
+- [ ] Health, Info, Metrics, and Readiness Endpoints
+- [ ] Graceful Shutdown
+- [ ] Startup Time and Memory Optimization
+- [ ] Native Image / AOT Fundamentals
+- [ ] Spring Boot 3 and 4 Migration Considerations
+- [ ] Spring Framework 6 and 7 Compatibility
+- [ ] Dependency Management and Supported-Version Matrix
+
+### 16. Spring Web, REST, and API Design
+- [ ] HTTP Semantics and REST Constraints
+- [ ] Resource Modeling and URI Design
+- [ ] HTTP Methods and Idempotency
+- [ ] Status Codes and Error Contracts
+- [ ] Headers, Content Negotiation, and Media Types
+- [ ] Request Validation and Data Binding
+- [ ] DTOs and Domain/API Model Separation
+- [ ] Pagination, Sorting, and Filtering
+- [ ] Offset and Cursor Pagination
+- [ ] API Versioning and Backward Compatibility
+- [ ] Idempotency Keys and Duplicate Requests
+- [ ] Rate Limiting and Quotas
+- [ ] ETags, Conditional Requests, and Caching
+- [ ] File Uploads, Streaming, and Payload Limits
+- [ ] API Error Schema and Problem Details
+- [ ] OpenAPI / Swagger Specification
+  - [ ] Paths, Schemas, Parameters, and Responses
+  - [ ] Security Schemes and Bearer Authentication
+  - [ ] Examples, Validation, and Reusable Components
+  - [ ] Code Generation and Generated Model Maintenance
+- [ ] Spring MVC vs WebFlux
+- [ ] Servlet Filters and Spring Interceptors
+- [ ] CORS and CSRF Considerations
+- [ ] REST API Testing and Contract Validation
+
+### 17. Spring Security and Application Security
+- [ ] Authentication and Authorization
+- [ ] Security Filter Chain
+- [ ] SecurityContext and SecurityContextHolder
+- [ ] Password Hashing and Credential Storage
+- [ ] Session-Based Authentication
+- [ ] OAuth 2.0 Roles and Grant Types
+- [ ] OpenID Connect
+- [ ] JWT Structure, Claims, Signature, and Expiration
+- [ ] JWT Validation and Key Rotation
+- [ ] Bearer Tokens and Token Propagation
+- [ ] Resource Server and Method Security
+- [ ] Role-Based and Attribute-Based Access Control
+- [ ] Multi-Tenant Authorization
+- [ ] CSRF, CORS, XSS, SSRF, and Injection
+- [ ] SQL Injection and Parameterized Queries
+- [ ] TLS, Certificates, and Trust Stores
+- [ ] Secrets Management and Configuration Hygiene
+- [ ] OWASP Top 10
+- [ ] Dependency and Container Vulnerability Scanning
+- [ ] Least Privilege and Security Auditing
+
+### 18. Spring Data Access and Transaction Management
+- [ ] JDBC and JDBC Template
+- [ ] Connection Pools and HikariCP
+- [ ] Transaction Boundaries
+- [ ] @Transactional Semantics
+  - [ ] Propagation Modes
+  - [ ] Isolation Levels
+  - [ ] Read-Only Transactions
+  - [ ] Rollback Rules
+  - [ ] Proxy Boundaries and Self-Invocation
+  - [ ] Transaction Synchronization
+- [ ] Transaction Managers
+- [ ] Optimistic and Pessimistic Locking
+- [ ] Transaction Timeouts
+- [ ] Retry Boundaries and Transactions
+- [ ] Deadlocks and Lock Ordering
+- [ ] Batch Writes and JDBC Batching
+- [ ] Database Migration Tools
+- [ ] Liquibase
+  - [ ] Changelogs and Changesets
+  - [ ] Preconditions and Rollbacks
+  - [ ] Contexts, Labels, and Environments
+  - [ ] Locking and Concurrent Deployments
+  - [ ] Backward-Compatible Schema Evolution
+- [ ] Zero-Downtime Database Migrations
+- [ ] Read/Write Separation and Transaction Routing
+
+### 19. Hibernate, JPA, and Spring Data JPA
+- [ ] ORM Fundamentals and Entity Lifecycle
+- [ ] Persistence Context and First-Level Cache
+- [ ] Dirty Checking and Flush
+- [ ] Entity States: Transient, Managed, Detached, Removed
+- [ ] Entity Mapping
+  - [ ] One-to-One, One-to-Many, Many-to-One, Many-to-Many
+  - [ ] Owning Side and mappedBy
+  - [ ] Cascade Types and Orphan Removal
+  - [ ] Embeddables and Value Objects
+  - [ ] Inheritance Mapping
+  - [ ] Composite and Derived Identifiers
+- [ ] Fetch Types and Fetch Plans
+- [ ] Lazy Loading and Proxy Behavior
+- [ ] N+1 Query Problem
+- [ ] Fetch Joins and Entity Graphs
+- [ ] JPQL and HQL
+- [ ] Criteria API
+- [ ] Native Queries and Projections
+- [ ] Spring Data Repository Abstractions
+- [ ] Derived Query Methods and @Query
+- [ ] Specifications and Query by Example
+- [ ] Pagination and Sorting
+- [ ] DISTINCT, count queries, and pagination pitfalls
+- [ ] Optimistic Locking and @Version
+- [ ] Pessimistic Locking
+- [ ] Second-Level and Query Cache
+- [ ] Batch Fetching and JDBC Batching
+- [ ] Bulk Updates and Persistence Context Synchronization
+- [ ] Open Session in View
+- [ ] Auditing and Entity Listeners
+- [ ] Hibernate SQL Logging and Statistics
+- [ ] Persistence Performance Troubleshooting
+
+### 20. SQL and Relational Database Engineering
+- [ ] Relational Model and Data Types
+- [ ] DDL, DML, DCL, and TCL
+- [ ] Primary, Foreign, Unique, and Check Constraints
+- [ ] NULL Semantics and Three-Valued Logic
+- [ ] SELECT, WHERE, ORDER BY, DISTINCT
+- [ ] JOINs
+  - [ ] INNER, LEFT, RIGHT, FULL, CROSS
+  - [ ] Self-Joins and Anti-Joins
+  - [ ] Join Cardinality and Duplicate Rows
+- [ ] Aggregation and GROUP BY
+- [ ] HAVING and Conditional Aggregation
+- [ ] Subqueries and Correlated Subqueries
+- [ ] CTEs and Recursive CTEs
+- [ ] Window Functions
+  - [ ] ROW_NUMBER, RANK, DENSE_RANK
+  - [ ] LAG, LEAD, FIRST_VALUE, LAST_VALUE
+  - [ ] Running Totals and Moving Averages
+- [ ] Set Operations
+- [ ] CASE Expressions and Conditional Logic
+- [ ] Date/Time and Time-Zone Queries
+- [ ] String and Numeric Functions
+- [ ] INSERT, UPDATE, DELETE, MERGE / Upsert
+- [ ] Transactions and ACID
+- [ ] Isolation Levels and Anomalies
+- [ ] Locks, Deadlocks, and MVCC
+- [ ] Index Fundamentals
+  - [ ] B-Tree and Hash Indexes
+  - [ ] Composite and Covering Indexes
+  - [ ] Selectivity and Cardinality
+  - [ ] Function-Based and Partial Indexes
+  - [ ] Index Maintenance and Write Cost
+- [ ] Execution Plans and Query Optimizers
+- [ ] Statistics and Cardinality Estimation
+- [ ] Sargability and Predicate Pushdown
+- [ ] Pagination Strategies
+  - [ ] OFFSET/FETCH
+  - [ ] Keyset / Seek Pagination
+  - [ ] Oracle ROWNUM and ROW_NUMBER
+- [ ] Normalization and Denormalization
+- [ ] Schema Design and Data Modeling
+- [ ] Partitioning and Table Maintenance
+- [ ] Replication, Backup, Restore, and Recovery
+- [ ] Connection Pooling and Query Timeouts
+- [ ] SQL Performance Tuning
+
+### 21. Oracle Database Focus
+- [ ] Oracle Data Types and Conversion Rules
+- [ ] Oracle NULL and Empty String Behavior
+- [ ] DUAL and Pseudocolumns
+- [ ] ROWNUM and ROW_NUMBER()
+- [ ] Sequences and Identity Columns
+- [ ] MERGE
+- [ ] Analytic Functions
+- [ ] Hierarchical Queries
+- [ ] Common Table Expressions
+- [ ] Packages, Procedures, Functions, and Triggers
+- [ ] Views and Materialized Views
+- [ ] Sequences and Synonyms
+- [ ] Index Types and Function-Based Indexes
+- [ ] Explain Plan and DBMS_XPLAN
+- [ ] Undo, Redo, and Read Consistency
+- [ ] Oracle Locks and Wait Events
+- [ ] Oracle Pagination and Query Tuning
+- [ ] Oracle SQL Developer and Diagnostic Tooling
+
+### 22. MySQL Focus
+- [ ] MySQL Storage Engines and InnoDB
+- [ ] Clustered and Secondary Indexes
+- [ ] InnoDB Transactions and MVCC
+- [ ] Isolation and Gap / Next-Key Locks
+- [ ] EXPLAIN and EXPLAIN ANALYZE
+- [ ] Composite Indexes and Index Condition Pushdown
+- [ ] Generated Columns and Functional Indexes
+- [ ] JSON Data Types and Operators
+- [ ] Replication and Binary Logs
+- [ ] Deadlock Detection and Troubleshooting
+- [ ] MySQL Backup and Recovery
+- [ ] MySQL Query Performance Tuning
+
+### 23. Database Engineering Beyond SQL
+- [ ] Data Modeling for OLTP Workloads
+- [ ] Relational vs NoSQL Databases
+- [ ] Key-Value, Document, Wide-Column, Graph, and Time-Series Models
+- [ ] Read Replicas and Replication Lag
+- [ ] Partitioning, Sharding, and Rebalancing
+- [ ] Hot Keys and Hot Partitions
+- [ ] Database Connection Capacity
+- [ ] Schema and Data Migration
+- [ ] Backup Validation and Restore Drills
+- [ ] Data Retention, Archival, and Deletion
+- [ ] PII Handling and Data Masking
+
+## Phase 5 — Distributed Backend Systems
+
+### 24. Microservices Architecture
+- [ ] Monolith, Modular Monolith, and Microservices
+- [ ] Domain-Driven Design Fundamentals
+- [ ] Bounded Contexts and Context Mapping
+- [ ] Service Boundaries and Data Ownership
+- [ ] Database per Service
+- [ ] Synchronous and Asynchronous Communication
+- [ ] API Gateway and Backend-for-Frontend
+- [ ] Service Discovery
+- [ ] Configuration and Secret Distribution
+- [ ] Service Decomposition and Migration
+- [ ] Anti-Corruption Layer
+- [ ] Strangler Pattern
+- [ ] Distributed Configuration and Feature Flags
+- [ ] Microservice Testing Strategies
+- [ ] Microservices Deployment and Release Coordination
+- [ ] Common Microservices Anti-Patterns
+
+### 25. Distributed Systems Fundamentals
+- [ ] Distributed System Models
+- [ ] Partial Failure and Failure Detection
+- [ ] Latency, Timeouts, and Uncertain Outcomes
+- [ ] Clock Skew and Physical Clocks
+- [ ] Logical Clocks and Lamport Timestamps
+- [ ] Vector Clocks
+- [ ] Causality and Happens-Before
+- [ ] Linearizability, Sequential Consistency, and Causal Consistency
+- [ ] Strong and Eventual Consistency
+- [ ] Read-Your-Writes and Monotonic Reads
+- [ ] CAP Theorem
+- [ ] PACELC
+- [ ] Quorums and Read/Write Consistency
+- [ ] Leader Election
+- [ ] Consensus Fundamentals
+- [ ] Raft and Paxos Concepts
+- [ ] Split Brain and Fencing Tokens
+- [ ] Leases and Distributed Locks
+- [ ] Idempotency and Deduplication
+- [ ] At-Most-Once, At-Least-Once, and Effectively-Once Processing
+- [ ] Distributed Transactions
+- [ ] Sagas and Compensating Actions
+- [ ] Transactional Outbox and CDC
+- [ ] Retry, Replay, and Reconciliation
+- [ ] Backpressure and Load Shedding
+- [ ] Failure Domains and Bulkheads
+- [ ] Durable State and Recovery
+
+### 26. Resilience and Reliability Engineering
+- [ ] Timeouts and Deadline Propagation
+- [ ] Retry Policies and Retry Budgets
+- [ ] Exponential Backoff and Jitter
+- [ ] Idempotent Retry Design
+- [ ] Circuit Breakers
+- [ ] Bulkheads and Concurrency Limits
+- [ ] Rate Limiting
+- [ ] Token Bucket and Leaky Bucket
+- [ ] Load Shedding and Admission Control
+- [ ] Fallbacks and Graceful Degradation
+- [ ] Health Checks and Readiness
+- [ ] Fail-Fast vs Fail-Safe Design
+- [ ] Cascading Failures and Retry Storms
+- [ ] Resilience4j
+  - [ ] Circuit Breaker
+  - [ ] Retry
+  - [ ] Rate Limiter
+  - [ ] Bulkhead
+  - [ ] Time Limiter
+  - [ ] Fallback Composition
+- [ ] Service-Level Indicators and Objectives
+- [ ] Error Budgets
+- [ ] Availability and Reliability Calculations
+- [ ] Incident Response and Postmortems
+
+### 27. Messaging and Apache Kafka
+- [ ] Messaging Models
+  - [ ] Queue vs Publish/Subscribe
+  - [ ] Event, Command, and Message
+  - [ ] Event Notification vs Event-Carried State Transfer
+- [ ] Kafka Architecture
+  - [ ] Brokers, Topics, Partitions, and Replicas
+  - [ ] Leaders, Followers, and ISR
+  - [ ] Controller / KRaft Fundamentals
+  - [ ] Metadata and Cluster Operations
+- [ ] Partitioning and Key Design
+- [ ] Producer Internals
+  - [ ] Batching and Compression
+  - [ ] Acknowledgements and Retries
+  - [ ] Idempotent Producer
+  - [ ] Transactions
+- [ ] Consumer Internals
+  - [ ] Consumer Groups
+  - [ ] Partition Assignment
+  - [ ] Rebalance and Cooperative Rebalance
+  - [ ] Offsets and Commits
+  - [ ] Poll Loop and Processing Time
+- [ ] Delivery Guarantees and Duplicate Processing
+- [ ] Ordering Guarantees
+- [ ] Consumer Lag and Throughput
+- [ ] Retention, Compaction, and Segment Files
+- [ ] Replication and Failure Recovery
+- [ ] Quotas and Backpressure
+- [ ] Schema Registry
+- [ ] Avro, Protobuf, and JSON Schema
+- [ ] Schema Compatibility
+- [ ] Dead-Letter Topics and Retry Topics
+- [ ] Poison Messages and Retry Loops
+- [ ] Replay and Offset Reset
+- [ ] Transactional Outbox with Kafka
+- [ ] Kafka Connect and CDC
+- [ ] Kafka Streams Fundamentals
+- [ ] Kafka Security: TLS, SASL, ACLs
+- [ ] Kafka Metrics and Troubleshooting
+- [ ] Spring Kafka
+  - [ ] Producers and Templates
+  - [ ] Listener Containers
+  - [ ] Error Handlers and Retry Topics
+  - [ ] Transactions and Offset Acknowledgements
+  - [ ] Testing Kafka Consumers/Producers
+
+### 28. Redis and Caching
+- [ ] Cache Fundamentals and Use Cases
+- [ ] Cache-Aside, Read-Through, Write-Through, Write-Behind
+- [ ] TTL, Expiration, and Eviction
+- [ ] Cache Invalidation
+- [ ] Cache Stampede, Penetration, and Avalanche
+- [ ] Negative Caching and Request Coalescing
+- [ ] Redis Data Structures
+  - [ ] Strings and Bitmaps
+  - [ ] Lists
+  - [ ] Sets and Sorted Sets
+  - [ ] Hashes
+  - [ ] Streams
+  - [ ] HyperLogLog
+  - [ ] Geospatial Data
+- [ ] Redis Key Design and Serialization
+- [ ] Atomic Commands and Transactions
+- [ ] Lua Scripts
+- [ ] Pub/Sub and Streams
+- [ ] Distributed Locks and Fencing
+- [ ] Redlock Debate and Lock Safety
+- [ ] Persistence: RDB and AOF
+- [ ] Replication, Sentinel, and Cluster
+- [ ] Hash Slots and Resharding
+- [ ] Cache Consistency with Databases
+- [ ] Cache Warming and Stampede Protection
+- [ ] Spring Cache Abstraction and Redis Integration
+- [ ] Redis Security and ACLs
+- [ ] Redis Monitoring and Troubleshooting
+
+### 29. Elasticsearch and Search Systems
+- [ ] Search Engine Architecture
+- [ ] Inverted Index and Analysis Pipeline
+- [ ] Documents, Mappings, and Dynamic Mapping
+- [ ] Text, Keyword, Numeric, Date, and Nested Fields
+- [ ] Analyzers, Tokenizers, and Filters
+- [ ] Query DSL
+  - [ ] Match and Term Queries
+  - [ ] Bool Queries
+  - [ ] Range and Exists
+  - [ ] Nested Queries
+  - [ ] Aggregations
+  - [ ] Function Score and Relevance
+- [ ] Scoring and Relevance Tuning
+- [ ] Indexing and Bulk APIs
+- [ ] Shards, Replicas, and Cluster State
+- [ ] Refresh, Flush, and Merge
+- [ ] Near-Real-Time Search
+- [ ] Pagination, search_after, and Point in Time
+- [ ] Index Templates and Aliases
+- [ ] Reindexing and Zero-Downtime Index Migration
+- [ ] SQL/Kafka-to-Elasticsearch Data Synchronization
+- [ ] Idempotent Indexing and Version Conflicts
+- [ ] Cluster Health and Capacity Planning
+- [ ] Hot/Warm/Cold Data and Lifecycle Policies
+- [ ] Security, TLS, and Role-Based Access
+- [ ] Spring Data Elasticsearch / Java Client
+- [ ] Search Performance Troubleshooting
+
+### 30. APIs, Integration, and Interoperability
+- [ ] REST API Design and HTTP Semantics
+- [ ] API Gateway Policies
+- [ ] Authentication and Authorization at the Gateway
+- [ ] Rate Limits and Request Validation
+- [ ] OpenAPI Generation and Validation
+- [ ] Backward Compatibility and Contract Testing
+- [ ] Webhooks and Signature Validation
+- [ ] Retries, Idempotency, and Duplicate Callbacks
+- [ ] SOAP and XML Fundamentals
+- [ ] JSON, XML, and Schema Validation
+- [ ] External API Quotas and Timeout Management
+- [ ] API Versioning and Deprecation
+- [ ] Service-to-Service Identity
+- [ ] Third-Party Failure Isolation
+- [ ] Contract-First Development
+
+## Phase 6 — High-Level Design and Low-Level Design
+
+### 31. System Design Interview Method
+- [ ] Problem Clarification and Scope
+- [ ] Functional Requirements
+- [ ] Non-Functional Requirements
+- [ ] User Journeys and Critical Business Invariants
+- [ ] API and Data Contract Definition
+- [ ] Capacity Estimation
+  - [ ] DAU/MAU and Request Rates
+  - [ ] Average and Peak RPS
+  - [ ] Read/Write Ratio
+  - [ ] Storage Growth and Retention
+  - [ ] Bandwidth and Network Egress
+  - [ ] Replication and Redundancy Overhead
+  - [ ] Queue Backlog and Drain Time
+  - [ ] Connection and Thread Capacity
+- [ ] Architecture Diagram and Data Flow
+- [ ] Bottleneck Identification
+- [ ] Trade-Off Analysis
+- [ ] Failure Modes and Recovery
+- [ ] Security, Observability, and Cost
+- [ ] Architecture Evolution and Migration
+- [ ] Presenting a 45–60 Minute Design
+
+### 32. System Design Building Blocks
+- [ ] DNS, CDN, and Edge Caching
+- [ ] Reverse Proxy and Load Balancing
+- [ ] L4 vs L7 Load Balancing
+- [ ] API Gateway and WAF
+- [ ] Stateless and Stateful Services
+- [ ] Horizontal and Vertical Scaling
+- [ ] Autoscaling and Capacity Headroom
+- [ ] Service Discovery
+- [ ] Synchronous and Asynchronous Calls
+- [ ] REST, gRPC, WebSockets, and SSE
+- [ ] Database Selection
+- [ ] Replication, Partitioning, and Sharding
+- [ ] Caching and Cache Invalidation
+- [ ] Queues, Streams, and Event Logs
+- [ ] Search Indexes and Read Models
+- [ ] Object Storage and Content Delivery
+- [ ] Batch, Stream, and Change-Data-Capture Pipelines
+- [ ] Service Mesh Concepts
+- [ ] Secrets, Identity, and Policy Enforcement
+
+### 33. Data Architecture and Distributed Storage
+- [ ] Logical and Physical Data Models
+- [ ] Read/Write Patterns and Access Locality
+- [ ] ACID vs BASE
+- [ ] Relational vs NoSQL Trade-Offs
+- [ ] Index Selection and Query Shapes
+- [ ] Read Replicas and Replication Lag
+- [ ] Shard Key Selection
+- [ ] Consistent Hashing
+- [ ] Hot Shards and Resharding
+- [ ] Denormalization and Materialized Views
+- [ ] CQRS
+- [ ] Event Sourcing
+- [ ] Data Ownership Across Services
+- [ ] Data Retention and Archival
+- [ ] Online Schema Changes
+- [ ] Backup, Restore, and Point-in-Time Recovery
+
+### 34. Scalability, Consistency, and Resilience in HLD
+- [ ] Load Distribution and Hotspot Management
+- [ ] Horizontal Scale-Out
+- [ ] Rate Limiting and Quotas
+- [ ] Backpressure and Queue-Based Load Leveling
+- [ ] Caching Strategies and Invalidation
+- [ ] Strong and Eventual Consistency
+- [ ] Quorum Reads and Writes
+- [ ] Leader/Follower Replication
+- [ ] Idempotency and Deduplication
+- [ ] Exactly-Once Claims and Their Boundaries
+- [ ] Distributed Transactions and Sagas
+- [ ] Transactional Outbox and CDC
+- [ ] Retry Budgets and Deadline Propagation
+- [ ] Circuit Breakers and Bulkheads
+- [ ] Graceful Degradation
+- [ ] Disaster Recovery and Regional Failover
+
+### 35. HLD Case Studies
+- [ ] URL Shortener
+- [ ] Pastebin
+- [ ] Rate Limiter
+- [ ] API Gateway
+- [ ] Notification Service
+- [ ] Email Delivery Platform
+- [ ] Chat / Messaging System
+- [ ] News Feed / Activity Feed
+- [ ] Social Graph / Follow System
+- [ ] Search Autocomplete
+- [ ] Search Platform
+- [ ] File Storage and Sharing
+- [ ] Photo / Video Upload Platform
+- [ ] Video Streaming Platform
+- [ ] Ride-Hailing Platform
+- [ ] Food Delivery Platform
+- [ ] E-Commerce Catalog and Inventory
+- [ ] Shopping Cart
+- [ ] Order Management
+- [ ] Payment Processing
+- [ ] Ticket Booking / Seat Reservation
+- [ ] Hotel Booking
+- [ ] Banking Ledger / Money Transfer
+- [ ] Job Scheduler
+- [ ] Distributed Task Queue
+- [ ] Web Crawler
+- [ ] Log Aggregation Platform
+- [ ] Metrics and Monitoring System
+- [ ] Audit Logging Platform
+- [ ] Feature Flag Service
+- [ ] Distributed Cache
+- [ ] Leaderboard
+- [ ] Recommendation Platform
+- [ ] Multi-Tenant SaaS Platform
+- [ ] Data Ingestion Platform
+- [ ] Event Streaming Platform
+- [ ] Analytics Dashboard
+- [ ] Multi-Region SaaS Application
+- [ ] Cloud Data Governance / Data Marketplace
+
+### 36. Low-Level Design and Design Patterns
+- [ ] OOP and SOLID
+- [ ] Encapsulation and Invariants
+- [ ] Composition over Inheritance
+- [ ] Dependency Inversion and Dependency Injection
+- [ ] Cohesion and Coupling
+- [ ] UML Class, Sequence, State, and Activity Diagrams
+- [ ] Entity, Value Object, Aggregate, and Repository
+- [ ] Domain Services and Application Services
+- [ ] Factory Method and Abstract Factory
+- [ ] Builder
+- [ ] Singleton and Its Trade-Offs
+- [ ] Adapter and Facade
+- [ ] Decorator and Proxy
+- [ ] Strategy and Template Method
+- [ ] Observer and Mediator
+- [ ] Command and Chain of Responsibility
+- [ ] State and Visitor
+- [ ] Iterator and Composite
+- [ ] Dependency Injection and Inversion of Control
+- [ ] Repository and Unit of Work
+- [ ] Specification Pattern
+- [ ] Null Object and Object Pool
+- [ ] Thread-Safe Object Design
+- [ ] Immutability and Value Semantics
+- [ ] API and Interface Design
+- [ ] Error Handling and Validation
+- [ ] Extensibility and Testability
+- [ ] LLD Case Studies
+  - [ ] Parking Lot
+  - [ ] Elevator System
+  - [ ] Vending Machine
+  - [ ] Library Management
+  - [ ] Movie Ticket Booking
+  - [ ] Splitwise / Expense Sharing
+  - [ ] Rate Limiter
+  - [ ] LRU / LFU Cache
+  - [ ] Notification Dispatcher
+  - [ ] Task Scheduler
+  - [ ] Payment Workflow
+  - [ ] Logging Framework
+  - [ ] In-Memory Key-Value Store
+  - [ ] Cab Booking / Ride Matching
+
+## Phase 7 — Containers, Cloud, Delivery, and Production Operations
+
+### 37. Linux and Shell
+- [ ] Filesystem Navigation and Permissions
+- [ ] Users, Groups, sudo, and Ownership
+- [ ] Processes, Signals, and Job Control
+- [ ] Bash Variables, Quoting, Pipes, and Redirection
+- [ ] grep, sed, awk, cut, sort, uniq, xargs, find
+- [ ] Environment Variables and Exit Codes
+- [ ] Shell Scripts and Error Handling
+- [ ] systemd and Service Logs
+- [ ] Disk, Memory, CPU, and Network Diagnostics
+- [ ] File Handles and Limits
+- [ ] Cron and Scheduled Jobs
+- [ ] SSH and Secure File Transfer
+- [ ] TLS and Connectivity Troubleshooting
+
+### 38. Docker
+- [ ] Images, Containers, and Registries
+- [ ] Dockerfile Instructions and Layer Caching
+- [ ] Multi-Stage Builds
+- [ ] Build Context and .dockerignore
+- [ ] Non-Root Containers
+- [ ] Environment Variables and Secrets
+- [ ] Volumes and Bind Mounts
+- [ ] Container Networking
+- [ ] Port Publishing and DNS
+- [ ] Health Checks and Shutdown
+- [ ] Resource Limits
+- [ ] Image Tagging and Digest Pinning
+- [ ] Image Scanning and Supply Chain
+- [ ] Docker Compose
+- [ ] Logs and Container Troubleshooting
+- [ ] Java Container Memory and JVM Flags
+- [ ] Container Image Optimization
+
+### 39. Kubernetes
+- [ ] Cluster Architecture
+- [ ] Control Plane and Worker Nodes
+- [ ] Pods and Controllers
+- [ ] Deployments, ReplicaSets, StatefulSets, DaemonSets
+- [ ] Jobs and CronJobs
+- [ ] Services and Service Discovery
+- [ ] Ingress and Gateway API Fundamentals
+- [ ] ConfigMaps and Secrets
+- [ ] Namespaces and Resource Quotas
+- [ ] Requests, Limits, and QoS Classes
+- [ ] Liveness, Readiness, and Startup Probes
+- [ ] Rolling Updates and Rollbacks
+- [ ] Autoscaling: HPA and VPA Concepts
+- [ ] Pod Disruption Budgets
+- [ ] Scheduling, Affinity, Taints, and Tolerations
+- [ ] Persistent Volumes and Claims
+- [ ] DNS and Cluster Networking
+- [ ] Network Policies
+- [ ] RBAC and Service Accounts
+- [ ] Security Contexts and Pod Security
+- [ ] Secrets and Workload Identity
+- [ ] Logs, Events, and Metrics
+- [ ] kubectl Debugging
+- [ ] OOMKilled, CrashLoopBackOff, ImagePullBackOff
+- [ ] Graceful Shutdown and Connection Draining
+- [ ] Kubernetes Upgrade and Failure Recovery
+
+### 40. Helm
+- [ ] Chart Structure
+- [ ] Chart.yaml and values.yaml
+- [ ] Templates and Template Functions
+- [ ] Values Precedence and Overrides
+- [ ] Helpers and Named Templates
+- [ ] Dependencies and Subcharts
+- [ ] Schema Validation
+- [ ] Environment-Specific Values
+- [ ] Secrets and Sensitive Values
+- [ ] helm lint, template, diff, install, upgrade, rollback
+- [ ] Hooks and Lifecycle Jobs
+- [ ] Release History and Failed Releases
+- [ ] Chart Versioning and OCI Registries
+- [ ] Reusable Chart Design
+- [ ] Helm Troubleshooting
+
+### 41. Cloud and Oracle Cloud Infrastructure (OCI)
+- [ ] Cloud Service Models and Shared Responsibility
+- [ ] Regions, Availability Domains, Fault Domains
+- [ ] Identity and Access Management
+- [ ] Compartments, Policies, and Dynamic Groups
+- [ ] Virtual Cloud Networks
+- [ ] Subnets, Route Tables, Gateways, and Security Lists
+- [ ] Network Security Groups
+- [ ] DNS and Load Balancers
+- [ ] Compute and Autoscaling
+- [ ] Object Storage
+- [ ] Managed Databases
+- [ ] Container Registry
+- [ ] Oracle Kubernetes Engine (OKE)
+- [ ] Kubernetes Cluster Access and kubeconfig
+- [ ] OCI CLI and Authentication
+- [ ] Logging, Monitoring, and Alarms
+- [ ] Secrets and Vault
+- [ ] Resource Limits, Quotas, and Cost Management
+- [ ] High Availability and Disaster Recovery
+- [ ] IAM Least Privilege and Audit Trails
+
+### 42. CI/CD and Release Engineering
+- [ ] CI/CD Concepts and Pipeline Design
+- [ ] Jenkins
+- [ ] GitHub Actions
+- [ ] Build, Unit Test, Integration Test, and Package Stages
+- [ ] Static Analysis and Quality Gates
+- [ ] Dependency and Container Scanning
+- [ ] Artifact Versioning and Traceability
+- [ ] Immutable Build Artifacts
+- [ ] Container Build and Registry Publishing
+- [ ] Deployment Environments and Promotion
+- [ ] Secrets Handling in Pipelines
+- [ ] Branching and Release Strategies
+- [ ] Rolling, Blue-Green, and Canary Deployments
+- [ ] Feature Flags and Progressive Delivery
+- [ ] Database Migration Ordering
+- [ ] Rollback and Roll-Forward Strategy
+- [ ] Smoke, Health, and Post-Deployment Tests
+- [ ] Pipeline Caching and Build Optimization
+- [ ] Supply Chain Security and Provenance
+- [ ] Release Readiness and Change Management
+
+### 43. Observability and Production Troubleshooting
+- [ ] Structured Logging
+- [ ] Log Levels and Correlation IDs
+- [ ] Metrics, Logs, and Distributed Traces
+- [ ] OpenTelemetry Concepts
+- [ ] Prometheus and Grafana Fundamentals
+- [ ] ELK Stack
+  - [ ] Elasticsearch
+  - [ ] Logstash / Ingestion Pipelines
+  - [ ] Kibana Queries and Dashboards
+- [ ] Distributed Tracing and Trace Context
+- [ ] RED and USE Methods
+- [ ] Golden Signals
+- [ ] SLI, SLO, and SLA
+- [ ] Alert Design and Alert Fatigue
+- [ ] Error Budgets
+- [ ] JVM, Thread, Heap, and GC Diagnostics
+- [ ] Database Slow Query Investigation
+- [ ] API Latency and Error-Rate Analysis
+- [ ] Kafka Lag and Consumer Health
+- [ ] Kubernetes Events and Resource Pressure
+- [ ] Incident Triage and Timeline Building
+- [ ] Root Cause Analysis and Blameless Postmortems
+- [ ] Runbooks and Operational Readiness
+- [ ] Capacity Planning and Load Testing
+
+## Phase 8 — Data Engineering and Platform Technologies
+
+### 44. Apache Spark
+- [ ] Distributed Processing Fundamentals
+- [ ] Spark Architecture
+  - [ ] Driver and Executors
+  - [ ] Cluster Manager
+  - [ ] Jobs, Stages, Tasks, and DAG Scheduler
+  - [ ] SparkSession and SparkContext
+- [ ] RDDs and DataFrames
+- [ ] Spark SQL and Catalyst Optimizer
+- [ ] Lazy Evaluation and Execution Plans
+- [ ] Transformations and Actions
+- [ ] Narrow and Wide Dependencies
+- [ ] Partitions and Partitioning
+- [ ] Shuffle Mechanics and Shuffle Spill
+- [ ] Joins
+  - [ ] Broadcast Hash Join
+  - [ ] Sort-Merge Join
+  - [ ] Shuffle Hash Join
+  - [ ] Skewed Joins and Salting
+- [ ] Repartition and Coalesce
+- [ ] Caching and Persistence
+- [ ] Adaptive Query Execution
+- [ ] Predicate and Projection Pushdown
+- [ ] File Formats and Compression
+- [ ] Parquet and ORC Fundamentals
+- [ ] Spark Java API
+- [ ] Typed vs Untyped APIs
+- [ ] Serialization and Kryo
+- [ ] Executor Memory and Overhead
+- [ ] Garbage Collection and OOM Diagnosis
+- [ ] Dynamic Allocation and Resource Sizing
+- [ ] Checkpointing and Lineage
+- [ ] Fault Tolerance and Retry Behavior
+- [ ] Structured Streaming
+  - [ ] Sources and Sinks
+  - [ ] Micro-Batch Execution
+  - [ ] Event Time and Processing Time
+  - [ ] Windows and Watermarks
+  - [ ] State and Stateful Operations
+  - [ ] Checkpoints and Recovery
+  - [ ] Output Modes
+  - [ ] Kafka Integration and Offsets
+  - [ ] Delivery Semantics
+- [ ] Spark UI and Query Plans
+- [ ] Performance Tuning and Production Troubleshooting
+
+### 45. Apache Avro and Schema Evolution
+- [ ] Avro Data Model
+- [ ] Schema Definition and Primitive/Complex Types
+- [ ] Records, Enums, Arrays, Maps, Unions
+- [ ] Logical Types
+- [ ] Binary Encoding and Serialization
+- [ ] SpecificRecord, GenericRecord, and Reflect APIs
+- [ ] Schema Resolution and Reader/Writer Schemas
+- [ ] Defaults and Field Aliases
+- [ ] Backward, Forward, and Full Compatibility
+- [ ] Transitive Compatibility
+- [ ] Schema Registry
+- [ ] Subject Naming Strategies
+- [ ] Compatibility Policies and Versioning
+- [ ] Kafka Producer/Consumer Integration
+- [ ] Schema Evolution Failure Modes
+- [ ] Data Contract Governance
+
+### 46. Apache Iceberg
+- [ ] Table Format Fundamentals
+- [ ] Iceberg Architecture and Metadata
+- [ ] Catalogs and Table Identifiers
+- [ ] Metadata Files and Manifest Lists
+- [ ] Snapshots and Snapshot Isolation
+- [ ] Manifest Files and Data Files
+- [ ] Hidden Partitioning
+- [ ] Partition Transforms
+- [ ] Schema Evolution
+- [ ] Partition Evolution
+- [ ] Time Travel and Rollback
+- [ ] Snapshot Expiration
+- [ ] Orphan File Removal
+- [ ] Compaction and Rewrite Operations
+- [ ] Optimistic Concurrency and Commit Conflicts
+- [ ] Concurrent Writers
+- [ ] Spark Integration
+- [ ] Streaming Ingestion and Exactly-Once Boundaries
+- [ ] Catalog Selection
+- [ ] Small Files and Metadata Growth
+- [ ] Table Maintenance and Operational Monitoring
+
+### 47. Data Pipelines and Data Platform Fundamentals
+- [ ] Batch vs Streaming Processing
+- [ ] ETL and ELT
+- [ ] CDC and Log-Based Replication
+- [ ] Data Lake, Data Warehouse, and Lakehouse
+- [ ] Data Modeling and Partition Strategy
+- [ ] Data Quality and Validation
+- [ ] Schema Contracts and Compatibility
+- [ ] Data Lineage and Metadata
+- [ ] Idempotent Ingestion and Replay
+- [ ] Late and Out-of-Order Data
+- [ ] Deduplication and Event Time
+- [ ] Backfills and Reprocessing
+- [ ] Pipeline Monitoring and SLAs
+- [ ] Retention, Compaction, and Lifecycle
+- [ ] Data Governance and Access Control
+
+## Phase 9 — Additional Engineering Skills from Experience and Resume
+
+### 48. C and C++ Foundations
+- [ ] Primitive Types and Memory Model
+- [ ] Pointers and References
+- [ ] Stack and Heap Allocation
+- [ ] Arrays, Strings, and Structs
+- [ ] Classes and Object Lifetime
+- [ ] RAII and Resource Management
+- [ ] Copy and Move Semantics
+- [ ] Smart Pointers
+- [ ] Const Correctness
+- [ ] Templates and STL Fundamentals
+- [ ] Compilation and Linking
+- [ ] Undefined Behavior and Memory Safety
+
+### 49. HTML, CSS, and Web Fundamentals
+- [ ] HTML Document Structure and Semantic Elements
+- [ ] Forms and Input Validation
+- [ ] CSS Selectors, Box Model, and Specificity
+- [ ] Flexbox and Grid
+- [ ] Responsive Design
+- [ ] DOM Fundamentals
+- [ ] Browser DevTools
+- [ ] Browser-to-Backend Request Flow
+- [ ] Cookies, Storage, CORS, and Same-Origin Policy
+- [ ] Accessibility Fundamentals
+
+### 50. API Gateway and Enterprise Integration
+- [ ] Gateway Routing and Route Matching
+- [ ] Authentication and Token Validation
+- [ ] JWT and Bearer Token Policies
+- [ ] Rate Limiting and Quotas
+- [ ] Request/Response Transformation
+- [ ] Header and Payload Validation
+- [ ] TLS Termination and Certificate Management
+- [ ] Timeout and Retry Policies
+- [ ] Logging, Redaction, and Audit
+- [ ] OpenAPI Contract Publication
+- [ ] Gateway-to-Microservice Connectivity
+- [ ] Gateway Failure and High Availability
+
+### 51. Product Engineering and Software Delivery
+- [ ] Requirements Analysis and Acceptance Criteria
+- [ ] Translating Business Rules into Domain Models
+- [ ] Technical Design Documents
+- [ ] API and Database Design Reviews
+- [ ] Code Review and Maintainability
+- [ ] Refactoring and Technical Debt
+- [ ] Backward-Compatible Releases
+- [ ] Production Incident Ownership
+- [ ] Feature Delivery and Stakeholder Communication
+- [ ] Agile Planning and Estimation
+- [ ] Jira and Issue Tracking
+- [ ] Engineering Documentation
+- [ ] Secure Coding and Privacy-by-Design
+- [ ] Reliability and Operational Ownership
+
+## Phase 10 — Interview Preparation and Job Search
+
+### 52. Resume and Professional Profile
+- [ ] Resume Targeted to Senior Java Backend Roles
+- [ ] ATS-Friendly Structure and Keywords
+- [ ] Quantified Impact and Outcome-Based Bullet Points
+- [ ] Project and Technology Ownership
+- [ ] Technical Skills Alignment with Job Descriptions
+- [ ] Resume Versioning by Role Type
+- [ ] LinkedIn Profile and Headline
+- [ ] GitHub Profile and Pinned Repositories
+- [ ] Portfolio Project Documentation
+- [ ] Professional Summary and Career Narrative
+
+### 53. Project and Experience Deep Dives
+- [ ] Current Role: Informatica CDGC / CDMP
+- [ ] Data Governance and Data Marketplace Domain
+- [ ] Oracle DBX / Order Entry Point Microservice
+- [ ] UIM, BRM, OSM, and ASAP Integration Context
+- [ ] REST API Design and OpenAPI/Swagger
+- [ ] Authentication, JWT, and API Gateway Integration
+- [ ] Docker, Kubernetes, Helm, and OCI/OKE
+- [ ] Database Query Optimization and Pagination
+- [ ] Kafka-Based Notification and Event Flows
+- [ ] Elasticsearch / Search Integration
+- [ ] Spark Workloads and Performance Issues
+- [ ] Test Strategy: Unit, ST, SIT, and Regression
+- [ ] Production Troubleshooting Examples
+- [ ] Design Decisions and Alternatives
+- [ ] Measurable Performance / Reliability Improvements
+- [ ] Failure Scenarios and Recovery
+- [ ] Cross-Team Collaboration and Technical Ownership
+
+### 54. Behavioral and Leadership Interviews
+- [ ] Tell Me About Yourself
+- [ ] Career Transition and Motivation
+- [ ] STAR / CAR Answer Structure
+- [ ] Technical Challenge and Debugging Story
+- [ ] Production Incident and Recovery Story
+- [ ] Conflict and Disagreement
+- [ ] Mistake, Failure, and Learning
+- [ ] Ambiguous Requirements
+- [ ] Prioritization Under Time Pressure
+- [ ] Ownership Beyond Assigned Tasks
+- [ ] Mentoring and Knowledge Sharing
+- [ ] Influence Without Authority
+- [ ] Balancing Quality, Cost, and Delivery
+- [ ] Working Across Teams and Time Zones
+- [ ] Why This Company and Product
+- [ ] Strengths, Growth Areas, and Career Goals
+
+### 55. Coding Interview Execution
+- [ ] Clarifying Questions and Constraints
+- [ ] Examples Before Implementation
+- [ ] Brute Force and Optimization
+- [ ] Data Structure Selection
+- [ ] Complexity Analysis
+- [ ] Edge Cases and Boundary Conditions
+- [ ] Clean and Readable Java Implementation
+- [ ] Tests and Test Cases
+- [ ] Debugging Without IDE Assistance
+- [ ] Communicating Trade-Offs
+- [ ] Timed Mock Interviews
+- [ ] Revisiting Incorrect / Unsolved Problems
+
+### 56. Backend Technical Interview Rounds
+- [ ] Core Java Mock Interviews
+- [ ] Collections and Concurrency Mock Interviews
+- [ ] JVM and Performance Mock Interviews
+- [ ] Spring and Spring Boot Mock Interviews
+- [ ] REST API and Microservices Mock Interviews
+- [ ] JPA / Hibernate Mock Interviews
+- [ ] Oracle / MySQL SQL Exercises
+- [ ] Kafka and Distributed Systems Mock Interviews
+- [ ] Redis and Elasticsearch Mock Interviews
+- [ ] Docker / Kubernetes / CI/CD Mock Interviews
+- [ ] Production Troubleshooting Mock Interviews
+- [ ] Senior-Level Trade-Off and Architecture Questions
+
+### 57. System Design Interview Execution
+- [ ] 30-Minute Design Practice
+- [ ] 45-Minute Design Practice
+- [ ] 60-Minute Design Practice
+- [ ] Requirements and Capacity Estimation Drills
+- [ ] Architecture Drawing from a Blank Page
+- [ ] Data Model and API Contract Design
+- [ ] Deep Dive into Critical Invariants
+- [ ] Failure and Recovery Scenarios
+- [ ] Senior-Level Trade-Off Discussion
+- [ ] Mock Interview Feedback and Iteration
+
+### 58. Company and Role Preparation
+- [ ] Target Role and Level Calibration
+- [ ] Job Description Skill Matrix
+- [ ] Product Company Research
+- [ ] Company-Specific Interview Process Research
+- [ ] Role-Specific DSA Preparation
+- [ ] System Design Expectations by Level
+- [ ] Recruiter and Referral Outreach
+- [ ] Technical Recruiter Screening
+- [ ] Compensation and Offer Evaluation
+- [ ] Remote-First / Remote-Friendly Role Search
+- [ ] India-Based Remote Eligibility
+- [ ] Time-Zone and Work-Authorization Constraints
+- [ ] Offer Comparison and Decision Criteria
+- [ ] Notice Period and Joining Timeline
+
+### 59. Final Revision and Readiness Gates
+- [ ] DSA Pattern Revision
+- [ ] Java Fundamentals and Collections Revision
+- [ ] Java 8–25 Feature Revision
+- [ ] Concurrency and Java Memory Model Revision
+- [ ] JVM / GC / Performance Revision
+- [ ] Spring Lifecycle, AOP, and Transactions Revision
+- [ ] SQL Query and Index Revision
+- [ ] Hibernate Fetching and Transaction Revision
+- [ ] API Design and Security Revision
+- [ ] Kafka Delivery Semantics and Recovery Revision
+- [ ] Distributed Systems Consistency and Failure Revision
+- [ ] Redis Cache and Locking Revision
+- [ ] Elasticsearch Query and Indexing Revision
+- [ ] HLD Fundamentals and Capacity Estimation Revision
+- [ ] LLD and Design Patterns Revision
+- [ ] CI/CD, Git, Maven/Gradle, Docker/Kubernetes Revision
+- [ ] Production Incident Stories Revision
+- [ ] Resume and Project Deep-Dive Revision
+- [ ] Behavioral Stories Revision
+- [ ] Full-Length Mock Interview
+- [ ] Weak-Area Remediation Plan
+- [ ] Interview Schedule and Sleep / Recovery Plan
+
+## Suggested Study Sequence
+
+- [ ] Phase 1 — Computer Science Foundations and DSA
+- [ ] Phase 2 — Java Core, Modern Java, Concurrency, and JVM
+- [ ] Phase 3 — Git, Build Tools, Testing, and Code Quality
+- [ ] Phase 4 — Spring, APIs, Security, Persistence, and SQL
+- [ ] Phase 5 — Microservices, Distributed Systems, Kafka, Redis, and Elasticsearch
+- [ ] Phase 6 — HLD, LLD, and Design Patterns
+- [ ] Phase 7 — Linux, Docker, Kubernetes, Helm, OCI, CI/CD, and Observability
+- [ ] Phase 8 — Spark, Avro, Iceberg, and Data Engineering
+- [ ] Phase 9 — Resume-Related and Supporting Engineering Skills
+- [ ] Phase 10 — Project Deep Dives, Mock Interviews, and Job Search
+
+## Completion Tracker
+
+- [ ] Core Java and language fundamentals
+- [ ] DSA coding patterns
+- [ ] Concurrency and JVM internals
+- [ ] Spring / Spring Boot
+- [ ] SQL / Oracle / MySQL
+- [ ] Hibernate / JPA
+- [ ] REST APIs / Security / OpenAPI
+- [ ] Microservices / Distributed Systems
+- [ ] Kafka / Redis / Elasticsearch
+- [ ] HLD / LLD / Design Patterns
+- [ ] Testing / Git / Maven / Gradle / CI/CD
+- [ ] Linux / Docker / Kubernetes / Helm / OCI
+- [ ] Spark / Avro / Iceberg
+- [ ] Resume / Project Stories / Behavioral Interview
+- [ ] Timed Coding Mocks
+- [ ] Full HLD and LLD Mock Interviews
+- [ ] Target Company Applications and Referrals
