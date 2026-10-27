@@ -304,7 +304,7 @@ Repartition normally shuffles data and can increase or decrease partitions while
 
 ### Q36. What does spark.sql.shuffle.partitions control?
 
-It sets the default partition count for many Spark SQL shuffle operations; defaults vary by Spark release. Too high creates tiny tasks; too low creates large tasks and insufficient parallelism. AQE can coalesce shuffle partitions or alter eligible join decisions at runtime. Tune using shuffle volume and task metrics, not a universal magic number.
+It sets the default partition count for many Spark SQL shuffle operations. The current Spark 4.2 configuration reference lists 200 as the default, but verify the deployed version and effective application settings. Too high creates tiny tasks; too low creates large tasks and insufficient parallelism. AQE can coalesce shuffle partitions or alter eligible join decisions at runtime. A Java application can override it for a session with `spark.conf().set("spark.sql.shuffle.partitions", "400")`, but choose the value from shuffle volume and task metrics rather than copying a magic number.
 
 ### Q37. What is data skew and how do you diagnose it?
 
