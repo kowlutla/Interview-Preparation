@@ -386,11 +386,15 @@ The release is not fully traceable until the approved repository contains the ar
 
 ### Q46. A container image builds but fails in staging. How do you investigate?
 
-Verify the exact image digest and inspect startup logs. Check entrypoint, Java runtime, JAR path, file permissions, required environment properties, port, memory limits, and database/dependency connectivity. Compare digests, not just tags. Image build success proves packaging completed, not that the application can start under staging configuration.
+I would first confirm that staging is running the image digest produced by the expected CI run; tags alone are not sufficient because they can be moved. Then I would read the first startup exception and check the entrypoint, Java runtime, packaged JAR path, file permissions, listening port, required configuration, memory limits, and connectivity to dependencies. I would compare the staging configuration with the expected contract without printing secret values.
+
+An image build proves that the image was assembled, not that the application can start or serve requests in a target environment. I would reproduce the issue using the same digest and equivalent non-production configuration, fix the root cause, and add a startup or smoke check if the pipeline could reasonably have caught it earlier.
 
 ### Q47. A database migration fails. What is the safe response?
 
-Stop promotion. Inspect the migration tool's error, database logs, current schema, and whether the migration ran fully or partially. Do not blindly rerun or reverse DDL without understanding the engine's transaction behavior. Determine if retry is safe or a reviewed repair/forward migration is needed; validate recovery on a representative database.
+I would stop promotion and determine exactly what completed. Inspect the migration tool's error, database logs, current schema, locks, and whether the database committed any statements before the failure. Transaction behavior varies by database and by DDL operation, so I would not assume the migration either fully rolled back or is safe to rerun.
+
+Next, decide whether retry is safe, whether a reviewed repair is needed, or whether a forward changeset is safer. Validate the recovery against a representative database before applying it to production, then verify both the resulting schema and application behavior. Preserve the failure evidence and avoid casually editing an already-applied changeset, because migration tracking depends on stable changeset identity and checksums.
 
 ### Q48. Deployment succeeds technically, but production errors or latency increase. What next?
 
