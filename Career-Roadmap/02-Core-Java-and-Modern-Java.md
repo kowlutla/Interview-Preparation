@@ -1,176 +1,49 @@
 # Core Java and Modern Java
 
-> Numbered learning checklist. Use the existing handbook in this repository for detailed explanations and interview Q&A.
+## Java Language Fundamentals
 
-### 4. Java Language Fundamentals
-- [ ] JDK, JVM, Runtime Images, and Java Execution Flow
-- [ ] Primitive Types, Reference Types, and Type Conversion
-- [ ] Operators, Control Flow, and Expressions
-- [ ] Pass-by-Value Semantics
-- [ ] Classes, Objects, Constructors, and Initialization Order
-- [ ] Access Modifiers and Packages
-- [ ] static, final, this, and super
-- [ ] Object-Oriented Programming
-  - [ ] Encapsulation
-  - [ ] Abstraction
-  - [ ] Inheritance
-  - [ ] Polymorphism
-  - [ ] Composition vs Inheritance
-- [ ] Method Overloading and Overriding
-- [ ] Covariant Return Types
-- [ ] Abstract Classes and Interfaces
-- [ ] Nested, Inner, Local, and Anonymous Classes
-- [ ] Enums
-- [ ] Records
-- [ ] Sealed Classes and Interfaces
-- [ ] Immutability and Defensive Copying
-- [ ] equals(), hashCode(), and toString()
-- [ ] Comparable and Comparator
-- [ ] String Pool, String, StringBuilder, and StringBuffer
-- [ ] Wrapper Types, Boxing, and Unboxing
-- [ ] Exception Hierarchy
-  - [ ] Checked and Unchecked Exceptions
-  - [ ] try/catch/finally
-  - [ ] try-with-resources
-  - [ ] Suppressed Exceptions
-  - [ ] Custom Exceptions
-- [ ] Generics
-  - [ ] Type Parameters and Bounds
-  - [ ] Wildcards and PECS
-  - [ ] Type Erasure
-  - [ ] Generic Methods and Types
-  - [ ] Heap Pollution and Reifiable Types
-- [ ] Annotations and Custom Annotations
-- [ ] Reflection and Runtime Type Information
-- [ ] Class Loading, Linking, and Initialization
-- [ ] Java Assertions
-- [ ] Serialization Fundamentals and Risks
-- [ ] Locale, Currency, Unicode, and Character Encoding
-- [ ] Date and Time API
-- [ ] BigDecimal and Floating-Point Precision
+- [ ] JDK/JRE/JVM roles, compilation, bytecode, and Java execution flow
+- [ ] Primitive/reference types, conversions, operators, control flow, and pass-by-value
+- [ ] Classes, objects, constructors, initialization order, packages, and access modifiers
+- [ ] OOP principles, inheritance, polymorphism, abstraction, interfaces, and composition
+- [ ] Overloading, overriding, covariant returns, nested classes, enums, records, and sealed types
+- [ ] Immutability, defensive copying, equality/hash-code contracts, and object methods
+- [ ] Strings, string pool, builders, wrapper types, boxing, and unboxing
+- [ ] Exception hierarchy, custom exceptions, assertions, and error-handling practices
+- [ ] Generics, bounds, wildcards, type erasure, annotations, and reflection
+- [ ] Class loading/initialization, serialization risks, Unicode/encoding, and locale
+- [ ] Date/Time API, BigDecimal, floating-point precision, and numeric correctness
 
-### 5. Java Collections Framework
-- [ ] Collection, List, Set, Queue, Deque, and Map Interfaces
-- [ ] ArrayList and LinkedList
-- [ ] Vector and Stack Legacy Considerations
-- [ ] HashSet, LinkedHashSet, and TreeSet
-- [ ] HashMap, LinkedHashMap, TreeMap, Hashtable
-- [ ] PriorityQueue and ArrayDeque
-- [ ] HashMap Internals
-  - [ ] Hashing and Bucket Indexing
-  - [ ] Collision Resolution
-  - [ ] Resizing and Load Factor
-  - [ ] Tree Bins
-  - [ ] equals() / hashCode() Contract
-- [ ] ConcurrentHashMap Internals
-- [ ] WeakHashMap, IdentityHashMap, EnumMap, and EnumSet
-- [ ] Iterator and ListIterator
-- [ ] Fail-Fast and Weakly Consistent Iteration
-- [ ] Iterable and Spliterator
-- [ ] Collections Utility Methods and Immutable Collections
-- [ ] Ordering, Equality, and Mutability
-- [ ] Choosing Data Structures by Workload
-- [ ] Thread-Safe Collections and Synchronization Strategies
+## Collections Framework
 
-### 6. Java Functional Programming and APIs
-- [ ] Functional Interfaces
-- [ ] Lambda Expressions and Method References
-- [ ] Default and Static Interface Methods
-- [ ] Predicate, Function, Consumer, Supplier, UnaryOperator, BinaryOperator
-- [ ] Function Composition
-- [ ] Stream API
-  - [ ] Intermediate and Terminal Operations
-  - [ ] Stateless and Stateful Operations
-  - [ ] Lazy Evaluation
-  - [ ] map(), flatMap(), filter(), reduce(), collect()
-  - [ ] Grouping, Partitioning, and Mapping Collectors
-  - [ ] Primitive Streams
-  - [ ] Parallel Streams and ForkJoinPool
-  - [ ] Stateful Side Effects and Stream Safety
-  - [ ] Stream Ordering and Short-Circuiting
-- [ ] Optional
-- [ ] java.time
-- [ ] java.util.concurrent and CompletableFuture APIs
-- [ ] I/O and NIO.2
-- [ ] Files, Paths, Channels, Buffers, and Selectors
-- [ ] Regular Expressions
-- [ ] Base64, UUID, Random, SecureRandom
-- [ ] Resource Management and AutoCloseable
+- [ ] Collection hierarchy and choosing List, Set, Queue, Deque, and Map
+- [ ] ArrayList vs LinkedList and other sequential collection trade-offs
+- [ ] HashMap and HashSet behavior, hashing, collisions, resizing, and performance
+- [ ] LinkedHashMap, TreeMap, LinkedHashSet, and TreeSet ordering behavior
+- [ ] PriorityQueue, ArrayDeque, EnumMap, EnumSet, WeakHashMap, and IdentityHashMap
+- [ ] Iterator, ListIterator, Spliterator, fail-fast behavior, and weakly consistent iteration
+- [ ] Comparable, Comparator, equality, ordering, and mutable-key risks
+- [ ] Immutable collections, utility methods, and thread-safe collection choices
 
-### 7. Modern Java Version Roadmap
-- [ ] Java 8
-  - [ ] Lambdas and Functional Interfaces
-  - [ ] Stream API
-  - [ ] Optional
-  - [ ] Default and Static Interface Methods
-  - [ ] java.time
-  - [ ] CompletableFuture
-  - [ ] New Date/Time and Collection APIs
-- [ ] Java 9
-  - [ ] Module System (JPMS)
-  - [ ] JShell
-  - [ ] Collection Factory Methods
-  - [ ] Private Interface Methods
-  - [ ] Process API Updates
-  - [ ] Reactive Streams Interfaces
-- [ ] Java 10
-  - [ ] Local Variable Type Inference (var)
-  - [ ] Unmodifiable Collector Results
-- [ ] Java 11
-  - [ ] Standard HTTP Client
-  - [ ] String and Files API Updates
-  - [ ] var in Lambda Parameters
-  - [ ] Single-File Source Execution
-  - [ ] Removed/Deprecated Java EE and CORBA Modules
-- [ ] Java 12–16
-  - [ ] Switch Expressions
-  - [ ] Text Blocks
-  - [ ] Records
-  - [ ] Pattern Matching for instanceof
-  - [ ] Helpful NullPointerExceptions
-  - [ ] Sealed Classes Preview/Evolution
-  - [ ] Stream.toList()
-  - [ ] Unix-Domain Socket Channels
-- [ ] Java 17
-  - [ ] LTS Features and Migration
-  - [ ] Sealed Classes
-  - [ ] Pattern Matching for instanceof
-  - [ ] Strong Encapsulation
-  - [ ] Removed and Deprecated APIs
-- [ ] Java 18–20
-  - [ ] UTF-8 by Default
-  - [ ] Simple Web Server
-  - [ ] Pattern Matching for switch
-  - [ ] Record Patterns
-  - [ ] Virtual Threads Preview and Evolution
-  - [ ] Structured Concurrency Preview
-  - [ ] Scoped Values Preview
-- [ ] Java 21
-  - [ ] Virtual Threads
-  - [ ] Pattern Matching for switch
-  - [ ] Record Patterns
-  - [ ] Sequenced Collections
-  - [ ] Structured Concurrency Status
-  - [ ] Scoped Values Status
-- [ ] Java 22–24
-  - [ ] Foreign Function and Memory API
-  - [ ] Stream Gatherers
-  - [ ] Flexible Constructor Bodies
-  - [ ] Class-File API
-  - [ ] Module Import Declarations
-  - [ ] Primitive Types in Patterns / instanceof / switch Evolution
-- [ ] Java 25
-  - [ ] LTS Upgrade Considerations
-  - [ ] Finalized Language and API Features
-  - [ ] Preview and Incubator Features
-  - [ ] Deprecations and Removals
-  - [ ] JVM and GC Evolution
-  - [ ] Migration from Java 8 / 11 / 17 / 21
-- [ ] Java Upgrade and Compatibility
-  - [ ] Source, Binary, and Behavioral Compatibility
-  - [ ] Dependency and Build Tool Compatibility
-  - [ ] --release and Compiler Toolchains
-  - [ ] Runtime Flags and Removed Options
-  - [ ] Dependency Scanning and SBOM
-  - [ ] Migration Testing and Rollback
-  - [ ] JFR and Performance Baselines
+## Java 8 Features and Core APIs
+
+- [ ] Lambda expressions, method references, and functional interfaces
+- [ ] Predicate, Function, Consumer, Supplier, and function composition
+- [ ] Stream API: transformations, collectors, grouping, reduction, and parallel-stream trade-offs
+- [ ] Optional and null-handling practices
+- [ ] Default/static interface methods and functional-style API design
+- [ ] Date/Time API and migration from legacy date/time classes
+- [ ] CompletableFuture and core concurrency APIs
+- [ ] I/O and NIO.2: files, paths, channels, buffers, and resource management
+- [ ] Regular expressions, Base64, UUID, Random/SecureRandom, and common utility APIs
+
+## Modern Java Versions
+
+- [ ] Java 9–10: modules, collection factories, private interface methods, and local-variable type inference
+- [ ] Java 11: language/API updates, HTTP Client, and runtime/tooling changes
+- [ ] Java 12–16: switch expressions, text blocks, records, pattern matching, and helpful diagnostics
+- [ ] Java 17: LTS features, sealed classes, and language/runtime changes
+- [ ] Java 18–20: UTF-8 default, preview features, and language evolution
+- [ ] Java 21: virtual threads, sequenced collections, pattern matching, and record patterns
+- [ ] Java 22–25: relevant language, concurrency, API, and runtime changes
+- [ ] Java upgrade compatibility, preview features, deprecations, and migration planning
