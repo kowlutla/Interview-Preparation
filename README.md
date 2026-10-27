@@ -14,7 +14,7 @@ Choose a handbook by topic:
 - [Distributed Systems & Event-Driven Architecture Interview Handbook](Distributed-Systems/Distributed-Systems-Interview-QA.md) — consistency, failure handling, consensus, distributed transactions, messaging semantics, sagas, and production scenarios.
 - [Hibernate + JPA + Spring Data JPA Interview Handbook](Hibernate-JPA/Hibernate-JPA-Interview-QA.md)
 - [SQL & Database Engineering Interview Handbook](SQL-Database/SQL-Database-Interview-QA.md)
-- [Elasticsearch & Search Systems Interview Handbook](Elasticsearch/Elasticsearch-Interview-QA.md) — 42 detailed high-value Q&As, 12 production scenarios, 18 Query DSL patterns, relevance, mappings, pagination, production operations, Java integration, and SQL/Kafka synchronization.
+- [Elasticsearch & Search Systems Interview Handbook](Elasticsearch/Elasticsearch-Interview-QA.md) — 40 detailed high-value Q&As, 12 production scenarios, 18 Query DSL patterns, relevance, mappings, pagination, production operations, Java integration, and SQL/Kafka synchronization.
 - [Redis & Caching Interview Handbook](Redis-Caching/Redis-Caching-Interview-QA.md) — Redis data structures, cache design, distributed coordination, Spring integration, and Redis–database consistency.
 - [Apache Kafka Interview Handbook](Kafka/KAFKA_INTERVIEW_GUIDE.md)
 - [Docker, Kubernetes & Helm Interview Handbook](Docker-Kubernetes-Helm/Docker-Kubernetes-Helm-Interview-QA.md) — Java application containerization, runtime behavior, Kubernetes workloads and networking, Helm releases, security basics, and developer-focused production troubleshooting.
