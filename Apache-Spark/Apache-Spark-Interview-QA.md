@@ -340,7 +340,9 @@ Broadcast a small dimension table when the materialized relation can safely fit 
 
 ### Q43. What is Adaptive Query Execution?
 
-AQE uses runtime statistics to revise eligible parts of a query plan. In the current Spark 4.2 configuration reference, `spark.sql.adaptive.enabled` defaults to true; verify the effective setting for the actual Spark distribution/application. Depending on version and query shape, AQE can coalesce shuffle partitions, handle qualifying skewed joins, and revise certain join strategies. Inspect the final adaptive plan rather than assuming an adaptive change was beneficial. AQE cannot fix incorrect join logic, huge output cardinality, or every skew pattern.
+Adaptive Query Execution (AQE) lets Spark revise eligible parts of a physical query plan after it has measured runtime statistics, rather than committing to every decision from estimates alone. Common capabilities include coalescing small post-shuffle partitions, splitting qualifying skewed join partitions, and converting a planned sort-merge join to a broadcast hash join when runtime sizes justify it. The current Spark 4.2 documentation enables AQE by default; verify the effective configuration and supported rules for the version actually deployed.
+
+A useful workflow is to compare the initial and final adaptive plans and correlate the change with stage metrics. AQE can make a better decision when estimates were wrong, but it cannot repair a missing join predicate, make a huge result set small, or automatically fix every skewed aggregation.
 
 ### Q44. Why can distinct be expensive?
 
@@ -782,73 +784,107 @@ Compare Spark/JDK/connector versions, deployment mode, classpath, credentials, D
 
 ## 19. Frequently asked questions
 
-### Q104. Why avoid collecting large results to the driver?
+### Q104. How do file-read partitions differ from shuffle partitions?
 
-The full result must fit in driver memory and transfer over the network. Keep computation distributed, write to distributed storage, aggregate before collecting, or request a bounded sample.
+File-read partitions are formed when Spark splits or packs input files for scanning. The settings `spark.sql.files.maxPartitionBytes` and `spark.sql.files.openCostInBytes` influence how file-based inputs are packed; the former limits bytes per file-read partition, while the latter estimates the cost of opening a file. Shuffle partitions are a separate set of partitions created for operations such as joins, sorts, and aggregations, with `spark.sql.shuffle.partitions` providing a default count for many SQL shuffles.
 
-### Q105. Does increasing executor count always speed up a job?
+This distinction matters when the UI shows thousands of tiny input tasks but a reasonable shuffle stage—or the reverse. Fix file layout/input packing for a scan bottleneck; tune shuffle distribution for a shuffle bottleneck. Confirm the effective settings and input sizes before changing them.
 
-No. It helps only when parallel work exists and compute resources are the bottleneck. It does not fix one skewed partition, a serial sink, insufficient Kafka partitions, or an unavoidable serial step. More executors can increase network pressure and contention.
+### Q105. How do table and data-source statistics affect query planning?
 
-### Q106. repartition versus partitionBy?
+Spark uses available estimates such as relation size and row counts to choose among eligible plans—for example, whether a relation is small enough to broadcast or which join order is likely to be cheaper. If statistics are missing or stale, a plan can make a poor decision even when the SQL is logically correct. The optimizer cannot estimate well what the source does not expose.
 
-Repartition changes in-memory execution partitions and usually shuffles. partitionBy in a writer organizes output into directory partitions by column values. They solve different problems and can both be used when justified.
+Inspect plan estimates and, where supported for the table/catalog, refresh statistics using the appropriate catalog/`ANALYZE TABLE` workflow. Statistics are an input to planning, not a guarantee: runtime sizes can differ, which is one reason AQE is useful. Do not manufacture a broadcast decision from compressed file size alone.
 
-### Q107. Is Spark a database?
+### Q106. What is a broadcast nested-loop join, and when can it appear?
 
-No. Spark is a distributed compute engine with SQL capabilities, not a general transactional OLTP database.
+A broadcast hash join relies on equality join keys so Spark can build a hash table for the broadcast side. If the join condition is non-equi (for example, a range comparison) or the join type/condition does not support a broadcast hash join, Spark may choose a broadcast nested-loop join when a relation is broadcast. Conceptually, it tests rows from one side against rows from the broadcast side, so its work can grow roughly with the product of input sizes.
 
-### Q108. Checkpoint versus offset?
+This is sometimes reasonable when one side is genuinely tiny, but dangerous when both sides are large. Inspect the physical plan for `BroadcastNestedLoopJoin`, verify output cardinality, and consider whether the business logic can be expressed as an equi-join plus a residual filter. A broadcast hint can prioritize a strategy but cannot make an inherently expensive join cheap.
 
-An offset identifies a source position, such as a Kafka partition offset. A checkpoint stores query progress and may also hold state required for recovery.
+### Q107. What is dynamic partition pruning?
 
-### Q109. Does a watermark wait exactly that long for each event?
+Dynamic partition pruning is a Spark SQL optimization that can use values produced by one side of a join to skip irrelevant partitions on the other side at runtime. For example, if a small customer dimension filters the query to a subset of customers, Spark may avoid reading fact-table partitions that cannot match, provided the physical layout and query shape make pruning possible.
 
-No. It is derived from event-time progress and a configured delay. It governs cleanup/finalization for supported stateful operations; it is not a timer per record.
+It is different from ordinary static partition pruning, where the filter values are already known from the query predicate. Dynamic pruning depends on eligible joins, partitioning, source capabilities, and configuration; do not assume every dimension join will skip fact data. Inspect the plan and scan metrics to see whether partitions were actually pruned.
 
-### Q110. Can foreachBatch guarantee exactly-once database writes?
+### Q108. Are Spark file writes atomic?
 
-Not automatically. The callback can be retried and a write can partially succeed. Exactly-once business effects require idempotent/transactional sink behavior.
+Do not assume a plain DataFrame write provides universal transaction semantics. Spark writes through tasks and an output committer; the failure behavior depends on the filesystem/connector and committer implementation. A failed job can leave temporary or uncommitted objects, and object storage does not provide every local-filesystem rename behavior. A destination directory containing part files is not automatically a transactionally committed table.
 
-### Q111. Input rate versus processing rate?
+For critical tables, use the recommended committer and storage connector, write to a controlled temporary path when appropriate, validate output, and publish with a supported table-format commit protocol if atomic table visibility is required. Test failures during task output and job commit. A successful Spark action is not the same thing as a business transaction spanning arbitrary external systems.
 
-Input rate measures records arriving/admitted; processing rate measures records processed. Sustained input above processing causes backlog or lag. Interpret both with batch duration and admission settings.
+### Q109. When should you use `foreach` versus `foreachBatch`?
 
-### Q112. Why might a filter not reduce input I/O?
+`foreach` gives custom logic at the row level and is useful when the sink requires per-record handling or when using continuous processing, where `foreachBatch` is not supported. `foreachBatch` passes the output of each micro-batch as a bounded DataFrame plus a batch ID. It lets you reuse batch writers, perform batch operations, or write the same batch to multiple sinks.
 
-The predicate may not be pushable, the source may not support skipping data, or an expression/UDF may block optimization. It can reduce downstream rows while Spark still reads all source bytes.
+The trade-off is where you manage side effects. `foreach` can create per-row overhead and requires careful connection lifecycle/concurrency handling. `foreachBatch` is easier to batch, but it is retried with streaming recovery, so writes need idempotency or a transaction/deduplication protocol. Multiple actions on a stateful batch can recompute it; persist/unpersist inside the callback when repeated actions are genuinely needed.
 
-### Q113. What is the small-file problem?
+### Q110. How do you monitor a running Structured Streaming query from Java?
 
-Too many small files increase listing, metadata, open, and scheduling overhead. Compact files and design output partitioning sensibly; do not funnel a huge dataset through one task.
+Keep the `StreamingQuery` returned by `start()`. Its `status()` reports what the query is doing now; `lastProgress()` returns the most recent `StreamingQueryProgress`, including available source/processing rates, batch duration, input rows, and operator metrics supported by that query. `recentProgress()` provides recent progress records. These metrics can be exported to your monitoring system and correlated with Spark UI/event logs and sink-side telemetry.
 
-### Q114. Why can streaming state grow forever?
+No single metric explains every delay. Rising batch duration with stable input can indicate a newly expensive transform or sink; growing Kafka lag with processing rate below arrival rate indicates capacity imbalance; rising state size and long state commits point toward stateful-operation pressure. Interpret metrics together and alert on freshness/backlog SLOs, not just process liveness.
 
-Unbounded key cardinality, absent/ineffective watermarking, non-advancing event time, or semantics that require retaining all keys can keep state growing. Inspect state and watermark metrics before changing retention.
+### Q111. Why can an AvailableNow query run a final batch with no new input?
 
-### Q115. Spark or a regular Kafka consumer service?
+For supported sources, `Trigger.AvailableNow()` processes the data available at execution start, possibly in multiple batches, then terminates. For stateful queries, Spark may run a final no-data batch when needed to advance the watermark and emit results that become final after that advancement. This is one reason AvailableNow is preferable to the deprecated one-time trigger for many scheduled catch-up jobs.
 
-Spark fits distributed joins, aggregations, large-scale transformations, and backfills. A regular consumer can be simpler for low-latency per-message business logic and small state. Choose based on latency, scale, correctness, and operations.
+It is not supported identically by every source; check connector support and any documented fallback behavior. It is a bounded catch-up execution, not a promise that the query will stay running to process future arrivals.
 
-### Q116. What does exactly-once mean?
+### Q112. What is required to bound state in a stream-stream join?
 
-Define the boundary. It may mean input offsets contribute once to recoverable Spark state, or that a business row changes once. Those are not equivalent; source replay, state checkpointing, sink commits, and idempotency must all be considered.
+Spark must know when an old row can no longer match future rows on the other side. Watermarks communicate expected event-time lateness, while an event-time range or window constraint establishes the latest possible matching time. For example, if a click can match an impression only from the impression time through one hour afterward, Spark can reason about when old impressions/clicks are no longer eligible for matches once watermark progress passes the relevant bound.
 
-### Q117. First response to a slow stage?
+Adding watermarks without a usable time constraint may not be enough to bound join state. Outer joins have stricter requirements because Spark must know when to emit an unmatched row with nulls. Verify the documented join-type/time-constraint support matrix for the Spark version and test out-of-order/late-event cases.
 
-Compare task duration, input/shuffle metrics, and the plan. Determine whether one or all tasks are slow. Do not immediately increase memory or executor count; distinguish skew, large input, spill, GC, and external I/O.
+### Q113. How do multiple input streams affect the global watermark?
 
-### Q118. Why can broadcast be slower than expected?
+A query with multiple streaming inputs tracks event-time progress for each input and uses a global watermark policy for stateful operations. The default `min` policy generally waits for the slowest stream, which is safer when late data from that stream must be retained but can delay cleanup if one input stalls. A `max` policy advances with the fastest stream, allowing state to be cleaned sooner but increasing the chance that records from a lagging stream arrive too late to be incorporated.
 
-The materialized relation may be larger than estimated, broadcast consumes memory/network, or join output cardinality is huge. Validate actual size and final plan.
+Choose the policy based on the business lateness guarantee, not simply memory pressure. Monitor each input's event-time progress and state size, and test what happens during a source outage or a stream with very old timestamps. Confirm the configuration name/default for the deployed version before changing it.
 
-### Q119. Why use an explicit schema?
+### Q114. What happens when Kafka offsets have expired before a stream recovers?
 
-It clarifies types and expected fields, avoids unreliable inference, and makes schema changes visible. It does not eliminate the need to validate records.
+A checkpoint can remember which offsets the query intended to process, but it cannot recreate records that Kafka has already removed through retention or topic changes. Inspect the last committed/available offsets, Kafka retention settings, and Spark's checkpoint progress. The Kafka source's `failOnDataLoss` option can ask Spark to fail when it detects that required offsets may be unavailable; disabling it may allow progress while silently skipping a data gap.
 
-### Q120. How do you prevent duplicate effects after restart?
+If required records have expired, recover from a durable archive/backfill if one exists and reconcile the affected output. Prevention includes retention sized for the maximum outage plus catch-up time, lag alerts, and recovery drills. Do not claim exactly-once recovery across a source gap that no longer exists in retained storage.
 
-Use stable event IDs and idempotent writes, unique constraints/upserts, and tests around partial sink commits. A Spark checkpoint alone cannot prevent arbitrary external side effects from repeating.
+### Q115. How should JSON Kafka values be parsed safely?
+
+Kafka's `value` column is binary. When the producer sends UTF-8 JSON, cast it to string and use `from_json` with an explicit `StructType` schema. Select fields from the parsed struct, but also detect rows where parsing failed or required fields are null. Preserve topic, partition, offset, timestamp, and a safe record identifier so a bad event can be traced and replayed.
+
+For example, `from_json(col("value").cast("string"), eventSchema).alias("event")` creates a structured column from the payload. Route malformed or schema-incompatible records to quarantine with a reason, and monitor rejection rates. Do not silently convert missing payment amounts or invalid timestamps into plausible business values.
+
+### Q116. Do all Structured Streaming sinks have the same delivery guarantee?
+
+No. The official Spark guide lists different semantics by sink: the built-in file sink can provide exactly-once output under its documented checkpoint/committer conditions, while the Kafka sink is at-least-once and may duplicate records on retry. `foreachBatch` guarantees depend on the code and sink protocol implemented by the application. A process successfully restarting from a checkpoint is not proof that every external business effect occurred once.
+
+Write down the boundary of the guarantee: source offsets, Spark state, sink commit, or business record. For a sink that can repeat writes, use deterministic keys/upserts, uniqueness constraints, deduplication, or a transaction that atomically records both the output and its processed batch marker.
+
+### Q117. What is the difference between SparkSession and SparkContext?
+
+`SparkSession` is the high-level entry point for DataFrame/Dataset and Spark SQL operations, readers/writers, catalog access, and session SQL configuration. `SparkContext` is the lower-level connection to Spark's execution environment and is associated with core RDD functionality and application coordination. A SparkSession uses a SparkContext underneath; most structured Java applications should begin with a SparkSession rather than manually creating multiple contexts.
+
+A session can have SQL-specific configuration and catalog state. Do not assume creating another session means creating a new cluster application, and do not create multiple independent SparkContexts in one application as a normal way to isolate work.
+
+### Q118. How are executor cores different from partitions and task parallelism?
+
+A partition is a unit of data; a task is work scheduled for a partition in a stage. Executor cores (or configured task slots) determine how many tasks an executor can run concurrently, subject to scheduler/resource constraints. For example, 400 runnable tasks on 40 available task slots will execute in waves; adding slots may reduce queueing only if there is enough CPU, memory, network, and independent work.
+
+More partitions increase potential parallelism but also scheduling overhead. More cores per executor can increase concurrency and memory pressure within that executor, while more executors distribute processes across nodes. Tune from task duration, executor utilization, skew, and resource headroom rather than assuming a fixed partition-to-core ratio is optimal.
+
+### Q119. Why can a Java Spark lambda fail with a serialization error?
+
+Spark sends task logic and the objects it captures from the driver to executor processes. A lambda that captures a non-serializable field, a large enclosing object, a database connection, or a service client can fail when Spark serializes the task closure—or can capture far more state than intended. Even if an object is serializable, a live network connection should not be assumed to work on an executor.
+
+Keep task closures small and capture only the values each task needs. For external writes, create and close connections on the executor/partition side using the sink's recommended lifecycle, bound concurrency, and make writes retry-safe. Never capture a live Spring service graph or connection pool and assume Spark will distribute it correctly.
+
+### Q120. Can a stateful streaming query always reuse its checkpoint after a code change?
+
+No. Checkpoint compatibility depends on the query's stateful operators, state schema, source/sink configuration, and the nature of the change. Some non-semantic changes may be safe; changing grouping keys, state encoding, event-time logic, or operator structure can make the saved state incompatible or change results even if the query starts. Spark's recovery guide documents which changes are supported, so evaluate the specific change rather than using a blanket rule.
+
+For incompatible changes, plan a migration: preserve the old checkpoint, define a replay boundary, rebuild state from retained source data if required, make sink writes idempotent, and reconcile the new result. Never delete a production checkpoint as a casual fix for a restart error.
 
 ---
 
