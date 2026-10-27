@@ -288,6 +288,19 @@ Query DSL is Elasticsearch's JSON-based language for matching and scoring docume
 
 A syntactically correct query can still return nothing if its field, mapping, analyzer, nested path, or date boundaries are wrong. Confirm the mapping and a sample document, then add one clause at a time. Use query context for relevance and filter context for binary constraints.
 
+A match_all query is useful as a baseline when checking whether the index contains searchable documents:
+
+~~~json
+GET products-v1/_search
+{
+  "query": {
+    "match_all": {}
+  }
+}
+~~~
+
+It matches every document in the targeted index; use a bounded size and avoid using it as an unfiltered production endpoint on a large index.
+
 ### Q28. Compare match and term.
 
 Use match on analyzed text. It analyzes the query terms and matches documents according to operator and other settings:
@@ -358,6 +371,21 @@ GET products-v1/_search
 
 Structured predicates belong in filter context when they express eligibility rather than relevance. Nulls, empty arrays, ignore_above, and ignore_malformed can affect exists behavior. Confirm mapped field types and unit conventions.
 
+The ids query matches Elasticsearch document IDs (_id), not an arbitrary business field. Use it only when the indexing pipeline deliberately sets _id to the product identifier:
+
+~~~json
+GET products-v1/_search
+{
+  "query": {
+    "ids": {
+      "values": ["P1001", "P1002"]
+    }
+  }
+}
+~~~
+
+If productId is stored in _source but is not the document's _id, use a terms query against productId instead.
+
 ### Q31. When should prefix, wildcard, and regexp be used?
 
 prefix matches terms starting with a prefix. wildcard supports * and ? patterns. regexp uses Lucene regex syntax, which is not identical to every programming language's engine. Broad expansions, especially leading wildcards, can be expensive.
@@ -382,7 +410,24 @@ GET products-v1/_search
 }
 ~~~
 
-For substring or autocomplete needs, consider edge n-grams, search-as-you-type, a completion suggester, or a specialized wildcard field. Bound user patterns, monitor latency, and check expensive-query controls for the deployed version.
+For substring or autocomplete needs, consider edge n-grams, search-as-you-type, a completion suggester, or a specialized wildcard field.
+
+A regular-expression example is:
+
+~~~json
+GET products-v1/_search
+{
+  "query": {
+    "regexp": {
+      "productId": {
+        "value": "P10[0-9][0-9]"
+      }
+    }
+  }
+}
+~~~
+
+This pattern matches indexed IDs that start with P10 and end with two digits. Regex patterns can be expensive when they expand broadly. Bound user patterns, monitor latency, and check expensive-query controls for the deployed version.
 
 ### Q32. How does fuzzy matching work?
 
@@ -429,6 +474,34 @@ best_fields tends to favor the strongest field match; other types such as most_f
 ### Q34. query_string versus simple_query_string?
 
 query_string supports rich operators and can fail on malformed syntax. simple_query_string is more forgiving and can ignore invalid syntax, making it suitable for a constrained user search box. Neither should be treated as an authorization boundary.
+
+For example, query_string supports a richer parser syntax, whereas simple_query_string is more forgiving:
+
+~~~json
+GET products-v1/_search
+{
+  "query": {
+    "query_string": {
+      "query": "wireless AND headphones",
+      "default_field": "name"
+    }
+  }
+}
+~~~
+
+~~~json
+GET products-v1/_search
+{
+  "query": {
+    "simple_query_string": {
+      "query": "wireless +headphones -wired",
+      "fields": ["name^3", "description"]
+    }
+  }
+}
+~~~
+
+Use query_string only when its richer syntax is intentional; invalid syntax can fail the request. The simple form ignores invalid syntax, but both still need field allowlists and resource limits.
 
 Limit query length, searchable fields, supported operators, aggregation size, and execution budget. Build structured filters with Query DSL instead of concatenating arbitrary user JSON, and derive security-sensitive filters from trusted server context.
 
@@ -513,6 +586,49 @@ GET products-v1/_search
 
 Use dis_max when the strongest field match should dominate, such as title over body. Use bool/more additive strategies when evidence across fields should accumulate. Choose from relevance testing rather than syntax preference.
 
+A constant_score query gives all documents passing its filter the same score for that clause:
+
+~~~json
+GET products-v1/_search
+{
+  "query": {
+    "constant_score": {
+      "filter": {
+        "term": {
+          "brand": "acme"
+        }
+      },
+      "boost": 1.5
+    }
+  }
+}
+~~~
+
+The boosting query can reduce the score of documents matching a negative query without excluding them:
+
+~~~json
+GET products-v1/_search
+{
+  "query": {
+    "boosting": {
+      "positive": {
+        "match": {
+          "name": "wireless headphones"
+        }
+      },
+      "negative": {
+        "term": {
+          "discontinued": true
+        }
+      },
+      "negative_boost": 0.2
+    }
+  }
+}
+~~~
+
+Use must_not instead when discontinued items must never appear. Boosting is a ranking preference, not an eligibility filter.
+
 ### Q39. When should function_score or script_score be used?
 
 function_score combines text scores with functions such as field-value factors, weights, or recency decay. score_mode defines how functions combine; boost_mode defines how the combined function score interacts with the base query score.
@@ -538,6 +654,28 @@ GET products-v1/_search
 ~~~
 
 Test how values and missing fields change ranking; a function can swamp text relevance if poorly scaled. script_score is flexible but may be expensive per matching document. Prefer built-in functions when they express the rule, and profile scripts under realistic load.
+
+For example, this scripted multiplier keeps the base text score and applies a modest rating adjustment, with a fallback when rating is missing:
+
+~~~json
+GET products-v1/_search
+{
+  "query": {
+    "script_score": {
+      "query": {
+        "match": {
+          "name": "wireless headphones"
+        }
+      },
+      "script": {
+        "source": "_score * (doc['rating'].size() == 0 ? 1.0 : 1.0 + doc['rating'].value / 10.0)"
+      }
+    }
+  }
+}
+~~~
+
+This script assumes rating is numeric and values are in the expected range. Scripts run for matching documents and can increase CPU, so prefer field_value_factor or decay functions if they express the business rule. Test missing-value behavior and cap query scope.
 
 ---
 
