@@ -53,8 +53,8 @@ Interview-Preparation/
 1. **Java** — language fundamentals, collections, concurrency, JVM, and modern Java.
 2. **Git** — repository internals, collaboration, history safety, releases, and recovery; use it alongside daily development.
 3. **Maven & Gradle** — Java build lifecycles, dependency resolution, multi-module builds, testing, packaging, and troubleshooting.\n4. **CI/CD** — build and test automation, artifact traceability, pipeline security, and safe application releases.
-5. **Design Patterns & LLD** — object-oriented design, SOLID, design-pattern selection, UML, and realistic low-level design problems.
-6. **System Design HLD (highest priority)** — study this in parallel with the remaining guides. Start with the interview method and quality attributes, then capacity estimation, architecture fundamentals, and the senior scenario bank. Revisit it repeatedly; a dedicated HLD round requires deliberate practice, not just reading.
+4. **Design Patterns & LLD** — object-oriented design, SOLID, design-pattern selection, UML, and realistic low-level design problems.
+5. **System Design HLD (highest priority)** — study this in parallel with the remaining guides. Start with the interview method and quality attributes, then capacity estimation, architecture fundamentals, and the senior scenario bank. Revisit it repeatedly; a dedicated HLD round requires deliberate practice, not just reading.
 6. **Spring** — dependency injection, Spring Boot, framework behavior, transactions, security, testing, and production behavior.
 7. **Microservices & REST APIs** — service boundaries, HTTP semantics, API contracts, resilience, security, and service-level communication.
 8. **Distributed Systems & Event-Driven Architecture** — cross-service correctness, consistency, failure handling, coordination, sagas, messaging semantics, and production reliability.
