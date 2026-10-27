@@ -597,15 +597,15 @@ Verify the expected artifact, readiness, smoke tests, error rate, latency, and c
 ### Round 1 — Fundamentals
 
 **Interviewer:** Explain CI, continuous delivery, and continuous deployment.  
-**Model answer:** CI validates frequent integrations. Continuous delivery keeps validated changes releasable, potentially with an approval before production. Continuous deployment automatically releases every change that passes defined controls. I would choose based on product risk and validation capability rather than assuming one model is universally superior.
+**Model answer:** “Continuous integration means I merge changes frequently and run automated checks so integration problems are found while the change is still small. Continuous delivery keeps a tested artifact ready to release, although production may still require approval. Continuous deployment automatically releases every change that passes the required controls. I would choose the model based on risk, test confidence, and release policy. Automation is useful only when the checks provide meaningful evidence.”
 
 **Interviewer:** Does a green pipeline guarantee production safety?  
-**Model answer:** No. It proves only that configured checks passed under tested conditions. Production configuration, data, traffic, permissions, and dependencies can differ. I would combine test evidence with artifact traceability, migration compatibility, staged verification, and post-deployment signals.
+**Model answer:** “No. It tells me that the configured checks passed for the conditions they tested. It does not prove that production configuration, data volume, permissions, traffic, or downstream dependencies will behave identically. I would also verify that the tested artifact is the one being deployed, that the schema supports mixed application versions, and that post-deployment health and business signals remain healthy. A green build is evidence for a release decision, not a guarantee.”
 
 ### Round 2 — Java pipeline design
 
 **Interviewer:** Design a Spring Boot PR pipeline.  
-**Model answer:** Use a clean checkout and wrapper on a controlled JDK; compile, run unit tests, relevant integration/contract tests, quality/security checks, and package. Parallelize independent checks, publish reports on failure, and prevent untrusted PR jobs from publishing releases. A trusted release workflow publishes an immutable artifact with commit metadata, deploys that same artifact to staging, runs smoke tests, then promotes it under the release policy.
+**Model answer:** “I would start with a clean checkout and a pinned JDK using the repository's Maven or Gradle wrapper. The pipeline would compile the code, run unit tests, run relevant integration and contract tests, and apply required quality and security gates. Independent checks can run in parallel, and test reports should be retained even when a later stage fails. PR validation should not publish production artifacts or expose trusted secrets to untrusted code. A trusted release workflow would publish an immutable artifact tied to the commit, deploy that exact artifact to staging, run smoke checks, and promote it only when the release policy is satisfied.”
 
 **Interviewer:** Would you run every end-to-end test on every PR?  
 **Model answer:** I would consider runtime, stability, and risk coverage. Fast tests should run on every PR. Critical integration and contract checks should gate the PR where feasible; broader E2E suites may run in parallel or later but must still gate release if they protect critical flows. Optimize the tests before removing controls.
@@ -624,18 +624,18 @@ Verify the expected artifact, readiness, smoke tests, error rate, latency, and c
 **Model answer:** Independent builds can differ due to mutable dependencies, base images, or generated metadata. Promoting the same immutable artifact ensures staging evidence applies to production. Track commit, build run, version/digest, and inject runtime configuration separately.
 
 **Interviewer:** Can every release be rolled back?  
-**Model answer:** No. Old code may not work with a new schema, transformed data, or irreversible side effects. Use additive migrations, mixed-version compatibility, and a forward-recovery plan where rollback is unsafe.
+**Model answer:** “No. Reverting the application binary does not reverse database changes, data transformations, emitted messages, or external side effects. Old code may fail after a migration drops a column or be unable to read data written in a new format. I would design additive expand-and-contract migrations, keep old and new versions compatible during rollout, and define rollback triggers in advance. If the old version cannot safely run against the current state, a feature flag or forward fix may be safer than a rollback.”
 
 ### Round 5 — Troubleshooting and senior judgment
 
 **Interviewer:** CI fails but local tests pass.  
-**Model answer:** Confirm the commit, run the wrapper from a clean checkout, compare JDK/build-tool versions, environment, dependencies, timezone, filesystem assumptions, and service dependencies. Inspect the first meaningful error and report. Fix hidden assumptions rather than weakening CI.
+**Model answer:** “I would confirm the exact commit and run the same wrapper command from a clean checkout. Then I would compare JDK and build-tool versions, dependency resolution, environment variables, timezone, filesystem case sensitivity, generated sources, and external services. I would start from the first meaningful compiler error or test report rather than the final pipeline summary. The goal is to remove an undeclared assumption or fix a real defect—not to weaken CI until it happens to pass.”
 
 **Interviewer:** A security stage adds ten minutes to each PR.  
 **Model answer:** Measure its cost and risk value, remove duplicate work, parallelize it, and cache safe inputs. Consider a risk-based cadence only if the required pre-release gate remains. I would measure feedback-time improvement and ensure risk coverage is not weakened.
 
 **Interviewer:** Production latency increases without errors.  
-**Model answer:** Compare latency percentiles, traffic, saturation, database and downstream timings, and business outcomes. Stop rollout or roll back if impact is material and rollback is safe. Otherwise mitigate with a feature flag or targeted forward fix. Add representative performance tests for the root cause.
+**Model answer:** “I would correlate the latency change with the release and compare p95/p99 latency, traffic, CPU and memory saturation, database query timings, lock waits, downstream latency, and key business flows against the previous baseline. A low error rate does not mean users are unaffected. If the impact is material, I would stop the rollout and roll back if the schema and data remain compatible. If rollback is unsafe, I would disable the feature or apply a focused forward fix. After recovery, I would add regression coverage or an alert for the identified cause.”
 
 ---
 
