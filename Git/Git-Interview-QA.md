@@ -18,8 +18,9 @@ This handbook intentionally consolidates overlapping fundamentals, frequently as
 9. [Configuration, repository hygiene, and performance — Q45–Q49](#9-configuration-repository-hygiene-and-performance)
 10. [Security — Q50–Q52](#10-security)
 11. [Senior-level scenarios — Q53–Q55](#11-senior-level-scenarios)
-12. [Last-minute revision checklist and command reference](#last-minute-revision-checklist-and-command-reference)
-13. [Official references](#official-references)
+12. [Mock interview rounds](#mock-interview-rounds)
+13. [Last-minute revision checklist and command reference](#last-minute-revision-checklist-and-command-reference)
+14. [Official references](#official-references)
 
 ---
 
@@ -578,6 +579,48 @@ I would lean toward short-lived feature branches or trunk-based development, sup
 Protect main and release branches against unreviewed pushes and unsafe force-pushes. Require appropriate tests and use deployment controls such as canary releases, health checks, and rollback procedures. For feature branches that are intentionally rebased before publication, use force-with-lease only after checking the expected remote state and confirming no one else's work is being overwritten. Keep releases traceable to commit SHAs and artifact digests.
 
 This workflow is not “trunk-based at any cost.” It depends on automated tests, observability, backward-compatible changes, and the ability to disable or roll back a risky feature. The aim is to reduce batch size and integration risk while protecting the shared branch and production system.
+
+---
+
+## Mock interview rounds
+
+These rounds test how the concepts fit together. The model answers are intentionally conversational; explain the reasoning first, then use commands to support the decision. They complement Q1–Q55 rather than adding another numbered question bank.
+
+### Round 1 — Fundamentals and repository state
+
+**Interviewer:** You edited a Java service, staged one file, then made another edit before committing. What exactly will your next commit contain, and how do you check?
+
+**Model answer:** A commit records the index, not everything currently visible in the working tree. I would run `git status`, `git diff`, and `git diff --staged`. The staged diff shows what is currently queued for the commit; the ordinary diff shows later unstaged edits. If the second edit belongs in the same logical change, I would stage it deliberately and inspect the staged diff again. Otherwise, I would commit the intended snapshot and leave the unrelated edit unstaged. This is why I review the staged diff rather than assuming that staging a file means every subsequent edit is staged.
+
+### Round 2 — Divergence, merge, and rebase
+
+**Interviewer:** Your feature branch is behind `main`, but two teammates have based their work on commits already pushed to your feature branch. How do you integrate the latest `main`?
+
+**Model answer:** I would fetch first and inspect the graph and unique commits. Since other developers depend on the published feature commits, I would avoid rewriting them without coordination. A merge of `origin/main` into the feature branch is the safer default because it preserves those existing commit IDs; after resolving conflicts, I would inspect the result, run tests, and push normally. Rebasing can produce a cleaner linear history, but it recreates commits and can force teammates to repair their branches. If the team explicitly agrees to rewrite the shared branch, I would coordinate the timing, verify the remote tip, and use `--force-with-lease` only under the team's policy.
+
+### Round 3 — Production regression
+
+**Interviewer:** A release has a regression, and the suspected change is somewhere among several merges. How do you investigate and restore service?
+
+**Model answer:** First I would identify the deployed commit or artifact digest and compare it with the last known-good release; I would not assume the current branch tip is what production runs. I would use `git log --graph`, `git show`, and targeted diffs to narrow the change. If the regression can be reproduced across revisions, `git bisect` can systematically locate the likely first bad commit, provided the good/bad test is reliable. For a shared release branch, I would normally revert the offending commit or merge rather than reset published history. Reverting a merge requires choosing and verifying the mainline parent with `git show` before using `git revert -m`. Then I would test the corrective change and follow the service's rollback or redeployment process; Git history operations alone do not undo database or external side effects.
+
+### Round 4 — Hotfix and maintenance branches
+
+**Interviewer:** A critical fix is ready on `main`, but two older release branches are still supported. How do you backport it?
+
+**Model answer:** I would confirm that the fix is self-contained and compatible with each supported version. If the fix is one logical commit, cherry-picking it onto each maintenance branch is often practical; I would resolve branch-specific conflicts, test each target version, and verify that the resulting changes are equivalent. If the fix depends on earlier commits or shared refactoring, I would bring over the required dependency changes or implement an adapted fix instead of blindly cherry-picking. Cherry-pick creates new commit IDs, so the branches contain equivalent changes but not the same commit identity. I would record which branches received the fix and release each through its normal validation process.
+
+### Round 5 — Secret exposure and repository cleanup
+
+**Interviewer:** A developer pushed an API token and then deleted it in a follow-up commit. Is the incident resolved?
+
+**Model answer:** No. The token remains in earlier history and may already have been copied into clones, forks, logs, or artifacts. I would revoke or rotate it immediately, assess permissions and usage, and notify the appropriate security owner. After containment, I would remove the secret from current files and decide whether to rewrite history with a tool such as `git-filter-repo`. A rewrite changes commit IDs and requires a coordinated plan for branches, tags, clones, forks, and CI references; hosting caches may need separate handling. History cleanup reduces continued exposure but cannot make an already leaked credential safe. I would also add prevention such as secret scanning and improve the approved secret-management workflow.
+
+### Round 6 — Release integrity and senior judgment
+
+**Interviewer:** A deployment pipeline consumed a release tag that was later found to point at the wrong commit. What evidence do you need, and should you move the tag?
+
+**Model answer:** I would establish which commit the pipeline resolved when it built the artifact, and inspect build records, commit SHA, artifact digest, and deployment metadata. A tag name alone does not prove which code is running. I would coordinate with release owners and downstream consumers before changing a published tag. Usually a new corrected patch tag is safer than silently moving an existing release identifier; if policy permits retagging, the old mapping must be communicated and caches and clones considered. I would rebuild and test from the intended commit, retain source-to-artifact provenance, and deploy through the normal approval path. The long-term safeguard is to resolve tags to immutable commit SHAs at build time and treat published release identifiers as immutable.
 
 ---
 
