@@ -1,37 +1,25 @@
-# Hibernate, JPA, and Liquibase
+# Hibernate, JPA, Transactions, and Liquibase
 
-> Numbered learning checklist. Use the existing handbook in this repository for detailed explanations and interview Q&A.
+## Spring Data Access and Transactions
 
-### 19. Hibernate, JPA, and Spring Data JPA
-- [ ] ORM Fundamentals and Entity Lifecycle
-- [ ] Persistence Context and First-Level Cache
-- [ ] Dirty Checking and Flush
-- [ ] Entity States: Transient, Managed, Detached, Removed
-- [ ] Entity Mapping
-  - [ ] One-to-One, One-to-Many, Many-to-One, Many-to-Many
-  - [ ] Owning Side and mappedBy
-  - [ ] Cascade Types and Orphan Removal
-  - [ ] Embeddables and Value Objects
-  - [ ] Inheritance Mapping
-  - [ ] Composite and Derived Identifiers
-- [ ] Fetch Types and Fetch Plans
-- [ ] Lazy Loading and Proxy Behavior
-- [ ] N+1 Query Problem
-- [ ] Fetch Joins and Entity Graphs
-- [ ] JPQL and HQL
-- [ ] Criteria API
-- [ ] Native Queries and Projections
-- [ ] Spring Data Repository Abstractions
-- [ ] Derived Query Methods and @Query
-- [ ] Specifications and Query by Example
-- [ ] Pagination and Sorting
-- [ ] DISTINCT, count queries, and pagination pitfalls
-- [ ] Optimistic Locking and @Version
-- [ ] Pessimistic Locking
-- [ ] Second-Level and Query Cache
-- [ ] Batch Fetching and JDBC Batching
-- [ ] Bulk Updates and Persistence Context Synchronization
-- [ ] Open Session in View
-- [ ] Auditing and Entity Listeners
-- [ ] Hibernate SQL Logging and Statistics
-- [ ] Persistence Performance Troubleshooting
+- [ ] JDBC, JdbcTemplate, connection pools, and HikariCP fundamentals
+- [ ] Transaction boundaries, propagation, isolation, timeout, and rollback behavior
+- [ ] @Transactional proxy behavior, self-invocation, and transaction-manager selection
+- [ ] Optimistic/pessimistic locking, lock ordering, deadlocks, and retry boundaries
+- [ ] Batch reads/writes, JDBC batching, and read/write routing trade-offs
+- [ ] Liquibase changelogs, changesets, preconditions, rollback, and migration testing
+- [ ] Zero-downtime schema changes, expand/contract migrations, and release ordering
+
+## Hibernate, JPA, and Spring Data JPA
+
+- [ ] ORM concepts, entity lifecycle, persistence context, and entity states
+- [ ] Dirty checking, flush/clear behavior, first-level cache, and synchronization
+- [ ] Entity relationships, mapping strategies, cascades, orphan removal, and ownership
+- [ ] Fetch types, lazy proxies, entity graphs, fetch joins, and the N+1 query problem
+- [ ] JPQL/HQL, Criteria API, native queries, projections, and result mapping
+- [ ] Spring Data repositories, derived queries, @Query, specifications, and query-by-example
+- [ ] Pagination/sorting, DISTINCT, count queries, and pagination pitfalls
+- [ ] Optimistic locking with @Version, pessimistic locks, and concurrent updates
+- [ ] Second-level/query caches, batch fetching, and bulk update synchronization
+- [ ] Open Session in View, auditing, entity listeners, and transaction boundaries
+- [ ] SQL logging, Hibernate statistics, and ORM performance troubleshooting
