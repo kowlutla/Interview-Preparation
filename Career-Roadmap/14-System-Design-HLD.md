@@ -1,124 +1,41 @@
 # System Design HLD
 
-> Numbered learning checklist. Use the existing handbook in this repository for detailed explanations and interview Q&A.
+## Interview Method
 
-### 31. System Design Interview Method
-- [ ] Problem Clarification and Scope
-- [ ] Functional Requirements
-- [ ] Non-Functional Requirements
-- [ ] User Journeys and Critical Business Invariants
-- [ ] API and Data Contract Definition
-- [ ] Capacity Estimation
-  - [ ] DAU/MAU and Request Rates
-  - [ ] Average and Peak RPS
-  - [ ] Read/Write Ratio
-  - [ ] Storage Growth and Retention
-  - [ ] Bandwidth and Network Egress
-  - [ ] Replication and Redundancy Overhead
-  - [ ] Queue Backlog and Drain Time
-  - [ ] Connection and Thread Capacity
-- [ ] Architecture Diagram and Data Flow
-- [ ] Bottleneck Identification
-- [ ] Trade-Off Analysis
-- [ ] Failure Modes and Recovery
-- [ ] Security, Observability, and Cost
-- [ ] Architecture Evolution and Migration
-- [ ] Presenting a 45–60 Minute Design
+- [ ] Requirements clarification, functional scope, constraints, and assumptions
+- [ ] Non-functional requirements: availability, latency, durability, consistency, security, and cost
+- [ ] Back-of-the-envelope estimation: traffic, storage, bandwidth, and capacity
+- [ ] API design, data model, core entities, and important system invariants
+- [ ] Architecture diagrams, request flows, data flows, and clear trade-off communication
 
-### 32. System Design Building Blocks
-- [ ] DNS, CDN, and Edge Caching
-- [ ] Reverse Proxy and Load Balancing
-- [ ] L4 vs L7 Load Balancing
-- [ ] API Gateway and WAF
-- [ ] Stateless and Stateful Services
-- [ ] Horizontal and Vertical Scaling
-- [ ] Autoscaling and Capacity Headroom
-- [ ] Service Discovery
-- [ ] Synchronous and Asynchronous Calls
-- [ ] REST, gRPC, WebSockets, and SSE
-- [ ] Database Selection
-- [ ] Replication, Partitioning, and Sharding
-- [ ] Caching and Cache Invalidation
-- [ ] Queues, Streams, and Event Logs
-- [ ] Search Indexes and Read Models
-- [ ] Object Storage and Content Delivery
-- [ ] Batch, Stream, and Change-Data-Capture Pipelines
-- [ ] Service Mesh Concepts
-- [ ] Secrets, Identity, and Policy Enforcement
+## System Design Building Blocks
 
-### 33. Data Architecture and Distributed Storage
-- [ ] Logical and Physical Data Models
-- [ ] Read/Write Patterns and Access Locality
-- [ ] ACID vs BASE
-- [ ] Relational vs NoSQL Trade-Offs
-- [ ] Index Selection and Query Shapes
-- [ ] Read Replicas and Replication Lag
-- [ ] Shard Key Selection
-- [ ] Consistent Hashing
-- [ ] Hot Shards and Resharding
-- [ ] Denormalization and Materialized Views
-- [ ] CQRS
-- [ ] Event Sourcing
-- [ ] Data Ownership Across Services
-- [ ] Data Retention and Archival
-- [ ] Online Schema Changes
-- [ ] Backup, Restore, and Point-in-Time Recovery
+- [ ] DNS, load balancing, reverse proxies, gateways, and traffic routing
+- [ ] Stateless services, horizontal scaling, autoscaling, and backpressure
+- [ ] Relational vs NoSQL storage, data access patterns, and schema choices
+- [ ] Indexing, replication, partitioning, sharding, and rebalancing
+- [ ] Caching layers, invalidation, hot keys, and cache consistency
+- [ ] Messaging, event streams, queues, fan-out, retries, and dead-letter handling
+- [ ] CDN, object storage, blob delivery, and large-file flows
+- [ ] Authentication, authorization, tenant isolation, encryption, and data privacy
+- [ ] Resilience patterns, multi-AZ/multi-region, failover, and disaster recovery
+- [ ] Observability, SLI/SLO, alerting, capacity planning, and cost trade-offs
 
-### 34. Scalability, Consistency, and Resilience in HLD
-- [ ] Load Distribution and Hotspot Management
-- [ ] Horizontal Scale-Out
-- [ ] Rate Limiting and Quotas
-- [ ] Backpressure and Queue-Based Load Leveling
-- [ ] Caching Strategies and Invalidation
-- [ ] Strong and Eventual Consistency
-- [ ] Quorum Reads and Writes
-- [ ] Leader/Follower Replication
-- [ ] Idempotency and Deduplication
-- [ ] Exactly-Once Claims and Their Boundaries
-- [ ] Distributed Transactions and Sagas
-- [ ] Transactional Outbox and CDC
-- [ ] Retry Budgets and Deadline Propagation
-- [ ] Circuit Breakers and Bulkheads
-- [ ] Graceful Degradation
-- [ ] Disaster Recovery and Regional Failover
+## Distributed Data and Reliability
 
-### 35. HLD Case Studies
-- [ ] URL Shortener
-- [ ] Pastebin
-- [ ] Rate Limiter
-- [ ] API Gateway
-- [ ] Notification Service
-- [ ] Email Delivery Platform
-- [ ] Chat / Messaging System
-- [ ] News Feed / Activity Feed
-- [ ] Social Graph / Follow System
-- [ ] Search Autocomplete
-- [ ] Search Platform
-- [ ] File Storage and Sharing
-- [ ] Photo / Video Upload Platform
-- [ ] Video Streaming Platform
-- [ ] Ride-Hailing Platform
-- [ ] Food Delivery Platform
-- [ ] E-Commerce Catalog and Inventory
-- [ ] Shopping Cart
-- [ ] Order Management
-- [ ] Payment Processing
-- [ ] Ticket Booking / Seat Reservation
-- [ ] Hotel Booking
-- [ ] Banking Ledger / Money Transfer
-- [ ] Job Scheduler
-- [ ] Distributed Task Queue
-- [ ] Web Crawler
-- [ ] Log Aggregation Platform
-- [ ] Metrics and Monitoring System
-- [ ] Audit Logging Platform
-- [ ] Feature Flag Service
-- [ ] Distributed Cache
-- [ ] Leaderboard
-- [ ] Recommendation Platform
-- [ ] Multi-Tenant SaaS Platform
-- [ ] Data Ingestion Platform
-- [ ] Event Streaming Platform
-- [ ] Analytics Dashboard
-- [ ] Multi-Region SaaS Application
-- [ ] Cloud Data Governance / Data Marketplace
+- [ ] Consistency models, CAP/PACELC, quorum choices, and read/write semantics
+- [ ] Idempotency, deduplication, outbox, saga, and asynchronous workflows
+- [ ] Rate limiting, fairness, abuse controls, and load shedding
+- [ ] Data lifecycle, retention, archival, backup, restore, and migration strategy
+
+## Case Studies
+
+- [ ] URL shortener and redirect service
+- [ ] Rate limiter and API quota service
+- [ ] News feed, timeline, and notification platform
+- [ ] Chat/messaging and real-time presence
+- [ ] File/object storage and content delivery
+- [ ] Search/autocomplete and distributed cache
+- [ ] Ride matching, booking, or order-processing system
+- [ ] Multi-tenant SaaS / data-governance or data-marketplace platform
+- [ ] Multi-region architecture and disaster-recovery design
