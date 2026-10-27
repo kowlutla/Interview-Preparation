@@ -8,7 +8,8 @@ Choose a handbook by topic:
 
 - [Java Interview Handbook](Java/Java-Interview-QA.md)
 - [Git Interview Revision Handbook](Git/Git-Interview-QA.md) — 55 focused questions with detailed answers across Git internals, branching, collaboration, recovery, releases, and security.
-- [Maven & Gradle Interview Handbook](Maven-Gradle/Maven-Gradle-Interview-QA.md) — 49 focused Q&As on Java builds, dependency resolution, multi-module configuration, testing, packaging, troubleshooting, performance, and tool-selection trade-offs.\n- [CI/CD Interview Handbook](CI-CD/CI-CD-Interview-QA.md) — developer-focused delivery for Java/Spring Boot: Jenkins, GitHub Actions, testing, quality gates, immutable artifacts, release safety, database migrations, troubleshooting, and senior-level scenarios.
+- [Maven & Gradle Interview Handbook](Maven-Gradle/Maven-Gradle-Interview-QA.md) — 49 focused Q&As on Java builds, dependency resolution, multi-module configuration, testing, packaging, troubleshooting, performance, and tool-selection trade-offs.
+- [CI/CD Interview Handbook](CI-CD/CI-CD-Interview-QA.md) — developer-focused delivery for Java/Spring Boot: Jenkins, GitHub Actions, testing, quality gates, immutable artifacts, release safety, database migrations, troubleshooting, and senior-level scenarios.
 - [Design Patterns & LLD Interview Handbook](Design-Patterns-LLD/Design-Patterns-LLD-Interview-QA.md) — object-oriented design, SOLID, GoF patterns, UML, concurrency-aware object models, and practical LLD case studies.
 - [System Design HLD Interview Handbook](System-Design-HLD/System-Design-HLD-Interview-QA.md) — 300 numbered Q&As, 80 senior-level scenarios, capacity estimation, consistency, scaling, resilience, and multi-stage mock interviews; make this a priority for dedicated HLD rounds.
 - [Spring Framework + Spring Boot Interview Handbook](Spring/Spring-Interview-QA.md)
@@ -52,7 +53,8 @@ Interview-Preparation/
 
 1. **Java** — language fundamentals, collections, concurrency, JVM, and modern Java.
 2. **Git** — repository internals, collaboration, history safety, releases, and recovery; use it alongside daily development.
-3. **Maven & Gradle** — Java build lifecycles, dependency resolution, multi-module builds, testing, packaging, and troubleshooting.\n4. **CI/CD** — build and test automation, artifact traceability, pipeline security, and safe application releases.
+3. **Maven & Gradle** — Java build lifecycles, dependency resolution, multi-module builds, testing, packaging, and troubleshooting.
+4. **CI/CD** — build and test automation, artifact traceability, pipeline security, and safe application releases.
 4. **Design Patterns & LLD** — object-oriented design, SOLID, design-pattern selection, UML, and realistic low-level design problems.
 5. **System Design HLD (highest priority)** — study this in parallel with the remaining guides. Start with the interview method and quality attributes, then capacity estimation, architecture fundamentals, and the senior scenario bank. Revisit it repeatedly; a dedicated HLD round requires deliberate practice, not just reading.
 6. **Spring** — dependency injection, Spring Boot, framework behavior, transactions, security, testing, and production behavior.
