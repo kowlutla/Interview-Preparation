@@ -56,19 +56,19 @@ Interview-Preparation/
 2. **Git** — repository internals, collaboration, history safety, releases, and recovery; use it alongside daily development.
 3. **Maven & Gradle** — Java build lifecycles, dependency resolution, multi-module builds, testing, packaging, and troubleshooting.
 4. **CI/CD** — build and test automation, artifact traceability, pipeline security, and safe application releases.
-4. **Design Patterns & LLD** — object-oriented design, SOLID, design-pattern selection, UML, and realistic low-level design problems.
-5. **System Design HLD (highest priority)** — study this in parallel with the remaining guides. Start with the interview method and quality attributes, then capacity estimation, architecture fundamentals, and the senior scenario bank. Revisit it repeatedly; a dedicated HLD round requires deliberate practice, not just reading.
-6. **Spring** — dependency injection, Spring Boot, framework behavior, transactions, security, testing, and production behavior.
-7. **Microservices & REST APIs** — service boundaries, HTTP semantics, API contracts, resilience, security, and service-level communication.
-8. **Distributed Systems & Event-Driven Architecture** — cross-service correctness, consistency, failure handling, coordination, sagas, messaging semantics, and production reliability.
-9. **Hibernate + JPA** — persistence context, mappings, fetching, transactions, query performance, and concurrency.
-10. **SQL & databases** — query logic, joins, indexes, transactions, isolation, and database-specific behavior.
-11. **Elasticsearch & Search Systems** — focused interview Q&A, practical Query DSL examples, relevance, mappings, pagination, production troubleshooting, Java integration, and SQL/Kafka indexing pipelines.
-12. **Redis & Caching** — Redis data structures, cache consistency, coordination, Spring integration, and resilience across the cache/database boundary.
-13. **Kafka** — broker architecture, topics and partitions, producer/consumer behavior, delivery semantics, and production scenarios.
-14. **Apache Spark & Structured Streaming** — study after Kafka and distributed systems: execution, Spark SQL, shuffles and joins, performance, event-time processing, checkpointing, and reliable Kafka pipelines.
-15. **Apache Iceberg, Avro & Schema Evolution** — connect event contracts and compatibility with table snapshots, streaming ingestion, compaction, and replay.
-16. **Docker, Kubernetes & Helm** — containerize and run the service, understand its runtime constraints, configure workload health and resources, debug connectivity, and deliver releases safely.
+5. **Design Patterns & LLD** — object-oriented design, SOLID, design-pattern selection, UML, and realistic low-level design problems.
+6. **System Design HLD (highest priority)** — study this in parallel with the remaining guides. Start with the interview method and quality attributes, then capacity estimation, architecture fundamentals, and the senior scenario bank. Revisit it repeatedly; a dedicated HLD round requires deliberate practice, not just reading.
+7. **Spring** — dependency injection, Spring Boot, framework behavior, transactions, security, testing, and production behavior.
+8. **Microservices & REST APIs** — service boundaries, HTTP semantics, API contracts, resilience, security, and service-level communication.
+9. **Distributed Systems & Event-Driven Architecture** — cross-service correctness, consistency, failure handling, coordination, sagas, messaging semantics, and production reliability.
+10. **Hibernate + JPA** — persistence context, mappings, fetching, transactions, query performance, and concurrency.
+11. **SQL & databases** — query logic, joins, indexes, transactions, isolation, and database-specific behavior.
+12. **Elasticsearch & Search Systems** — focused interview Q&A, practical Query DSL examples, relevance, mappings, pagination, production troubleshooting, Java integration, and SQL/Kafka indexing pipelines.
+13. **Redis & Caching** — Redis data structures, cache consistency, coordination, Spring integration, and resilience across the cache/database boundary.
+14. **Kafka** — broker architecture, topics and partitions, producer/consumer behavior, delivery semantics, and production scenarios.
+15. **Apache Spark & Structured Streaming** — study after Kafka and distributed systems: execution, Spark SQL, shuffles and joins, performance, event-time processing, checkpointing, and reliable Kafka pipelines.
+16. **Apache Iceberg, Avro & Schema Evolution** — connect event contracts and compatibility with table snapshots, streaming ingestion, compaction, and replay.
+17. **Docker, Kubernetes & Helm** — containerize and run the service, understand its runtime constraints, configure workload health and resources, debug connectivity, and deliver releases safely.
 
 The order moves from language and application fundamentals toward distributed behavior and then application delivery. You can study Docker/Kubernetes earlier if your current project requires it. For data-engineering interviews, study Kafka and distributed systems before Spark, then revisit system design and operational reliability.
 
