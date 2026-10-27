@@ -1,164 +1,42 @@
 # Computer Science and DSA
 
-> Numbered learning checklist. Use the existing handbook in this repository for detailed explanations and interview Q&A.
+## Data Structures and Algorithms
 
-### 1. Data Structures and Algorithms (DSA)
-- [ ] Complexity Analysis
-  - [x] Big-O, Big-Theta, Big-Omega
-  - [ ] Time and Space Complexity
-  - [ ] Amortized Analysis
-  - [ ] Best, Average, and Worst Cases
-- [ ] Arrays and Matrices
-  - [ ] Traversal, Searching, Insertion, and Deletion
-  - [ ] Prefix Sums and Difference Arrays
-  - [ ] Two Pointers
-  - [ ] Sliding Window
-  - [ ] Sorting-Based Array Problems
-  - [ ] Binary Search on Arrays
-  - [ ] Rotated and Nearly Sorted Arrays
-  - [ ] Kadane's Algorithm
-  - [ ] Matrix Traversal and Transformations
-- [ ] Strings
-  - [ ] Character Frequency and Counting
-  - [ ] Anagrams and Palindromes
-  - [ ] Two Pointers and Sliding Window
-  - [ ] String Matching
-  - [ ] Pattern Searching
-  - [ ] StringBuilder and String Immutability
-- [ ] Linked Lists
-  - [ ] Singly, Doubly, and Circular Linked Lists
-  - [ ] Reversal and In-Place Modification
-  - [ ] Fast and Slow Pointers
-  - [ ] Cycle Detection and Removal
-  - [ ] Merge and Intersection Problems
-- [ ] Stacks and Queues
-  - [ ] Array- and Linked-List-Based Implementations
-  - [ ] Monotonic Stack and Queue
-  - [ ] Deque
-  - [ ] Expression Evaluation
-  - [ ] Next Greater/Smaller Element
-  - [ ] Queue Using Stacks and Stack Using Queues
-- [ ] Hashing
-  - [ ] Hash Tables and Collision Handling
-  - [ ] HashMap/HashSet Problem Patterns
-  - [ ] Frequency Maps
-  - [ ] Prefix-Sum Hashing
-  - [ ] Custom Keys and Equality Contracts
-- [ ] Trees and Binary Search Trees
-  - [ ] Binary Tree Traversals
-  - [ ] Recursive and Iterative DFS
-  - [ ] BFS and Level-Order Traversal
-  - [ ] Height, Depth, Diameter, and Balance
-  - [ ] Lowest Common Ancestor
-  - [ ] Binary Search Tree Operations
-  - [ ] Tree Serialization and Deserialization
-  - [ ] Trie / Prefix Tree
-- [ ] Heaps and Priority Queues
-  - [ ] Min-Heap and Max-Heap
-  - [ ] Heap Construction and Heapify
-  - [ ] Top-K Problems
-  - [ ] K-Way Merge
-  - [ ] Running Median
-- [ ] Graphs
-  - [ ] Adjacency List and Adjacency Matrix
-  - [ ] BFS and DFS
-  - [ ] Connected Components
-  - [ ] Cycle Detection
-  - [ ] Topological Sorting
-  - [ ] Shortest Paths: BFS, Dijkstra, Bellman-Ford
-  - [ ] Minimum Spanning Trees: Prim and Kruskal
-  - [ ] Union-Find / Disjoint Set Union
-  - [ ] Strongly Connected Components
-  - [ ] Bipartite Graphs
-- [ ] Recursion and Backtracking
-  - [ ] Recursion Trees and Base Cases
-  - [ ] Subsets and Subsequences
-  - [ ] Permutations and Combinations
-  - [ ] Combination Sum
-  - [ ] Constraint-Based Search
-  - [ ] Pruning and Memoization
-- [ ] Greedy Algorithms
-  - [ ] Interval Scheduling and Merging
-  - [ ] Activity Selection
-  - [ ] Sorting-Based Greedy Strategies
-  - [ ] Proof of Greedy Choice
-- [ ] Dynamic Programming
-  - [ ] Memoization and Tabulation
-  - [ ] State Definition and Transitions
-  - [ ] 1D and 2D DP
-  - [ ] Knapsack Variants
-  - [ ] Coin Change
-  - [ ] Longest Common Subsequence / Substring
-  - [ ] Longest Increasing Subsequence
-  - [ ] Grid and Path Problems
-  - [ ] Interval DP
-  - [ ] Tree DP
-  - [ ] Bitmask DP
-- [ ] Bit Manipulation
-  - [ ] Bitwise Operators
-  - [ ] Masks, Shifts, and XOR
-  - [ ] Set/Clear/Toggle/Test Bits
-  - [ ] Subsets Using Bitmasks
-- [ ] Searching and Sorting
-  - [ ] Binary Search Templates
-  - [ ] Merge Sort and Quick Sort
-  - [ ] Heap Sort
-  - [ ] Counting Sort and Bucket Sort
-  - [ ] Stability and In-Place Sorting
-- [ ] Advanced Problem Patterns
-  - [ ] Sweep Line
-  - [ ] Difference/Prefix Techniques
-  - [ ] Segment Trees
-  - [ ] Fenwick Trees / Binary Indexed Trees
-  - [ ] LRU/LFU Cache Design
-  - [ ] Topological and Dependency Ordering
-- [ ] Interview Coding Practice
-  - [ ] Easy, Medium, and Hard Problem Sets
-  - [ ] Timed Problem Solving
-  - [ ] Edge-Case Identification
-  - [ ] Complexity Explanation
-  - [ ] Code Review and Refactoring
-  - [ ] Verbal Problem-Solving Walkthroughs
+- [ ] Complexity analysis: time, space, asymptotic notation, and amortized analysis
+- [ ] Arrays, matrices, prefix sums, two pointers, and sliding windows
+- [ ] Strings, character frequency, anagrams, palindromes, and pattern matching
+- [ ] Linked lists, in-place operations, fast/slow pointers, and cycle detection
+- [ ] Stacks, queues, deques, and monotonic stack/queue patterns
+- [ ] Hashing, hash maps/sets, frequency maps, and custom key equality
+- [ ] Trees, binary search trees, traversal, height/balance, and lowest common ancestor
+- [ ] Heaps, priority queues, top-K problems, and k-way merge
+- [ ] Graphs, BFS/DFS, cycle detection, topological sort, shortest paths, and union-find
+- [ ] Recursion, backtracking, pruning, and combinatorial search
+- [ ] Greedy algorithms and interval problems
+- [ ] Dynamic programming: common patterns, state definition, and optimization
+- [ ] Binary search patterns, sorting, selection, and searching trade-offs
+- [ ] Bit manipulation and common integer tricks
+- [ ] Advanced patterns: tries, disjoint sets, prefix/suffix techniques, and problem combinations
+- [ ] Timed coding practice, edge cases, complexity explanation, and review of unsolved problems
 
-### 2. Operating Systems and Computer Systems
-- [ ] Processes and Threads
-- [ ] Process Lifecycle and Context Switching
-- [ ] User Mode and Kernel Mode
-- [ ] CPU Scheduling
-- [ ] Memory Management
-  - [ ] Virtual Memory
-  - [ ] Paging and Page Tables
-  - [ ] Stack and Heap
-  - [ ] Memory Mapping
-  - [ ] Page Faults
-- [ ] Synchronization Primitives
-  - [ ] Mutexes, Semaphores, Monitors
-  - [ ] Condition Variables
-  - [ ] Deadlocks, Livelocks, and Starvation
-- [ ] File Systems and File Descriptors
-- [ ] I/O, Blocking, Non-Blocking, and Asynchronous I/O
-- [ ] System Calls and Signals
-- [ ] Linux Process and Resource Inspection
-- [ ] CPU, Memory, Disk, and Network Diagnostics
+## Operating Systems and Computer Systems
 
-### 3. Networking Fundamentals
-- [ ] OSI and TCP/IP Models
-- [ ] Ethernet, MAC, ARP, and MTU
-- [ ] IPv4, IPv6, CIDR, and Subnetting
-- [ ] Routing and NAT
-- [ ] TCP
-  - [ ] Three-Way Handshake and Connection Teardown
-  - [ ] Flow Control and Congestion Control
-  - [ ] Retransmission, Sequence Numbers, and ACKs
-  - [ ] Keepalive and Connection Reset
-- [ ] UDP and QUIC Fundamentals
-- [ ] DNS Resolution and Caching
-- [ ] DHCP and TLS
-- [ ] HTTP/1.1, HTTP/2, and HTTP/3
-- [ ] HTTPS and Certificate Validation
-- [ ] Proxies, Reverse Proxies, and Load Balancers
+- [ ] Processes, threads, lifecycle, context switching, and user/kernel mode
+- [ ] CPU scheduling and concurrency fundamentals
+- [ ] Memory management, virtual memory, paging, and process address spaces
+- [ ] Synchronization primitives and common race/deadlock scenarios
+- [ ] File systems, file descriptors, system calls, signals, and I/O
+- [ ] Blocking, non-blocking, synchronous, asynchronous, and multiplexed I/O
+- [ ] CPU, memory, disk, and process diagnostics on Linux
+
+## Networking Fundamentals
+
+- [ ] OSI/TCP-IP models, Ethernet, MAC, ARP, MTU, IP addressing, and subnetting
+- [ ] Routing, NAT, ports, sockets, and client/server communication
+- [ ] TCP connections, reliability, congestion, and connection lifecycle
+- [ ] UDP and QUIC fundamentals
+- [ ] DNS resolution, caching, and common lookup failures
+- [ ] HTTP/1.1, HTTP/2, HTTP/3, HTTPS, TLS, and certificate validation
+- [ ] Proxies, reverse proxies, load balancers, and connection timeouts
 - [ ] WebSockets and Server-Sent Events
-- [ ] Latency, Bandwidth, Throughput, Packet Loss, and Jitter
-- [ ] Network Troubleshooting: curl, dig, nslookup, ping, traceroute, ss, netstat, tcpdump
-
-## Phase 2 — Java Core and Modern Java
+- [ ] Latency, throughput, packet loss, and basic connectivity troubleshooting
