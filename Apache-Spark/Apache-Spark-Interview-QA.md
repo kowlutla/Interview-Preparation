@@ -559,11 +559,11 @@ Dataset<Row> perWindow = events
 // within the gap duration (API availability depends on Spark version).
 Dataset<Row> sessions = events
     .withWatermark("event_time", "10 minutes")
-    .groupBy(new Column(session_window(col("event_time"), "5 minutes")), col("customer_id"))
+    .groupBy(expr("session_window(event_time, '5 minutes')"), col("customer_id"))
     .agg(count(lit(1)).alias("event_count"));
 ~~~
 
-The watermark communicates an event-time lateness threshold; it does not mean that each event gets a ten-minute wall-clock timer.
+The watermark communicates an event-time lateness threshold; it does not mean that each event gets a ten-minute wall-clock timer. In current Structured Streaming semantics, session-window aggregation does not support Update output mode, and the grouping key must include at least one column in addition to the session window. Check the session-window restrictions for your Spark version.
 
 ### Q78. What does a watermark do?
 
@@ -842,7 +842,7 @@ Adding watermarks without a usable time constraint may not be enough to bound jo
 
 A query with multiple streaming inputs tracks event-time progress for each input and uses a global watermark policy for stateful operations. The default `min` policy generally waits for the slowest stream, which is safer when late data from that stream must be retained but can delay cleanup if one input stalls. A `max` policy advances with the fastest stream, allowing state to be cleaned sooner but increasing the chance that records from a lagging stream arrive too late to be incorporated.
 
-Choose the policy based on the business lateness guarantee, not simply memory pressure. Monitor each input's event-time progress and state size, and test what happens during a source outage or a stream with very old timestamps. Confirm the configuration name/default for the deployed version before changing it.
+Choose the policy based on the business lateness guarantee, not simply memory pressure. The setting is `spark.sql.streaming.multipleWatermarkPolicy`; the current documentation defaults it to `min`. Monitor each input's event-time progress and state size, and test what happens during a source outage or a stream with very old timestamps. Switching to `max` can clean state sooner but may aggressively drop late data from the slower stream, so make the trade-off explicit before changing it.
 
 ### Q114. What happens when Kafka offsets have expired before a stream recovers?
 
