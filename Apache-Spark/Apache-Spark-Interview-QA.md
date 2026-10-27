@@ -144,9 +144,9 @@ The filter is lazy; count triggers execution. Collecting all matching lines woul
 
 ### Q15. Compare RDDs, DataFrames, and Datasets.
 
-A DataFrame is a distributed table with named columns and a schema; in Java it is represented as Dataset<Row>. Typed Datasets use JVM types and encoders and are particularly common in Scala. RDDs expose lower-level record operations but less relational optimization.
+A DataFrame is a distributed table with named columns and a schema; in Java it is represented as `Dataset<Row>`. A typed Dataset instead exposes JVM domain objects through an `Encoder`. Java can create one from a bean class, for example `spark.createDataset(orderBeans, Encoders.bean(Order.class))`, provided the class meets the bean-encoder requirements. Typed Datasets are especially ergonomic in Scala, while Java teams often prefer `Dataset<Row>` for SQL-style ETL.
 
-Prefer DataFrames for structured ETL and SQL because Spark can inspect expressions and optimize them. Use RDDs when a specialized unstructured transformation genuinely needs the lower-level API. Do not switch to RDDs merely because a query is slow; first inspect the plan and data distribution.
+DataFrames are usually the best default for structured transformations because Spark can inspect column expressions and optimize them. Typed Datasets add type safety when working with domain objects, but opaque custom functions can reduce the optimizer's visibility into the transformation. Use RDDs when a specialized record-oriented operation genuinely needs the lower-level API; do not switch to RDDs merely because a query is slow.
 
 ### Q16. Why can DataFrames outperform hand-written RDD code?
 
@@ -679,6 +679,7 @@ Treat payloads as untrusted input. Parse with an explicit schema, preserve event
 import static org.apache.spark.sql.functions.*;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
 
 public final class DailyOrderMetrics {
