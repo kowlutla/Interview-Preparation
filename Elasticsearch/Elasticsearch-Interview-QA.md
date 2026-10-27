@@ -1780,122 +1780,242 @@ Each scenario should be answered with clarifying questions, diagnosis, step-by-s
 ### Q101. Product search returns irrelevant results.
 Clarify query examples and expected ranking. Inspect mapping, analyzer output, operator, boosts, and relevance judgements. Narrow broad OR matching, boost name/phrase matches, keep eligibility predicates in filters, and use Explain on bad hits. Build a regression query set and roll ranking changes back if quality falls. Follow-up: how do you evaluate top-k relevance?
 
+
+
+**Concrete example:** Run `POST /products-v1/_search` with `{"query":{"multi_match":{"query":"wireless headphones","fields":["name^4","description"]}}}` and compare the top hits against a judged query set.
 ### Q102. A term query returns no product-name hits.
 Confirm whether the field is text or keyword. term does not analyze input like match; a whole phrase may not be one indexed token. Inspect mapping, source document, and Analyze output. Use match for text and keyword for exact values; reindex if required indexing representation is missing. Follow-up: why use multi-fields?
 
+
+
+**Concrete example:** Compare `{"query":{"match":{"name":"Wireless Bluetooth Headphones"}}}` with a `term` query on `name.keyword`; inspect `_mapping` before deciding which field matches the intent.
 ### Q103. Staging works but production does not.
 Compare mappings, settings, templates, aliases, sample docs, analyzers, and client/server versions. Dynamic mapping or a missing template often causes divergence. Reproduce with production-equivalent index definitions; correct template/migration and rebuild an index if the type is incompatible. Follow-up: what would you compare first under pressure?
 
+
+
+**Concrete example:** Compare `GET /products-v1/_mapping`, `GET /_index_template/products-template`, and `_analyze` output in both environments before changing production data.
 ### Q104. Query latency rises with data volume.
 Determine whether the problem is isolated or cluster-wide. Inspect slow logs, Profile, per-shard metrics, heap, queue rejections, aggregation cardinality, and query range. Bound expensive clauses and response sizes; change topology only when telemetry supports it. Follow-up: why can more shards worsen latency?
 
+
+
+**Concrete example:** Use `POST /products-v1/_search` with `{"profile":true,"query":{"match":{"name":"headphones"}}}` for a targeted profile, and correlate it with slow logs and node stats.
 ### Q105. Cluster turns yellow after a node loss.
 Check whether primaries remain allocated, then inspect allocation explain, disk, capacity, and awareness rules. Restore the node or add capacity and recover replica placement. Yellow means redundancy is reduced, not necessarily that primaries are unavailable. Follow-up: why can replica and primary not share a node?
 
+
+
+**Concrete example:** Ask `POST /_cluster/allocation/explain` with `{"index":"products-v1","shard":0,"primary":false}` for a replica that is not allocating; select the real unassigned shard from cluster state.
 ### Q106. Cluster turns red and results are missing.
 Identify unassigned primaries and affected indices. Inspect allocation explanation, node logs, recovery and snapshots. Recover a valid shard copy or restore/reconcile from backup/source. Never force a stale primary without understanding possible data loss. Follow-up: when should an API reject partial results?
 
+
+
+**Concrete example:** Start with `GET /_cat/shards?v` and `POST /_cluster/allocation/explain` for the actual unassigned primary, then verify recoverable copies and snapshot metadata.
 ### Q107. One shard is much hotter than others.
 Compare per-shard traffic, size, routing, tenant skew, and hot threads. Custom routing may concentrate a large tenant. Consider routing partitions, a separate tenant model, or reindexing into a better topology. Add skewed-load tests and per-shard alerts. Follow-up: routing performance versus distribution trade-off?
 
+
+
+**Concrete example:** Compare `GET /_cat/shards/products-v1?v` with `GET /_nodes/hot_threads`; check whether one routing key or tenant generates disproportionate work.
 ### Q108. Bulk import throughput drops.
 Inspect item failures, rejections, heap/GC, disk writes, merges, refreshes, and concurrency. Use bounded batches and tune concurrency gradually; back off on rejections. During controlled offline loads, a longer refresh interval may help. Follow-up: why can bigger batches be slower?
 
+
+
+**Concrete example:** Monitor `GET /_nodes/stats/thread_pool,indices,fs` and inspect each item in the Bulk response; reduce batch size or concurrency if rejection and disk/merge pressure rise.
 ### Q109. Search endpoint times out under load.
 Correlate application/client timing with server took, shard failures, queue rejections, CPU/GC and slow logs. Simplify expensive queries and apply backpressure before scaling. Retry transient errors with jitter and a request deadline. Follow-up: why not just raise all timeouts?
 
+
+
+**Concrete example:** Use a bounded request such as `{"timeout":"2s","track_total_hits":false,"query":{"bool":{"must":[{"match":{"name":"headphones"}}],"filter":[{"range":{"createdAt":{"gte":"now-1d","lt":"now"}}}]}}}` and correlate timeout/shard metadata with queue metrics.
 ### Q110. Deep pagination consumes resources.
 Determine whether deep page numbers are truly needed. from/size requires collecting skipped hits. Use search_after and PIT with deterministic sorting, expose a scoped cursor, and avoid exact hit counts unless needed. Follow-up: PIT versus scroll?
 
+
+
+**Concrete example:** Return a cursor based on the last hit sort array and issue the next `search_after` request with the same query and sort; use PIT when the view must stay stable.
 ### Q111. Autocomplete needs partial words and typo tolerance.
 Clarify prefix/phrase/entity suggestion needs. Compare search_as_you_type, edge n-grams, completion suggester, and phrase-prefix. Restrict fields and count, debounce, and use fuzzy matching selectively. Test both p99 and relevance. Follow-up: what does edge n-gram cost?
 
+
+
+**Concrete example:** Prototype `{"query":{"match_phrase_prefix":{"name":{"query":"wireless blue","max_expansions":20}}}}`; compare it with a mapped `search_as_you_type` field under realistic QPS.
 ### Q112. Price filters return unexpected products.
 Confirm type, units, currency, scaling factor, and inclusive boundaries. Inspect source and mapping; mixed currencies or strings are common causes. Normalize to one numeric representation and reindex if type is wrong. Test boundary values. Follow-up: scaled_float versus minor-unit integers?
 
+
+
+**Concrete example:** Check the exact numeric mapping and test `{"query":{"range":{"price":{"gte":1000,"lte":6000}}}}` against documents on both boundaries and in the expected currency.
 ### Q113. Variant filters cross-match colors and sizes.
 Confirm the predicates must apply to one variant. An ordinary object array can flatten values and cross-match. Use nested mapping and a single nested query; if mapping is already object, create a new index and reindex. Follow-up: why isn't nested always preferable?
 
+
+
+**Concrete example:** Use one `nested` query at path `variants` with both `variants.color=red` and `variants.size=large` in its inner bool filter so both conditions must match the same child.
 ### Q114. Aggregations create too many buckets.
 Find field cardinality and the requested number of buckets. Reduce size; use top terms for facets and composite aggregation for exhaustive pagination. Use keyword/doc values and cap nested buckets. Follow-up: why can terms counts be approximate?
 
+
+
+**Concrete example:** For exhaustive facets, use a composite aggregation with `size` and continue from the returned `after_key` rather than raising a terms bucket limit without bounds.
 ### Q115. Heap spikes and breakers trip.
 Correlate post-GC heap with large aggregations, fielddata, request size, concurrency, or scripts. Fix fielddata misuse, cap buckets/concurrent queries, and isolate batch work. Don't raise breaker limits blindly. Follow-up: why does filesystem cache matter too?
 
+
+
+**Concrete example:** Inspect `GET /_nodes/stats/jvm,breaker,indices` before changing breaker settings; identify which request and aggregation caused the memory estimate to cross its limit.
 ### Q116. Disk watermarks block writes.
 Find full nodes and inspect indices, retention, reindex temporary copies, snapshots and open-deleted files. Add capacity or safely remove approved expired data, fix rollover/retention, and verify block state per version. Follow-up: why can reindex exhaust disk?
 
+
+
+**Concrete example:** Use `GET /_cat/allocation?v` and inspect effective cluster/index disk watermark settings; remove only data approved by retention policy and leave recovery headroom.
 ### Q117. SQL changes but search is stale.
 Trace the transaction, outbox/CDC relay, Kafka lag, consumer logs, bulk item results, and refresh. Fix the failing stage, replay idempotently, and reconcile. Serve immediate read-after-write from the authoritative source when needed. Follow-up: why is dual-write insufficient?
 
+
+
+**Concrete example:** Trace one entity ID through outbox row, Kafka offset/lag, consumer result, and `GET /products-v1/_doc/P1001`; compare the indexed source version with the database version.
 ### Q118. Kafka restarts and replays events.
 Determine whether events are full-state or deltas and whether ordering matters. Use stable IDs, event/source versions and idempotent projection updates; inspect item failures before offset commit. Monitor retries and lag. Follow-up: why doesn't Kafka exactly-once cover Elasticsearch side effects?
 
+
+
+**Concrete example:** Index a full-state projection using a stable ID, for example `PUT /products-v1/_doc/P1001` with `{"productId":"P1001","sourceVersion":42,"name":"Wireless headphones"}`; protect it from older source versions.
 ### Q119. Field type changes without downtime.
 Create a versioned index, capture a durable change-stream position, backfill, replay newer changes, validate, and swap aliases. Preserve rollback and account for deletes. Follow-up: how do you prevent old events overwriting new state?
 
+
+
+**Concrete example:** Create `products-v2` with the corrected mapping, start a controlled `POST /_reindex` backfill, then replay changes after the captured source checkpoint before cutover.
 ### Q120. New index rollout must be safe.
 Use versioned templates, build the destination, verify mappings/settings, backfill and replay changes, compare queries, then atomically move aliases. Keep a designated write index and test rollback. Follow-up: what if alias cutover happens before catch-up?
 
+
+
+**Concrete example:** Use `POST /_aliases` with one `remove` action for the old index and one `add` action for the new index in the same request; confirm catch-up and designate the write index.
 ### Q121. Tenant can see other tenants' products.
 Check authenticated identity, central query builder, direct-ID paths, aggregations, cursors, suggestions, and exports. Inject tenant scope server-side; consider document-level security or per-tenant indices. Routing is not authorization. Follow-up: how do you test for leakage?
 
+
+
+**Concrete example:** Build the tenant scope server-side, e.g. `{"query":{"bool":{"must":[{"match":{"name":"headphones"}}],"filter":[{"term":{"tenantId":"tenant-42"}}]}}}`; derive tenant-42 from authenticated identity.
 ### Q122. Reindex while writes continue.
 A reindex alone misses or races concurrent mutations. Capture a consistent snapshot/change position, backfill, replay mutations with idempotent version-aware writes, catch up and validate, then cut over. Keep the migration resumable and budget disk. Follow-up: how do you handle deletes?
 
+
+
+**Concrete example:** Record a durable CDC/Kafka offset, backfill a snapshot into v2, replay later events with source-version checks, and cut over only after lag reaches the agreed threshold.
 ### Q123. Delete event was lost.
 Trace source commit, outbox/CDC, Kafka, indexing consumer and DLQ. Replay delete idempotently and reconcile extra indexed IDs. Preserve version/tombstone semantics so a stale upsert cannot resurrect the document. Follow-up: how long should tombstones be retained?
 
+
+
+**Concrete example:** Replay a delete idempotently with `POST /products-v1/_delete_by_query` and `{"query":{"ids":{"values":["P1001"]}}}` only if that deletion scope is intended; otherwise prefer a direct delete by known ID.
 ### Q124. Bulk HTTP 200 but some documents are missing.
 Inspect the response errors flag and each item. Retry transient failures only; send permanent schema/mapping errors to DLQ and repair/replay. Alert on item failures, not only HTTP errors. Follow-up: why is whole-batch retry unsafe?
 
+
+
+**Concrete example:** For `POST /_bulk`, inspect both the top-level `errors` flag and every `items[]` status/error; retry only transient failures and send permanent mapping errors to a DLQ.
 ### Q125. Balance text, rating and recency.
 Clarify the ordering objective. Keep text as base score, enforce hard requirements in filters, and use calibrated field-value/decay functions for business signals. Test missing/outlier values and version the ranking rules. Follow-up: can scores from separate queries be compared?
 
+
+
+**Concrete example:** Compare a text query plus `function_score`/`field_value_factor` against a text-only baseline, and verify how missing ratings and outliers change the ranking.
 ### Q126. There are thousands of tiny shards.
 Inspect index count, shard size, rollover policy, retention, and per-shard overhead. Use size/count thresholds, consolidate only where supported, and plan safe reindex/topology changes. Follow-up: what happens if shards are too large?
 
+
+
+**Concrete example:** Use `GET /_cat/shards?v&h=index,shard,prirep,state,docs,store,node` to find tiny shards, then review rollover policy before planning any consolidation.
 ### Q127. Leading wildcard is slow.
 Clarify whether true substring search is needed. Broad wildcard/regexp patterns can expand many terms. Consider edge n-grams, search-as-you-type, completion, or a suitable wildcard field. Bound and rate-limit user patterns. Follow-up: can prefix queries also be expensive?
 
+
+
+**Concrete example:** Replace a leading-wildcard request with a suitable `prefix` query or an autocomplete mapping; compare `{"query":{"prefix":{"productId":"P10"}}}` with the current worst-case pattern.
 ### Q128. Deployment introduces mapping exceptions.
 Compare source payloads, mappings, templates, date formats and ingest pipelines. Roll back or fix producer data, create a new index if type is incompatible, then replay failures. Add schema contract tests and canary ingestion. Follow-up: strict versus permissive dynamic mapping?
 
+
+
+**Concrete example:** Reproduce the rejected document against `GET /products-v1/_mapping`, inspect the per-item `mapper_parsing_exception`, fix producer/schema, then replay failed records after validation.
 ### Q129. More replicas lower indexing throughput.
 Each replica requires storage, indexing, network and recovery work. Measure CPU, disk, network and recovery. Choose replicas from read demand and failure tolerance, not by rule of thumb. Follow-up: what does a replica help, and what does it not help?
 
+
+
+**Concrete example:** Before `PUT /products-v1/_settings` with `{"index":{"number_of_replicas":2}}`, calculate disk and surviving-node headroom and benchmark indexing throughput; do not apply the setting just to add redundancy blindly.
 ### Q130. Node fails during shard recovery.
 Inspect primary/replica availability, recovery state, quorum, disk and remaining capacity. Restore infrastructure and preserve valid copies; avoid data-loss commands. Throttle/prioritize recovery carefully. Follow-up: fast recovery versus keeping current search p99?
 
+
+
+**Concrete example:** Watch `GET /_cat/recovery?v&active_only=true`, `GET /_cluster/health`, and disk/network stats; prioritize valid shard recovery without starving production search.
 ### Q131. Consumer retries a poison-pill document forever.
 A deterministic mapping/schema error will not fix itself. Bound retries, capture event/error/version, send permanent failures to a DLQ, alert and replay after correction. Consider partition ordering consequences. Follow-up: what happens to later events if one is skipped?
 
+
+
+**Concrete example:** Store a DLQ envelope containing `eventId`, `entityId`, `schemaVersion`, original payload, attempt count, and `mapper_parsing_exception` detail, then replay only after the contract is corrected.
 ### Q132. Duplicate documents appear after replay.
 Check whether retries use random IDs or stable entity IDs. Use deterministic document IDs and version-aware writes, then reconcile duplicates. Follow-up: why doesn't idempotent upsert prevent stale events?
 
+
+
+**Concrete example:** Use the same deterministic identifier on every replay, such as `PUT /products-v1/_doc/P1001`; add source-version checks if an older event could overwrite a newer projection.
 ### Q133. GET by ID succeeds, but search misses the document.
 Separate upstream indexing delay from refresh visibility. Real-time GET can see recent writes before search. Trace the ingestion pipeline; if needed use the documented refresh policy sparingly or return the source entity. Follow-up: why doesn't flush solve it?
 
+
+
+**Concrete example:** Compare `GET /products-v1/_doc/P1001` with `POST /products-v1/_search`; if the GET is current but search lags, inspect refresh and use `refresh=wait_for` only when the latency cost is justified.
 ### Q134. CPU is high but average latency looks fine.
 Compare p50/p95/p99, per-node CPU, hot threads, merges/recovery, request rate, queue rejections, and shard skew. Average latency hides tail outliers. Isolate background and expensive workloads and alert on percentiles. Follow-up: what metrics find a hot shard?
 
+
+
+**Concrete example:** Correlate p95/p99 with `GET /_nodes/hot_threads`, `GET /_nodes/stats/os,process,thread_pool,indices`, and merge/recovery activity rather than relying on cluster-average CPU.
 ### Q135. Scores change after more documents are indexed.
 BM25 depends on corpus term/document frequencies and field lengths. Inspect Explain and representative relevance results; scores are not fixed quality labels. Use a judged query set for regression tests. Follow-up: why are scores across separate queries not comparable?
 
+
+
+**Concrete example:** Run `GET /products-v1/_explain/P1001` with the exact search query to see why the document matches and how score contributions are combined; compare after data/index changes.
 ### Q136. A large tenant dominates traffic.
 Determine whether routing concentrates that tenant on one shard or filters fan out broadly. Consider routing partitions, separate large-tenant indices, or a different model. Keep authorization separate and test skew. Follow-up: when is tenant routing harmful?
 
+
+
+**Concrete example:** A routed request such as `POST /products-v1/_search?routing=tenant-42` may narrow shard fan-out, but keep the tenant filter in the query and derive both values server-side.
 ### Q137. Restore after accidental deletion.
 Replicas reflect logical deletes, so they are not backups. Find a compatible snapshot, restore to a separate index when possible, validate, reconcile writes since the snapshot, then route aliases. Follow-up: why shouldn't a live index be replaced casually with an older snapshot?
 
+
+
+**Concrete example:** Restore `POST /_snapshot/backup-repo/snapshot-name/_restore` to a separate index name first, validate records, and reconcile authoritative writes that occurred after the snapshot.
 ### Q138. User can request arbitrary sorts and page sizes.
 This allows costly field sorts, deep offsets, expensive aggregations and resource abuse. Allowlist fields and query shapes, cap size/ranges/aggregation budgets, enforce tenant scope, and rate-limit. Follow-up: how is input validation availability engineering?
 
+
+
+**Concrete example:** In the API layer, allowlist sort names such as `Set.of("price", "rating", "createdAt")`, cap page size and range, and reject arbitrary raw Query DSL.
 ### Q139. Java client upgrade causes failures.
 Check server/client compatibility, dependency tree, transport, auth/TLS, serialization, and generated API changes. Read the release/migration notes, pin compatible versions, and run real integration tests for CRUD/search/bulk. Follow-up: why does forward compatibility not mean future features work automatically?
 
+
+
+**Concrete example:** Check dependencies with `./mvnw dependency:tree -Dincludes=co.elastic.clients:elasticsearch-java`, then compile and run real-cluster integration tests against the intended server major.
 ### Q140. Design resilient search using SQL, Kafka and Elasticsearch.
 SQL is authoritative. Outbox/CDC publishes durable changes to Kafka; an idempotent, version-aware consumer updates a versioned Elasticsearch index; aliases serve the search API; retries, DLQ, reconciliation and snapshots handle failures. Define freshness, tenant isolation, latency and recovery objectives. Critical purchase decisions recheck SQL. Follow-up: how do you migrate mappings without downtime and prevent stale replay?
+
+**Concrete example:** Project with a deterministic ID and source version, e.g. `PUT /products-v1/_doc/P1001` with `{"productId":"P1001","sourceVersion":42,"name":"Wireless headphones"}`; a replayed older version must not replace version 42.
+
 
 ---
 
