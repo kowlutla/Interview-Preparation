@@ -13,6 +13,9 @@
 
 ## API Gateway and Integration
 
+## Enterprise Integration
+- [ ] Enterprise integration patterns: request/reply, messaging, orchestration, adapters, and canonical data mapping
+- [ ] Interoperability: protocol/data-format transformation, error normalization, retries, idempotency, and schema evolution
 - [ ] Gateway routing, service connectivity, TLS termination, and certificate management
 - [ ] JWT/bearer-token validation, authentication policies, and token propagation
 - [ ] Rate limits, quotas, request/response transformations, and payload validation
