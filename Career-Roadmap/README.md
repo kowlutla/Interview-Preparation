@@ -1,44 +1,45 @@
 # Senior Java Backend Learning Roadmap
 
-A numbered, technology-wise checklist for preparing for Senior Software Engineer / Senior Java Backend Engineer interviews at product companies. Remote roles are a preference where available.
+A balanced, numbered checklist for preparing for Senior Software Engineer / Senior Java Backend Engineer interviews at product companies. Remote roles are preferred where the role and location eligibility permit.
 
 ## How to use this roadmap
 
-- Follow the numbered files as the default sequence; adjust based on target job descriptions.
-- Tick a topic only after reviewing it and completing hands-on practice where applicable.
-- Use this roadmap to track coverage. Use the repository's existing interview handbooks for explanations, examples, and Q&A.
-- Keep DSA practice and HLD/LLD practice ongoing throughout the plan rather than treating them as one-time topics.
-- C++ has been excluded to keep the plan focused on Java backend roles.
+- Each checkbox represents a meaningful learning area, not every individual subtopic.
+- Mark an item complete after reviewing the area and doing relevant practice.
+- Follow the numbered files as the default sequence, but adapt them to target job descriptions.
+- Keep DSA and HLD/LLD practice active throughout the preparation period.
+- Use this roadmap to track progress; use the existing interview handbooks for detailed explanations, examples, and Q&A.
+- C++ is intentionally excluded to keep the plan focused on Java backend roles.
 
 ## Recommended sequence
 
-- [ ] [00 Career Goals and Study Strategy.md](00-Career-Goals-and-Study-Strategy.md)
-- [ ] [01 Computer Science and DSA.md](01-Computer-Science-and-DSA.md)
-- [ ] [02 Core Java and Modern Java.md](02-Core-Java-and-Modern-Java.md)
-- [ ] [03 Java Concurrency and JVM.md](03-Java-Concurrency-and-JVM.md)
-- [ ] [04 Git Maven Gradle and CI CD.md](04-Git-Maven-Gradle-and-CI-CD.md)
-- [ ] [05 Testing and Code Quality.md](05-Testing-and-Code-Quality.md)
-- [ ] [06 Spring and Spring Boot.md](06-Spring-and-Spring-Boot.md)
-- [ ] [07 REST APIs and Application Security.md](07-REST-APIs-and-Application-Security.md)
-- [ ] [08 SQL and Database Engineering.md](08-SQL-and-Database-Engineering.md)
-- [ ] [09 Hibernate JPA and Liquibase.md](09-Hibernate-JPA-and-Liquibase.md)
-- [ ] [10 Microservices and Distributed Systems.md](10-Microservices-and-Distributed-Systems.md)
-- [ ] [11 Kafka and Event Driven Architecture.md](11-Kafka-and-Event-Driven-Architecture.md)
-- [ ] [12 Redis and Caching.md](12-Redis-and-Caching.md)
-- [ ] [13 Elasticsearch and Search Systems.md](13-Elasticsearch-and-Search-Systems.md)
-- [ ] [14 System Design HLD.md](14-System-Design-HLD.md)
-- [ ] [15 Design Patterns and LLD.md](15-Design-Patterns-and-LLD.md)
-- [ ] [16 Linux and Networking.md](16-Linux-and-Networking.md)
-- [ ] [17 Docker Kubernetes and Helm.md](17-Docker-Kubernetes-and-Helm.md)
-- [ ] [18 Cloud OCI and API Gateway.md](18-Cloud-OCI-and-API-Gateway.md)
-- [ ] [19 Observability and Production Engineering.md](19-Observability-and-Production-Engineering.md)
-- [ ] [20 Apache Spark.md](20-Apache-Spark.md)
-- [ ] [21 Avro Iceberg and Data Engineering.md](21-Avro-Iceberg-and-Data-Engineering.md)
-- [ ] [22 HTML CSS and Web Fundamentals.md](22-HTML-CSS-and-Web-Fundamentals.md)
-- [ ] [23 Project Experience and Technical Deep Dives.md](23-Project-Experience-and-Technical-Deep-Dives.md)
-- [ ] [24 Resume Behavioral and Leadership.md](24-Resume-Behavioral-and-Leadership.md)
-- [ ] [25 Company Preparation and Job Search.md](25-Company-Preparation-and-Job-Search.md)
-- [ ] [26 Final Revision and Interview Readiness.md](26-Final-Revision-and-Interview-Readiness.md)
+- [ ] [00 — Career Goals and Study Strategy](00-Career-Goals-and-Study-Strategy.md)
+- [ ] [01 — Computer Science and DSA](01-Computer-Science-and-DSA.md)
+- [ ] [02 — Core Java and Modern Java](02-Core-Java-and-Modern-Java.md)
+- [ ] [03 — Java Concurrency and JVM](03-Java-Concurrency-and-JVM.md)
+- [ ] [04 — Git, Maven, Gradle, and CI/CD](04-Git-Maven-Gradle-and-CI-CD.md)
+- [ ] [05 — Testing and Code Quality](05-Testing-and-Code-Quality.md)
+- [ ] [06 — Spring and Spring Boot](06-Spring-and-Spring-Boot.md)
+- [ ] [07 — REST APIs and Application Security](07-REST-APIs-and-Application-Security.md)
+- [ ] [08 — SQL and Database Engineering](08-SQL-and-Database-Engineering.md)
+- [ ] [09 — Hibernate, JPA, Transactions, and Liquibase](09-Hibernate-JPA-and-Liquibase.md)
+- [ ] [10 — Microservices and Distributed Systems](10-Microservices-and-Distributed-Systems.md)
+- [ ] [11 — Kafka and Event-Driven Architecture](11-Kafka-and-Event-Driven-Architecture.md)
+- [ ] [12 — Redis and Caching](12-Redis-and-Caching.md)
+- [ ] [13 — Elasticsearch and Search Systems](13-Elasticsearch-and-Search-Systems.md)
+- [ ] [14 — System Design HLD](14-System-Design-HLD.md)
+- [ ] [15 — Design Patterns and LLD](15-Design-Patterns-and-LLD.md)
+- [ ] [16 — Linux, Shell, and Operational Basics](16-Linux-and-Networking.md)
+- [ ] [17 — Docker, Kubernetes, and Helm](17-Docker-Kubernetes-and-Helm.md)
+- [ ] [18 — Cloud, OCI, API Gateway, and Enterprise Integration](18-Cloud-OCI-and-API-Gateway.md)
+- [ ] [19 — Observability and Production Engineering](19-Observability-and-Production-Engineering.md)
+- [ ] [20 — Apache Spark](20-Apache-Spark.md)
+- [ ] [21 — Avro, Iceberg, and Data Engineering](21-Avro-Iceberg-and-Data-Engineering.md)
+- [ ] [22 — HTML, CSS, and Web Fundamentals](22-HTML-CSS-and-Web-Fundamentals.md)
+- [ ] [23 — Project Experience and Technical Deep Dives](23-Project-Experience-and-Technical-Deep-Dives.md)
+- [ ] [24 — Resume, Behavioral, and Leadership](24-Resume-Behavioral-and-Leadership.md)
+- [ ] [25 — Company Preparation and Job Search](25-Company-Preparation-and-Job-Search.md)
+- [ ] [26 — Final Revision and Interview Readiness](26-Final-Revision-and-Interview-Readiness.md)
 
 ## Existing interview handbooks
 
