@@ -173,39 +173,57 @@ An abstract class can hold instance state, constructors, and a mix of abstract a
 
 ### Q22. What are default-method conflicts in interfaces?
 
-If unrelated interfaces provide conflicting default implementations, a class may need to override the method and resolve the conflict explicitly. A class implementation takes precedence over an interface default, and a more specific interface can take precedence over a less specific one. Default methods support interface evolution but should not be used to hide ambiguous domain design.
+If a class implements two unrelated interfaces that provide the same default method signature, Java cannot choose one implementation automatically, so the class must override the method and resolve the conflict. The override can call a particular default with InterfaceName.super.method() when that is appropriate.
+
+The resolution rules are important: a concrete class method takes precedence over an interface default; a more-specific subinterface default takes precedence over a less-specific parent interface default; and unrelated conflicting defaults require an explicit choice. Default methods help evolve interfaces without forcing every implementation to add boilerplate, but they should not hide conflicting business semantics.
 
 ### Q23. What is the difference between shallow copy and deep copy?
 
-A shallow copy duplicates the outer object but may retain references to the same nested mutable objects. A deep copy duplicates the relevant nested state as well. Deep copying can be expensive and is domain-dependent; defensive copying of exposed mutable state is often a better targeted solution than indiscriminately copying an entire object graph.
+A shallow copy creates a new outer object but retains references to nested objects. If both copies point to the same mutable list, changing the list through either object affects what the other observes. A deep copy duplicates the relevant nested mutable state so the copy can be changed independently.
+
+Deep copying is not automatically better: it can be expensive, may be impossible for resources such as sockets, and requires a clear definition of which parts of an object graph belong to the copy. For API boundaries and value objects, targeted defensive copying or immutable data structures are often simpler than recursively copying everything.
 
 ### Q24. What is defensive copying, and where is it needed?
 
-Defensive copying prevents callers from mutating internal state through references they supplied or received. Copy mutable constructor arguments before storing them and return a copy or unmodifiable representation when exposing mutable internal collections. An unmodifiable wrapper alone is not a snapshot if another reference can still mutate the backing collection.
+Defensive copying protects a class's invariants from references controlled by callers. Copy mutable arguments before storing them, and avoid returning internal arrays, dates, or collections directly if callers must not mutate them. This is especially important for configuration objects and state shared between threads.
+
+An unmodifiable wrapper is not necessarily a snapshot: another reference may still modify the backing collection. A defensive copy separates internal state from the caller's reference; an immutable copy also prevents mutation through the returned collection API. Consider nested mutable elements, because copying a list does not make the objects inside it immutable.
 
 ### Q25. What is the Factory pattern and when is it useful?
 
-A factory encapsulates object creation when the caller should not know the concrete implementation or construction rules. It is useful when selection depends on configuration, input type, or a family of implementations. A factory adds indirection, so it is not necessary for every simple constructor call.
+A factory encapsulates object creation when the caller should not need to know the concrete implementation or construction rules. It is useful when the implementation depends on configuration, input type, environment, or a family of related objects. For example, a notification factory could select an email or SMS provider based on a validated channel value.
+
+Factories can centralize validation and prevent callers from constructing invalid combinations, but they also add indirection. A factory is not required for every constructor call; introduce one when creation logic varies, is complex, or belongs behind a boundary. In modern Java, dependency-injection containers often handle object creation, but application-level factories are still useful for domain-specific selection.
 
 ### Q26. What is the Strategy pattern?
 
-Strategy represents interchangeable behavior behind a common contract and selects an implementation at runtime. It can replace a large conditional when behaviors vary independently, such as choosing a pricing or retry policy. It is less useful when there is only one trivial behavior and no realistic variation.
+Strategy packages interchangeable behavior behind a common contract so the caller can select an implementation without embedding every algorithm in a large conditional. A backend service might use different pricing, authorization, routing, or retry policies while keeping the calling workflow stable.
+
+The benefit is that each strategy can be tested independently and new behavior can be added without repeatedly editing the central decision logic. The trade-off is more types and indirection. Use Strategy when the variations are meaningful and likely to evolve; for a tiny conditional with no independent behavior, a separate hierarchy may make the code harder to follow.
 
 ### Q27. What is the Builder pattern and when should it be used?
 
-Builder separates complex object construction from the final representation, especially when many optional parameters or validation rules exist. It can make call sites readable and reduce telescoping constructors. For a small value object with two required fields, a builder may add unnecessary ceremony.
+Builder separates construction from the final object and is useful when there are many optional parameters, validation rules, or combinations that would otherwise require several overloaded constructors. Named builder methods make call sites easier to read and reduce mistakes caused by long lists of same-typed arguments.
+
+A builder should still enforce invariants before producing the object; it must not allow an invalid configuration merely because fields were set in a different order. Builders are especially useful for immutable request/configuration objects. For a simple object with one or two required fields, a constructor or factory method is usually clearer and avoids unnecessary ceremony.
 
 ### Q28. What is the Decorator pattern?
 
-Decorator wraps an object with the same interface and adds behavior without modifying the original implementation. It is useful for composing concerns such as metrics, caching, compression, or additional validation. Many layers of decorators can complicate debugging, so make composition visible and test the order of behavior.
+Decorator wraps an object with the same interface and adds behavior while preserving the interface expected by callers. It can compose concerns such as metrics, caching, compression, tracing, or validation around a service without modifying the underlying implementation.
+
+Decorators are useful when the behaviors can be combined independently, but order matters: caching before authorization, for example, can have different consequences from authorization before caching. Keep composition visible, test the order of behavior, and avoid a long chain of wrappers that makes debugging difficult. In Java frameworks, proxies often provide similar wrapping behavior, though the mechanics and limitations depend on the framework.
 
 ### Q29. What is the Adapter pattern?
 
-Adapter translates one interface into another so components with incompatible contracts can work together. It is useful when integrating a legacy library or external provider without spreading its model across the application. Keep the adapter at the boundary and translate errors and data into the application's own contract.
+Adapter translates one interface into another so components with incompatible contracts can work together. A backend application might wrap a vendor SDK in an adapter that converts vendor request/response types and exceptions into the application's own domain contract.
+
+Keeping this translation at the boundary prevents vendor-specific types and failure semantics from spreading through business logic. An adapter should not merely rename every method; it should make the mismatch explicit and handle conversions, defaults, and errors deliberately. This also makes replacing a vendor implementation and testing the application boundary easier.
 
 ### Q30. What is Dependency Injection, and how is it related to design patterns?
 
-Dependency injection supplies an object with its collaborators rather than having it construct them internally. It improves testability and separates object creation from business behavior. DI is a technique, not a guarantee of good architecture; excessive interfaces or a service locator can still create hidden dependencies.
+Dependency injection supplies an object with its collaborators rather than having it construct those collaborators internally. Constructor injection makes required dependencies visible, supports immutable fields, and allows tests to provide controlled implementations. A service that receives a repository and a payment-provider interface is easier to test than one that creates concrete clients inside each method.
+
+DI separates object creation from business behavior, but it does not automatically create good architecture. Excessive interfaces can add indirection, and a service locator can hide dependencies rather than expose them. Prefer constructor injection for required collaborators, keep object graphs understandable, and avoid injecting dependencies that a class does not actually need.
 
 ### Q31. What is the difference between composition and inheritance?
 
@@ -217,7 +235,9 @@ A subtype should be usable wherever its base type is expected without violating 
 
 ### Q33. How should a Java API handle null arguments?
 
-Define nullability explicitly, validate at public boundaries, and fail early with a meaningful exception when null is invalid. If absence is part of the normal result, represent it consistently, for example with Optional return values where appropriate. Do not let a null propagate through several layers and fail at an unrelated dereference.
+Define whether null is valid for every public parameter and return value, then enforce that contract at the boundary. If null is invalid, fail early with a clear exception such as NullPointerException or IllegalArgumentException and identify the offending parameter. Do not allow invalid input to travel through several layers until it fails at an unrelated dereference.
+
+If absence is a normal outcome, represent it consistently—for example, with Optional for a return value when appropriate—or use a documented nullable contract. Annotations and static analysis can help make nullability visible, but they do not replace runtime validation for untrusted input. Be consistent across layers so callers know whether to handle absence, an exception, or a default value.
 
 ### Q34. How do you review a Java pull request for correctness?
 
@@ -225,11 +245,9 @@ Review behavior and invariants, error handling, concurrency, nullability, resour
 
 ### Q35. How do you decide whether to introduce an interface?
 
-Introduce an interface when it represents a meaningful contract, enables multiple implementations, separates a boundary, or improves testing without obscuring the design. Avoid creating one interface per class mechanically when no substitution or boundary exists. The right abstraction should clarify dependencies rather than add layers for their own sake.
+Introduce an interface when it represents a meaningful contract, separates a system boundary, enables implementations to be substituted, or makes an important dependency easy to test. Interfaces are especially useful around external providers, storage, clocks, and other dependencies whose behavior may vary between production and tests.
 
----
-
----
+Avoid creating an interface mechanically for every class. If there is one stable implementation, no meaningful boundary, and no realistic variation, an interface can add navigation and indirection without improving the design. Let the contract describe behavior callers need rather than mirroring every method of one implementation.
 
 ## 3. Strings, wrappers, numeric behavior, and equality
 
@@ -366,15 +384,21 @@ There is no universal rule that checked exceptions are always better for recover
 
 ### Q58. Can a catch block catch an exception thrown by another catch block?
 
-No. A catch block handles exceptions from the associated try block; an exception thrown while executing a catch block is not handled by a sibling catch clause. It propagates outward unless another enclosing handler catches it. This is useful to remember when writing exception output questions and nested error-handling logic.
+A catch clause handles exceptions thrown by its associated try block; it does not catch exceptions thrown by a sibling catch clause. If a catch block throws a new exception, that exception propagates outward unless an enclosing try/catch handles it.
+
+For example, a catch block that catches IOException and throws a ServiceException cannot then be followed by another sibling catch for ServiceException on the same try statement. If the translated exception should be handled locally, put the translation inside a nested or enclosing try block. This distinction matters when designing error translation and deciding which layer owns recovery.
 
 ### Q59. What is multi-catch, and what restrictions apply?
 
-Multi-catch allows one catch block to handle several unrelated exception types using a pipe-separated declaration. The alternatives cannot be related by subclassing, because one would be redundant. The multi-catch parameter is effectively final, which prevents reassignment and keeps the declared union type safe.
+Multi-catch allows one catch clause to handle several unrelated exception types, such as IOException or SQLException, when the handling is identical. The alternatives cannot be in a subtype relationship, because catching the broader type would make the narrower alternative redundant. The multi-catch parameter is implicitly final and cannot be reassigned.
+
+Use multi-catch to remove genuinely duplicated handling, not to hide differences in recovery behavior. If one exception should be retried and another should fail immediately, separate catch clauses make the contract clearer. Preserve causes and add context when translating errors rather than reducing every failure to a generic message.
 
 ### Q60. What is the difference between throw and throws?
 
-throw actually raises an exception object at a point in execution. throws declares exception types that a method may propagate as part of its signature. A declaration does not itself throw anything; it describes the method contract and affects compile-time checking for checked exceptions.
+throw raises an exception object at a particular point in execution, for example when a validated business rule is violated. throws appears in a method or constructor declaration and lists exception types that may propagate to the caller; it does not itself raise an exception.
+
+The distinction matters for checked exceptions: callers must catch or declare checked exceptions that can escape a method. Unchecked exceptions can propagate without being declared. Throw meaningful exceptions with useful context, preserve the original cause when wrapping a lower-level failure, and avoid using exceptions for ordinary expected branching.
 
 ### Q61. What is the difference between a checked exception and an Error?
 
@@ -440,43 +464,57 @@ Annotations do not automatically cause behavior; some tool or runtime component 
 
 ### Q71. What is type erasure, and what limitations does it create?
 
-Java generics are largely implemented by erasing type parameters during compilation and inserting casts or bridge methods where required. This supports compatibility with older bytecode, but means some runtime operations cannot distinguish parameterized types such as List<String> and List<Integer>. It also explains restrictions such as generic array creation and many parameterized instanceof checks.
+Java generics are largely implemented through type erasure: type parameters are erased to their bounds or Object in the runtime representation, and the compiler inserts casts or bridge methods where required. This design supports compatibility with older bytecode, but some parameterized types cannot be distinguished at runtime—for example, List<String> and List<Integer> generally have the same erased class.
+
+Erasure explains restrictions such as creating arrays of parameterized types, using ordinary instanceof checks against many parameterized types, and overloading methods whose signatures erase to the same JVM signature. Generic information may remain in class-file metadata for reflection, but it is not equivalent to reified runtime type parameters. Do not describe erasure as meaning all generic metadata disappears completely.
 
 ### Q72. What are bridge methods?
 
-The compiler can generate synthetic bridge methods to preserve polymorphism after type erasure or covariant return changes. They help ensure that overriding behavior remains correct when generic source-level signatures erase to compatible JVM-level signatures. They are generally invisible in normal source code but may appear in reflection or bytecode inspection.
+A bridge method is a synthetic method the compiler may generate to preserve overriding and polymorphism after type erasure or covariant return typing. The source-level signatures can look compatible while their erased JVM signatures differ; the bridge forwards calls to the implementation with the more specific source-level type.
+
+Bridge methods are usually invisible in ordinary source code, but they may appear in bytecode inspection or reflection. They are one reason framework code that scans declared methods should account for synthetic and bridge flags. Developers generally should not write bridge methods manually; the compiler manages them to preserve the language's method-dispatch behavior.
 
 ### Q73. What is the difference between extends and super wildcards?
 
-Use ? extends T when a generic structure produces values of type T or a subtype and you primarily need to read them. Use ? super T when it consumes values of type T and you need to write them. The PECS mnemonic—Producer Extends, Consumer Super—is a useful starting point, but the actual API contract determines the correct type.
+Use a wildcard when the API should accept a range of related generic types rather than one exact type. List<? extends T> means the actual element type is some unknown subtype of T, so it is useful when the list produces T values; you cannot safely add an arbitrary non-null T because the list might really be a List of a narrower subtype.
+
+List<? super T> means the element type is T or a supertype, so it is useful when writing T values into the collection. Values read from it are only safely known as Object. PECS—Producer Extends, Consumer Super—is a helpful rule of thumb, but the actual relationship between inputs and outputs should determine the signature.
 
 ### Q74. Why are generics invariant when arrays are covariant?
 
-A List<Integer> is not a subtype of List<Number>, because otherwise code could insert a Double into a list intended to contain Integer values. Arrays allow covariance but enforce component types at runtime, which can produce ArrayStoreException. Generic invariance catches unsafe assignments at compile time; wildcards express safe producer or consumer relationships.
+Generics are invariant: List<Integer> is not a subtype of List<Number>. If it were, a caller could pass a List<Integer> where List<Number> was expected and then insert a Double, violating the original list's element-type guarantee. Wildcards provide controlled flexibility without allowing that unsafe write.
+
+Arrays are covariant, so Integer[] can be assigned to Number[], but the JVM checks the actual component type at runtime and can throw ArrayStoreException when an incompatible value is stored. Generics catch this class of error at compile time. Choose wildcards to express producer/consumer relationships rather than relying on raw types or unsafe casts.
 
 ### Q75. What are raw types, and why should they be avoided?
 
-A raw type uses a generic class without its type argument, such as List rather than List<String>. It bypasses generic type checking and can introduce values that fail later with ClassCastException. Use parameterized types throughout modern code and isolate any unavoidable raw-type interaction behind a narrow, documented boundary.
+A raw type omits the type argument from a generic class, such as using List instead of List<String>. Raw types exist mainly for compatibility with pre-generics code, but they bypass compile-time checks and can let an incompatible value enter a collection, causing ClassCastException later when a caller reads it.
+
+Prefer parameterized types throughout modern code. If legacy APIs force a raw-type interaction, isolate it at a narrow boundary, validate or convert the data there, and document any unchecked cast. Suppressing an unchecked warning does not make the operation safe; it only hides the compiler's warning.
 
 ### Q76. What is the difference between a generic method and a generic class?
 
-A generic class declares type parameters that apply to its instance or class-level API. A generic method declares its own type parameters for one method invocation, even if its enclosing class is not generic. Use the narrowest type parameter scope that expresses the relationship between the method's inputs and outputs.
+A generic class declares type parameters that apply to its instances and relevant API, such as Box<T> storing a value of type T. A generic method declares its own type parameters for one invocation and can appear in a non-generic class, such as a method that returns the first element of a supplied List<T>.
+
+Use a class-level parameter when the object's state and multiple methods share the same type relationship. Use a method-level parameter when only one operation needs that relationship. Prefer signatures that express the relationship between inputs and outputs so callers get compile-time checking without raw types or unnecessary casts.
 
 ### Q77. What is an annotation's retention policy?
 
-SOURCE retention means the annotation is discarded by the compiler, CLASS retention keeps it in the class file but does not require runtime reflection visibility, and RUNTIME retention makes it available to runtime reflection. Frameworks that inspect annotations at runtime need appropriate retention. Annotation metadata alone does not trigger behavior; a compiler, processor, or runtime component must interpret it.
+Retention policy determines how long annotation metadata is kept. SOURCE annotations are discarded by the compiler; CLASS annotations are recorded in the class file but are not required to be available through runtime reflection; RUNTIME annotations remain available for reflective inspection.
+
+Choose RUNTIME when a framework must discover the annotation while the application runs. Compile-time annotation processors can work with source/class metadata without requiring runtime reflection. Retention alone does not cause behavior: a compiler, processor, build tool, or runtime framework must interpret the annotation. Also check the annotation's target and whether the relevant tool scans the declaration in question.
 
 ### Q78. What is the difference between reflection and annotation processing?
 
-Reflection inspects runtime classes and members while the program is running. Annotation processing operates during compilation and can inspect source-level declarations and generate source or resources. Compile-time processing can catch or generate things earlier, while reflection supports runtime discovery but adds runtime complexity and access constraints.
+Reflection inspects classes, methods, fields, constructors, and annotations at runtime. Annotation processing runs during compilation and can inspect program declarations and generate source files or resources. Reflection supports runtime discovery and dynamic behavior; annotation processing can generate code or report problems earlier, often reducing runtime discovery work.
+
+Neither is automatically superior. Runtime frameworks often use reflection for dependency injection or mapping, while libraries may use annotation processors to generate mappers or metadata. Account for module access restrictions and runtime complexity when using reflection, and ensure the processor is configured in the build when relying on compile-time generation.
 
 ### Q79. What is a dynamic proxy, and where is it used?
 
-A dynamic proxy can create an object that implements specified interfaces and forwards method calls to an invocation handler. Frameworks use proxies for cross-cutting behavior such as transactions, security, and interception. Proxy-based mechanisms have limitations around concrete classes, final methods, self-invocation, and method visibility depending on the proxy technology.
+A dynamic proxy creates an object that implements one or more interfaces and forwards method calls to an InvocationHandler. The handler can inspect the invoked method and arguments, then run cross-cutting behavior such as logging, authorization, metrics, or delegation. Frameworks often use proxies to implement interception without modifying the target class.
 
----
-
----
+JDK dynamic proxies work through interfaces; class-based proxy technologies have different constraints. Proxy behavior can be affected by final methods/classes, visibility, self-invocation, and how the framework creates the proxy. For example, a method calling another method on this may bypass an external proxy interceptor. When debugging transactions or security annotations, understand which proxy mechanism is active and whether the call actually crosses the proxy boundary.
 
 ## 6. Collections framework and data structures
 
