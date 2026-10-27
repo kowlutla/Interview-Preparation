@@ -32,6 +32,7 @@ Each topic has one primary Markdown handbook. Open the linked file above to read
 Interview-Preparation/
 ├── README.md
 ├── Git/Git-Interview-QA.md
+├── Maven-Gradle/Maven-Gradle-Interview-QA.md
 ├── CI-CD/CI-CD-Interview-QA.md
 ├── System-Design-HLD/System-Design-HLD-Interview-QA.md
 ├── Java/Java-Interview-QA.md
