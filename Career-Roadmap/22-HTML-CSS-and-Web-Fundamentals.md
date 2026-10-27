@@ -1,15 +1,9 @@
 # HTML, CSS, and Web Fundamentals
 
-> Numbered learning checklist. Use the existing handbook in this repository for detailed explanations and interview Q&A.
-
-### 49. HTML, CSS, and Web Fundamentals
-- [ ] HTML Document Structure and Semantic Elements
-- [ ] Forms and Input Validation
-- [ ] CSS Selectors, Box Model, and Specificity
-- [ ] Flexbox and Grid
-- [ ] Responsive Design
-- [ ] DOM Fundamentals
-- [ ] Browser DevTools
-- [ ] Browser-to-Backend Request Flow
-- [ ] Cookies, Storage, CORS, and Same-Origin Policy
-- [ ] Accessibility Fundamentals
+- [ ] HTML structure, semantic elements, forms, and input validation
+- [ ] CSS selectors, specificity, box model, and layout fundamentals
+- [ ] Flexbox, Grid, responsive design, and common browser layout issues
+- [ ] DOM fundamentals, events, and browser developer tools
+- [ ] Browser-to-backend request flow, cookies, and browser storage
+- [ ] Same-origin policy, CORS, CSRF, and web security basics
+- [ ] Accessibility fundamentals and usable form design
