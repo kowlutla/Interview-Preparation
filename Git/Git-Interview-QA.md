@@ -38,13 +38,13 @@ Git is optimized around content-addressed objects and snapshots of tracked proje
 
 The **working tree** is the set of checked-out files I edit on disk. The **index**, commonly called the staging area, records the content and file modes that will be included in the next commit. The **local repository** stores Git objects and references such as branches and tags. A **remote repository** is another repository, usually hosted centrally, with which I exchange commits and references.
 
-These are separate states. Editing a Java file changes the working tree, but not the index or current commit. Running **git add** updates the index with the file content as it exists at that moment. If I edit the file again after staging, the staged version and current working-tree version differ: the staged change appears in **git diff --staged**, while the unstaged difference appears in **git diff**. **git status** summarizes the differences between these states. **git commit** records the index as a new commit; **git push** transfers commits to a remote.
+These are separate states. Editing a Java file changes the working tree, but not the index or current commit. **git commit** records the index as a new commit; **git push** transfers commits to a remote.
 
 This separation is central to safe daily work. Before committing, inspect both staged and unstaged changes rather than assuming that everything on disk will be committed. Before pushing, confirm the branch and remote. Before a destructive operation, use **git status** and preserve any work that is not safely committed.
 
 ### Q3. What do add, commit, fetch, pull, and push do?
 
-These commands act at different stages of collaboration. **git add** copies the selected current file content into the index; it does not create a commit or upload anything. **git commit** records the staged snapshot as a new commit and normally advances the current branch. **git fetch** downloads remote objects and updates remote-tracking references, such as **origin/main**, without merging those changes into my current branch. **git pull** fetches and then integrates a selected upstream branch, usually by merge or rebase depending on command options and configuration. **git push** sends local commits and asks the remote to update a reference, subject to ancestry checks and server policy.
+These commands act at different stages of collaboration. **git add** copies the selected current file content into the index; it does not create a commit or upload anything. **git push** sends local commits and asks the remote to update a reference, subject to ancestry checks and server policy.
 
 A safe routine is to review the actual changes, commit a coherent unit, fetch before integrating recent remote work, run tests, and push to the intended destination. For example:
 
@@ -60,19 +60,19 @@ The command sequence is not a substitute for judgment. I should not stage every 
 
 ### Q4. Does Git store diffs or snapshots?
 
-At the logical level, Git commits represent snapshots of the tracked project at particular points in history. A commit points to a root tree that records paths, file modes, and references to file content objects. If a file is unchanged, a later snapshot can reuse the same content object rather than needing a unique copy just because another commit exists. This is why Git is often described as snapshot-based rather than as a database that permanently stores only a sequential list of patches.
+At the logical level, Git commits represent snapshots of the tracked project at particular points in history. A commit points to a root tree that records paths, file modes, and references to file content objects. This is why Git is often described as snapshot-based rather than as a database that permanently stores only a sequential list of patches.
 
 Physically, Git uses storage optimizations such as packfiles and delta compression to reduce object-database size. Those optimizations do not change the logical model: each commit still describes a complete project state through its tree. Git also generally infers renames when showing diffs or performing merges, based on similarity between deleted and added paths; a rename is not usually a special standalone object in the committed tree.
 
-The distinction matters in interviews and during recovery. A commit can have the same tree as another commit but a different identity because its parent or metadata differs. Likewise, deleting a large file from the latest version does not automatically remove its content from older commits. The old object can remain reachable through history, so shrinking repository history may require a deliberate history rewrite rather than a simple file deletion.
+The distinction matters in interviews and during recovery. A commit can have the same tree as another commit but a different identity because its parent or metadata differs. The old object can remain reachable through history, so shrinking repository history may require a deliberate history rewrite rather than a simple file deletion.
 
 ### Q5. Explain Git's blob, tree, commit, and tag objects.
 
-A **blob** stores file content, without the file's path. A **tree** describes a directory level by mapping names and modes to blobs or other trees. A **commit** points to a root tree and records metadata such as its parent commit or parents, author, committer, timestamps, and message. An **annotated tag** is a separate Git object that can point to an object—commonly a commit—and includes a tag name, tagger metadata, a message, and optionally a cryptographic signature. A lightweight tag, by contrast, is simply a reference to an object.
+A **blob** stores file content, without the file's path. A **tree** describes a directory level by mapping names and modes to blobs or other trees. A lightweight tag, by contrast, is simply a reference to an object.
 
 Git identifies objects using a hash of their object representation. Repositories created with different object formats can use different hash algorithms, and not every Git host or tool necessarily supports every format in the same way. The practical lesson is not to depend on manually interpreting object IDs; use Git commands to inspect objects and references.
 
-These object types explain Git's behavior. A branch is not a copy of all project files; it is a reference to a commit. A commit's tree determines the snapshot, and parent pointers determine ancestry. Moving a branch changes a reference, whereas changing committed content generally creates new objects. These distinctions help explain branching, merging, rebasing, tags, and why commits can become unreachable after their references are moved or deleted.
+These object types explain Git's behavior. A branch is not a copy of all project files; it is a reference to a commit. These distinctions help explain branching, merging, rebasing, tags, and why commits can become unreachable after their references are moved or deleted.
 
 ---
 
@@ -84,13 +84,13 @@ A commit points to a tree representing the snapshot and normally to one parent c
 
 A commit ID hashes the commit object, not only the source files. Two commits can point to identical trees yet have different IDs because their parent commits, author or committer metadata, timestamps, messages, signatures, or other headers differ. Rebasing typically changes parentage, so it creates new commit objects and changes the IDs of the replayed commits even if the source-level changes remain the same.
 
-For investigation, separate three questions: are the checked-out files the same, are the root trees the same, and are the commit histories the same? These are not interchangeable. A matching file diff does not prove that two revisions have identical ancestry. Conversely, a changed commit ID after a rebase does not by itself prove that the code changed. Inspect the graph, tree, and diff to establish what actually differs.
+For investigation, separate three questions: are the checked-out files the same, are the root trees the same, and are the commit histories the same? These are not interchangeable. Inspect the graph, tree, and diff to establish what actually differs.
 
 ### Q7. What are a branch, HEAD, and detached HEAD?
 
 A branch is a movable reference to a commit. When I make a normal commit while on a branch, Git creates a commit whose parent is the previous tip and advances that branch reference. **HEAD** normally points symbolically to the current branch, which then points to a commit. This is why switching branches changes which commit the working tree is based on without copying an entire repository for each branch.
 
-In **detached HEAD** state, HEAD points directly to a commit rather than symbolically to a branch. This commonly happens when checking out a tag or a specific commit. I can inspect the code and even create commits in this state, but those new commits do not automatically advance a named branch. If I switch away without creating a reference, the commits may eventually become difficult to find and can be pruned after they become unreachable.
+In **detached HEAD** state, HEAD points directly to a commit rather than symbolically to a branch. This commonly happens when checking out a tag or a specific commit. If I switch away without creating a reference, the commits may eventually become difficult to find and can be pruned after they become unreachable.
 
 Check with **git status** or **git branch --show-current**. To keep work created in detached HEAD, create a branch at the current commit, for example **git switch -c rescue/my-experiment**. Detached HEAD is useful for testing a historical revision; it is not inherently an error. The risk is assuming a branch name will preserve new commits when HEAD is detached.
 
@@ -98,13 +98,13 @@ Check with **git status** or **git branch --show-current**. To keep work created
 
 The **merge base** is a best common ancestor used by Git to compare the histories being merged. If a feature branch is strictly ahead of the target branch, Git can do a **fast-forward**: it moves the target reference forward to the feature commit because no divergent histories need to be combined. No merge commit is required for that operation.
 
-If both branches have diverged, Git typically performs a **three-way merge** using the merge base and the two branch tips. It combines the changes from both sides and may create a merge commit with both tips as parents. Conflicting changes may need human resolution. The merge-base concept explains why Git compares each side's changes since a common ancestor, rather than treating the merge as a simple comparison of two final files.
+If both branches have diverged, Git typically performs a **three-way merge** using the merge base and the two branch tips. It combines the changes from both sides and may create a merge commit with both tips as parents. The merge-base concept explains why Git compares each side's changes since a common ancestor, rather than treating the merge as a simple comparison of two final files.
 
-A fast-forward is simple and keeps history linear, but it does not preserve a separate merge boundary. A merge commit records that two lines of development were integrated. Teams can disallow fast-forwarding or require merge commits when preserving integration history matters. The correct choice depends on review and release policy, not on one merge type being universally superior. Inspect the graph with **git log --oneline --graph --decorate --all** when the relationship between branches is unclear.
+A fast-forward is simple and keeps history linear, but it does not preserve a separate merge boundary. A merge commit records that two lines of development were integrated. Inspect the graph with **git log --oneline --graph --decorate --all** when the relationship between branches is unclear.
 
 ### Q9. How do you resolve merge conflicts safely, and why can a clean merge still be wrong?
 
-A conflict means Git could not safely combine particular changes automatically. I first inspect **git status** to identify conflicted paths, then read the surrounding code and understand both changes before editing the file. Conflict markers show candidate text, not necessarily the correct business behavior. After resolving them, I stage the resolved paths with **git add**, inspect the result, run focused tests, and complete the merge or rebase. If I realize the operation was started on the wrong branch or cannot resolve it safely, I can abort the operation rather than leave a partial result.
+A conflict means Git could not safely combine particular changes automatically. I first inspect **git status** to identify conflicted paths, then read the surrounding code and understand both changes before editing the file. If I realize the operation was started on the wrong branch or cannot resolve it safely, I can abort the operation rather than leave a partial result.
 
 A merge can also finish without conflicts while producing a broken application. Git reasons about file content and merge rules, not business invariants or service contracts. For example, one branch may change a REST response or Java method signature while another modifies its caller in a different file. The edits can combine cleanly but still fail at runtime or violate an API contract.
 
@@ -112,11 +112,11 @@ After an important merge, validate behavior, not merely Git status. Review the c
 
 ### Q10. What are merge commits, squash merges, and octopus merges?
 
-A normal merge commit records the integration of divergent histories by referencing both parent commits. This retains the branch's commit history and makes the integration point visible. A **squash merge** combines a branch's net changes into one new commit on the target branch, rather than preserving the source branch's individual commit ancestry as a merge. It can make the main branch easier to scan, but detailed source-branch history may remain only on the feature branch or in the pull request. Squash merging is not the same as using Git's ordinary merge to create a two-parent merge commit.
+A normal merge commit records the integration of divergent histories by referencing both parent commits. This retains the branch's commit history and makes the integration point visible. Squash merging is not the same as using Git's ordinary merge to create a two-parent merge commit.
 
 An **octopus merge** combines multiple heads in one merge operation and is intended mainly for cases where the changes can be resolved without complex conflicts. It is not the normal choice for integrating a large set of independently changing feature branches.
 
-Choose the method based on the kind of history the team needs. Merge commits show when integration happened and preserve the branch graph. Squash merges make each pull request appear as one logical change on the main branch. Either approach still requires code review and tests. Do not confuse a clean or linear-looking history with code quality; the important result is traceable, validated changes with a history the team can maintain.
+Choose the method based on the kind of history the team needs. Merge commits show when integration happened and preserve the branch graph. Do not confuse a clean or linear-looking history with code quality; the important result is traceable, validated changes with a history the team can maintain.
 
 ---
 
@@ -130,21 +130,21 @@ Rebase takes commits from a source branch that are not already part of the chose
     git switch feature/my-change
     git rebase origin/main
 
-Git reconstructs the feature commits on top of origin/main. The resulting commits normally have new parents, so their commit objects and IDs change even when their patches are equivalent to the old commits. A conflict can occur during any replayed commit. I resolve the relevant files, stage them, then run **git rebase --continue**; I can use **git rebase --abort** to return to the pre-rebase state if I need to abandon the operation.
+Git reconstructs the feature commits on top of origin/main. The resulting commits normally have new parents, so their commit objects and IDs change even when their patches are equivalent to the old commits. I resolve the relevant files, stage them, then run **git rebase --continue**; I can use **git rebase --abort** to return to the pre-rebase state if I need to abandon the operation.
 
-Rebase is useful for organizing private work and keeping a branch up to date, but it rewrites history. It should not be treated as a harmless equivalent of fetching. Before rebasing, check which commits are unique to the branch, whether others already rely on them, and whether local changes are safely committed or stashed. After rebasing, inspect the graph and diff and rerun tests, because conflict resolution can change behavior.
+Rebase is useful for organizing private work and keeping a branch up to date, but it rewrites history. It should not be treated as a harmless equivalent of fetching. After rebasing, inspect the graph and diff and rerun tests, because conflict resolution can change behavior.
 
 ### Q12. Merge versus rebase: how do you choose?
 
-Merge combines histories and can create a merge commit that records the integration of two lines of development. It preserves existing commit identities and is usually appropriate for shared branches where others may already have based work on the published commits. Rebase replays commits onto a new base, yielding a more linear history but replacing the replayed commits with new commit objects. It is often useful for private or owner-controlled feature branches before review or integration.
+Merge combines histories and can create a merge commit that records the integration of two lines of development. It preserves existing commit identities and is usually appropriate for shared branches where others may already have based work on the published commits. It is often useful for private or owner-controlled feature branches before review or integration.
 
-Neither is always better. A team that values explicit integration history may prefer merge commits. A team that uses linear main-branch history may prefer rebasing a private branch and then using a controlled merge or squash policy. The important constraint is coordination: rebasing commits that other people already consume forces them to reconcile the changed history and can create duplicate-looking commits or confusion.
+Neither is always better. A team that values explicit integration history may prefer merge commits. The important constraint is coordination: rebasing commits that other people already consume forces them to reconcile the changed history and can create duplicate-looking commits or confusion.
 
 I decide by asking: is the branch private or shared, does the repository policy require a specific history shape, and can I safely rewrite the commits? I fetch first, inspect the graph, perform the integration, resolve conflicts with behavior in mind, run tests, and review the final diff. Linear history is a useful convention, not a reason to rewrite teammates' work without agreement.
 
 ### Q13. How does interactive rebase help clean up commits?
 
-Interactive rebase lets me edit a series of commits before they become part of protected or widely shared history. It can reorder commits, combine them with **squash** or **fixup**, reword messages, edit a commit, or drop an unwanted commit. For example, **git rebase -i origin/main** opens a todo list for commits that are not already in the upstream history. A **fixup** commit is useful for a small correction to an earlier commit; autosquash can place fixup commits next to the target commit for cleanup.
+Interactive rebase lets me edit a series of commits before they become part of protected or widely shared history. It can reorder commits, combine them with **squash** or **fixup**, reword messages, edit a commit, or drop an unwanted commit. A **fixup** commit is useful for a small correction to an earlier commit; autosquash can place fixup commits next to the target commit for cleanup.
 
 The goal is to make the history reviewable: each final commit should represent a coherent change and have a useful message. I would not squash everything automatically if separate commits document important steps or provide useful revert boundaries. Nor would I rewrite a shared branch without coordinating with its consumers.
 
@@ -154,13 +154,13 @@ After the rebase, inspect **git log --oneline --graph** and compare the branch w
 
 A normal push is rejected when it would move the remote branch in a way that is not a fast-forward. That check prevents a developer from accidentally discarding commits that exist on the remote but are not reachable from the local branch. **git push --force** bypasses this protection and can overwrite someone else's published work.
 
-**git push --force-with-lease** adds a check that the remote reference still has the value Git expects, commonly the value observed through the local remote-tracking reference. If the remote branch has advanced unexpectedly, the push should be rejected. For a high-risk rewrite, an explicit expected SHA can make the condition clearer. A lease does not make a force push inherently safe; it only protects against certain concurrent updates. If the expected remote state is stale or misunderstood, a destructive rewrite can still happen.
+**git push --force-with-lease** adds a check that the remote reference still has the value Git expects, commonly the value observed through the local remote-tracking reference. If the remote branch has advanced unexpectedly, the push should be rejected. If the expected remote state is stale or misunderstood, a destructive rewrite can still happen.
 
 Before rewriting history, fetch, inspect remote and local commits, check whether anyone else depends on the branch, and agree on the operation. Use this approach for an intentional rewrite of a branch that the team permits you to rewrite. For protected main or release branches, follow repository policy and normally use a corrective commit or revert rather than force-pushing.
 
 ### Q15. During a rebase, when should you continue, skip, abort, or preserve merge structure?
 
-When a rebase stops, Git is asking me to resolve or decide what to do with the commit currently being replayed. I inspect **git status** and the conflict details, edit the files to preserve intended behavior, stage the resolved paths, and run **git rebase --continue**. **git rebase --skip** drops the patch for the current commit, so I use it only when the change is already applied or is intentionally no longer needed; skipping just to escape a conflict can silently lose functionality. **git rebase --abort** abandons the rebase and restores the branch to its state before that rebase began.
+When a rebase stops, Git is asking me to resolve or decide what to do with the commit currently being replayed. I inspect **git status** and the conflict details, edit the files to preserve intended behavior, stage the resolved paths, and run **git rebase --continue**. **git rebase --abort** abandons the rebase and restores the branch to its state before that rebase began.
 
 The choice must come from the intent of the changes, not simply from which command makes the prompt go away. A commit may fail to apply because its change is obsolete, because a later commit has already included it, or because the branch has real behavior conflicts. Those cases need different decisions.
 
@@ -172,7 +172,7 @@ Ordinary rebase does not preserve the original merge topology by default. Where 
 
 ### Q16. What is the difference between fetch, pull, and push?
 
-**Fetch** downloads commits and related objects from a remote and updates the appropriate remote-tracking references, such as origin/main. It does not by itself change the current branch or working tree. **Pull** combines fetching with integration into the current branch, generally by merge or rebase according to the command options and configuration. **Push** sends local commits to a remote and requests that the destination reference move, subject to fast-forward rules and server policy.
+**Fetch** downloads commits and related objects from a remote and updates the appropriate remote-tracking references, such as origin/main. It does not by itself change the current branch or working tree. **Push** sends local commits to a remote and requests that the destination reference move, subject to fast-forward rules and server policy.
 
 Fetch is often the best first step when I want to inspect changes before integrating them:
 
@@ -187,7 +187,7 @@ These commands are distinct parts of collaboration: fetch observes remote change
 
 A remote is a named connection to another repository. **origin** is simply the conventional name Git gives the remote from which a repository was cloned; it is not a reserved server or a special GitHub feature. In a fork-based workflow, **origin** often refers to my fork and **upstream** refers to the original project, but teams may choose different names. The actual URLs can be inspected with **git remote -v**.
 
-A remote-tracking branch such as **origin/main** is a local reference recording the last fetched state of the remote's main branch. It is not a live remote connection and normally does not move until I fetch. My local **main** and **origin/main** can therefore differ. An upstream tracking configuration links a local branch with the remote branch it normally pulls from or pushes to; **git branch -vv** helps inspect that setup.
+A remote-tracking branch such as **origin/main** is a local reference recording the last fetched state of the remote's main branch. It is not a live remote connection and normally does not move until I fetch. An upstream tracking configuration links a local branch with the remote branch it normally pulls from or pushes to; **git branch -vv** helps inspect that setup.
 
 This distinction is important during troubleshooting. If my local main is behind origin/main, I need to integrate the new commits. If origin/main itself is stale, I should fetch before assuming it accurately reflects the server. Never infer the destination from a familiar branch name alone; verify the remote and branch before publishing changes.
 
@@ -200,11 +200,11 @@ A non-fast-forward rejection usually means the remote branch has commits that ar
 
 Then I determine why the branch diverged. Perhaps a teammate has pushed commits, my local branch is stale, I am pushing to the wrong destination, or someone rewrote history. If remote work must be retained, I integrate it with merge or rebase according to whether the local commits are private and the team's workflow, resolve conflicts, test, and push normally.
 
-I would not immediately add **--force**. That bypasses the safety check and could discard published work. If the intended action really is to replace a branch after an agreed history rewrite, I would verify the expected remote SHA and use force-with-lease under the team's policy. The core interview answer is to diagnose divergence, preserve other developers' commits, and only rewrite history when that is an explicit, coordinated choice.
+I would not immediately add **--force**. That bypasses the safety check and could discard published work. The core interview answer is to diagnose divergence, preserve other developers' commits, and only rewrite history when that is an explicit, coordinated choice.
 
 ### Q19. How do you choose a branching strategy: feature branches, trunk-based development, or Git Flow?
 
-With **feature branching**, work happens in isolated branches and reaches the main branch through review. This gives developers space to work independently, but long-lived branches accumulate divergence and can make integration painful. **Trunk-based development** keeps branches short-lived and integrates small changes to a shared trunk frequently. It works well with strong automated tests, fast code review, and feature flags that allow incomplete functionality to be merged without exposing it to users. **Git Flow** uses additional branches such as develop, release, and hotfix branches. It can fit products with deliberate release trains or multiple supported release lines, but it creates more branch-management overhead.
+With **feature branching**, work happens in isolated branches and reaches the main branch through review. This gives developers space to work independently, but long-lived branches accumulate divergence and can make integration painful. It can fit products with deliberate release trains or multiple supported release lines, but it creates more branch-management overhead.
 
 I would choose based on deployment cadence, release requirements, team size, test automation, and whether older versions must be maintained. A service deploying many times a day often benefits from trunk-based development and feature flags. A product with scheduled releases and several maintained versions may need release branches even if day-to-day development is trunk-oriented.
 
@@ -212,15 +212,15 @@ No branching model removes the need for integration testing and clear ownership.
 
 ### Q20. What are shallow clones, partial clones, sparse checkout, and submodules?
 
-These features solve different repository-management problems. A **shallow clone** limits history depth, which can make an initial checkout faster but means older ancestry may not be present until more history is fetched. A **partial clone** can defer downloading some Git objects, commonly file contents for objects not yet needed. **Sparse checkout** controls which paths are populated in the working tree; it is useful for large monorepos where a developer works in only a subset of directories. These options can be combined in supported workflows, but they should not be treated as synonyms.
+These features solve different repository-management problems. A **shallow clone** limits history depth, which can make an initial checkout faster but means older ancestry may not be present until more history is fetched. These options can be combined in supported workflows, but they should not be treated as synonyms.
 
-A **submodule** records a specific commit from another repository at a path in the parent repository. Cloning or switching the parent repository does not necessarily fetch and check out the submodule content unless the submodule workflow is used. Teams must document initialization and update steps, and ensure the pinned submodule commit remains available. Git subtree is a different approach that integrates another project's content into the repository history.
+A **submodule** records a specific commit from another repository at a path in the parent repository. Cloning or switching the parent repository does not necessarily fetch and check out the submodule content unless the submodule workflow is used. Git subtree is a different approach that integrates another project's content into the repository history.
 
 I choose based on what is expensive: history depth, object download, working-tree size, or independent repository ownership. Reduced local data can improve speed, but it can complicate builds or history inspection when commands expect objects that have not been fetched.
 
 ### Q21. How do SSH keys and HTTPS credentials work when accessing a remote?
 
-Git uses the remote URL to determine how to communicate with the server. With **SSH**, the client authenticates using an SSH key and the server's configured account or key permissions. With **HTTPS**, credentials are generally provided through a credential manager or an approved token-based flow; many hosting providers do not accept ordinary account passwords for Git operations. The authentication method is separate from repository authorization: successfully authenticating does not guarantee that the account can push to a protected branch or repository.
+Git uses the remote URL to determine how to communicate with the server. With **SSH**, the client authenticates using an SSH key and the server's configured account or key permissions. The authentication method is separate from repository authorization: successfully authenticating does not guarantee that the account can push to a protected branch or repository.
 
 I would inspect the URL with **git remote -v**, use the company's supported credential method, and avoid putting tokens directly into remote URLs or shell history. Tokens and private keys should be stored in an approved credential manager or secret-management system, rotated when exposed, and scoped to the minimum permissions needed. On a build agent, credentials should be short-lived or tightly scoped where possible and never printed into logs.
 
@@ -232,7 +232,7 @@ For troubleshooting, distinguish network or host-key failures from authenticatio
 
 ### Q22. What makes a good commit, and when are Conventional Commits useful?
 
-A good commit represents one coherent, reviewable change. Its message explains the intent and, where necessary, the reason for the change rather than simply repeating the file names. A focused commit is easier to review, bisect, revert, cherry-pick, and backport than a commit that mixes unrelated refactoring, generated files, and behavior changes. Before committing, I inspect the staged diff and confirm that the index contains only the intended changes.
+A good commit represents one coherent, reviewable change. Its message explains the intent and, where necessary, the reason for the change rather than simply repeating the file names. Before committing, I inspect the staged diff and confirm that the index contains only the intended changes.
 
 Conventional Commits adds a common message structure, often using a type such as **feat**, **fix**, **docs**, **refactor**, **test**, or **chore**, optionally with a scope and a body or footer. For example, a message might begin with **fix(order): reject duplicate request IDs**. Teams may use this format to drive changelog generation or semantic-version automation, but the format does not itself guarantee that a commit is correct or backward compatible.
 
@@ -240,7 +240,7 @@ Commit quality is a team productivity practice. Clear, atomic commits help code 
 
 ### Q23. What should a senior engineer look for when reviewing a pull request?
 
-A senior review checks correctness and maintainability, not just formatting. I start with the problem statement and expected behavior, then inspect the overall diff and the most important code paths. For a Java service, I look at API contracts, input validation, error handling, concurrency and idempotency, transaction boundaries, database query behavior, resource use, logging, security, and compatibility with existing clients. I check whether tests cover meaningful success cases, failures, boundaries, and regressions instead of merely increasing line coverage.
+A senior review checks correctness and maintainability, not just formatting. I start with the problem statement and expected behavior, then inspect the overall diff and the most important code paths. I check whether tests cover meaningful success cases, failures, boundaries, and regressions instead of merely increasing line coverage.
 
 I also consider the operational impact: migrations, configuration, feature flags, rollout order, observability, and rollback strategy. A change may compile but still introduce a race condition, breaking schema change, expensive query, or sensitive-data leak. Automated checks provide useful evidence, but they cannot replace reasoning about requirements and integration with neighboring services.
 
@@ -248,7 +248,7 @@ Review comments should explain the risk and offer a practical improvement, while
 
 ### Q24. Squash merge, merge commit, or rebase merge: what are the trade-offs?
 
-A **merge commit** preserves the source branch's existing commits and records the integration with a merge commit. This is helpful when the team wants to see where a branch entered main or preserve meaningful branch history. A **squash merge** creates a single target-branch commit representing the net change of a pull request. It keeps main compact, but loses the individual source-branch commits from main's ancestry. A **rebase merge** typically replays commits on top of the target branch to maintain a linear history, changing commit IDs as needed and avoiding a merge commit.
+A **merge commit** preserves the source branch's existing commits and records the integration with a merge commit. This is helpful when the team wants to see where a branch entered main or preserve meaningful branch history. A **rebase merge** typically replays commits on top of the target branch to maintain a linear history, changing commit IDs as needed and avoiding a merge commit.
 
 The best policy depends on whether main's history is used for detailed investigation, whether feature commits are already well organized, and how the team wants to revert or backport changes. Squash merges make reverting one pull request conceptually simple, but can obscure a useful sequence of logical commits. Merge commits preserve integration topology, but may add noise if many tiny branch commits are retained.
 
@@ -256,7 +256,7 @@ Whichever method is chosen, the branch must be reviewed and tested. A linear his
 
 ### Q25. What do hooks, CI checks, and signed commits provide—and what do they not prove?
 
-Git hooks are programs that run at specific points in local Git workflows, such as before a commit or push. They can enforce formatting, run fast checks, or reject an invalid message. Client-side hooks are useful for quick feedback but can often be bypassed or may not be installed consistently. Server-side hooks and hosting-provider rules can enforce policies more centrally. CI then runs repeatable checks in a controlled environment, while protected-branch settings can require reviews and successful checks before accepting changes.
+Git hooks are programs that run at specific points in local Git workflows, such as before a commit or push. They can enforce formatting, run fast checks, or reject an invalid message. CI then runs repeatable checks in a controlled environment, while protected-branch settings can require reviews and successful checks before accepting changes.
 
 Signed commits or tags use cryptographic signatures to allow a verifier to check that the signed object was signed by a key associated with a particular identity or trust configuration. A valid signature does not prove that the code is correct, safe, or reviewed. Likewise, a green build proves only that the configured checks passed for that build's inputs; test gaps and environment differences can remain.
 
@@ -273,7 +273,7 @@ To stop tracking the file while leaving it on disk, remove it from the index and
     git status
     git commit -m "Stop tracking local configuration"
 
-Before doing this, confirm that the file should not be versioned and that the ignore pattern is appropriately scoped. Shared configuration templates can belong in Git; real secrets and machine-specific values usually should not. Removing a secret from the current tree also does not remove it from earlier commits, so exposed credentials require the incident-response steps covered in Q50. The key distinction is ignored versus untracked versus tracked: .gitignore controls discovery, while the index determines what Git is already tracking.
+Before doing this, confirm that the file should not be versioned and that the ignore pattern is appropriately scoped. Shared configuration templates can belong in Git; real secrets and machine-specific values usually should not. The key distinction is ignored versus untracked versus tracked: .gitignore controls discovery, while the index determines what Git is already tracking.
 
 ---
 
@@ -281,7 +281,7 @@ Before doing this, confirm that the file should not be versioned and that the ig
 
 ### Q27. Explain soft, mixed, and hard reset.
 
-Reset moves the current branch reference to a target commit and, depending on the mode, updates the index and working tree. **git reset --soft <commit>** moves the branch but leaves the index and working tree unchanged; it is useful when I want to combine or rewrite recent local commits while retaining the staged snapshot. **git reset --mixed <commit>** is the default: it moves the branch and resets the index to the target, but leaves tracked working files in place, so those differences are unstaged. **git reset --hard <commit>** moves the branch, resets the index, and updates tracked working-tree files to match the target. It can discard tracked uncommitted work.
+Reset moves the current branch reference to a target commit and, depending on the mode, updates the index and working tree. **git reset --soft <commit>** moves the branch but leaves the index and working tree unchanged; it is useful when I want to combine or rewrite recent local commits while retaining the staged snapshot. It can discard tracked uncommitted work.
 
 I choose the mode based on exactly what I want to preserve. Before a hard reset, inspect **git status**, verify the target SHA and branch, and save valuable work in a commit, patch, or another safe form. A hard reset is not a general-purpose command to remove every untracked file; untracked paths can remain, although they may obstruct a tracked path being checked out.
 
@@ -289,7 +289,7 @@ Reset is typically most appropriate for local history that I am intentionally ch
 
 ### Q28. Compare reset, revert, restore, and checkout.
 
-These commands address different kinds of changes. **reset** moves the current branch and can also change the index and working tree, depending on its mode. **revert** creates a new commit that applies the inverse of an earlier commit; it is generally the safer option for undoing a published change because it preserves the shared history. **restore** is focused on restoring file content in the working tree or index from a chosen source. **checkout** is older and overloaded: it can switch branches or check out a commit, and it can also restore paths. Modern Git workflows often use **switch** for branch changes and **restore** for file restoration to make intent clearer.
+These commands address different kinds of changes. **reset** moves the current branch and can also change the index and working tree, depending on its mode. Modern Git workflows often use **switch** for branch changes and **restore** for file restoration to make intent clearer.
 
 Examples:
 
@@ -308,11 +308,11 @@ For a shared branch, I normally use **git revert** rather than reset-and-force-p
 
 The **-m 1** option tells Git to treat parent 1 as the mainline and reverse the changes introduced relative to that parent. Verify the parent order with **git show --no-patch --pretty=raw <merge-commit-sha>** and inspect the merge before running the command; choosing the wrong mainline can reverse the wrong set of changes.
 
-After the revert, review the diff and run tests. A revert does not erase the original merge from history. It adds a commit that undoes its effect. That matters if the team later wants to reintroduce the feature: reverting the revert or merging the same branch again requires understanding which commits are already ancestors. For a production incident, I would also coordinate the rollback with deployment and data changes; undoing source code alone cannot reverse irreversible external side effects or database migrations automatically.
+After the revert, review the diff and run tests. A revert does not erase the original merge from history. For a production incident, I would also coordinate the rollback with deployment and data changes; undoing source code alone cannot reverse irreversible external side effects or database migrations automatically.
 
 ### Q30. How does git stash work, and what are its risks?
 
-Stash temporarily stores local changes so I can switch context without making a normal commit. **git stash** commonly saves tracked working-tree and index changes, while untracked files need **-u** and ignored files need additional care. A stash entry is a Git object structure referenced through the stash reflog; it is not simply a separate folder of files. The staged and working-tree state can be preserved so that changes can be reapplied later, but conflicts may occur when applying the stash to a changed base.
+Stash temporarily stores local changes so I can switch context without making a normal commit. **git stash** commonly saves tracked working-tree and index changes, while untracked files need **-u** and ignored files need additional care. The staged and working-tree state can be preserved so that changes can be reapplied later, but conflicts may occur when applying the stash to a changed base.
 
 Common commands include:
 
@@ -322,7 +322,7 @@ Common commands include:
     git stash apply stash@{0}
     git stash drop stash@{0}
 
-**apply** keeps the stash entry, whereas **pop** attempts to apply it and then removes the entry when successful. For changes I may need again, apply first and verify the result before dropping the stash. Do not treat stash as a durable backup or as a replacement for a meaningful commit. For long-running work, a temporary branch and WIP commit can be clearer and easier to share. Always inspect the working tree after applying a stash, especially when it contains staged changes or touches files that have changed on the new branch.
+**apply** keeps the stash entry, whereas **pop** attempts to apply it and then removes the entry when successful. For changes I may need again, apply first and verify the result before dropping the stash. Always inspect the working tree after applying a stash, especially when it contains staged changes or touches files that have changed on the new branch.
 
 ### Q31. What is cherry-pick, and when is it preferable to merge or rebase?
 
@@ -333,7 +333,7 @@ Cherry-pick applies the change introduced by one or more existing commits onto t
 
 The new commit usually has a different ID because it is a new commit object with a different parent, even when the patch is equivalent. A conflict may occur if the target branch has different code or lacks a prerequisite change. I must validate the result in the target branch instead of assuming a successful cherry-pick proves the fix is complete.
 
-A **merge** integrates the history of a branch, while **rebase** replays a series of commits onto a new base. **Cherry-pick** selectively transfers specific changes. Use it when selection matters, not as the default way to integrate an entire feature branch; repeated cherry-picking of related commits can lead to duplicate changes and complicated ancestry. Keep a traceable link to the original fix or pull request, and record which release branches contain the patch.
+A **merge** integrates the history of a branch, while **rebase** replays a series of commits onto a new base. **Cherry-pick** selectively transfers specific changes. Keep a traceable link to the original fix or pull request, and record which release branches contain the patch.
 
 ### Q32. I committed to the wrong branch. How do you recover safely?
 
@@ -348,7 +348,7 @@ The important practice is to protect the commit before moving references. Branch
 
 ### Q33. What should you do if an operation is stuck or you accidentally stage the wrong files?
 
-Start with **git status**. It tells you whether a merge, rebase, or cherry-pick is in progress and which files are staged, unstaged, or conflicted. If you staged a file by mistake but want to keep its working-tree changes, use **git restore --staged <path>**. If you need to discard only an unstaged edit, **git restore <path>** restores the path from the index, so review the content first because that can lose the edit. If a merge or rebase is no longer appropriate, use the corresponding abort command while the operation is still in progress.
+Start with **git status**. It tells you whether a merge, rebase, or cherry-pick is in progress and which files are staged, unstaged, or conflicted. If a merge or rebase is no longer appropriate, use the corresponding abort command while the operation is still in progress.
 
     git status
     git diff
@@ -357,7 +357,7 @@ Start with **git status**. It tells you whether a merge, rebase, or cherry-pick 
     git merge --abort
     git rebase --abort
 
-Do not run abort commands mechanically: first confirm which operation is active and whether you want to abandon it. If conflict resolution was partly completed, make sure important manual work is captured before aborting. For generated files accidentally staged, unstage them and check that ignore rules are correct, but do not delete useful files blindly. The recovery principle is to identify the repository state, decide which data must be preserved, and then use the narrowest command that achieves the intended result.
+Do not run abort commands mechanically: first confirm which operation is active and whether you want to abandon it. If conflict resolution was partly completed, make sure important manual work is captured before aborting. The recovery principle is to identify the repository state, decide which data must be preserved, and then use the narrowest command that achieves the intended result.
 
 ---
 
@@ -365,9 +365,9 @@ Do not run abort commands mechanically: first confirm which operation is active 
 
 ### Q34. Which Git commands are most useful for reviewing history and comparing changes?
 
-For quick history, **git log --oneline --graph --decorate --all** shows branch structure and references. **git show <commit>** presents a commit and its patch, while **git diff** compares working-tree or index states and **git diff A B** compares two specified revisions. **git diff A...B** compares the merge base of A and B with B, which is commonly useful for seeing the changes a topic branch introduces relative to its base. The three-dot behavior is not identical to a direct A-versus-B comparison, so choose the form based on the question you are trying to answer.
+For quick history, **git log --oneline --graph --decorate --all** shows branch structure and references. **git show <commit>** presents a commit and its patch, while **git diff** compares working-tree or index states and **git diff A B** compares two specified revisions. The three-dot behavior is not identical to a direct A-versus-B comparison, so choose the form based on the question you are trying to answer.
 
-**git status** is the starting point for understanding local changes. **git blame <path>** attributes lines to commits, but it does not prove why a line changed or who should be blamed for a defect; inspect the commit and surrounding history. **git log -- path/to/file** narrows history to changes affecting a path. **git range-diff** can help compare two versions of a series of commits, such as before and after a rebase.
+**git status** is the starting point for understanding local changes. **git blame <path>** attributes lines to commits, but it does not prove why a line changed or who should be blamed for a defect; inspect the commit and surrounding history. **git range-diff** can help compare two versions of a series of commits, such as before and after a rebase.
 
 The useful habit is to inspect before altering. Establish the branch, base, and relevant revisions; read the diff; then decide whether to merge, revert, cherry-pick, or rewrite history. Git history is evidence for investigation, not a substitute for understanding runtime behavior.
 
@@ -398,32 +398,32 @@ I would inspect:
 
 If I find the desired commit SHA, I create a new reference immediately, for example **git branch rescue/recovered-work <sha>**, so the commit is reachable through a named branch. If reflogs do not expose it, advanced recovery may involve examining unreachable objects with **git fsck --no-reflogs --unreachable**, provided the objects still exist and have not been pruned.
 
-A commit may be recoverable even after its branch name disappears, because deleting a branch removes a reference, not necessarily the commit object at once. But uncommitted work that was never recorded by Git may not be present in the repository at all. In that case, check editor local history, backups, or filesystem recovery. To avoid relying on recovery, preserve work before destructive operations and push valuable branches to a remote when appropriate.
+A commit may be recoverable even after its branch name disappears, because deleting a branch removes a reference, not necessarily the commit object at once. But uncommitted work that was never recorded by Git may not be present in the repository at all. To avoid relying on recovery, preserve work before destructive operations and push valuable branches to a remote when appropriate.
 
 ### Q37. How would you investigate and roll back a production regression introduced by a commit or merge?
 
 I start by identifying the deployed artifact and its source commit, then compare the last known-good release with the faulty release. I confirm the symptoms and the scope of impact, inspect the relevant commits and configuration changes, and use logs, metrics, traces, and tests to determine whether the likely cause is in code, a migration, configuration, or an external dependency. If the culprit is unclear across many commits and the behavior can be reproduced, I can use git bisect as described in Q35.
 
-For a bad change already merged to a shared branch, a revert is often safer than rewriting history. If it was an ordinary commit, revert that commit after checking dependencies. If it was a merge commit, inspect the parent order and choose the correct mainline with **git revert -m**; do not guess which parent to use. Run targeted regression tests and the relevant integration suite, then follow deployment policy for rollout and monitoring.
+For a bad change already merged to a shared branch, a revert is often safer than rewriting history. If it was an ordinary commit, revert that commit after checking dependencies. Run targeted regression tests and the relevant integration suite, then follow deployment policy for rollout and monitoring.
 
 A Git revert only changes the repository's content going forward. It does not automatically reverse a database migration, external event, or data mutation. If the release changed persistent state, rollback may require a separate backward-compatible recovery plan. Senior incident handling joins source-control history with artifact provenance, application evidence, and a controlled deployment response.
 
 ### Q38. How do you compare a release tag with current code and identify what changed?
 
-First verify what the release tag points to, because a tag name alone does not prove which code was deployed. Use **git show <tag>** to inspect it and compare the tag with the target branch or commit. **git log <tag>..main** lists commits reachable from main that are not reachable from the tag, while **git diff <tag>..main** shows the net file differences between those endpoints. If reviewing a feature branch relative to a base, **git diff <base>...<branch>** may be more appropriate because it compares from the merge base to the branch tip.
+First verify what the release tag points to, because a tag name alone does not prove which code was deployed. Use **git show <tag>** to inspect it and compare the tag with the target branch or commit. If reviewing a feature branch relative to a base, **git diff <base>...<branch>** may be more appropriate because it compares from the merge base to the branch tip.
 
-These comparisons answer different questions. A commit range describes commits present on one side but not the other; a diff describes the net file change. Merge topology can make those results differ from a simple chronological list, so I inspect the graph as well. For a production investigation, I also check the release notes, build metadata, artifact digest, and deployment record. The artifact may have been built from a commit other than the one someone assumes from the branch's current tip.
+These comparisons answer different questions. A commit range describes commits present on one side but not the other; a diff describes the net file change. The artifact may have been built from a commit other than the one someone assumes from the branch's current tip.
 
 A useful release comparison is reproducible and precise: identify both endpoints by immutable commit IDs, explain the command's comparison semantics, and confirm the result against what was actually built and deployed.
 
 ### Q39. What happens when you reset the wrong commit or run git reset --hard accidentally?
 
-I first stop making additional changes and inspect **git status**, **git reflog**, and the recent commit graph. A reset may have moved the branch reference, but commits that are no longer reachable can often still be found through the reflog for a period of time. If the lost commit is present, create a rescue branch at that commit before performing other cleanup. Do not assume the most recent reflog entry is automatically the desired target; correlate the entry with the branch and operation that happened.
+I first stop making additional changes and inspect **git status**, **git reflog**, and the recent commit graph. A reset may have moved the branch reference, but commits that are no longer reachable can often still be found through the reflog for a period of time. Do not assume the most recent reflog entry is automatically the desired target; correlate the entry with the branch and operation that happened.
 
     git reflog --date=iso
     git branch rescue/before-recovery <recovered-commit-sha>
 
-Reset recovery has limits. A hard reset can discard tracked, uncommitted working-tree changes, and those changes may not exist as Git objects because they were never committed or otherwise captured. Reflog cannot restore data that Git never recorded. Check editor local history, temporary files, backups, or other copies if necessary. Also, reset is not a universal deletion command for untracked files, though untracked files can be overwritten or obstruct checkout operations.
+Reset recovery has limits. A hard reset can discard tracked, uncommitted working-tree changes, and those changes may not exist as Git objects because they were never committed or otherwise captured. Also, reset is not a universal deletion command for untracked files, though untracked files can be overwritten or obstruct checkout operations.
 
 The practical prevention is to verify the branch and target SHA, use **git status** first, and preserve important work before destructive operations. Git can often recover moved references; it cannot promise to recover every overwritten file.
 
@@ -433,7 +433,7 @@ The practical prevention is to verify the branch and target SHA, use **git statu
 
 ### Q40. How do branches and tags differ, and what is the difference between lightweight and annotated tags?
 
-A branch is a movable reference that typically advances as new commits are created. A tag is intended to name a particular point or object, commonly a release commit, and is not normally moved as development continues. A **lightweight tag** is essentially a reference to an object. An **annotated tag** is a separate object with a tagger, date, message, and optionally a signature; it is usually preferable for published releases because it can carry release metadata and be verified.
+A branch is a movable reference that typically advances as new commits are created. A tag is intended to name a particular point or object, commonly a release commit, and is not normally moved as development continues. An **annotated tag** is a separate object with a tagger, date, message, and optionally a signature; it is usually preferable for published releases because it can carry release metadata and be verified.
 
 For example:
 
@@ -441,7 +441,7 @@ For example:
     git show v2.4.0
     git push origin v2.4.0
 
-A tag created locally is not automatically available on the remote, so a release process must publish it intentionally. Treat published release tags as immutable identifiers whenever possible. If a tag points to the wrong commit, coordinate a correction instead of silently moving a name that may already have been consumed by builds or deployments. Build systems should record both the tag and the resolved commit SHA so later investigation can identify the exact source revision.
+A tag created locally is not automatically available on the remote, so a release process must publish it intentionally. Treat published release tags as immutable identifiers whenever possible. Build systems should record both the tag and the resolved commit SHA so later investigation can identify the exact source revision.
 
 ### Q41. How does Semantic Versioning relate to Git releases?
 
@@ -455,13 +455,13 @@ For a reliable release, connect the version label to an immutable source commit,
 
 I would first determine exactly what consumed the tag: did a pipeline resolve it to a commit SHA at build time, or does a later deployment job look up the tag again? I would inspect the tag object or reference, the build log, the artifact digest, and deployment metadata to establish which source revision actually produced the running artifact. A tag name by itself is not sufficient evidence of the deployed code.
 
-Then I would coordinate a controlled correction. Depending on repository policy and downstream consumers, the safest option may be to publish a corrected release tag or a new patch version rather than move an already published tag. If policy allows retagging, I would communicate it clearly and ensure caches, local clones, mirrors, and CI systems are not still using the previous mapping. I would not move a release tag silently because consumers may have recorded the old commit.
+Then I would coordinate a controlled correction. Depending on repository policy and downstream consumers, the safest option may be to publish a corrected release tag or a new patch version rather than move an already published tag. I would not move a release tag silently because consumers may have recorded the old commit.
 
 Finally, rebuild and test from the intended commit, record the artifact digest and source SHA, and deploy through the normal approval path. This incident highlights why release systems should resolve tags to commits at build time, retain provenance, and treat published version identifiers as immutable wherever possible.
 
 ### Q43. How do you backport a critical fix to multiple supported release branches?
 
-I start by identifying the exact supported branches and versions, the root cause, and whether the fix depends on code or APIs introduced only on the main development line. If the fix is isolated and compatible, cherry-pick is often a practical way to apply it to each branch. If a target branch has substantially different code, I may need to port the behavior manually and create a branch-specific commit. I would not merge all of main into an old release branch merely to get one fix unless that is the team's intended release policy.
+I start by identifying the exact supported branches and versions, the root cause, and whether the fix depends on code or APIs introduced only on the main development line. If the fix is isolated and compatible, cherry-pick is often a practical way to apply it to each branch. I would not merge all of main into an old release branch merely to get one fix unless that is the team's intended release policy.
 
 A successful cherry-pick means Git applied a patch; it does not prove the fix works on the older version. I resolve conflicts in the context of that version, run tests on each target branch, inspect dependencies and configuration, and ensure the fix is included in each release candidate. Record the original fix and the commit or pull request that backported it, so reviewers can trace the relationship.
 
@@ -469,7 +469,7 @@ After release, verify which tags and artifact digests contain the change. This m
 
 ### Q44. Why should build artifacts be connected to immutable source revisions?
 
-A branch such as main is a movable reference. At one moment it may point to commit A, then after another push it points to commit B. If a pipeline records only “built main,” that is not enough to reconstruct precisely which source it used later. A tag is more stable by convention, but tags can be changed unless protected by policy. Therefore, reliable delivery records the resolved commit SHA and the artifact's digest, alongside build inputs and test results.
+A branch such as main is a movable reference. At one moment it may point to commit A, then after another push it points to commit B. Therefore, reliable delivery records the resolved commit SHA and the artifact's digest, alongside build inputs and test results.
 
 That provenance helps answer questions such as which commit introduced a production bug, whether the code running in two environments is identical, and whether a security fix reached a specific release. It also prevents confusion when a release tag was moved or a rebuild produced a different artifact from the same source due to timestamps, dependencies, or build environment changes.
 
@@ -481,25 +481,25 @@ At senior level, Git history is only one part of the deployment chain. CI should
 
 ### Q45. What Git configuration and line-ending settings are important in a multi-platform team?
 
-Git configuration can be set at system, global user, or repository-local levels, with more specific settings typically overriding broader settings. Use **git config --show-origin --get-regexp** to see effective settings and where they come from. Common developer settings include user identity, default branch name, merge or pull behavior, and editor configuration. Team policy should document settings that affect consistency rather than assume every developer has the same defaults.
+Git configuration can be set at system, global user, or repository-local levels, with more specific settings typically overriding broader settings. Use **git config --show-origin --get-regexp** to see effective settings and where they come from. Team policy should document settings that affect consistency rather than assume every developer has the same defaults.
 
-Line endings can cause noisy diffs when Windows and Unix-like systems use different conventions. The **core.autocrlf** setting may help some workflows, but for cross-platform repositories a deliberate **.gitattributes** policy is often more reliable because it describes how paths should be normalized. For example, source files may be stored with LF in the repository while working-tree behavior is managed consistently. Use **git diff --check** to catch whitespace errors and inspect whether a large diff is really a line-ending conversion.
+Line endings can cause noisy diffs when Windows and Unix-like systems use different conventions. The **core.autocrlf** setting may help some workflows, but for cross-platform repositories a deliberate **.gitattributes** policy is often more reliable because it describes how paths should be normalized. Use **git diff --check** to catch whitespace errors and inspect whether a large diff is really a line-ending conversion.
 
 Avoid changing global settings as a first response to one repository's problem. Diagnose the effective configuration, repository attributes, and actual file content, then fix the policy at the appropriate scope. This prevents developers from masking a repository-wide consistency issue with personal machine settings.
 
 ### Q46. Why might a repository become unexpectedly large or slow, and how would you investigate?
 
-Repository performance issues can come from large historical blobs, very many files, extensive history, expensive working-tree operations, generated files, poor ignore rules, or tooling that repeatedly scans the whole tree. Start by understanding the symptom: is clone time slow, checkout expensive, status slow, or is the object database large? Different problems have different remedies. A large object database calls for investigating history and blobs; slow status may relate to filesystem behavior, untracked-file volume, or repository layout.
+Repository performance issues can come from large historical blobs, very many files, extensive history, expensive working-tree operations, generated files, poor ignore rules, or tooling that repeatedly scans the whole tree. Start by understanding the symptom: is clone time slow, checkout expensive, status slow, or is the object database large? A large object database calls for investigating history and blobs; slow status may relate to filesystem behavior, untracked-file volume, or repository layout.
 
-Useful checks include **git count-objects -vH**, **git status**, and history inspection for large files. Packfiles consolidate and often delta-compress objects, while Git maintenance and garbage collection optimize object storage. They do not automatically remove data that remains reachable from commits. If a large artifact was committed years ago, deleting it from the newest tree does not erase its historical versions.
+Useful checks include **git count-objects -vH**, **git status**, and history inspection for large files. Packfiles consolidate and often delta-compress objects, while Git maintenance and garbage collection optimize object storage. If a large artifact was committed years ago, deleting it from the newest tree does not erase its historical versions.
 
 Avoid blindly running cleanup or history rewriting before measuring. For a monorepo, sparse checkout or partial clone may reduce how much content a developer needs locally. For large binary assets that change frequently, Git LFS may be a better storage model. The right fix depends on which part of the workflow is slow and whether the data must remain in history.
 
 ### Q47. When should a team use Git LFS, sparse checkout, partial clone, or a monorepo-specific strategy?
 
-These approaches address different costs. **Git LFS** stores pointer files in ordinary Git history while large file contents are stored through the LFS service. It can help with large binaries such as media or design artifacts, but teams must manage LFS availability, quotas, authentication, and backup policy. **Sparse checkout** limits the paths populated in the working tree. **Partial clone** can defer downloading certain Git objects until they are needed. **Shallow clone** limits history depth and is often useful for CI jobs that do not need full ancestry. A **monorepo** is an architectural repository choice, not a performance feature by itself.
+These approaches address different costs. **Git LFS** stores pointer files in ordinary Git history while large file contents are stored through the LFS service. A **monorepo** is an architectural repository choice, not a performance feature by itself.
 
-I would measure the bottleneck first. If developers need only one application within a large repository, sparse checkout may reduce working-tree burden. If cloning pulls substantial content no one needs immediately, a partial clone may help. If builds need only a recent commit, a shallow CI checkout may be suitable, but history-sensitive tasks such as bisect or some versioning tools may require more history. LFS is appropriate for large binary content, not a generic fix for every repository-size problem.
+I would measure the bottleneck first. If developers need only one application within a large repository, sparse checkout may reduce working-tree burden. LFS is appropriate for large binary content, not a generic fix for every repository-size problem.
 
 Choose the least complex strategy that solves the measured problem and verify that builds, releases, and offline or disaster-recovery workflows still work.
 
@@ -509,13 +509,13 @@ When a file is committed, its content becomes an object referenced by a tree, wh
 
 Garbage collection can pack objects, delta-compress them, and eventually prune objects that are unreachable and old enough under the repository's retention rules. It will not delete an old blob that is still reachable from a branch, tag, or another reference. If a large file was committed in historical commits and must be removed from history, the team may need to rewrite history with a tool such as git-filter-repo.
 
-History rewriting changes commit IDs and can disrupt every clone, fork, open branch, and build reference that depends on the old history. Coordinate the rewrite, update all affected references and clones, and consider whether retaining history is more important than shrinking the repository. For future commits, use suitable ignore rules or Git LFS when appropriate. Measure the gain before undertaking a disruptive cleanup.
+History rewriting changes commit IDs and can disrupt every clone, fork, open branch, and build reference that depends on the old history. Coordinate the rewrite, update all affected references and clones, and consider whether retaining history is more important than shrinking the repository. Measure the gain before undertaking a disruptive cleanup.
 
 ### Q49. How do you choose between submodules, subtree, and a monorepo?
 
-A monorepo keeps multiple projects or components in one Git repository. It simplifies atomic cross-project changes and can make shared tooling consistent, but can require ownership boundaries, build tooling, and practices that keep operations efficient as the repository grows. A **submodule** keeps a dependency in its own repository and records a specific commit of that repository in the parent. It provides explicit version pinning and independent ownership, but developers and CI must initialize and update submodules correctly. A **subtree** brings another project's files into the parent repository's history, often with less special checkout workflow, but syncing upstream changes and understanding ownership require discipline.
+A monorepo keeps multiple projects or components in one Git repository. It simplifies atomic cross-project changes and can make shared tooling consistent, but can require ownership boundaries, build tooling, and practices that keep operations efficient as the repository grows. A **subtree** brings another project's files into the parent repository's history, often with less special checkout workflow, but syncing upstream changes and understanding ownership require discipline.
 
-I would choose based on independent versioning, access control, need for atomic changes, team ownership, tooling, and contributor experience. If a component must be pinned to a specific external revision and maintained independently, a submodule may fit. If developers often change several components together and need one atomic pull request, a monorepo can be simpler. Subtree is useful when importing and synchronizing external code while keeping normal files inside the main repository.
+I would choose based on independent versioning, access control, need for atomic changes, team ownership, tooling, and contributor experience. If a component must be pinned to a specific external revision and maintained independently, a submodule may fit. Subtree is useful when importing and synchronizing external code while keeping normal files inside the main repository.
 
 No layout automatically solves dependency management or release coordination. Document how versions are updated, how CI checks changes across component boundaries, and who owns the dependency or directory.
 
@@ -525,9 +525,9 @@ No layout automatically solves dependency management or release coordination. Do
 
 ### Q50. A secret or token was committed and pushed. What should you do first?
 
-Assume the credential is exposed, even if the repository is private. **Revoke or rotate the secret first**, then assess its permissions and available usage logs. History cleanup is not a substitute for revocation: the token may already have been copied into clones, forks, CI logs, build artifacts, caches, pull-request views, or developer machines. Leaving an exposed active token in place while rewriting history leaves the most important risk unresolved.
+Assume the credential is exposed, even if the repository is private. **Revoke or rotate the secret first**, then assess its permissions and available usage logs. Leaving an exposed active token in place while rewriting history leaves the most important risk unresolved.
 
-Next, remove the secret from the active configuration and store its replacement in an approved secret manager or CI secret store. Investigate whether the credential was used unexpectedly, determine its scope and blast radius, and follow the incident-response process. After containment, decide whether to rewrite repository history to remove the secret from reachable commits. Add secret scanning or prevention controls and review why the token entered source control.
+Next, remove the secret from the active configuration and store its replacement in an approved secret manager or CI secret store. Investigate whether the credential was used unexpectedly, determine its scope and blast radius, and follow the incident-response process. Add secret scanning or prevention controls and review why the token entered source control.
 
 If the exposure affected a production credential, involve the security or incident-response team. Make sure the replacement is not committed in another location and that dependent services have successfully adopted it. The order matters: revoke, investigate, contain, clean up history if necessary, then improve prevention. Do not promise that rewriting Git history can remove every copy or cache of the secret.
 
@@ -543,7 +543,7 @@ For secret exposure, rotate the credential before performing this work. For larg
 
 Least privilege means users, automation, and tokens receive only the permissions needed for their responsibilities. A developer who needs to open pull requests may not need permission to bypass branch protections; a CI job that publishes an artifact should not automatically receive broad administrative access. Use scoped credentials, rotate them according to policy, and prevent secrets from appearing in logs or source code.
 
-Branch protection and repository rules can require reviews, status checks, signed commits, linear history, or prevent force pushes and direct pushes to protected branches, depending on the hosting platform. These controls make policy enforceable rather than dependent on every developer remembering it. Signed commits and tags help verify that the signed Git object corresponds to a signature that chains to an accepted identity or key. A signature does not prove that code is correct or that the signer thoroughly reviewed it.
+Branch protection and repository rules can require reviews, status checks, signed commits, linear history, or prevent force pushes and direct pushes to protected branches, depending on the hosting platform. These controls make policy enforceable rather than dependent on every developer remembering it. A signature does not prove that code is correct or that the signer thoroughly reviewed it.
 
 Combine controls rather than relying on a single mechanism: least-privilege access, mandatory review, CI checks, secret scanning, trusted release processes, and artifact provenance. Review bypass permissions and service-account credentials as carefully as human access. State clearly what each control verifies and what risks remain.
 
@@ -558,7 +558,7 @@ I would not immediately rebase or force-push. First fetch and inspect the graph 
     git fetch origin
     git log --oneline --graph --decorate --left-right origin/main...feature/my-feature
 
-Because teammates have already pulled my feature commits, those commit IDs may be part of their branches. Rewriting the feature history can force them to repair their local history or create duplicate-looking commits. Unless the team has explicitly agreed to rewrite the shared feature branch, I would usually merge the updated main into the feature branch, resolve conflicts based on intended behavior, inspect the merge result, and run the relevant tests. Then I can push normally.
+Because teammates have already pulled my feature commits, those commit IDs may be part of their branches. Rewriting the feature history can force them to repair their local history or create duplicate-looking commits. Then I can push normally.
 
 If the team prefers rebasing and the branch owner coordinates with everyone consuming it, a history rewrite may still be possible. In that case I would agree on the timing, fetch immediately before the push, verify the remote tip, and use force-with-lease under repository policy. I would communicate the new base and commit IDs so teammates know what changed.
 
@@ -574,9 +574,9 @@ After fixing the issue, I would rerun unit and integration tests and verify the 
 
 ### Q55. The team wants to deploy many times a day, keep history readable, and avoid developers overwriting one another. What workflow would you recommend?
 
-I would lean toward short-lived feature branches or trunk-based development, supported by fast CI, required reviews appropriate to risk, and feature flags for work that should merge before it is user-visible. Small changes integrated frequently reduce the amount of divergence a branch can accumulate. A consistent squash or rebase-merge policy can keep main readable, but it must not require developers to rewrite a branch that teammates actively use. If multiple developers share a feature branch, preserve its published commits or coordinate any rewrite explicitly.
+I would lean toward short-lived feature branches or trunk-based development, supported by fast CI, required reviews appropriate to risk, and feature flags for work that should merge before it is user-visible. Small changes integrated frequently reduce the amount of divergence a branch can accumulate. If multiple developers share a feature branch, preserve its published commits or coordinate any rewrite explicitly.
 
-Protect main and release branches against unreviewed pushes and unsafe force-pushes. Require appropriate tests and use deployment controls such as canary releases, health checks, and rollback procedures. For feature branches that are intentionally rebased before publication, use force-with-lease only after checking the expected remote state and confirming no one else's work is being overwritten. Keep releases traceable to commit SHAs and artifact digests.
+Protect main and release branches against unreviewed pushes and unsafe force-pushes. Require appropriate tests and use deployment controls such as canary releases, health checks, and rollback procedures. Keep releases traceable to commit SHAs and artifact digests.
 
 This workflow is not “trunk-based at any cost.” It depends on automated tests, observability, backward-compatible changes, and the ability to disable or roll back a risky feature. The aim is to reduce batch size and integration risk while protecting the shared branch and production system.
 
@@ -590,37 +590,37 @@ These rounds test how the concepts fit together. The model answers are intention
 
 **Interviewer:** You edited a Java service, staged one file, then made another edit before committing. What exactly will your next commit contain, and how do you check?
 
-**Model answer:** A commit records the index, not everything currently visible in the working tree. I would run `git status`, `git diff`, and `git diff --staged`. The staged diff shows what is currently queued for the commit; the ordinary diff shows later unstaged edits. If the second edit belongs in the same logical change, I would stage it deliberately and inspect the staged diff again. Otherwise, I would commit the intended snapshot and leave the unrelated edit unstaged. This is why I review the staged diff rather than assuming that staging a file means every subsequent edit is staged.
+**Model answer:** A commit records the index, not everything currently visible in the working tree. I would run `git status`, `git diff`, and `git diff --staged`. This is why I review the staged diff rather than assuming that staging a file means every subsequent edit is staged.
 
 ### Round 2 — Divergence, merge, and rebase
 
 **Interviewer:** Your feature branch is behind `main`, but two teammates have based their work on commits already pushed to your feature branch. How do you integrate the latest `main`?
 
-**Model answer:** I would fetch first and inspect the graph and unique commits. Since other developers depend on the published feature commits, I would avoid rewriting them without coordination. A merge of `origin/main` into the feature branch is the safer default because it preserves those existing commit IDs; after resolving conflicts, I would inspect the result, run tests, and push normally. Rebasing can produce a cleaner linear history, but it recreates commits and can force teammates to repair their branches. If the team explicitly agrees to rewrite the shared branch, I would coordinate the timing, verify the remote tip, and use `--force-with-lease` only under the team's policy.
+**Model answer:** I would fetch first and inspect the graph and unique commits. Since other developers depend on the published feature commits, I would avoid rewriting them without coordination. If the team explicitly agrees to rewrite the shared branch, I would coordinate the timing, verify the remote tip, and use `--force-with-lease` only under the team's policy.
 
 ### Round 3 — Production regression
 
 **Interviewer:** A release has a regression, and the suspected change is somewhere among several merges. How do you investigate and restore service?
 
-**Model answer:** First I would identify the deployed commit or artifact digest and compare it with the last known-good release; I would not assume the current branch tip is what production runs. I would use `git log --graph`, `git show`, and targeted diffs to narrow the change. If the regression can be reproduced across revisions, `git bisect` can systematically locate the likely first bad commit, provided the good/bad test is reliable. For a shared release branch, I would normally revert the offending commit or merge rather than reset published history. Reverting a merge requires choosing and verifying the mainline parent with `git show` before using `git revert -m`. Then I would test the corrective change and follow the service's rollback or redeployment process; Git history operations alone do not undo database or external side effects.
+**Model answer:** First I would identify the deployed commit or artifact digest and compare it with the last known-good release; I would not assume the current branch tip is what production runs. I would use `git log --graph`, `git show`, and targeted diffs to narrow the change. Then I would test the corrective change and follow the service's rollback or redeployment process; Git history operations alone do not undo database or external side effects.
 
 ### Round 4 — Hotfix and maintenance branches
 
 **Interviewer:** A critical fix is ready on `main`, but two older release branches are still supported. How do you backport it?
 
-**Model answer:** I would confirm that the fix is self-contained and compatible with each supported version. If the fix is one logical commit, cherry-picking it onto each maintenance branch is often practical; I would resolve branch-specific conflicts, test each target version, and verify that the resulting changes are equivalent. If the fix depends on earlier commits or shared refactoring, I would bring over the required dependency changes or implement an adapted fix instead of blindly cherry-picking. Cherry-pick creates new commit IDs, so the branches contain equivalent changes but not the same commit identity. I would record which branches received the fix and release each through its normal validation process.
+**Model answer:** I would confirm that the fix is self-contained and compatible with each supported version. If the fix is one logical commit, cherry-picking it onto each maintenance branch is often practical; I would resolve branch-specific conflicts, test each target version, and verify that the resulting changes are equivalent. I would record which branches received the fix and release each through its normal validation process.
 
 ### Round 5 — Secret exposure and repository cleanup
 
 **Interviewer:** A developer pushed an API token and then deleted it in a follow-up commit. Is the incident resolved?
 
-**Model answer:** No. The token remains in earlier history and may already have been copied into clones, forks, logs, or artifacts. I would revoke or rotate it immediately, assess permissions and usage, and notify the appropriate security owner. After containment, I would remove the secret from current files and decide whether to rewrite history with a tool such as `git-filter-repo`. A rewrite changes commit IDs and requires a coordinated plan for branches, tags, clones, forks, and CI references; hosting caches may need separate handling. History cleanup reduces continued exposure but cannot make an already leaked credential safe. I would also add prevention such as secret scanning and improve the approved secret-management workflow.
+**Model answer:** No. The token remains in earlier history and may already have been copied into clones, forks, logs, or artifacts. I would also add prevention such as secret scanning and improve the approved secret-management workflow.
 
 ### Round 6 — Release integrity and senior judgment
 
 **Interviewer:** A deployment pipeline consumed a release tag that was later found to point at the wrong commit. What evidence do you need, and should you move the tag?
 
-**Model answer:** I would establish which commit the pipeline resolved when it built the artifact, and inspect build records, commit SHA, artifact digest, and deployment metadata. A tag name alone does not prove which code is running. I would coordinate with release owners and downstream consumers before changing a published tag. Usually a new corrected patch tag is safer than silently moving an existing release identifier; if policy permits retagging, the old mapping must be communicated and caches and clones considered. I would rebuild and test from the intended commit, retain source-to-artifact provenance, and deploy through the normal approval path. The long-term safeguard is to resolve tags to immutable commit SHAs at build time and treat published release identifiers as immutable.
+**Model answer:** I would establish which commit the pipeline resolved when it built the artifact, and inspect build records, commit SHA, artifact digest, and deployment metadata. A tag name alone does not prove which code is running. The long-term safeguard is to resolve tags to immutable commit SHAs at build time and treat published release identifiers as immutable.
 
 ---
 
