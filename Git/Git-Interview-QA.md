@@ -288,6 +288,79 @@ Before doing this, confirm that the file should not be versioned and that the ig
 - **`--hard`**: moves the branch and resets both index and tracked working-tree files to match the target. This can discard uncommitted tracked changes.
 
 Use reset mainly when intentionally rewriting local history. Before a hard reset, check `git status`, verify the target commit, and preserve any work you may need. It does not generally delete unrelated untracked files. For a change already shared with teammates, `git revert` is usually safer because it adds a new commit instead of rewriting shared history.
+
+### Q28. Compare reset, revert, restore, and checkout.
+
+These commands address different kinds of changes. **reset** moves the current branch and can also change the index and working tree, depending on its mode. **revert** creates a new commit that applies the inverse of an earlier commit; it is generally the safer option for undoing a published change because it preserves the shared history. **restore** is focused on restoring file content in the working tree or index from a chosen source. **checkout** is older and overloaded: it can switch branches or check out a commit, and it can also restore paths. Modern Git workflows often use **switch** for branch changes and **restore** for file restoration to make intent clearer.
+
+Examples:
+
+    git restore src/main/java/com/example/OrderService.java
+    git restore --staged src/main/java/com/example/OrderService.java
+    git revert <commit-sha>
+    git switch main
+
+The first command restores the working-tree path from the index; the second unstages the path while leaving working-tree content in place. Neither is a general substitute for reverting a shared commit. Before choosing a command, ask whether I am trying to change branch history, add an inverse commit, unstage a file, or discard an edit. Being precise about the target state prevents accidental data loss.
+
+### Q29. How do you undo a merge commit that has already been pushed?
+
+For a shared branch, I normally use **git revert** rather than reset-and-force-push. Reverting an ordinary merge commit needs special care because Git must know which parent should be treated as the mainline. For a merge where the first parent is the target branch before integration, the command is commonly:
+
+    git revert -m 1 <merge-commit-sha>
+
+The **-m 1** option tells Git to treat parent 1 as the mainline and reverse the changes introduced relative to that parent. Verify the parent order with **git show --no-patch --pretty=raw <merge-commit-sha>** and inspect the merge before running the command; choosing the wrong mainline can reverse the wrong set of changes.
+
+After the revert, review the diff and run tests. A revert does not erase the original merge from history. It adds a commit that undoes its effect. That matters if the team later wants to reintroduce the feature: reverting the revert or merging the same branch again requires understanding which commits are already ancestors. For a production incident, I would also coordinate the rollback with deployment and data changes; undoing source code alone cannot reverse irreversible external side effects or database migrations automatically.
+
+### Q30. How does git stash work, and what are its risks?
+
+Stash temporarily stores local changes so I can switch context without making a normal commit. **git stash** commonly saves tracked working-tree and index changes, while untracked files need **-u** and ignored files need additional care. A stash entry is a Git object structure referenced through the stash reflog; it is not simply a separate folder of files. The staged and working-tree state can be preserved so that changes can be reapplied later, but conflicts may occur when applying the stash to a changed base.
+
+Common commands include:
+
+    git stash push -m "WIP: order validation"
+    git stash list
+    git stash show -p stash@{0}
+    git stash apply stash@{0}
+    git stash drop stash@{0}
+
+**apply** keeps the stash entry, whereas **pop** attempts to apply it and then removes the entry when successful. For changes I may need again, apply first and verify the result before dropping the stash. Do not treat stash as a durable backup or as a replacement for a meaningful commit. For long-running work, a temporary branch and WIP commit can be clearer and easier to share. Always inspect the working tree after applying a stash, especially when it contains staged changes or touches files that have changed on the new branch.
+
+### Q31. What is cherry-pick, and when is it preferable to merge or rebase?
+
+Cherry-pick applies the change introduced by one or more existing commits onto the current branch and records the result as a new commit. It is particularly useful for backporting an isolated bug or security fix to a supported release branch without integrating every change from the source branch. For example:
+
+    git switch release/2.x
+    git cherry-pick <fix-commit-sha>
+
+The new commit usually has a different ID because it is a new commit object with a different parent, even when the patch is equivalent. A conflict may occur if the target branch has different code or lacks a prerequisite change. I must validate the result in the target branch instead of assuming a successful cherry-pick proves the fix is complete.
+
+A **merge** integrates the history of a branch, while **rebase** replays a series of commits onto a new base. **Cherry-pick** selectively transfers specific changes. Use it when selection matters, not as the default way to integrate an entire feature branch; repeated cherry-picking of related commits can lead to duplicate changes and complicated ancestry. Keep a traceable link to the original fix or pull request, and record which release branches contain the patch.
+
+### Q32. I committed to the wrong branch. How do you recover safely?
+
+First I determine whether the commit is local only or already pushed, and whether the intended branch contains other work that must be preserved. If the commit is local and I am on the wrong branch, I can create or switch to the correct branch at the current commit so the work has a named reference, then restore the original branch to its previous state using a safe, verified target. For example, I might create the destination branch first:
+
+    git branch feature/correct-target
+    git log --oneline --decorate -5
+
+Then I check the original branch's prior tip and use an appropriate reset only after confirming which commit belongs there. If the commit has already been published or others have based work on it, I avoid rewriting shared history casually. I can instead apply the desired change to the correct branch with cherry-pick and coordinate how to handle the mistaken branch.
+
+The important practice is to protect the commit before moving references. Branches are pointers, so creating a new branch at the current commit is a low-risk way to preserve access while investigating. I would inspect the graph and working tree rather than blindly copy commands from memory. The exact recovery depends on whether the target commit is private, shared, or already integrated elsewhere.
+
+### Q33. What should you do if an operation is stuck or you accidentally stage the wrong files?
+
+Start with **git status**. It tells you whether a merge, rebase, or cherry-pick is in progress and which files are staged, unstaged, or conflicted. If you staged a file by mistake but want to keep its working-tree changes, use **git restore --staged <path>**. If you need to discard only an unstaged edit, **git restore <path>** restores the path from the index, so review the content first because that can lose the edit. If a merge or rebase is no longer appropriate, use the corresponding abort command while the operation is still in progress.
+
+    git status
+    git diff
+    git diff --staged
+    git restore --staged path/to/file
+    git merge --abort
+    git rebase --abort
+
+Do not run abort commands mechanically: first confirm which operation is active and whether you want to abandon it. If conflict resolution was partly completed, make sure important manual work is captured before aborting. For generated files accidentally staged, unstage them and check that ignore rules are correct, but do not delete useful files blindly. The recovery principle is to identify the repository state, decide which data must be preserved, and then use the narrowest command that achieves the intended result.
+
 ---
 
 ## 7. History, debugging, and recovery
