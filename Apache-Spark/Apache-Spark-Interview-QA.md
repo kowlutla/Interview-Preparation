@@ -1242,7 +1242,7 @@ Use these as realistic practice rounds, not as a script to memorize. In a real i
 
 ### Mock interview A — Spark fundamentals and execution
 
-**Interviewer prompt:** You receive a 500 GB dataset of order events. You need to filter failed orders, join the remaining events to customer data, and aggregate revenue by customer. Explain how Spark executes the job.
+**Interviewer prompt:** You receive a 500 GB dataset of order events. Remove failed orders, join the remaining events to customer data, and aggregate revenue by customer. Explain how Spark would execute the job.
 
 **Model answer:** I would read the input as a DataFrame and express the filter, join, and aggregation using built-in Spark SQL expressions. Those transformations build a logical plan; they do not immediately process the whole dataset. When I trigger an action such as writing the aggregate, Spark analyzes and optimizes the plan, selects physical operators, and schedules tasks over partitions.
 
