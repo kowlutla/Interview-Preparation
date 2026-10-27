@@ -2,7 +2,7 @@
 
 **Audience:** Java backend engineers with 5+ years of experience preparing for senior backend interviews.  
 **Focus:** Spark fundamentals, Spark SQL/DataFrames, execution internals, partitioning and shuffles, performance, Java APIs, Structured Streaming, Kafka, and production reliability.  
-**Version note:** Examples focus on established Java DataFrame and Structured Streaming APIs used in late Spark 3.x and Spark 4.x. The official links below currently resolve to Spark 4.2.0 documentation; some Structured Streaming pages moved under the /streaming/ path in Spark 4.0. Connector coordinates, Java requirements, defaults, supported operations, AQE rules, and state behavior vary by release. Validate against the exact Spark, JDK, Scala-binary, Kafka connector, and deployment versions in use.
+**Version note:** Examples focus on established Java DataFrame and Structured Streaming APIs used in late Spark 3.x and Spark 4.x; they are focused snippets, not a promise that every API/configuration is identical across every release. The official links below currently resolve to Spark 4.2.0 documentation, which lists Java 17/21/25 and Scala 2.13; Spark 4.0 moved Structured Streaming guides under the /streaming/ path and removed Scala 2.12 support. Spark 3.x has a different compatibility matrix. Connector coordinates, JDK requirements, defaults, supported operations, AQE rules, and state behavior vary by release. Validate against the exact Spark, JDK, Scala-binary, Kafka connector, and deployment versions in use.
 
 This handbook starts with big-data basics and builds toward senior-level production reasoning. It assumes limited prior Hadoop knowledge and emphasizes understanding over memorizing definitions.
 
@@ -730,7 +730,7 @@ Kubernetes schedules driver/executor pods and enforces resource limits. Configur
 
 ### Q102. What matters when packaging a Java Spark application?
 
-Use a Spark-compatible JDK and matching Spark/Scala connector artifacts. Managed environments often provide Spark libraries, so avoid bundling conflicting copies. Kafka connector coordinates must match Spark and Scala binary versions. Test the packaged artifact in a representative cluster, not only in an IDE.
+Use a JDK supported by the exact Spark distribution and matching Spark/Scala connector artifacts. The current Spark 4.2 documentation lists Java 17, 21, and 25 and Scala 2.13; Spark 4.0 removed Scala 2.12 support. Do not apply that matrix blindly to older Spark 3.x deployments—check the documentation for the version you actually run. Managed environments often provide Spark libraries, so avoid bundling conflicting copies. Kafka connector coordinates must match Spark and Scala binary versions. Test the packaged artifact in a representative cluster, not only in an IDE.
 
 ### Q103. How do you debug local success but cluster failure?
 
@@ -1556,6 +1556,7 @@ Clarify latency, lateness, replay horizon, schema ownership, and consistency. Ex
 
 Use documentation matching the deployed Spark version; the latest URLs change as releases publish.
 
+- [Apache Spark overview and current Java/Scala runtime requirements](https://spark.apache.org/docs/latest/index.html)
 - [Apache Spark documentation](https://spark.apache.org/docs/latest/)
 - [RDD programming guide](https://spark.apache.org/docs/latest/rdd-programming-guide.html)
 - [Spark SQL, DataFrames, and Datasets](https://spark.apache.org/docs/latest/sql-programming-guide.html)
