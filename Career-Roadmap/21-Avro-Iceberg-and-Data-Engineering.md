@@ -1,63 +1,33 @@
 # Avro, Iceberg, and Data Engineering
 
-> Numbered learning checklist. Use the existing handbook in this repository for detailed explanations and interview Q&A.
+## Apache Avro and Schema Evolution
 
-### 45. Apache Avro and Schema Evolution
-- [ ] Avro Data Model
-- [ ] Schema Definition and Primitive/Complex Types
-- [ ] Records, Enums, Arrays, Maps, Unions
-- [ ] Logical Types
-- [ ] Binary Encoding and Serialization
-- [ ] SpecificRecord, GenericRecord, and Reflect APIs
-- [ ] Schema Resolution and Reader/Writer Schemas
-- [ ] Defaults and Field Aliases
-- [ ] Backward, Forward, and Full Compatibility
-- [ ] Transitive Compatibility
-- [ ] Schema Registry
-- [ ] Subject Naming Strategies
-- [ ] Compatibility Policies and Versioning
-- [ ] Kafka Producer/Consumer Integration
-- [ ] Schema Evolution Failure Modes
-- [ ] Data Contract Governance
+- [ ] Avro schemas and data model: records, enums, arrays, maps, unions, and logical types
+- [ ] Binary encoding, SpecificRecord, GenericRecord, and reflection APIs
+- [ ] Reader/writer schema resolution, defaults, aliases, and compatibility
+- [ ] Backward, forward, full, and transitive schema compatibility
+- [ ] Schema Registry, subject naming, versioning, and compatibility policies
+- [ ] Kafka producer/consumer integration and schema evolution failure modes
+- [ ] Data contracts, ownership, and schema governance
 
-### 46. Apache Iceberg
-- [ ] Table Format Fundamentals
-- [ ] Iceberg Architecture and Metadata
-- [ ] Catalogs and Table Identifiers
-- [ ] Metadata Files and Manifest Lists
-- [ ] Snapshots and Snapshot Isolation
-- [ ] Manifest Files and Data Files
-- [ ] Hidden Partitioning
-- [ ] Partition Transforms
-- [ ] Schema Evolution
-- [ ] Partition Evolution
-- [ ] Time Travel and Rollback
-- [ ] Snapshot Expiration
-- [ ] Orphan File Removal
-- [ ] Compaction and Rewrite Operations
-- [ ] Optimistic Concurrency and Commit Conflicts
-- [ ] Concurrent Writers
-- [ ] Spark Integration
-- [ ] Streaming Ingestion and Exactly-Once Boundaries
-- [ ] Catalog Selection
-- [ ] Small Files and Metadata Growth
-- [ ] Table Maintenance and Operational Monitoring
+## Apache Iceberg
 
-### 47. Data Pipelines and Data Platform Fundamentals
-- [ ] Batch vs Streaming Processing
-- [ ] ETL and ELT
-- [ ] CDC and Log-Based Replication
-- [ ] Data Lake, Data Warehouse, and Lakehouse
-- [ ] Data Modeling and Partition Strategy
-- [ ] Data Quality and Validation
-- [ ] Schema Contracts and Compatibility
-- [ ] Data Lineage and Metadata
-- [ ] Idempotent Ingestion and Replay
-- [ ] Late and Out-of-Order Data
-- [ ] Deduplication and Event Time
-- [ ] Backfills and Reprocessing
-- [ ] Pipeline Monitoring and SLAs
-- [ ] Retention, Compaction, and Lifecycle
-- [ ] Data Governance and Access Control
+- [ ] Table-format fundamentals, Iceberg architecture, catalogs, and table identifiers
+- [ ] Metadata files, manifests, data files, snapshots, and snapshot isolation
+- [ ] Hidden partitioning, partition transforms, schema evolution, and partition evolution
+- [ ] Time travel, rollback, snapshot expiration, and orphan-file removal
+- [ ] Compaction, rewrite operations, small files, and metadata growth
+- [ ] Optimistic concurrency, commit conflicts, and concurrent writers
+- [ ] Spark integration, streaming ingestion, and end-to-end processing guarantees
+- [ ] Table maintenance, catalog choices, monitoring, and operational troubleshooting
 
-## Phase 9 — Additional Engineering Skills from Experience and Resume
+## Data Engineering and Data Platforms
+
+- [ ] Batch vs streaming, ETL vs ELT, and CDC/log-based replication
+- [ ] Data lake, warehouse, and lakehouse architecture
+- [ ] Data modeling, partition strategy, file layout, and table design
+- [ ] Data quality checks, schema contracts, and validation
+- [ ] Idempotent ingestion, deduplication, replay, backfills, and reprocessing
+- [ ] Event time, late/out-of-order data, and streaming correctness
+- [ ] Lineage, metadata, monitoring, SLAs, retention, and lifecycle management
+- [ ] Data governance, access control, and privacy requirements
