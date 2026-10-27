@@ -500,7 +500,7 @@ Sources include Kafka, files, and connectors available in the chosen Spark distr
 
 ### Q71. Explain append, update, and complete output modes.
 
-Append emits rows considered new/final under the query's semantics; event-time aggregations may need watermarks to finalize windows. Update emits rows changed since the prior trigger for supported queries. Complete outputs the whole result table each trigger and can become expensive as results grow. Supported modes depend on the operation and sink; verify compatibility and sink semantics.
+Append emits rows that are new/final under the query's semantics. For a windowed event-time aggregation, that often means Spark waits until the watermark passes the window before emitting its final result. Update emits rows changed since the previous trigger, so a sink must handle repeated updates to the same key/window. Complete emits the entire result table after each trigger; because it promises to preserve all aggregate rows, Spark cannot use watermarking to discard old aggregation state in Complete mode. This can make state and output grow over time. The supported modes depend on both the query operation and sink, so check the compatibility matrix before choosing a mode.
 
 ### Q72. What does a trigger control?
 
@@ -523,7 +523,7 @@ StreamingQuery query = stream.writeStream()
 //     .start();
 ~~~
 
-A trigger interval is not a batch-completion SLA. If processing takes longer than the interval, the query cannot catch up unless sustainable throughput exceeds input rate. Continuous processing is separate, documented as experimental, and has different operation and sink constraints.
+A trigger interval is not a batch-completion SLA. If processing takes longer than the interval, batches cannot finish faster than the work allows; a backlog shrinks only when sustainable processing throughput exceeds the incoming rate. Continuous processing is a separate experimental mode intended for lower latency, with a restricted set of supported operations and at-least-once semantics in the documented model. It does not support `foreachBatch`, because that API operates on micro-batches. Use the default micro-batch model unless the continuous-mode latency/semantics trade-off and query compatibility are explicitly justified.
 
 ### Q73. What is a checkpoint directory?
 
@@ -559,7 +559,7 @@ Dataset<Row> perWindow = events
 // within the gap duration (API availability depends on Spark version).
 Dataset<Row> sessions = events
     .withWatermark("event_time", "10 minutes")
-    .groupBy(session_window(col("event_time"), "5 minutes"), col("customer_id"))
+    .groupBy(new Column(session_window(col("event_time"), "5 minutes")), col("customer_id"))
     .agg(count(lit(1)).alias("event_count"));
 ~~~
 
