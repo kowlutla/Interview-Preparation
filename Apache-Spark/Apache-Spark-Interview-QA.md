@@ -132,7 +132,7 @@ In client mode, the driver runs in the environment that submitted the applicatio
 
 ### Q14. What is an RDD?
 
-An RDD (Resilient Distributed Dataset) is an immutable, partitioned collection with lineage information. Transformations create new RDDs; lineage describes how lost partitions can be recomputed.
+An RDD (Resilient Distributed Dataset) is an immutable collection split into partitions so Spark can process different pieces in parallel. Each transformation returns a new RDD rather than modifying the old one. Spark tracks lineage—the dependencies and operations used to produce each partition—so it can often recompute a lost partition instead of storing a full replica of every intermediate result. RDDs are flexible for record-oriented work, but Spark has less knowledge of the business meaning inside arbitrary functions than it has for DataFrame column expressions.
 
 ~~~java
 JavaRDD<String> lines = sc.textFile("s3a://analytics/logs/*.txt");
@@ -174,7 +174,7 @@ Dataset<Row> orders = spark.read()
     .load("s3a://company-lake/orders/");
 ~~~
 
-In production, the submission environment normally supplies cluster configuration. Avoid hard-coding a local master. Use explicit schemas for CSV/JSON when correctness depends on types.
+In production, the submission configuration normally supplies the cluster manager, resources, and deployment settings, so application code does not need to hard-code `master("local[*]")`. The `SparkSession` is the entry point for DataFrame and SQL work. Parquet files carry schema metadata; CSV and JSON often benefit from explicit schemas because type inference can be expensive and can infer the wrong type from limited or inconsistent input. The path, permissions, and connector must be available from the executors—not merely from the machine where the Java code was written.
 
 ### Q19. Show common DataFrame transformations.
 
@@ -189,11 +189,11 @@ Dataset<Row> totals = paid.groupBy("customer_id")
          count(lit(1)).alias("order_count"));
 ~~~
 
-These are immutable transformations; they describe a plan rather than mutating the original Dataset. The aggregation produces one row per customer. Import functions from org.apache.spark.sql.functions.
+These expressions build a plan; they do not immediately loop through every row or mutate `orders`. The filter keeps paid orders, the projection narrows the data to the needed columns, and `withColumn` derives a new value. The aggregation produces one row per customer and calculates both revenue and row count. Keeping the logic in built-in column expressions lets Spark optimize the query and may allow source-level filtering or column pruning. In Java, these examples assume static imports from `org.apache.spark.sql.functions`.
 
 ### Q20. Explain select, filter, withColumn, and drop.
 
-Select projects or derives output columns; filter retains rows matching a predicate; withColumn adds or replaces a column; drop removes a column. Each returns a new Dataset. Hundreds of chained withColumn calls can create an unwieldy plan; a select with several expressions can be clearer.
+`select` controls which columns appear in the result; `filter` keeps only rows satisfying a condition; `withColumn` adds or replaces one named column; `drop` removes columns. Each method returns a new Dataset, so the original variable still refers to its original plan. For example, filtering paid orders before selecting `order_id` and `amount` reduces what later operators need to process. Long chains of `withColumn` are valid, but a single `select` with several expressions can be easier to read and can avoid building an unnecessarily deep plan.
 
 ### Q21. How should nulls be handled?
 
@@ -216,21 +216,23 @@ Check key uniqueness: if the right side has three rows per customer, an order ca
 
 ### Q23. How do window functions differ from groupBy?
 
-GroupBy collapses each group into aggregate rows. A window computes over related rows while preserving individual rows, for example ranking orders within a customer.
+`groupBy` reduces each group to aggregate rows, so a customer-level `sum(amount)` returns one result per customer. A window function calculates over related rows while keeping the original rows, which is useful for ranking orders or computing running totals.
 
 ~~~java
 WindowSpec w = Window.partitionBy("customer_id")
-    .orderBy(col("order_ts").asc());
+    .orderBy(col("order_ts").asc(), col("order_id").asc());
 Dataset<Row> ranked = orders.withColumn("order_rank", row_number().over(w));
 ~~~
 
-Windows can require repartitioning and sorting and may be costly for high-cardinality or skewed keys. Use deterministic tie-breakers if ordering matters.
+The window definition says to rank each customer's orders by timestamp, using `order_id` as a tie-breaker so the order is deterministic when timestamps match. The physical plan may need to repartition by customer and sort within each partition, which can be expensive for high-cardinality or skewed keys. Choose a window only when row-level results are required; an aggregate is usually cheaper if the output can be collapsed.
 
 ### Q24. union versus unionByName?
 
-Union combines rows by column position and does not deduplicate. UnionByName matches columns by name and can fill missing columns with null where the API supports that option. Normalize types and schemas before combining evolving datasets; explicitly request deduplication if required.
+`union` combines two compatible datasets by column position; if the column order differs, values can land under the wrong names even when both inputs have the same column names. `unionByName` aligns columns by name and, in supported versions, can fill missing columns with null when `allowMissingColumns` is enabled. Neither operation removes duplicates. Normalize data types and decide how missing fields should be represented before combining evolving event schemas; add explicit deduplication only if the business semantics require it.
 
 ### Q25. How do you query a DataFrame using SQL?
+
+Registering a temporary view makes the DataFrame queryable by SQL within that SparkSession; it does not copy all rows into a separate database table. The SQL and DataFrame APIs generally feed the same Spark SQL optimizer, so one syntax is not automatically faster than the other.
 
 ~~~java
 orders.createOrReplaceTempView("orders");
@@ -239,7 +241,7 @@ Dataset<Row> result = spark.sql(
     "FROM orders WHERE status = 'PAID' GROUP BY customer_id");
 ~~~
 
-SQL and DataFrame expressions generally use Spark SQL planning and optimization. Choose the syntax that communicates the logic most clearly.
+Use SQL when joins and aggregations are easier to review as a query, or the DataFrame API when composing expressions programmatically. Inspect the plan when performance matters; readability and optimizer visibility are more important than the syntax choice.
 
 ### Q26. How do you read/write CSV, JSON, and Parquet?
 
@@ -258,7 +260,7 @@ CSV is text, so numeric/date columns need parsing and schema decisions; JSON sup
 
 ### Q27. How do nested types and explode work?
 
-Spark supports arrays, maps, and structs. Dot notation selects nested fields; explode turns array elements into rows. Exploding large arrays multiplies row counts and can become a major cost. Preserve parent identifiers and verify that the downstream operation truly needs one row per element.
+Spark represents nested data with types such as `struct`, `array`, and `map`. Dot notation can project a nested field—for example, `col("customer.address.city")`—while `explode(col("items"))` creates one output row for each array element. This is useful when an order contains multiple line items, but it can multiply row counts substantially and change aggregation totals if the parent order is then counted once per item. Keep the parent identifier, decide whether null/empty arrays should produce zero or no rows, and explode only when downstream logic needs element-level records.
 
 ### Q28. How should dates and timestamps be handled?
 
@@ -270,7 +272,7 @@ Distinguish an instant from local wall-clock time. Standardize time zones and pa
 
 ### Q29. Transformations versus actions?
 
-Transformations describe new datasets, such as filter, select, map, and groupBy. Actions request a result or side effect, such as count, collect, show, or write. A write is an action too, and can process terabytes despite looking like one short method call.
+A transformation describes how to derive a dataset; examples include `filter`, `select`, `withColumn`, and `groupBy`. An action asks Spark to produce a result or perform an output operation—such as `count`, `collect`, `show`, or `write`. This distinction explains why defining a long chain of transformations is usually cheap while the final write may run for many minutes: the action triggers the necessary scan, shuffle, and executor work. Some metadata/schema checks can occur earlier, so “lazy” does not mean every API call is free.
 
 ### Q30. Why is collect dangerous?
 
@@ -278,11 +280,11 @@ Collect transfers every output row to driver memory. Use it only when the result
 
 ### Q31. How do you inspect a query plan?
 
-Use explain(true) or explain("formatted") where supported. Inspect scans, filters, exchanges, sorts, join operators, and adaptive-plan details. The plan shows intended execution, not actual task performance; pair it with runtime metrics in the Spark UI.
+`df.explain(true)` prints several logical-plan stages and the physical plan; `df.explain("formatted")` gives a more structured view in versions that support it. Look for the scan, pushed and partition filters, `Exchange` nodes that indicate data redistribution, sort operators, join strategy, and aggregate operators. If AQE is enabled, inspect the final adaptive plan after runtime statistics are available. A plan shows what Spark intends to execute, but it cannot tell you whether one executor is unhealthy or a key is skewed; correlate it with task-level metrics in the Spark UI.
 
 ### Q32. Why can a transformation pipeline execute multiple times?
 
-Each action may require Spark to execute the upstream plan. Calling count and then writing the same uncached DataFrame can scan and transform the source twice. Remove unnecessary actions or persist expensive results that are reused. Cache population itself costs resources, so measure the benefit.
+DataFrames are lazy descriptions, not automatically materialized results. If code calls `show()` to preview, `count()` to check size, and then `write()`, Spark can execute the scan and transformations separately for each action. That may be correct but needlessly expensive for a large source. Remove actions used only for temporary debugging, or persist the intermediate if it is genuinely reused by several downstream operations. Caching also costs time and memory, so compare its population cost with the recomputation it avoids.
 
 ---
 
@@ -318,11 +320,11 @@ Salting appends an artificial bucket to a hot key so work is distributed across 
 
 ### Q39. File partitioning versus Spark partitions?
 
-Directory partitioning such as year=2026/month=10 is a storage layout that can support partition pruning. Spark execution partitions are task-sized chunks. One directory partition can contain many files, and Spark may split or combine file inputs. Repartitioning in memory does not automatically reorganize source directories.
+Storage partitioning and Spark execution partitioning solve different problems. A layout such as `year=2026/month=10/` stores files under partition-column directories and can help Spark skip whole directories when a filter matches those columns. An execution partition is a chunk processed by tasks; one storage directory may contain many files, and Spark can split large files or pack small files into input partitions. Calling `repartition` changes the execution distribution for the resulting plan—it does not rewrite the original source directory layout.
 
 ### Q40. What is partition pruning?
 
-Partition pruning skips storage directories whose partition-column values cannot satisfy a filter. Predicate pushdown can filter rows within files. Functions or casts on partition columns can prevent pruning in some query shapes; inspect scan details and actual input bytes to verify.
+Partition pruning skips whole storage partitions when Spark can prove their partition-column values cannot match the predicate—for example, reading one `order_date` from a dataset partitioned by date. Predicate pushdown is related but different: it tries to apply supported filters inside the source or file reader. A query can prune directory partitions and still read many row groups within the selected files. Expressions or casts on the partition column can sometimes make pruning harder, so verify `PartitionFilters`, `PushedFilters`, file counts, and input bytes in the plan/UI rather than assuming it occurred.
 
 ---
 
@@ -346,7 +348,7 @@ A useful workflow is to compare the initial and final adaptive plans and correla
 
 ### Q44. Why can distinct be expensive?
 
-Deduplication requires identifying equal rows across partitions and often causes a shuffle. dropDuplicates(keys) better expresses key-based deduplication but still requires distributed coordination. In streaming, deduplication also needs state and a policy for how long IDs are retained.
+`distinct()` deduplicates complete rows, so Spark must compare records across partitions; that often means a shuffle and can move wide rows unnecessarily. If the business rule is “one record per `event_id`,” use `dropDuplicates("event_id")` to state that rule explicitly, while deciding what should happen if two records share the ID but contain different payloads. This is still distributed work. In streaming, Spark must remember previously seen keys across triggers; without a bounded duplicate horizon/watermark, state can grow with the history of unique IDs.
 
 ### Q45. Why can an aggregation run out of memory?
 
