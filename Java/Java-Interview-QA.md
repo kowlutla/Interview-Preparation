@@ -27,7 +27,9 @@ A focused, version-aware handbook for Java backend engineers preparing for exper
 15. [Last-minute revision](#15-last-minute-revision)
 16. [Java Version Features (Java 8–25)](#16-java-version-features-java-825)
 17. [Official references](#17-official-references)
-18. [Editorial and validation notes](#18-editorial-and-validation-notes)
+18. [Senior-level mock interview rounds](#18-senior-level-mock-interview-rounds)
+19. [Official references](#19-official-references)
+20. [Editorial and validation notes](#20-editorial-and-validation-notes)
 
 **Reading order:** Java execution and language foundations → OOP and contracts → strings/exceptions/generics → Collections → functional APIs and Streams → concurrency → JVM → I/O, networking and engineering practices → Java 8–25 evolution → code reading → production/senior scenarios.
 
@@ -2944,7 +2946,7 @@ Java 24 introduced ahead-of-time class loading and linking capabilities intended
 
 ### Java 25 — New LTS release and finalized language improvements
 
-Java 25 is the next LTS release after Java 21 in this guide's scope. It finalizes several features that had been previewed in earlier releases.
+Java 25, released on 16 September 2025, is the next LTS release after Java 21. It finalizes several features that had been previewed in earlier releases. For backend engineers, distinguish language/API improvements from runtime changes and preview/incubator features that carry adoption risk.
 
 #### Module import declarations (final)
 
@@ -2976,6 +2978,21 @@ ScopedValue.where(REQUEST_ID, requestId)
 ```
 
 Scoped values are not a universal replacement for every `ThreadLocal`. They are designed for scoped, typically immutable context propagation and should be evaluated against the framework's request-context mechanisms.
+
+#### Runtime and performance changes worth knowing
+
+Java 25 includes runtime changes that can matter even when application source code does not change:
+
+- **Compact Object Headers (JEP 519, final):** reduces object-header size on supported configurations and can lower memory use for some object-heavy workloads. Validate configuration support and measure actual heap footprint; it is not a guaranteed percentage improvement for every application.
+- **Ahead-of-Time Method Profiling (JEP 515, final):** can reuse profiling information to reduce some warm-up work. Gains depend on workload and deployment conditions; benchmark cold starts and steady-state performance separately.
+- **Generational Shenandoah (JEP 521, final):** adds generational operation to Shenandoah, separating objects by age to improve collection efficiency for suitable workloads. Collector choice remains workload-dependent.
+- **JFR CPU-time profiling (JEP 509, experimental):** adds diagnostic capability for investigating CPU consumption. Check JDK 25 documentation and platform support before relying on it in a production workflow.
+
+These changes are reasons to test Java 25 with representative data, not to assume automatic performance improvement. Record the JDK build, GC, heap/container limits, warm-up conditions, throughput, p95/p99 latency, allocation rate, and CPU/memory use when comparing versions.
+
+#### Primitive patterns and other preview distinctions
+
+Java 25's primitive types in patterns, instanceof, and switch are in their third preview (JEP 507), not final. Flexible constructor bodies, module import declarations, and compact source files/instance main methods are final in Java 25, so they do not require --enable-preview. Structured concurrency remains preview in Java 25; Scoped Values are final. Stable Values are preview.
 
 #### Key Derivation Function API (preview)
 
@@ -3033,10 +3050,85 @@ Use the official release documentation to verify details, especially when a feat
 - [JEP 441 — Pattern Matching for switch](https://openjdk.org/jeps/441)
 - [JEP 485 — Stream Gatherers](https://openjdk.org/jeps/485)
 - [JEP 506 — Scoped Values](https://openjdk.org/jeps/506)
+- [JEP 511 — Module Import Declarations](https://openjdk.org/jeps/511)
+- [JEP 512 — Compact Source Files and Instance Main Methods](https://openjdk.org/jeps/512)
+- [JEP 513 — Flexible Constructor Bodies](https://openjdk.org/jeps/513)
+- [JEP 507 — Primitive Types in Patterns, instanceof, and switch (third preview)](https://openjdk.org/jeps/507)
+- [JEP 505 — Structured Concurrency (fifth preview in Java 25)](https://openjdk.org/jeps/505)
+- [JEP 519 — Compact Object Headers](https://openjdk.org/jeps/519)
+- [JEP 515 — Ahead-of-Time Method Profiling](https://openjdk.org/jeps/515)
+- [JEP 521 — Generational Shenandoah](https://openjdk.org/jeps/521)
+- [JEP 509 — JFR CPU-Time Profiling](https://openjdk.org/jeps/509)
+- [JEP 510 — Key Derivation Function API (Preview)](https://openjdk.org/jeps/510)
+- [JEP 502 — Stable Values (Preview)](https://openjdk.org/jeps/502)
 
 ---
 
-## 17. Official references
+## 18. Senior-level mock interview rounds
+
+These mock rounds are designed to be answered aloud. Start with a direct answer, explain your reasoning, and discuss trade-offs. The answers are model responses, not scripts to memorize.
+
+### Round 1 — Java 8 to modern Java
+
+**Interviewer:** Your Spring Boot service runs on Java 8. The team wants to move to Java 21. Would you change the production runtime first and then fix issues?
+
+**Model answer:** No. I would treat this as an application and dependency migration, not just a runtime swap. First inventory framework and library versions, build plugins, agents, native dependencies, reflection into JDK internals, and reliance on Java EE/CORBA modules removed from the JDK in Java 11. Make the build reproducible on the target JDK, run unit and integration tests, and inspect warnings and failures. Compare behavior under representative load, including TLS, charset assumptions, GC, startup, and latency. Deploy gradually with error-rate and latency guardrails and a tested rollback path. If dependencies do not support Java 21, upgrade them deliberately rather than masking compatibility problems with permanent JVM flags.
+
+**Follow-up:** What evidence would convince you the migration is safe?
+
+**Model answer:** Passing tests is necessary but not sufficient. Compare functional results, API error rates, throughput, p95/p99 latency, CPU, memory, GC pauses, thread behavior, and downstream saturation against a baseline. The canary must receive representative traffic and have explicit rollback thresholds.
+
+### Round 2 — Java 17 language features
+
+**Interviewer:** A team replaces a DTO class with a record, but a test fails because a field that was previously updated is now fixed. Was the conversion incorrect?
+
+**Model answer:** It depends on the DTO contract. A record is intended for transparent data carriers: its component fields are final and the compiler generates accessors, equals, hashCode, and toString. It is not a drop-in replacement for a mutable JavaBean. Check whether the framework expects a no-argument constructor, setters, proxying, mutable binding, or subclassing, and whether callers depended on identity-based equality. Also check mutable component objects: records are only shallowly immutable. If mutation is part of the contract, retain a class or map into a record at an immutable boundary.
+
+**Follow-up:** Why can using a record as a JPA entity be problematic?
+
+**Model answer:** Persistence entities often rely on identity, lifecycle mutation, proxying, and constructor/access constraints that do not naturally fit records. A record can be useful as a projection or API DTO while a conventional entity class remains a better fit for many ORM mappings.
+
+### Round 3 — Virtual threads and resource limits
+
+**Interviewer:** Your service makes hundreds of blocking HTTP calls per request and uses a large platform-thread pool. Would you switch to virtual threads?
+
+**Model answer:** I would prototype virtual threads because they can make large numbers of mostly-blocking tasks cheaper to manage and support straightforward thread-per-task code. But they do not make remote calls faster or increase downstream capacity by themselves. Set request deadlines and HTTP timeouts, cap concurrent calls to each dependency, and measure queueing, connection-pool usage, latency, and memory. Database pools remain finite; if thousands of virtual threads wait for a pool of 40 connections, the bottleneck is still the database. Virtual threads are not a way to accelerate CPU-bound work. Compare designs under the same load and failure conditions.
+
+**Follow-up:** Should virtual threads be pooled?
+
+**Model answer:** Usually no. Virtual threads are intended to be created per task rather than pooled as scarce worker threads. Use semaphores or other explicit limits to control access to scarce downstream resources.
+
+### Round 4 — JVM performance and garbage collection
+
+**Interviewer:** After moving to Java 25, p99 latency gets worse while average latency looks almost unchanged. What would you investigate?
+
+**Model answer:** Confirm that the comparison is valid: same traffic mix, hardware/container limits, configuration, dependency versions, warm-up period, and measurement window. Correlate the p99 regression with GC pauses, allocation rate, CPU, JIT compilation/warm-up, thread scheduling, lock contention, and downstream latency. Use GC logs and JFR, and take thread or heap dumps when they answer a specific question. Change one variable at a time—such as collector, heap sizing, or an allocation hot spot—and repeat the workload. A newer JDK can improve some workloads and regress others; the version number alone is not a diagnosis.
+
+**Follow-up:** When would you choose ZGC over G1?
+
+**Model answer:** Consider ZGC when pause-time goals are stringent and the workload benefits from low-pause characteristics, while checking throughput, memory overhead, JDK build, and operational constraints. G1 is a strong general-purpose choice for many server workloads. Decide based on service-level objectives and representative measurements, not a universal ranking.
+
+### Round 5 — Migration troubleshooting
+
+**Interviewer:** A Java 17 application fails after an upgrade because a library uses reflection into a JDK-internal package. What is your response?
+
+**Model answer:** Identify the exact reflective access from the exception and stack trace, then check whether the library has a compatible release using supported APIs. Upgrade or replace the dependency where possible and add a regression test. A narrowly scoped --add-opens option can sometimes be a temporary bridge if the risk is understood, but document an owner and removal plan rather than broadening access permanently. Check for other reflective-access warnings in integration tests before rollout.
+
+**Follow-up:** Is this automatically a Java language incompatibility?
+
+**Model answer:** No. It is often a runtime encapsulation or dependency-compatibility issue. Separating JDK changes from framework/library behavior helps locate the correct fix.
+
+### Round 6 — Java 25 and emerging features
+
+**Interviewer:** A developer proposes primitive patterns or structured concurrency because the service now runs on Java 25. Can the team use them without extra flags?
+
+**Model answer:** Not automatically. Java 25 finalizes module import declarations and compact source files/instance main methods, but primitive types in patterns remain a preview feature, and structured concurrency is also preview in Java 25. Preview use requires deliberate build and runtime configuration and creates a maintenance obligation because syntax or APIs may change. For a production backend, confirm that the feature materially improves the design, check framework/tooling support, isolate use behind a small boundary, and agree on a plan to revisit it on JDK upgrades. If the benefit is only stylistic, prefer final APIs.
+
+**Follow-up:** Does LTS mean every feature in that release is finalized?
+
+**Model answer:** No. LTS describes the release support cadence, not the status of each feature. Preview and incubator features can exist in an LTS release.
+
+## 19. Official references
 
 - [Java 25 language changes by release](https://docs.oracle.com/en/java/javase/25/language/java-language-changes-release.html)
 - [Java 25 language feature status summary](https://docs.oracle.com/en/java/javase/25/language/java-language-changes-summary.html)
@@ -3064,11 +3156,11 @@ Use official specifications and API documentation as the final authority for lan
 
 ---
 
-## 18. Editorial and validation notes
+## 20. Editorial and validation notes
 
-- The handbook contains **355 numbered interview questions**. Stable Q IDs are retained for linkability, but questions are grouped by topic and therefore are not shown in numeric order.
+- The handbook retains its numbered core Q&A inventory and adds six structured senior-level mock interview rounds.
 - Every question has one primary topic location; the last-minute revision section links back rather than duplicating question content.
 - The section order follows one learning path: language/OOP, strings and exceptions, generics, Collections, functional APIs and Streams, concurrency, JVM, engineering APIs and practices, Java-version evolution, code reading, then production/senior scenarios.
-- The Java release matrix highlights LTS milestones and preview/incubator caveats. It is a revision map, not a replacement for release notes.
+- The Java release matrix highlights LTS milestones and preview/incubator caveats. Java 25 runtime changes and preview statuses are linked to official JEPs; this remains a revision map, not a replacement for release notes.
 - Structural checks cover question inventory, topic assignment, section organization, TOC anchors, and Markdown fences. They do not establish that every code snippet was compiled or every technical claim was independently audited line by line.
 - The Java directory was consolidated to this single handbook; the former chapter-wise Markdown files and folders were removed as part of the requested cleanup. Other technology guides outside the Java directory were left untouched.
