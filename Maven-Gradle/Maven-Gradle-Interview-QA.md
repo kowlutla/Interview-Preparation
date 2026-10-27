@@ -2,7 +2,7 @@
 
 **Audience:** Senior Java backend engineers (5–10 years).  
 **Perspective:** Java developer only — build configuration, dependencies, tests, packaging, troubleshooting, and practical trade-offs.  
-**Goal:** A focused revision guide with 45 high-value Q&As. Commands and snippets are illustrative; verify plugin and tool versions against the project you maintain.
+**Goal:** A focused revision guide with 49 high-value Q&As. Commands and snippets are illustrative; verify plugin and tool versions against the project you maintain.
 
 ## Contents
 
