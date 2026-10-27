@@ -903,6 +903,8 @@ I would first compare the latest run with a known-good run in the Spark UI. I wo
 
 I would change one thing that matches the evidence and compare both runtime and output totals. Adding executors without knowing the bottleneck can increase cost without fixing anything.
 
+**A likely follow-up:** Why is adding executors a weak first step before identifying the slow stage?
+
 ### Scenario 2 — One task is much slower than all the others
 
 Most tasks finish in under a minute, but one task runs for 15 minutes.
@@ -910,6 +912,8 @@ Most tasks finish in under a minute, but one task runs for 15 minutes.
 I would compare that task with the median task in the same stage: input and shuffle bytes, spill, GC time, and executor/host. If the slow task has far more data, the likely cause is skew—a key such as one very active customer may dominate the partition. I would check key frequencies, then consider AQE skew-join handling, a pre-aggregation, or a carefully designed salting strategy. If its input size is ordinary but the task is still slow, I would investigate the executor, disk, network, and GC instead.
 
 I would not assume that adding partitions will split one hot key automatically. Keyed aggregations still need to combine values for that key correctly.
+
+**A likely follow-up:** How would you tell a hot key apart from a slow or unhealthy executor?
 
 ### Scenario 3 — A join creates a huge shuffle
 
@@ -919,6 +923,8 @@ I would inspect the physical plan and count rows before and after the join. Firs
 
 I would validate row counts and business totals after changing the plan. A faster join that changes row multiplicity is not a successful fix.
 
+**A likely follow-up:** How do you prove a faster join did not change row multiplicity or revenue totals?
+
 ### Scenario 4 — Executors run out of memory repeatedly
 
 A Spark job fails with executor memory errors after a new dimension table is added.
@@ -926,6 +932,8 @@ A Spark job fails with executor memory errors after a new dimension table is add
 I would first determine whether the JVM reports heap exhaustion or whether the cluster manager killed the container for exceeding its total memory limit. Then I would inspect the failing stage for a large broadcast, skewed partition, excessive cache, spill, and GC pressure. If the failures start at the broadcast, I would reconsider whether the relation is actually small enough to fit on every executor. If only one or two tasks fail, I would look for unusually large partitions.
 
 I would reduce unnecessary columns and rows, remove unused caches, and address skew or the join strategy before increasing memory. Increasing heap may help a legitimate working set, but it will not solve an oversized broadcast or logically unbounded state.
+
+**A likely follow-up:** What evidence would justify increasing heap rather than changing the query or partitioning?
 
 ### Scenario 5 — The driver crashes during collect()
 
@@ -935,6 +943,8 @@ A developer calls `collect()` on a large DataFrame and the driver runs out of me
 
 I would also remove temporary `show()` or `count()` calls from a production path if they cause the same expensive pipeline to run again. The key lesson is to keep large datasets distributed instead of converting them into a local Java collection.
 
+**A likely follow-up:** When is collect() reasonable, and what makes a result safely small?
+
 ### Scenario 6 — A broadcast join causes long GC pauses
 
 After forcing a broadcast join, executor GC time increases and the job becomes slower.
@@ -942,6 +952,8 @@ After forcing a broadcast join, executor GC time increases and the job becomes s
 I would inspect the actual broadcast exchange size and executor memory use. The compressed source-file size can be much smaller than the in-memory relation used by the join. Broadcasting duplicates that relation across executors, so it can create memory and network pressure. I would filter and project the dimension before the join, remove the hint if it is too large, or let Spark use a shuffle-based strategy when that is safer. I would compare the final plan and stage metrics rather than judging the strategy by its name.
 
 Broadcasting is useful only when the saved shuffle cost outweighs the broadcast and memory cost. I would monitor the dimension size because a join that was safe last month can become unsafe as the table grows.
+
+**A likely follow-up:** What metrics would convince you to use a broadcast join instead of a shuffle join?
 
 ### Scenario 7 — The job produces thousands of tiny files
 
@@ -951,6 +963,8 @@ I would inspect file sizes, task count, and the output partition columns. Too ma
 
 The goal is a practical file size and enough files for downstream parallelism—not always the fewest possible files. I would check downstream scan time after compaction to confirm the change helped.
 
+**A likely follow-up:** How would you choose a target Parquet file size for the downstream workload?
+
 ### Scenario 8 — Increasing partitions makes the job slower
 
 The team increases shuffle partitions from 200 to 2,000 and the job takes longer.
@@ -958,6 +972,8 @@ The team increases shuffle partitions from 200 to 2,000 and the job takes longer
 More partitions can improve parallelism when tasks are too large, but every task has scheduling and bookkeeping cost. I would compare task duration, scheduler delay, bytes per task, shuffle volume, and executor slots. If tasks were already tiny, the increase likely added overhead. If tasks were large and spilling, more partitions might help. Where AQE is enabled, Spark may coalesce small post-shuffle partitions using runtime statistics.
 
 I would tune the stage that is actually slow, not assume one setting is best for every operation. The right value depends on data size, skew, and available resources, and a test should compare equal input and output correctness.
+
+**A likely follow-up:** When could AQE coalescing help, and when could it reduce useful parallelism?
 
 ### Scenario 9 — A large input has only one effective task
 
@@ -967,6 +983,8 @@ I would check whether the source is a single non-splittable file, whether an ear
 
 A repartition that occurs after a slow scan cannot make the original scan parallel. I would fix the bottleneck at the stage where it originates.
 
+**A likely follow-up:** How do you distinguish an unsplittable input file from key skew after a shuffle?
+
 ### Scenario 10 — The job works locally but fails in the cluster
 
 A Java Spark app works on a laptop but fails on Kubernetes with class errors or storage access failures.
@@ -974,6 +992,8 @@ A Java Spark app works on a laptop but fails on Kubernetes with class errors or 
 I would classify the error before changing code. Class-loading errors often point to incompatible Spark or connector dependencies; permission errors point to identity or configuration; serialization errors can come from objects captured by task lambdas; OOM kills point to resource limits. Local mode does not test executor-to-storage connectivity or distributed task serialization properly.
 
 I would compare the Spark, JDK, Scala-binary, and connector versions, then inspect driver/executor logs, pod events, credentials, and network access. I would run a small staging test using the packaged artifact and the same identity/storage paths as production. Passing an IDE run is not proof that the cluster deployment is configured correctly.
+
+**A likely follow-up:** What cluster-only issue might be invisible in local mode?
 
 ### Scenario 11 — AQE changes the plan unexpectedly
 
@@ -983,6 +1003,8 @@ That change is not automatically a bug. AQE uses runtime statistics, so it may d
 
 AQE can improve eligible plan decisions, but it cannot fix a wrong join condition or eliminate a genuinely enormous result. The important question is whether the final plan is appropriate for the actual data.
 
+**A likely follow-up:** Which problems can AQE fix, and which are query-design problems?
+
 ### Scenario 12 — A DataFrame pipeline is computed more than once
 
 The application calls `show()`, then `count()`, then writes the same transformed DataFrame.
@@ -990,6 +1012,8 @@ The application calls `show()`, then `count()`, then writes the same transformed
 Each action can cause Spark to execute the upstream plan again. I would inspect the Jobs page and remove temporary diagnostic actions from the production path. If the same expensive result is genuinely used by several downstream operations, I would consider `persist()`, trigger cache population with an action, and `unpersist()` when finished. Caching is worthwhile only if reuse saves more work than cache population and memory pressure cost.
 
 I would distinguish this from task retries, which repeat failed work, and from streaming replay, which has different recovery semantics. The same symptom—work appearing twice—can have different causes.
+
+**A likely follow-up:** How do you distinguish normal recomputation from a task retry or streaming replay?
 
 ### Scenario 13 — Kafka lag grows continuously
 
@@ -999,6 +1023,8 @@ I would compare input rate with processing rate and examine batch duration, per-
 
 `maxOffsetsPerTrigger` can limit the amount admitted to a micro-batch and protect a sink during catch-up, but it does not increase long-term throughput. I would alert on lag and estimate how long recovery takes at the measured processing rate.
 
+**A likely follow-up:** How would you estimate time to catch up after a backlog has accumulated?
+
 ### Scenario 14 — Restarting a stream appears to duplicate output
 
 A streaming query restarts from its checkpoint, but the sink contains duplicate business records.
@@ -1006,6 +1032,8 @@ A streaming query restarts from its checkpoint, but the sink contains duplicate 
 I would check where the failure happened relative to the sink commit and Spark's progress recording. A batch may have partially or fully affected an external system before Spark retries it. The checkpoint helps recover source progress and state; it does not make every external write exactly once. I would use a stable event ID with an upsert or uniqueness constraint, or a sink transaction that commits output and a processed-batch marker together.
 
 I would preserve the checkpoint and test crashes before, during, and after sink commits. Deleting the checkpoint is not a safe way to remove duplicates; it changes the query's recovery history and may replay much more data.
+
+**A likely follow-up:** How would you test the failure window after the database commits but before Spark records progress?
 
 ### Scenario 15 — Late events are missing from a window result
 
@@ -1015,6 +1043,8 @@ I would first inspect the event-time values, timezone parsing, watermark progres
 
 I would choose the threshold from measured lateness and business requirements, then monitor late-event counts. For financial reporting, I would also consider a correction or reconciliation job for records that arrive beyond the streaming window's accepted lateness.
 
+**A likely follow-up:** What business requirement determines the acceptable watermark delay?
+
 ### Scenario 16 — The watermark does not seem to reduce state
 
 The query has a watermark configured, but its state store keeps growing.
@@ -1022,6 +1052,8 @@ The query has a watermark configured, but its state store keeps growing.
 I would check whether event-time values are valid and advancing, whether the watermark is applied before the relevant aggregation, and whether the selected output mode allows state cleanup. Complete mode retains the whole aggregation result, so it cannot discard old aggregate state through watermark cleanup in the same way as Append/Update. In a query with multiple streams, the global watermark policy can also be held back by a lagging input.
 
 I would inspect watermark progress and state metrics before reducing the delay. Shortening a watermark without understanding late data can make the state look healthier while changing the result.
+
+**A likely follow-up:** What metrics would show that event-time progress has stalled?
 
 ### Scenario 17 — A streaming state store grows every day
 
@@ -1031,6 +1063,8 @@ I would look at key cardinality, windowing, duplicate horizon, and watermark pro
 
 Adding executor memory alone does not solve state that the query is required to retain indefinitely. I would monitor state rows/bytes, commit time, checkpoint time, and recovery duration.
 
+**A likely follow-up:** When is unbounded state a genuine business requirement rather than a tuning bug?
+
 ### Scenario 18 — The sink cannot keep up with Spark
 
 A streaming job transforms data quickly, but writing to a relational database takes most of each micro-batch.
@@ -1038,6 +1072,8 @@ A streaming job transforms data quickly, but writing to a relational database ta
 I would measure sink latency and inspect database CPU, locks, connection count, transaction size, and retry rate. I would prefer batch or bulk writes, limit concurrent writers to a sustainable level, and consider staging followed by a database-side merge. More Spark executors may create more concurrent writes and make the database less stable.
 
 I would set a sink throughput budget and test it with realistic data. If incoming traffic permanently exceeds what the sink can accept, tuning Spark alone cannot close the gap; the sink or architecture needs more capacity.
+
+**A likely follow-up:** How do you set a safe concurrency budget for a database sink?
 
 ### Scenario 19 — The checkpoint directory becomes unavailable
 
@@ -1047,6 +1083,8 @@ I would first preserve the error logs and determine whether the issue is tempora
 
 A checkpoint contains progress and possibly state, so it is operationally important data. I would monitor access failures, protect retention policies, and regularly test the recovery procedure.
 
+**A likely follow-up:** What is the recovery plan if the required Kafka offsets have expired?
+
 ### Scenario 20 — A producer changes the schema and the stream fails
 
 A producer adds a field or changes the type of an existing JSON field; the streaming query then fails or starts producing nulls.
@@ -1054,6 +1092,8 @@ A producer adds a field or changes the type of an existing JSON field; the strea
 I would capture the failing topic/partition/offset and inspect the actual payload against the declared schema. Adding an optional field is usually easier to accommodate than changing a numeric amount to a string or renaming a required field. I would normalize events to a canonical schema, quarantine records that cannot be safely parsed, and fail fast if continuing would corrupt important business metrics.
 
 If the change affects stateful query compatibility, I would not delete the checkpoint casually. I would plan a controlled migration or replay and test old and new producer versions together. Schema contracts and rejection-rate alerts make these incidents easier to catch.
+
+**A likely follow-up:** How would you roll out a schema change without breaking old producers or readers?
 
 ### Scenario 21 — One Kafka message cannot be parsed
 
@@ -1063,6 +1103,8 @@ I would preserve safe metadata such as topic, partition, offset, timestamp, and 
 
 The quarantine path must also be replay-safe, and malformed-record counts should be monitored. This keeps one poison message from either disappearing unnoticed or causing an endless unobserved retry loop.
 
+**A likely follow-up:** How do you replay quarantined records without introducing duplicates?
+
 ### Scenario 22 — Batch and streaming totals disagree
 
 A batch recomputation reports a different daily revenue total from the live streaming aggregate.
@@ -1070,6 +1112,8 @@ A batch recomputation reports a different daily revenue total from the live stre
 I would compare the two implementations using the same source boundary, timezone, null policy, event-ID rules, and window definitions. Then I would inspect duplicate events, late records, join multiplicity, and watermark behavior. A batch job over full history may include late events that the streaming query can no longer incorporate after its state has been finalized. Those differences must be understood rather than dismissed as Spark inconsistency.
 
 I would define one business contract, add test cases around window boundaries and duplicate/late events, and reconcile live output against backfills. A successful Spark job proves execution completed; it does not prove the business logic is correct.
+
+**A likely follow-up:** Which test cases prove that batch and streaming calculations use the same business rules?
 
 ### Scenario 23 — Database writes must be idempotent
 
@@ -1079,6 +1123,8 @@ I would use a stable event ID and a database upsert or uniqueness constraint. If
 
 I would test failure before commit, after data writes, and after the commit response. `batchId` is useful for batch-level idempotency, but record-level event keys are still important when records can be partially written or replayed independently.
 
+**A likely follow-up:** How would you prevent an older order event from overwriting a newer state?
+
 ### Scenario 24 — One hot key dominates a join
 
 A tenant ID represents a large fraction of the rows, making one join task much slower than the rest.
@@ -1086,6 +1132,8 @@ A tenant ID represents a large fraction of the rows, making one join task much s
 I would confirm skew by comparing task shuffle sizes and measuring key frequencies on both sides. I would also check whether the join is many-to-many, because unexpected duplicate keys can inflate the output. Depending on the shape, I might use AQE skew-join handling, handle the hot key separately, pre-aggregate, or salt the key and replicate the matching smaller-side rows carefully.
 
 Salting is not a generic random repartition: the replicated side and final result must be combined correctly. I would compare row counts and business totals after the change and monitor hot-key distribution over time.
+
+**A likely follow-up:** What would you do if the hot key dominates both sides of the join?
 
 ### Scenario 25 — Garbage collection consumes much of the runtime
 
@@ -1095,6 +1143,8 @@ I would check whether the problem is concentrated in one stage and correlate GC 
 
 A larger heap may lower the frequency of collections but can make some pauses longer. I would measure after each change and track GC time in future performance runs.
 
+**A likely follow-up:** Which metrics tell you that a larger heap is making GC pauses worse?
+
 ### Scenario 26 — Shuffle fetch failures repeat
 
 Tasks fail because they cannot fetch shuffle data, and Spark keeps retrying the stage.
@@ -1102,6 +1152,8 @@ Tasks fail because they cannot fetch shuffle data, and Spark keeps retrying the 
 I would inspect the exact fetch error and determine whether failures follow one executor or host. Shuffle files may have been lost when an executor disappeared, or the issue may be disk capacity, network timeout, or node instability. I would use executor and worker logs, disk metrics, and cluster events to identify the source. Retries can recover from a transient failure, but they cannot restore shuffle data that repeatedly disappears.
 
 I would fix the failing node/storage/network issue and verify how shuffle data is preserved in the deployment. Only after confirming that the infrastructure is healthy would I consider retry-related tuning.
+
+**A likely follow-up:** When do shuffle retries help, and when do they hide infrastructure failure?
 
 ### Scenario 27 — The Spark UI shows too many tiny tasks
 
@@ -1111,6 +1163,8 @@ I would determine whether the tasks came from tiny input files or an excessive s
 
 I would avoid reducing partitions so aggressively that the next run has a few enormous tasks. The goal is a balanced task size, not simply the smallest task count.
 
+**A likely follow-up:** Which settings affect input-file packing, and which affect shuffle partitions?
+
 ### Scenario 28 — A high-cardinality aggregation exhausts memory
 
 A groupBy over events spills heavily or fails when there are many unique keys.
@@ -1118,6 +1172,8 @@ A groupBy over events spills heavily or fails when there are many unique keys.
 I would check expected distinct-key count, task skew, spill, and whether partial aggregation reduces the data before the shuffle. Partial aggregation helps when many rows share keys, but provides little reduction when nearly every row has a unique key. I would filter and project early, pre-aggregate when the calculation allows it, and address skew. If the output truly contains an enormous number of unique groups, that output has a real cost; a bigger heap cannot remove it.
 
 If possible, I would discuss whether the report needs that level of detail or could use a coarser grain. That is a business decision, not merely a tuning trick.
+
+**A likely follow-up:** Why can a query with modest input still produce an expensive aggregation result?
 
 ### Scenario 29 — A stream must recover after several hours offline
 
@@ -1127,6 +1183,8 @@ I would verify that the checkpoint is intact and Kafka still retains the require
 
 I would also confirm that the sink is safe for replay. Recovery planning needs source retention, catch-up time, sink capacity, and idempotency to work together.
 
+**A likely follow-up:** How would you design Kafka retention around maximum outage plus catch-up time?
+
 ### Scenario 30 — Kafka volume increases tenfold
 
 Traffic spikes, and the stream's batches take longer than the trigger interval.
@@ -1134,6 +1192,8 @@ Traffic spikes, and the stream's batches take longer than the trigger interval.
 I would measure whether the bottleneck is source parallelism, parsing, joins/shuffles, state updates, or sink writes. I would also check whether traffic is evenly spread across Kafka partitions. More partitions may help when the source has insufficient parallelism, but changing Kafka partition count has key-distribution and ordering implications. If the sink is already saturated, adding Spark executors may increase write pressure rather than throughput.
 
 I would load-test the expected peak and sustained rate separately, then monitor how much faster processing runs than incoming traffic. That excess capacity determines how quickly the pipeline can recover from a backlog.
+
+**A likely follow-up:** What ordering or key-distribution effects must be considered when adding Kafka partitions?
 
 ### Scenario 31 — Events must be deduplicated reliably
 
@@ -1143,6 +1203,8 @@ I would first verify that the producer supplies a stable event ID. An order ID a
 
 There is a real trade-off: remembering IDs for longer consumes more state; bounded deduplication cannot promise to suppress duplicates that arrive outside its retention horizon. I would measure duplicate rates and agree on that horizon with the business team.
 
+**A likely follow-up:** Why might order_id be insufficient as an event deduplication key?
+
 ### Scenario 32 — A historical backfill must transition to live events
 
 The team must backfill old orders and then continue consuming live Kafka events without a gap.
@@ -1150,6 +1212,8 @@ The team must backfill old orders and then continue consuming live Kafka events 
 I would define a precise handoff boundary using a source offset or trusted timestamp and ensure both paths use the same schema and transformation rules. A practical design often allows some overlap and deduplicates it using stable event IDs; overlap is safer than silently missing events if output is idempotent. Simply starting the live stream after the backfill finishes can leave a race window if new records arrive during the handoff.
 
 I would document the cutover and reconcile counts around the boundary. The exact procedure depends on the historical source and whether Kafka still retains the required offsets.
+
+**A likely follow-up:** How would you prove there is no gap at the batch-to-stream handoff boundary?
 
 ### Scenario 33 — The Parquet schema changes over time
 
@@ -1159,6 +1223,8 @@ I would inspect the schema of old and new partitions rather than assuming the wh
 
 I would add schema compatibility tests and validate row counts/null rates after the change. Historical data must remain readable under the chosen contract, not just the new partition.
 
+**A likely follow-up:** Why might schema merging hide a data-contract problem?
+
 ### Scenario 34 — A Spark application must run on Kubernetes
 
 Executors are killed or cannot access checkpoint storage after deployment.
@@ -1166,6 +1232,8 @@ Executors are killed or cannot access checkpoint storage after deployment.
 I would inspect pod events and driver/executor logs, then check image and dependency compatibility, service-account permissions, network access, and total container memory. A pod can exceed its memory limit even without a Java heap OOM because native and direct-buffer memory also count. I would set resource requests/limits and memory overhead based on the observed workload, then test storage/checkpoint access using the deployed identity.
 
 I would validate the packaged application in staging. Kubernetes schedules and supervises pods, but it does not make the Spark query, checkpoint, or external sink automatically correct.
+
+**A likely follow-up:** How can a container be OOM-killed without a Java heap OOM?
 
 ### Scenario 35 — One sink succeeds while another fails
 
@@ -1175,6 +1243,8 @@ Those writes are not one atomic transaction. A Spark checkpoint does not make in
 
 If the application itself writes to both systems, it needs an explicit partial-failure strategy. The simpler architecture is often to write once to a durable log/table and let independent sink pipelines retry safely.
 
+**A likely follow-up:** How would you rebuild Elasticsearch after an extended outage while Kafka remains healthy?
+
 ### Scenario 36 — The database becomes overloaded after scaling Spark
 
 After adding executors, Spark writes faster briefly, but database CPU, locks, connections, and retries rise sharply.
@@ -1182,6 +1252,8 @@ After adding executors, Spark writes faster briefly, but database CPU, locks, co
 I would compare concurrent Spark write tasks with database connection count, transaction size, lock waits, CPU, and I/O. The database has a finite sustainable write rate. I would batch writes, limit concurrent writers, or stage data and merge it in the database. I would also set bounded retries with backoff so failed writes do not amplify overload.
 
 More Spark parallelism is not automatically more end-to-end throughput. I would scale the sink or reduce the incoming workload if the database is the confirmed bottleneck.
+
+**A likely follow-up:** How would you bound concurrent writes without losing throughput unnecessarily?
 
 ### Scenario 37 — A report's totals do not match the source
 
@@ -1191,6 +1263,8 @@ I would reconcile counts and amounts at each boundary: raw input, successfully p
 
 I would fix the business logic and replay affected data idempotently, then compare totals before publishing. For important financial data, reconciliation should be an explicit pipeline check, not a manual step after an incident.
 
+**A likely follow-up:** Which data-quality checks should fail the job before publishing a report?
+
 ### Scenario 38 — A UDF makes a query slower
 
 Runtime doubles after custom logic is moved into a Java UDF.
@@ -1198,6 +1272,8 @@ Runtime doubles after custom logic is moved into a Java UDF.
 I would compare the query plan and CPU metrics, then check whether built-in Spark SQL functions can express the same logic. Spark can inspect built-in expressions, but it generally cannot simplify the code inside an opaque UDF. Applying the UDF to fewer rows and fewer columns can also help. If the UDF is genuinely necessary, I would benchmark it with realistic data and check allocation/serialization cost.
 
 I would not remove a UDF just for style; I would keep it when it expresses specialized logic that cannot be handled adequately with built-ins, and test its null/type behavior carefully.
+
+**A likely follow-up:** What useful optimization might be lost when logic is hidden inside a UDF?
 
 ### Scenario 39 — A Parquet query scans far too much data
 
@@ -1207,6 +1283,8 @@ I would inspect the physical scan for partition filters, pushed filters, selecte
 
 I would compare the scan metrics before and after the change. A correct filter does not guarantee that the source can skip all irrelevant bytes.
 
+**A likely follow-up:** How do PartitionFilters and PushedFilters tell you different things?
+
 ### Scenario 40 — Updates arrive out of order
 
 An order emits several status events, but an older event sometimes overwrites a newer status.
@@ -1214,6 +1292,8 @@ An order emits several status events, but an older event sometimes overwrites a 
 I would not use event time alone as the ordering contract; producer clocks can be wrong and events can be delayed. I would ask whether every event has a monotonic version or sequence number. The sink can then accept an update only when its version is newer than the version already stored. If the business also needs the full history, I would preserve every event separately rather than treating the current-state table as the audit log.
 
 I would test duplicate and out-of-order updates and define what to do when two records have the same version. Watermarks help with event-time state cleanup; they do not automatically resolve business conflicts.
+
+**A likely follow-up:** What should happen if two different payloads use the same event ID?
 
 ### A simple way to explain a production incident
 
@@ -1291,9 +1371,9 @@ If the evidence shows skew, I would see whether AQE's skew-join handling applies
 
 **Interviewer prompt:** A Kafka-to-database pipeline restarts after a failure. Some rows appear twice. Is this a Spark bug, and how would you fix it?
 
-**Model answer:** Not necessarily. The checkpoint allows Spark to recover its recorded source progress and state, but the database write can succeed before Spark has durably recorded the batch as complete. On retry, that external write may be attempted again. The Kafka sink also has documented at-least-once write semantics, so duplicates are possible there too.
+**Model answer:** Not necessarily. The checkpoint allows Spark to recover its recorded source progress and state, but the database write can succeed before Spark has durably recorded the batch as complete. On retry, that external write may be attempted again. I would make database writes idempotent with a stable event ID and an upsert or uniqueness constraint, or use a database transaction that commits the output and a processed-batch marker together. If the same pipeline also republishes records to Kafka, its Kafka sink is at-least-once and may duplicate output, so downstream consumers need their own idempotency or deduplication strategy.
 
-I would find the failure boundary using batch progress, source offsets, application logs, and database commit records. I would make database writes idempotent, for example by upserting on a stable event ID and enforcing uniqueness. If using a batch marker, I would commit the marker and the data writes in one database transaction. I would test failure before the write, during the write, and after commit. I would preserve the checkpoint and avoid pretending that starting from a fresh checkpoint fixes duplicates.
+I would find the failure boundary using batch progress, source offsets, application logs, and database commit records. If using a batch marker, I would commit the marker and the data writes in one database transaction. I would test failure before the write, during the write, and after commit. I would preserve the checkpoint and avoid pretending that starting from a fresh checkpoint fixes duplicates.
 
 **Follow-up:** What guarantee does the checkpoint provide? How does your design behave if a batch partly commits?
 
