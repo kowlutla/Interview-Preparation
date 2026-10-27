@@ -11,15 +11,17 @@
 - [ ] Logging, monitoring, alarms, Vault/secrets, quotas, and cost controls
 - [ ] High availability, disaster recovery, IAM audit trails, and operational readiness
 
-## API Gateway and Integration
+## API Gateway
 
-## Enterprise Integration
-- [ ] Enterprise integration patterns: request/reply, messaging, orchestration, adapters, and canonical data mapping
-- [ ] Interoperability: protocol/data-format transformation, error normalization, retries, idempotency, and schema evolution
 - [ ] Gateway routing, service connectivity, TLS termination, and certificate management
 - [ ] JWT/bearer-token validation, authentication policies, and token propagation
 - [ ] Rate limits, quotas, request/response transformations, and payload validation
 - [ ] Timeouts, retries, circuit-breaking boundaries, and high availability
 - [ ] OpenAPI publication, API mediation, and consumer-facing contracts
-- [ ] Enterprise system integration, protocol/data mapping, and error normalization
 - [ ] Integration failure handling, correlation IDs, audit trails, redaction, and troubleshooting
+
+## Enterprise Integration and Interoperability
+
+- [ ] Enterprise integration patterns: request/reply, messaging, orchestration, and adapters
+- [ ] Protocol/data-format transformation, canonical data mapping, and error normalization
+- [ ] Idempotent integration, retries, schema evolution, and backward-compatible contracts
