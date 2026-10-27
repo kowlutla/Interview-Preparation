@@ -8,7 +8,7 @@
 
 ### 1. Data Structures and Algorithms (DSA)
 - [ ] Complexity Analysis
-  - [ ] Big-O, Big-Theta, Big-Omega
+  - [x] Big-O, Big-Theta, Big-Omega
   - [ ] Time and Space Complexity
   - [ ] Amortized Analysis
   - [ ] Best, Average, and Worst Cases
