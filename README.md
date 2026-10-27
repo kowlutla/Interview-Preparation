@@ -17,7 +17,8 @@ Choose a handbook by topic:
 - [Elasticsearch & Search Systems Interview Handbook](Elasticsearch/Elasticsearch-Interview-QA.md) — 40 detailed high-value Q&As, 12 production scenarios, 18 Query DSL patterns, relevance, mappings, pagination, production operations, Java integration, and SQL/Kafka synchronization.
 - [Redis & Caching Interview Handbook](Redis-Caching/Redis-Caching-Interview-QA.md) — Redis data structures, cache design, distributed coordination, Spring integration, and Redis–database consistency.
 - [Apache Kafka Interview Handbook](Kafka/KAFKA_INTERVIEW_GUIDE.md)
-- [Apache Spark & Structured Streaming Interview Handbook](Apache-Spark/Apache-Spark-Interview-QA.md) — 120 core Q&As and 40 production scenarios covering Spark SQL/DataFrames, partitions and shuffles, joins/AQE, Java APIs, event-time windows and watermarks, Kafka offsets and delivery guarantees, performance diagnosis, and failure recovery.\n- [Apache Iceberg, Avro & Schema Evolution Interview Handbook](Data-Engineering/Iceberg-Avro-Interview-QA.md) — focused senior-level Q&A on Iceberg metadata and snapshots, Avro serialization and Schema Registry, compatibility, and reliable Kafka–Spark data pipelines.
+- [Apache Spark & Structured Streaming Interview Handbook](Apache-Spark/Apache-Spark-Interview-QA.md) — 120 core Q&As and 40 production scenarios covering Spark SQL/DataFrames, partitions and shuffles, joins/AQE, Java APIs, event-time windows and watermarks, Kafka offsets and delivery guarantees, performance diagnosis, and failure recovery.
+- [Apache Iceberg, Avro & Schema Evolution Interview Handbook](Data-Engineering/Iceberg-Avro-Interview-QA.md) — focused senior-level Q&A on Iceberg metadata and snapshots, Avro serialization and Schema Registry, compatibility, and reliable Kafka–Spark data pipelines.
 - [Docker, Kubernetes & Helm Interview Handbook](Docker-Kubernetes-Helm/Docker-Kubernetes-Helm-Interview-QA.md) — Java application containerization, runtime behavior, Kubernetes workloads and networking, Helm releases, security basics, and developer-focused production troubleshooting.
 
 ## Repository structure
@@ -39,6 +40,7 @@ Interview-Preparation/
 ├── Redis-Caching/Redis-Caching-Interview-QA.md
 ├── Kafka/KAFKA_INTERVIEW_GUIDE.md
 ├── Apache-Spark/Apache-Spark-Interview-QA.md
+├── Data-Engineering/Iceberg-Avro-Interview-QA.md
 └── Docker-Kubernetes-Helm/Docker-Kubernetes-Helm-Interview-QA.md
 ```
 
@@ -56,7 +58,8 @@ Interview-Preparation/
 10. **Redis & Caching** — Redis data structures, cache consistency, coordination, Spring integration, and resilience across the cache/database boundary.
 11. **Kafka** — broker architecture, topics and partitions, producer/consumer behavior, delivery semantics, and production scenarios.
 12. **Apache Spark & Structured Streaming** — study after Kafka and distributed systems: execution, Spark SQL, shuffles and joins, performance, event-time processing, checkpointing, and reliable Kafka pipelines.
-13. **Docker, Kubernetes & Helm** — containerize and run the service, understand its runtime constraints, configure workload health and resources, debug connectivity, and deliver releases safely.
+13. **Apache Iceberg, Avro & Schema Evolution** — connect event contracts and compatibility with table snapshots, streaming ingestion, compaction, and replay.
+14. **Docker, Kubernetes & Helm** — containerize and run the service, understand its runtime constraints, configure workload health and resources, debug connectivity, and deliver releases safely.
 
 The order moves from language and application fundamentals toward distributed behavior and then application delivery. You can study Docker/Kubernetes earlier if your current project requires it. For data-engineering interviews, study Kafka and distributed systems before Spark, then revisit system design and operational reliability.
 
