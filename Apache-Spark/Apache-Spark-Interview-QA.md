@@ -2,7 +2,7 @@
 
 **Audience:** Java backend engineers with 5+ years of experience preparing for senior backend interviews.  
 **Focus:** Spark fundamentals, Spark SQL/DataFrames, execution internals, partitioning and shuffles, performance, Java APIs, Structured Streaming, Kafka, and production reliability.  
-**Version note:** Examples use established Spark 3.x/4.x DataFrame and Structured Streaming APIs. Connector coordinates, defaults, supported operations, AQE rules, and state behavior vary by release; validate against the Spark distribution and connector version deployed.
+**Version note:** Examples focus on established Java DataFrame and Structured Streaming APIs used in late Spark 3.x and Spark 4.x. The official links below currently resolve to Spark 4.2.0 documentation; some Structured Streaming pages moved under the /streaming/ path in Spark 4.0. Connector coordinates, Java requirements, defaults, supported operations, AQE rules, and state behavior vary by release. Validate against the exact Spark, JDK, Scala-binary, Kafka connector, and deployment versions in use.
 
 This handbook starts with big-data basics and builds toward senior-level production reasoning. It assumes limited prior Hadoop knowledge and emphasizes understanding over memorizing definitions.
 
@@ -514,7 +514,7 @@ A query identifier is associated with the checkpointed query identity; a run ID 
 
 ### Q75. Does Structured Streaming guarantee exactly-once processing?
 
-It depends on source replayability, checkpointing, operations, and sink commit behavior. Supported source/sink combinations can provide documented exactly-once semantics for query processing, but custom callbacks or arbitrary external writes may repeat side effects after failure. Separate input replay, state recovery, sink commit, and business effect. Use stable event IDs, upserts, unique constraints, or a transactional protocol for external systems.
+It depends on source replayability, checkpointing, the operation, and sink commit behavior. Structured Streaming can recover query progress/state for supported sources and operations, but sink guarantees are connector-specific. The official Spark Kafka integration guide explicitly documents Kafka writes from Spark as at-least-once: a retried write can duplicate a record even when the broker had accepted the earlier attempt. A custom callback or arbitrary database write can also repeat side effects after failure. Separate input replay, state recovery, sink commit, and business effect. Use stable event IDs, upserts, unique constraints, or a transactional/idempotent sink protocol where needed.
 
 ### Q76. Event time versus processing time?
 
@@ -605,7 +605,7 @@ Confirm output-mode compatibility and connector documentation for your Spark ver
 
 ### Q86. Are Spark tasks the same as Kafka consumer-group members?
 
-No. Kafka topic partitions constrain source parallelism, while Spark schedules tasks for source offset ranges and downstream operations. Do not model the source as an ordinary consumer application with the same manual commit workflow. More executors do not create more Kafka partitions. Downstream shuffles may have a different task count.
+Not exactly. By default, each Kafka TopicPartition maps to a Spark input partition for a micro-batch, so Kafka partition count is an important parallelism limit. The connector also provides a minPartitions option that can split large Kafka offset ranges into more Spark input partitions; treat it as a desired minimum, not a promise of an exact task count. Downstream shuffles may have a different task count. Spark tracks source offsets in its checkpointed query progress rather than relying on an ordinary consumer group's committed offsets as the sole restart position.
 
 ### Q87. How do offsets and restart work?
 
@@ -812,169 +812,559 @@ Use stable event IDs and idempotent writes, unique constraints/upserts, and test
 
 ## 20. Production scenario bank
 
-For every incident, clarify expected behavior, inspect evidence, isolate the cause, make the smallest safe change, and verify both performance and correctness.
+The following scenarios model how a senior engineer should reason in an interview. Start by clarifying the expected behavior and scope; use runtime evidence to narrow the cause; make the smallest safe change; then verify both performance and business correctness. Spark tuning should be evidence-driven: “add executors,” “increase memory,” and “repartition” are not diagnoses on their own.
 
 ### Scenario 1. A Spark job suddenly becomes much slower.
 
-Ask whether input volume, file count, schema, code, cluster size, or sink changed. Compare known-good and current stage durations, task distribution, input bytes, shuffle, spill, GC, executor loss, and plan. Restore pruning, compact files, fix skew, tune partitions, or address contention based on evidence. Keep baseline metrics and alerts. Follow-up: why not add executors first?
+**Interview problem:** A daily orders pipeline used to finish in 18 minutes but now takes 75 minutes, although the code appears unchanged.
 
-### Scenario 2. One task runs much longer than all others.
+**Clarify first:** Did input volume or file count increase? Did a producer change the schema or key distribution? Did cluster capacity, Spark version, source layout, or sink latency change? Is the slowdown in one stage or end-to-end?
 
-Compare task input/shuffle bytes, spill, and duration. A hot key, large file, or unhealthy executor may explain it. Verify key distribution and node health, then use AQE skew handling, pre-aggregation, or correctly designed salting. Monitor task variance. Follow-up: how do you distinguish skew from a bad node?
+**Diagnosis and resolution:** Compare a known-good run with the slow run. In the Spark UI, identify the stage with the largest increase and compare input bytes, shuffle read/write, spill, GC time, task-duration distribution, executor loss, and failed/retried tasks. Inspect the formatted physical plan and look for a new scan, exchange, join strategy, or lost partition filter. If the input scan grew, verify partition pruning and file counts. If shuffle exploded, compare row counts and join cardinality. If only the tail is slow, inspect skew and executor health. If processing finishes but the application waits, inspect the sink.
 
-### Scenario 3. A join causes a massive shuffle.
+A disciplined experiment changes one variable: restore a useful filter, correct a join key, compact small files, address skew, or tune partitions based on the evidence. Compare output counts and totals as well as runtime.
 
-Inspect the physical plan, input sizes, key uniqueness, and output cardinality. Filter/project first, broadcast only a genuinely small side, improve statistics, or address skew. Do not force broadcast based only on compressed file size. Follow-up: why can a broadcast hint cause OOM?
+**Trade-offs and prevention:** Keep run-level baselines, representative performance tests, and alerts for input volume, duration, failed tasks, and data freshness.
+
+**Follow-ups:** Why is increasing executor count not the first response? What metrics distinguish a shuffle bottleneck from a slow sink?
+
+### Scenario 2. One task runs much longer than every other task.
+
+**Interview problem:** Most tasks finish within 40 seconds, but one task runs for 15 minutes.
+
+**Clarify first:** Is the slow task processing much more input or shuffle data? Does the same executor repeatedly appear slow? Is the task spilling heavily or spending time in GC?
+
+**Diagnosis and resolution:** Compare the slow task with the median task in the same stage: input records/bytes, shuffle read, memory and disk spill, GC time, executor, and host. If it processes much more data, inspect the partitioning key and key-frequency distribution. A hot customer or tenant can put a disproportionate share of rows into one partition. Use AQE skew handling when the query and join type qualify, pre-aggregate before the expensive operation when semantics permit, or salt the hot key with a correct second aggregation/join step. If data sizes are similar but one host is consistently slow, investigate CPU throttling, disk, network, JVM pauses, and container events instead.
+
+Do not randomly increase partitions and assume the hot logical key will split; a normal key-based aggregation still needs to combine that key correctly.
+
+**Trade-offs and prevention:** AQE has operator-specific limits; salting adds complexity and can change join multiplicity if implemented incorrectly. Track max/median task duration and hot-key distribution.
+
+**Follow-ups:** How would you distinguish key skew from a slow node? Why does adding executors not necessarily help one skewed reduce task?
+
+### Scenario 3. A join causes a massive shuffle and runtime increase.
+
+**Interview problem:** Joining 800 GB of order events with customer data introduces a multi-terabyte shuffle.
+
+**Clarify first:** How large are the inputs after filters and projections? Is one side actually small enough to broadcast after materialization? Are join keys normalized and unique? Is a many-to-many result intended?
+
+**Diagnosis and resolution:** Inspect the physical plan for exchanges and the selected join operator. Record input row counts, distinct key counts, null-key rates, duplicate keys, and output row count. A missing or incomplete join predicate can produce a legitimate but enormous Cartesian-like expansion. Apply filters and select only needed columns before joining. If one side is genuinely small, a broadcast hash join may avoid shuffling the large side; otherwise a sort-merge join may be appropriate. If a small number of keys dominate, test AQE skew-join handling or a targeted salting design.
+
+~~~java
+orders.filter(col("status").equalTo("PAID"))
+    .select("customer_id", "order_id", "amount")
+    .join(broadcast(customerDimension.select("customer_id", "segment")),
+          new String[] {"customer_id"}, "left");
+~~~
+
+Use a broadcast hint only after confirming size and executor memory. Validate business totals and row multiplicity after the change.
+
+**Trade-offs and prevention:** Broadcasting trades shuffle cost for memory/network overhead on each executor. Add join-cardinality checks and review plans for critical data products.
+
+**Follow-ups:** Why can a small compressed Parquet file still become a large broadcast relation? When is sort-merge preferable?
 
 ### Scenario 4. An executor repeatedly runs out of memory.
 
-Determine JVM heap OOM versus container kill; inspect GC, spill, broadcasts, cache, task size, and platform events. Reduce data, fix skew, remove unneeded cache, or change join strategy before increasing resources. Follow-up: why can a larger heap worsen GC pauses?
+**Interview problem:** The application fails with executor OOMs after a new dimension table is added.
+
+**Clarify first:** Is it a JVM heap OOM, a container kill, or a native/off-heap memory failure? Does it happen to all executors or only a few tasks? Did a broadcast, cache, partition size, or data skew change?
+
+**Diagnosis and resolution:** Read executor logs and cluster events, then correlate the failure with task metrics, GC time, spill, cached blocks, and broadcast size. A container can exceed its total memory limit even when the JVM heap has not produced a conventional Java heap OOM. If failures cluster around one task, investigate skew or oversized partition state. If all executors fail when a broadcast arrives, re-evaluate the join strategy and relation size. Remove unnecessary caches, prune columns, filter earlier, or reduce per-task working sets before increasing resources. Adjust executor heap/overhead only after identifying the memory domain and checking cluster capacity.
+
+**Trade-offs and prevention:** Bigger heaps can reduce eviction but also lengthen GC pauses; more executors can increase overhead and shuffle traffic. Load-test representative peak data and alert on GC, spill, executor loss, and container memory kills.
+
+**Follow-ups:** How do you distinguish heap OOM from memory overhead exceeded? Why might one executor fail when others succeed?
 
 ### Scenario 5. The driver crashes during collect.
 
-Confirm result size and whether a full result was needed. Replace collect with distributed output, aggregation, or a bounded take/sample. Add code review rules for unbounded driver actions. Follow-up: why is show safer but still an action?
+**Interview problem:** A developer calls collect to pass all transformed orders into a Java collection and the driver crashes.
 
-### Scenario 6. A broadcast join causes memory pressure.
+**Clarify first:** Does the consumer really require all rows in one JVM, or only a sample, aggregate, or persisted output?
 
-Inspect materialized broadcast size, final plan, executor memory, and stale statistics. Remove the hint or use a shuffle join if the relation is not safely small; project/filter before broadcasting. Monitor dimension-table growth. Follow-up: why is compressed source size misleading?
+**Diagnosis and resolution:** Confirm the driver OOM and the size of the returned result. collect materializes every result row in driver memory and transfers it over the network; executor memory does not protect the driver from this. Keep large processing distributed: write to a distributed sink, aggregate before collecting, or use a bounded sample. For example, use take(20) for debugging rather than collecting the entire Dataset. A count may still scan a large input but returns only a scalar, so it has a very different driver-memory profile.
 
-### Scenario 7. Thousands of tiny output files are created.
+**Trade-offs and prevention:** A bounded action is safer but still triggers a job. Add code-review guidance against unbounded collect and inspect driver/executor logs separately.
 
-Check task count, output partition values, and file sizes. Adjust partitioning and compact output in a distributed rewrite; avoid coalesce(1) for large datasets. Define file-size targets and compaction. Follow-up: why isn't file count always equal to DataFrame partition count?
+**Follow-ups:** Why is show safer but not free? When is collect appropriate?
 
-### Scenario 8. Increasing partitions makes a job slower.
+### Scenario 6. A broadcast join unexpectedly causes memory pressure.
 
-Inspect scheduling overhead, bytes per task, file count, executor slots, and shuffle metrics. Reduce excessive partitions or use AQE coalescing where suitable while preserving parallelism. Benchmark on realistic data. Follow-up: can one stage need a different count than another?
+**Interview problem:** A join was changed to broadcast a dimension table and executors begin experiencing long GC pauses.
 
-### Scenario 9. A large input becomes one bottleneck partition.
+**Clarify first:** What is the actual materialized broadcast size? Is the dimension filtered and projected? Did statistics or row counts change?
 
-Determine whether it is an unsplittable file, a hot key, or explicit single-partition operation. Fix source layout, remove unnecessary coalesce, or redistribute before expensive work. Random repartition alone will not split a single hot aggregation key's logical group. Follow-up: why?
+**Diagnosis and resolution:** Inspect the initial and final physical plans, broadcast exchange metrics, executor storage/execution pressure, and GC. The compressed file size is not the in-memory join representation size. Remove the hint or use a shuffle join if the table cannot safely fit on every executor. If broadcasting remains appropriate, reduce rows and columns before broadcast and correct stale statistics. Run the test at realistic dimension size, not with a tiny development sample.
 
-### Scenario 10. A job works locally but fails in cluster mode.
+**Trade-offs and prevention:** A shuffle join spends network/disk bandwidth; a broadcast join replicates data and uses per-executor memory. Establish a size budget and monitor broadcast metrics as dimension tables grow.
 
-Compare versions, dependencies, credentials, networking, storage permissions, serialization, and memory limits. Read driver/executor/platform logs. Fix packaging and environment differences, then add cluster smoke tests. Follow-up: why can a fat JAR with Spark libraries conflict with cluster libraries?
+**Follow-ups:** What is the difference between a broadcast hint and a guarantee? Can AQE change the chosen join at runtime?
 
-### Scenario 11. AQE changes the query plan unexpectedly.
+### Scenario 7. A job creates thousands of tiny output files.
 
-Compare initial/final adaptive plans and runtime statistics. Determine whether the new plan is actually harmful; validate thresholds and data stats, then benchmark a targeted change. Disable AQE only as a controlled diagnostic. Follow-up: what can AQE not fix?
+**Interview problem:** A daily ETL creates 60,000 small Parquet files, and downstream queries spend more time listing/opening files than scanning data.
+
+**Clarify first:** How many tasks ran? How many values exist for the output partition columns? Is the data volume itself small, or is the dataset fragmented across many input files?
+
+**Diagnosis and resolution:** Inspect file count and size distribution, output partition columns, task count, and downstream scan metrics. Too many small tasks or too many directory partition values can create many files. Adjust the write partitioning to match the data volume and query patterns; compact existing files with a distributed rewrite when required. Avoid forcing a large dataset through one task with coalesce(1). That creates a serial bottleneck and may exhaust resources.
+
+**Trade-offs and prevention:** Larger files improve scan efficiency but oversized files can limit parallelism; high-cardinality directory partitioning creates excessive directories and tiny files. Pick layout using actual query predicates and expected volume, then monitor file-size percentiles.
+
+**Follow-ups:** Why is the number of output files not always equal to the input DataFrame partition count? What risks does coalesce(1) introduce?
+
+### Scenario 8. Increasing partitions makes the job slower.
+
+**Interview problem:** A team increases shuffle partitions from 200 to 2,000 and the runtime gets worse.
+
+**Clarify first:** Did per-task work fall? Did scheduling overhead, tiny files, or shuffle metadata increase? Is the problem present in every stage or only a particular operation?
+
+**Diagnosis and resolution:** Compare tasks per stage, median task duration, scheduler delay, shuffle bytes, spill, and executor slot utilization. Too few partitions create oversized tasks; too many tiny partitions create scheduling and file overhead. The best count varies by stage and volume. Start with a measured baseline, adjust the relevant shuffle setting, and consider AQE's post-shuffle coalescing where enabled. A setting that improves a large join may be poor for a smaller aggregation.
+
+**Trade-offs and prevention:** AQE may merge small partitions after runtime statistics become available, but cannot make every stage optimal. Record configurations and compare equivalent datasets while checking output correctness.
+
+**Follow-ups:** What is the difference between input partition sizing and shuffle partition count? How would you know whether the workload lacks parallelism?
+
+### Scenario 9. A large input produces a single bottleneck partition.
+
+**Interview problem:** A large source takes hours because the first stage has only one effective task.
+
+**Clarify first:** Is the file unsplittable, did the code call coalesce(1), or is a key-based operation concentrating all rows for one key?
+
+**Diagnosis and resolution:** Inspect the source format, physical plan, input partition count, and earlier transformations. A single compressed non-splittable input file can limit scan parallelism; split or rewrite it into splittable files. Remove unnecessary single-partition operations. If the issue is a hot key after a shuffle, improve the key distribution or use a skew-aware design; simply repartitioning the source cannot split the final logical group of a normal aggregation.
+
+**Trade-offs and prevention:** Rewriting source data costs I/O and storage, but may pay off across repeated queries. Validate source layout and track input files/partition sizes.
+
+**Follow-ups:** Why can repartition improve scan parallelism only after the scan has already completed? How does key skew differ from one large source file?
+
+### Scenario 10. A Spark job works locally but fails in a cluster.
+
+**Interview problem:** A Java Spark application runs on a laptop but fails on Kubernetes with class errors or storage access errors.
+
+**Clarify first:** Are the JDK, Spark version, Scala binary version, and connector artifacts compatible? Can the driver and executors reach the data source? Are credentials and service permissions available to both?
+
+**Diagnosis and resolution:** Separate code errors from environment errors. Compare driver/executor logs, classpaths, dependency scopes, image versions, network/DNS, identity permissions, and container limits. Local mode often hides serialization and distributed-network issues. If a managed cluster supplies Spark libraries, bundling conflicting Spark jars in the application artifact can cause linkage errors. Include connector dependencies compatible with the exact Spark/Scala distribution, and test the packaged artifact in a representative cluster.
+
+**Trade-offs and prevention:** Local tests are fast but do not prove cluster readiness. Add deployment smoke tests for source access, sink access, serialization, and checkpoint permissions.
+
+**Follow-ups:** Why does a driver-only classpath fix not necessarily fix executor failures? What differs between client and cluster deployment modes?
+
+### Scenario 11. AQE changes a query plan unexpectedly.
+
+**Interview problem:** The initial plan shows a sort-merge join, but the running query switches strategies and performance changes.
+
+**Clarify first:** Is AQE enabled? What runtime statistics were observed? Did actual relation size differ from estimates or was a shuffle partition skewed?
+
+**Diagnosis and resolution:** Compare the initial plan, final adaptive plan, runtime statistics, and stage metrics. AQE can coalesce shuffle partitions, handle qualifying skewed joins, and revise certain join strategies based on runtime information. Determine whether the new plan is actually worse before changing settings. If the estimate was wrong, improve statistics or reduce data before the join; if adaptive coalescing causes inadequate parallelism, benchmark a targeted configuration adjustment.
+
+**Trade-offs and prevention:** Disabling AQE may remove useful protections and should be a controlled diagnostic, not the first fix. Store representative plan/metric baselines for important queries.
+
+**Follow-ups:** What does AQE optimize? Why can it not fix an incorrect join predicate or enormous output cardinality?
 
 ### Scenario 12. A transformation appears to run twice.
 
-List actions and inspect UI jobs. show followed by write can recompute the plan. Remove unnecessary actions or persist an expensive reused result, then unpersist it. For streaming side effects, make writes idempotent. Follow-up: does cache execute immediately?
+**Interview problem:** A costly upstream scan occurs during both a preview and a final write.
 
-### Scenario 13. Kafka lag grows continuously.
+**Clarify first:** How many actions occur? Is the query being retried, or is this simply separate actions over the same uncached lineage?
 
-Compare input/processing rate, batch duration, source partitions, shuffle, state time, and sink latency. Optimize the actual bottleneck; add partitions/resources only where parallelism exists. Alert on lag and capacity. Follow-up: why might more executors not help source reading?
+**Diagnosis and resolution:** Inspect jobs in the Spark UI and trace all actions in application code. Calling show(), count(), then write() can trigger separate executions. Remove diagnostic actions from the production path or persist the expensive intermediate if it will genuinely be reused.
 
-### Scenario 14. A restart appears to duplicate output.
+~~~java
+Dataset<Row> reusable = expensiveTransform(source)
+    .persist(StorageLevel.MEMORY_AND_DISK());
+reusable.count(); // populate cache only if reuse justifies it
+// Use reusable in multiple downstream actions.
+reusable.unpersist();
+~~~
 
-Correlate checkpoint progress, sink commits, event IDs, and failure timing. A partial sink commit may be replayed. Preserve the checkpoint and implement upserts/unique keys or a transactional sink protocol. Test failures at each boundary. Follow-up: define exactly-once for this sink.
+Persistence occupies storage and may evict data or increase spill, so it is not automatically a win. Also distinguish recomputation from task retries and streaming replay; the remedies differ.
 
-### Scenario 15. Late events are missing from a window.
+**Trade-offs and prevention:** Keep actions purposeful and benchmark cache population versus recomputation.
 
-Inspect timestamp parsing, event-time distribution, watermark progress, window boundaries, and output mode. Set lateness based on business data and provide reconciliation for very late records. Monitor late-event rates. Follow-up: does a ten-minute watermark guarantee every event less than ten minutes late is included?
+**Follow-ups:** Does cache eagerly execute the pipeline? Why does an uncached DataFrame not represent a materialized result?
 
-### Scenario 16. Watermarks do not reduce state.
+### Scenario 13. Kafka lag grows continuously in a streaming query.
 
-Check advancing event timestamps, nulls, watermark placement, query compatibility, and multi-stream policy. Fix data/query semantics before shortening the delay. Alert on state growth without watermark progress. Follow-up: how can a lagging input affect a multi-stream watermark?
+**Interview problem:** Source lag rises for hours even though the query remains active.
 
-### Scenario 17. State store grows excessively.
+**Clarify first:** Is arrival rate greater than processing rate? Is batch duration increasing? Did Kafka volume, state size, join cost, or sink latency change?
 
-Inspect key cardinality, window duration, watermark progress, and state metrics. Bound state only if business semantics permit; if all historical keys are required, plan for it. Monitor state and recovery time. Follow-up: why can more executor memory only postpone the issue?
+**Diagnosis and resolution:** Track input rate, processing rate, batch duration, trigger delay, source partition distribution, shuffle/spill, state-store commit time, and sink duration. If input processing is limiting, optimize parsing/joins and provide adequate task parallelism. If Kafka is the source bottleneck, remember that source partitions constrain parallelism by default, though the Kafka connector's minPartitions option can split large offset ranges into more Spark tasks. If the sink is slow, improve bulk writes or scale the sink rather than adding Spark executors blindly.
 
-### Scenario 18. Sink throughput is below input throughput.
+For bounded admission, the Kafka source supports options such as maxOffsetsPerTrigger; this controls the amount admitted per trigger, not the query's fundamental throughput.
 
-Measure sink latency, connection limits, locks, and write concurrency. Batch/bulk writes, bound concurrency, or scale the sink; avoid overwhelming it with more parallel tasks. Set sink SLOs. Follow-up: how can retries amplify overload?
+~~~java
+.option("maxOffsetsPerTrigger", "500000")
+~~~
 
-### Scenario 19. Checkpoint storage becomes unavailable.
+**Trade-offs and prevention:** Rate limits can protect a sink but make backlog grow if sustained capacity is insufficient. Alert on lag, batch duration, and time-to-catch-up.
 
-Preserve logs and check permissions, storage health, and checkpoint integrity. Restore access and resume from the valid checkpoint. If lost, plan controlled replay and idempotent reconciliation; never assume an empty checkpoint resumes the old state. Follow-up: can checkpoint recovery restore Kafka records already deleted by retention?
+**Follow-ups:** Why might more executors fail to reduce Kafka lag? How would you calculate catch-up capacity after an outage?
 
-### Scenario 20. Streaming fails after a schema change.
+### Scenario 14. A streaming restart appears to duplicate output.
 
-Determine whether fields were added, renamed, removed, or type-changed. Inspect parser errors and checkpoint/query compatibility. Apply a compatible rollout or deliberate migration/replay, and test old/new versions. Follow-up: why can valid JSON fail schema parsing?
+**Interview problem:** After a failure, the stream resumes from its checkpoint but a database or downstream topic contains duplicate events.
+
+**Clarify first:** Are duplicates in Spark's internal aggregate, at the sink, or merely in a downstream view? Did the sink commit before Spark durably recorded the batch as complete?
+
+**Diagnosis and resolution:** Correlate batch IDs, source offsets, query/run IDs, sink transaction records, and event IDs around the failure timestamp. Replay can be expected when a failure occurs between an external side effect and progress recording. Preserve the checkpoint. Make the sink idempotent using a stable event key, unique constraint/upsert, transactional batch marker, or supported transactional protocol. Test crashes before, during, and after sink commit.
+
+**Trade-offs and prevention:** Event-level upserts can protect individual records but require conflict/version rules for out-of-order updates. A batchId marker alone is insufficient if partial writes can occur without an atomic transaction.
+
+**Follow-ups:** What exactly is meant by exactly once at this sink boundary? Why is deleting the checkpoint not a safe duplicate-removal strategy?
+
+### Scenario 15. Late events are missing from a window aggregation.
+
+**Interview problem:** Five-minute order totals are lower than expected because some events arrive several minutes late.
+
+**Clarify first:** What is the event-time distribution and business lateness SLA? Is the event timestamp parsed in the right timezone? Are late records rejected at ingestion or too late for retained state?
+
+**Diagnosis and resolution:** Inspect sample event timestamps, watermark progress, window boundaries, output mode, and late-event metrics/logging. Use a watermark only after defining the acceptable delay. A watermark uses observed event-time progress and the configured delay; it is not a fixed timer for every row. With supported window aggregations, data arriving too late to update state may not affect final results. A larger delay retains state longer and tolerates more lateness; a shorter delay reduces state but can exclude legitimate events. For financial or audit-sensitive metrics, consider a correction/reconciliation path for very late data.
+
+~~~java
+events.withWatermark("event_time", "20 minutes")
+    .groupBy(window(col("event_time"), "5 minutes"), col("merchant_id"))
+    .agg(sum("amount").alias("revenue"));
+~~~
+
+**Trade-offs and prevention:** Validate event clocks and monitor late-event distribution against the chosen delay.
+
+**Follow-ups:** Does a 20-minute watermark guarantee every event arriving within 20 minutes is included? What business rule chooses the delay?
+
+### Scenario 16. Watermarks do not reduce state as expected.
+
+**Interview problem:** The state store grows despite a configured watermark.
+
+**Clarify first:** Is event time advancing? Are timestamps null or far in the future/past? Does the stateful operation use the watermarked column? Is this a multi-stream query?
+
+**Diagnosis and resolution:** Inspect current watermark, state rows/bytes, update/commit duration, null timestamp rate, and input event-time distribution. A watermark does not advance merely because wall-clock time passes; it depends on observed event-time progress. In a multi-stream query, global watermark behavior and lagging inputs can affect cleanup. Also confirm the operation and query shape support state eviction. Fix malformed timestamps or semantic issues before shortening the threshold.
+
+**Trade-offs and prevention:** Shorter thresholds can clean state earlier but change late-data correctness. Alert on growing state coupled with stalled watermark progress, not just on absolute state size.
+
+**Follow-ups:** What is the difference between processing-time passage and event-time progress? Why may a watermark not bound state for every possible stateful query?
+
+### Scenario 17. The streaming state store grows excessively.
+
+**Interview problem:** State size and batch duration rise every day in a keyed aggregation.
+
+**Clarify first:** Is the key cardinality unbounded? Are windows defined? Does the watermark advance? Is the application retaining all customer IDs by design?
+
+**Diagnosis and resolution:** Track state rows/bytes per operator, state update/commit durations, watermark, key cardinality, and duplicate horizon. If the query is an unwindowed aggregation by an ever-growing key, all unique keys may need to be retained, so a watermark may not make that state expire as expected. Redesign around bounded windows or a domain-specific retention rule only if business semantics permit. Reduce key cardinality or process a coarser grain where acceptable. Increasing executor memory cannot solve logically unbounded state.
+
+**Trade-offs and prevention:** State cleanup changes which future late events can update results. Load-test with peak cardinality and include state growth, checkpoint time, and recovery duration in capacity planning.
+
+**Follow-ups:** Why is a watermark not a universal state TTL? Which metrics distinguish high input volume from ineffective cleanup?
+
+### Scenario 18. The sink is slower than the incoming source.
+
+**Interview problem:** Spark processes records quickly until it writes them to a relational database; backlog increases.
+
+**Clarify first:** What fraction of each batch is spent in the sink? Are database connections saturated, locks high, or writes one row at a time? Does adding parallel tasks increase database pressure?
+
+**Diagnosis and resolution:** Measure sink latency and batch duration separately. Compare Spark input and compute metrics against database CPU, I/O, lock waits, connection count, and transaction duration. Use bulk/batched writes, bounded parallelism, staging tables plus a merge, or a sink-specific bulk API. Tune connection pools and concurrency in coordination with database capacity. Do not let every Spark task create unconstrained connections.
+
+**Trade-offs and prevention:** More parallel writes may improve throughput until the database saturates, after which retries and locks amplify the incident. Set a sink throughput budget and alert on latency, backlog, connection saturation, and retry rate.
+
+**Follow-ups:** Why can more Spark executors make the database less stable? How would you preserve idempotency when using a staging table?
+
+### Scenario 19. The checkpoint directory becomes unavailable.
+
+**Interview problem:** A streaming query cannot read or write its checkpoint because object storage credentials expired or the location was removed.
+
+**Clarify first:** Is this a temporary permission/network issue, or is checkpoint data permanently lost or corrupted?
+
+**Diagnosis and resolution:** Stop uncontrolled restart loops, preserve driver logs and checkpoint metadata, and inspect storage health, IAM/credentials, lifecycle policies, and path access. If the original checkpoint is intact, restore access and restart with the same compatible query/checkpoint. If checkpoint state is truly lost, treat it as a recovery incident: select a known source boundary, assess source retention, reconstruct state by replay/backfill if feasible, and use idempotent sinks plus reconciliation.
+
+Do not create an empty checkpoint at the same path and claim the stream will resume from its old progress. A fresh checkpoint is a new query history and may replay or omit expected history depending on source options and retention.
+
+**Trade-offs and prevention:** Checkpoints are production state, not disposable logs. Protect them with least-privilege durable storage, retention controls, monitoring, backups/restore strategy where applicable, and recovery drills.
+
+**Follow-ups:** Can Spark recover records Kafka has already expired? What evidence is needed before deciding to replay?
+
+### Scenario 20. A streaming query fails after a schema change.
+
+**Interview problem:** A producer deploys a new payload field or changes a field type, and the downstream query fails or silently produces nulls.
+
+**Clarify first:** Was a field added, removed, renamed, or changed type? Is the format parsed against an explicit schema? Is the failure in parsing, analysis, state schema compatibility, or sink schema?
+
+**Diagnosis and resolution:** Inspect the failing batch, schema version, parse modes, and error samples with source topic/partition/offset. A new optional JSON field is not equivalent to changing amount from a number to a string. Prefer an explicit schema and a controlled compatibility policy. Quarantine malformed records where safe; fail fast if continuing would corrupt critical metrics. If a stateful query's state schema or logical plan is incompatible with its existing checkpoint, plan a deliberate migration or replay rather than deleting the checkpoint casually.
+
+**Trade-offs and prevention:** Flexible parsing can preserve availability but risk silently dropping business data. Add producer/consumer contract tests, schema compatibility checks, staged rollout, and malformed-record alerts.
+
+**Follow-ups:** Why can syntactically valid JSON fail schema parsing? Why is checkpoint compatibility especially sensitive for stateful queries?
 
 ### Scenario 21. A Kafka event cannot be deserialized.
 
-Preserve topic/partition/offset and a safe sample; compare encoding/schema versions. Quarantine malformed events or fail fast when correctness requires it. Avoid endless poison-record retries and sensitive payload logs. Follow-up: how do you avoid repeatedly processing the same poison message?
+**Interview problem:** A single bad message repeatedly fails parsing and blocks progress or inflates error logs.
 
-### Scenario 22. Batch and streaming produce different totals.
+**Clarify first:** Is the payload invalid JSON, wrong encoding, an unknown schema version, or missing a required business field? Can the record be safely skipped?
 
-Compare time zones, window boundaries, null handling, duplicates, late events, and deduplication horizons. Streaming state cleanup may differ from an unbounded batch calculation. Define shared semantics, test boundary cases, and reconcile with a backfill. Follow-up: why is streaming distinct operationally different?
+**Diagnosis and resolution:** Preserve topic, partition, offset, event ID if available, schema/version headers, and a sanitized sample. Compare the actual payload with producer contract and parser schema. Route invalid messages to a quarantine/dead-letter dataset with a reason and replay metadata, or fail the pipeline when continuing could produce incorrect business output. Do not log credentials or sensitive full payloads. Make quarantine itself replay-safe so a retry does not flood duplicate error records.
 
-### Scenario 23. Database writes must be idempotent.
+**Trade-offs and prevention:** Skipping poison records protects availability but creates an explicit data-quality gap that must be measured and repaired. Alert on rejected rates and keep a controlled replay mechanism.
 
-Map the failure window between database commit and Spark progress commit. Use stable event keys, unique constraints/upserts, version checks, and transactional batch markers where supported. Test partial commits. Follow-up: why is batchId alone not enough for individual records?
+**Follow-ups:** How do you avoid infinite retries for a poison record? Which source metadata must be preserved for replay?
+
+### Scenario 22. Batch and streaming implementations produce different results.
+
+**Interview problem:** A batch recomputation reports a different daily total from the live streaming aggregate.
+
+**Clarify first:** Do both use the same source boundary, timezone, null policy, deduplication key, event-time windows, and late-data rules?
+
+**Diagnosis and resolution:** Compare a small deterministic set of events at window boundaries, including duplicates, missing timestamps, late arrivals, and out-of-order updates. A batch query over all history can include records that the streaming query has already finalized and removed from state under its watermark policy. Also inspect differences in schema parsing and join cardinality. Define business semantics first, then make both implementations follow the same rule or document why they intentionally differ. Reconcile live totals with periodic backfills where the business requires correction.
+
+**Trade-offs and prevention:** A streaming result may prioritize bounded latency/state while a backfill computes from complete retained history. Differential tests should verify known edge cases, not just happy-path records.
+
+**Follow-ups:** Why isn't batch dropDuplicates operationally equivalent to streaming deduplication? How would you reconcile late corrections?
+
+### Scenario 23. A pipeline requires idempotent database writes.
+
+**Interview problem:** A micro-batch can partially write records, fail, and retry; repeated inserts must not create duplicates.
+
+**Clarify first:** What uniquely identifies a business event? Can the database enforce uniqueness? Are updates versioned or can events arrive out of order?
+
+**Diagnosis and resolution:** Map the failure window between database side effects and Spark's recorded batch progress. Design a write that converges when repeated: unique event key plus upsert, uniqueness constraint, version-aware merge, or a transactional protocol that commits output and batch marker together. With foreachBatch, batchId is useful for identifying a batch, but it does not itself make record writes idempotent if a partial commit can happen before the marker is recorded.
+
+~~~sql
+MERGE INTO order_events AS target
+USING staged_events AS source
+ON target.event_id = source.event_id
+WHEN NOT MATCHED THEN INSERT (event_id, order_id, status)
+VALUES (source.event_id, source.order_id, source.status);
+~~~
+
+This is illustrative SQL; MERGE support/syntax depends on the target database or table format. Test failures before, during, and after commit.
+
+**Trade-offs and prevention:** Unique constraints protect correctness but can create contention; upserts need explicit conflict/version rules. Monitor duplicate-key conflicts and replay outcomes.
+
+**Follow-ups:** Why is batchId alone not a sufficient per-event key? What if two versions of the same order arrive out of order?
 
 ### Scenario 24. One hot key dominates join runtime.
 
-Profile key counts and task shuffle reads; check for many-to-many expansion. Pre-aggregate when valid, use AQE skew handling, or salt with careful replication and merge. Follow-up: what correctness risks does salting introduce?
+**Interview problem:** A tenant ID represents 35% of the data and dominates a shuffle join.
+
+**Clarify first:** Is the skew on one side or both? Is the join many-to-many? Can the hot-key records be aggregated or treated separately?
+
+**Diagnosis and resolution:** Profile key frequencies on both inputs and compare shuffle read for tasks. Validate expected output multiplicity before changing the algorithm. Use AQE skew-join handling when eligible. Otherwise, handle the hot key separately, salt the join key and replicate the smaller-side matches across salt buckets as designed, or pre-aggregate if semantics permit. For aggregation, combine partial totals by (key, salt), then sum by the original key.
+
+**Trade-offs and prevention:** Salting adds data and another phase; an incorrect salt assignment can lose matches or multiply output. Prefer measured targeted handling over random repartitioning and monitor key distribution over time.
+
+**Follow-ups:** Why is salting aggregation different from salting a join? What validation proves no rows were lost or multiplied?
 
 ### Scenario 25. Most runtime is garbage collection.
 
-Correlate GC with heap occupancy, spill, cache, broadcasts, and task size. Reduce unnecessary objects, prefer SQL expressions where possible, fix skew, and tune heap only with evidence. Track GC in load tests. Follow-up: why is a bigger heap not always a fix?
+**Interview problem:** Executor task time is high, and the UI shows a large fraction spent in GC.
+
+**Clarify first:** Is this isolated to a stage or all stages? Is the workload object-heavy, caching too much, broadcasting a large relation, or processing skewed partitions?
+
+**Diagnosis and resolution:** Compare GC time, heap occupancy, task duration, cache size, broadcast metrics, and spill. Inspect user code for object creation and conversions, including conversion from optimized DataFrames to collections/RDDs. Prefer built-in SQL expressions where possible, reduce row/column volume, remove unused caches, and fix skew or oversized broadcasts. Only tune heap/GC after measuring allocation and resource limits.
+
+**Trade-offs and prevention:** A larger heap may reduce frequency but increase pause duration. Add GC and spill to performance baselines and test with production-like object/key distributions.
+
+**Follow-ups:** Why can a DataFrame expression allocate less than a Java object-heavy RDD pipeline? What other symptoms distinguish GC pressure from network wait?
 
 ### Scenario 26. Shuffle fetch failures recur.
 
-Determine whether errors follow one executor, disk, node, or network. Inspect fetch causes, executor-loss events, and worker logs. Fix unstable infrastructure before tuning retries. Follow-up: why can downstream tasks fail after upstream tasks succeeded?
+**Interview problem:** Downstream tasks repeatedly fail to fetch shuffle blocks, causing stage retries and eventual job failure.
 
-### Scenario 27. The UI shows many tiny tasks.
+**Clarify first:** Are errors tied to a particular executor, node, local disk, network path, or all workers? Does the upstream executor disappear after writing shuffle output?
 
-Check tiny input files, excessive shuffle partitions, empty partitions, and scheduling overhead. Compact files or tune partition counts/AQE. Preserve sufficient parallelism for large stages. Follow-up: why are file input partitions and shuffle partitions different?
+**Diagnosis and resolution:** Read the exact fetch error, executor-loss events, disk utilization, node logs, and network timeouts. A shuffle consumer may fail because the producer's local shuffle files disappeared after executor/node loss or storage failure. Fix the underlying disk/network/node instability and check the cluster's shuffle preservation configuration. Retry settings may help transient failures, but raising them cannot restore a repeatedly deleted shuffle block.
+
+**Trade-offs and prevention:** Robust shuffle preservation has operational/resource costs. Monitor disk space, executor churn, fetch failures, and host-level health, and test recovery after executor loss.
+
+**Follow-ups:** Why can a downstream stage fail after upstream tasks reported success? When is retry tuning appropriate?
+
+### Scenario 27. The Spark UI shows many tiny tasks.
+
+**Interview problem:** A stage schedules tens of thousands of tasks, each processing only a few megabytes.
+
+**Clarify first:** Are tiny input files causing the task count, or is the shuffle partition count unnecessarily high? Are tasks empty, and does scheduler delay dominate compute time?
+
+**Diagnosis and resolution:** Inspect stage task count, input size per task, scheduler delay, source file sizes, and shuffle metrics. For file input, Spark uses file-splitting/packing settings; shuffle partition count is controlled separately. Compact tiny files, adjust relevant settings based on measurement, or allow AQE to coalesce eligible shuffle partitions. Preserve enough parallelism for genuinely large stages.
+
+**Trade-offs and prevention:** Over-coalescing creates long tasks and poor parallelism; compaction costs a rewrite and should align with downstream access patterns. Track task-size distributions.
+
+**Follow-ups:** Why are file input partitions different from shuffle partitions? Which metric tells you scheduling overhead is material?
 
 ### Scenario 28. A large aggregation exhausts memory.
 
-Inspect cardinality, skew, spill, and partial aggregation. Reduce input early, pre-aggregate where valid, fix hot keys, or revise reporting grain if business needs allow. Follow-up: why can groupBy still be expensive with partial aggregation?
+**Interview problem:** A groupBy over event data spills heavily or fails on high-cardinality dimensions.
 
-### Scenario 29. A stream must recover after hours of downtime.
+**Clarify first:** How many distinct groups are expected? Is one key skewed? Can the business report use a coarser grain or filter before aggregation?
 
-Check whether Kafka retention still contains required offsets, whether checkpoint/state is intact, and whether sink can absorb catch-up throughput. Resume from checkpoint and provision catch-up capacity; backfill gaps from durable history if retention expired. Follow-up: can checkpoint restore deleted Kafka records?
+**Diagnosis and resolution:** Inspect aggregate operators, spill, task distribution, and key cardinality. Spark can perform partial aggregation before the shuffle, but a high-cardinality key space still requires large intermediate state and output. Reduce rows/columns earlier, pre-aggregate in a semantics-preserving way, fix skew, or adjust partitioning. If the required output itself contains an enormous number of distinct groups, acknowledge that output and state costs are fundamental; memory tuning alone will not make it cheap.
 
-### Scenario 30. Kafka volume grows tenfold.
+**Trade-offs and prevention:** Coarser aggregation changes the product's granularity and needs business agreement. Estimate group cardinality and test peak loads.
 
-Measure event size, partition skew, batch duration, state, shuffle, and sink capacity. Scale the constrained layer, increase Kafka partitions only after considering ordering/keying, and test downstream limits. Follow-up: what ordering changes can partition expansion cause?
+**Follow-ups:** Why can partial aggregation fail to reduce data much? What is the difference between input volume and output cardinality?
 
-### Scenario 31. The pipeline must deduplicate reliably.
+### Scenario 29. A streaming pipeline must recover after several hours of downtime.
 
-Define globally stable event IDs and the maximum duplicate delay. Use streaming deduplication with a justified state horizon plus sink idempotency. Measure duplicate rate and test replay. Follow-up: why does deduplication state need a lifecycle policy?
+**Interview problem:** The stream has been down for six hours and must catch up without losing events or overloading the sink.
+
+**Clarify first:** Is the checkpoint intact? Does Kafka retention still cover the required offsets? How much backlog exists, and can the sink sustain catch-up traffic?
+
+**Diagnosis and resolution:** Validate checkpoint and source offsets, earliest retained Kafka offsets, query/state compatibility, and sink capacity. Resume from the valid checkpoint rather than choosing fresh startingOffsets. Estimate backlog divided by sustainable excess throughput to understand catch-up time. If processing can exceed current arrival rate safely, allocate capacity for catch-up; otherwise throttle admission and accept a longer recovery window. If Kafka retention has expired required data, recover from a durable archive/backfill and explicitly reconcile the gap.
+
+**Trade-offs and prevention:** Aggressive catch-up can overwhelm downstream databases. Longer Kafka retention costs storage, but protects the recovery window. Alert on lag, time-to-catch-up, and retention risk.
+
+**Follow-ups:** Can a checkpoint recover Kafka records already deleted by retention? How would you prevent a catch-up surge from taking down the sink?
+
+### Scenario 30. Kafka input volume increases tenfold.
+
+**Interview problem:** Traffic spikes by an order of magnitude and the pipeline's batch duration exceeds the trigger interval.
+
+**Clarify first:** Is the spike a burst or sustained? Are topic partitions balanced? Is parsing, shuffle, state, or sink throughput limiting?
+
+**Diagnosis and resolution:** Compare event size and rate, per-partition traffic, processing rate, batch duration, shuffle/spill, state-store growth, and sink metrics. Scale the layer that limits sustainable throughput. More source parallelism may require increasing Kafka partitions or using the connector's minPartitions for large offset ranges, but this has key-ordering and operational implications. Optimize parsing and joins, and ensure downstream systems can accept the resulting concurrency.
+
+**Trade-offs and prevention:** Backpressure/rate limiting protects downstream systems but backlog grows if average input remains above processing capacity. Load-test bursts and sustained load separately and define capacity headroom.
+
+**Follow-ups:** How do you estimate required throughput? What does changing Kafka partition count do to per-key ordering and distribution?
+
+### Scenario 31. The pipeline must deduplicate events reliably.
+
+**Interview problem:** Producers retry events, and duplicates must not inflate order or payment metrics.
+
+**Clarify first:** Is there a stable globally unique event ID? How late can duplicates arrive? Does the requirement demand lifetime deduplication or only a bounded replay horizon?
+
+**Diagnosis and resolution:** Inspect duplicate rates and the producer's event identity contract. Use a stable event ID for streaming deduplication with a deliberate state-retention/watermark policy, and make downstream sink writes idempotent as a second layer. An order ID alone may not identify an event if an order legitimately emits multiple status changes. Preserve event version or sequence when update ordering matters.
+
+**Trade-offs and prevention:** Longer duplicate horizons require more state and checkpoint I/O; bounded deduplication cannot promise suppression of duplicates arriving outside its retention horizon. Measure late duplicates and document the guarantee.
+
+**Follow-ups:** What determines the deduplication horizon? Why should sink idempotency still matter if Spark deduplicates upstream?
 
 ### Scenario 32. Historical backfill must transition to live events.
 
-Define a common schema and exact offset/time boundary. Prevent gaps/overlap with a documented handoff and deterministic keys; reconcile overlap idempotently. Follow-up: how can a race during cutover lose events?
+**Interview problem:** The team must backfill a year of orders and then continuously process live Kafka events without a gap.
 
-### Scenario 33. Parquet schema changes over time.
+**Clarify first:** What durable historical source exists? Can the Kafka boundary be specified by offsets/timestamps? Can backfill and live processing overlap safely?
 
-Inspect schemas per file/partition. Normalize compatible additions and deliberately migrate incompatible type changes; test old and new data together. Add schema contracts. Follow-up: what are the cost and risk of schema merging?
+**Diagnosis and resolution:** Define an explicit cutover boundary and identical schema/transformation rules. One common pattern is to capture a source boundary, backfill the historical range, then stream from the corresponding offset range, deduplicating overlap with deterministic IDs. The precise sequence depends on source availability and retention; simply starting a stream after a batch finishes can leave a race window. Reconcile counts and totals around the boundary.
 
-### Scenario 34. A Spark app must run on Kubernetes.
+**Trade-offs and prevention:** Overlap is often safer than a gap if writes are idempotent, but increases compute. Document offset/timestamp boundaries and rehearse the handoff.
 
-Check image/dependency compatibility, service-account permissions, storage/network access, resource requests/limits, and memory overhead. Inspect pod events and driver/executor logs; stage-test before production. Follow-up: why can a pod be OOM-killed without Java heap OOM?
+**Follow-ups:** How can an event arrive between choosing the boundary and starting the stream? What makes overlapping replay safe?
 
-### Scenario 35. A pipeline writes to Kafka and Elasticsearch and one sink fails.
+### Scenario 33. A Parquet dataset's schema changes over time.
 
-Independent writes are not atomic: Kafka may succeed while Elasticsearch fails. Choose a source of truth, use replayable/idempotent sinks, deterministic Elasticsearch document IDs, and reconciliation. Consider an outbox or independent sink consumers instead of pretending one checkpoint coordinates a distributed transaction. Follow-up: why can't Spark checkpointing make unrelated systems atomic?
+**Interview problem:** New partitions add a field or change an integer to a string, and a downstream query either errors or returns nulls.
+
+**Clarify first:** Is the change additive and compatible, or a rename/type change? Do all files have consistent schema metadata? Does the reader infer or impose a schema?
+
+**Diagnosis and resolution:** Inspect schema per partition/file and test old plus new data together. A new optional field can often be normalized to a canonical schema; a type change needs explicit casting/validation and a migration policy. Schema merging is not a universal fix and can add planning cost. Do not silently cast malformed business values to null without counting/rejecting them.
+
+**Trade-offs and prevention:** A canonical schema adds ingestion work but reduces surprise downstream. Use schema contracts, compatibility checks, and staged rollout of producer and consumer changes.
+
+**Follow-ups:** Why can a file directory contain incompatible schemas? What risks arise from permissive casting?
+
+### Scenario 34. A Spark application must run on Kubernetes.
+
+**Interview problem:** Executors are repeatedly OOM-killed or cannot read checkpoint storage after deployment.
+
+**Clarify first:** Which Spark image/JDK/connectors are used? Are service-account permissions, network policies, secrets, and storage credentials correct? What are the JVM heap and total pod limits?
+
+**Diagnosis and resolution:** Inspect pod events, driver/executor logs, resource requests/limits, image versions, identity permissions, and storage/network reachability. Container memory includes JVM heap plus non-heap/native and process overhead. Align executor resources with cluster capacity, configure memory overhead appropriately, package compatible dependencies, and verify durable checkpoint access. Spark on Kubernetes has deployment-specific requirements; a local success is not enough.
+
+**Trade-offs and prevention:** Larger requests improve headroom but reduce cluster packing and may increase cost. Build a staging smoke test, least-privilege access, and alerts for pod restarts/OOM kills.
+
+**Follow-ups:** Why can a pod be killed without a Java heap OOM? What should be in the application artifact versus supplied by the cluster?
+
+### Scenario 35. A pipeline writes to Kafka and Elasticsearch, but one sink fails.
+
+**Interview problem:** The pipeline successfully writes Kafka output but fails halfway through updating Elasticsearch.
+
+**Clarify first:** Are both sinks required to be atomically consistent? Which system is authoritative? Can each sink be rebuilt or replayed independently?
+
+**Diagnosis and resolution:** Ordinary independent sink writes are not one distributed transaction. A Spark checkpoint does not atomically commit unrelated Kafka and Elasticsearch side effects. Prefer a durable source of truth and independent replayable sink consumers where architecture allows. Use deterministic Elasticsearch document IDs and version-aware upserts, unique event IDs for Kafka consumers, retry tracking, and reconciliation. If both writes happen in custom code, explicitly design the partial-failure state machine and make each operation idempotent.
+
+**Trade-offs and prevention:** Independent sink pipelines add operational components but make replay and isolation clearer. Monitor each sink's lag, failures, document counts, and freshness separately.
+
+**Follow-ups:** Why can't one checkpoint create a cross-system atomic commit? How would you rebuild Elasticsearch from Kafka or a data lake?
 
 ### Scenario 36. The database is overloaded after Spark scaling.
 
-Compare write concurrency, connection counts, locks, database CPU/I/O, and retries. Bound parallel writes, batch or stage/merge data, or scale the sink. Set throughput budgets. Follow-up: how can retries amplify overload?
+**Interview problem:** Adding executors increased throughput briefly, then database CPU, locks, and retries exploded.
 
-### Scenario 37. A report's totals differ from the source.
+**Clarify first:** Did task concurrency and connection counts increase? Is the database limited by CPU, I/O, locking, or connection pool capacity?
 
-Reconcile counts/sums at each boundary; inspect duplicates, null amounts, currency, timezone, joins, and late events. Correct semantic bugs before tuning and backfill idempotently. Add data-quality assertions. Follow-up: why can a successful job still produce incorrect results?
+**Diagnosis and resolution:** Compare Spark's number of concurrent write tasks and retry rate with database connections, lock waits, CPU, I/O, and transaction sizes. Use bounded write concurrency, batch writes, staging plus merge, and a database-appropriate bulk interface. Establish backoff and retry limits that do not amplify overload. More parallelism is useful only up to the sink's sustainable capacity.
 
-### Scenario 38. A UDF makes the query slower.
+**Trade-offs and prevention:** Lower concurrency can increase total completion time but stabilize the service and improve end-to-end throughput. Test at expected peak volume and monitor queue depth, lock waits, and write latency.
 
-Compare plan, CPU, and code generation. Replace UDF with built-in expressions where possible, reduce rows before applying it, or precompute when justified. Benchmark at scale. Follow-up: why is a UDF not automatically more efficient just because Spark distributes it?
+**Follow-ups:** How do retries create a positive feedback loop? Why should sink capacity influence Spark parallelism?
 
-### Scenario 39. A Parquet query scans too much data.
+### Scenario 37. A daily report's totals do not match the source system.
 
-Check partition filters, pushed filters, casts/functions on partition columns, and selected columns. Express eligible predicates clearly and align layout with common access patterns. Follow-up: distinguish partition pruning from predicate pushdown.
+**Interview problem:** The Spark job succeeds, but the revenue total differs from the source of truth.
+
+**Clarify first:** Are snapshots complete? Are there duplicates, null amounts, currency conversions, late events, timezone boundaries, or non-unique join keys?
+
+**Diagnosis and resolution:** Reconcile record counts and sums at every stage: raw input, parsed data, filtered events, post-join rows, deduplicated records, aggregate output. Sample mismatching keys, verify parsing/types, and inspect join multiplicity and event-time cutoffs. A technically successful job can still have semantically wrong logic. Correct the rule, replay affected partitions idempotently, and compare totals before publishing.
+
+**Trade-offs and prevention:** Additional data-quality checks consume some compute but catch silent corruption. Define tolerances only where business meaning allows; money totals often need exact reconciliation.
+
+**Follow-ups:** Why can a non-unique dimension table inflate revenue? Which checks would you fail the pipeline on?
+
+### Scenario 38. A new UDF makes a DataFrame query slower.
+
+**Interview problem:** Runtime doubles after a transformation is moved into a custom Java UDF.
+
+**Clarify first:** Does built-in Spark SQL have an equivalent expression? How many rows reach the UDF? Is the UDF in a filter/join key or simply a derived output?
+
+**Diagnosis and resolution:** Compare physical plans, CPU time, code generation, and rows processed. Opaque UDF logic limits Catalyst's ability to reason about and simplify the expression. Replace it with built-in functions where possible, filter/project before applying it, or precompute expensive deterministic values if reuse justifies storage. If a UDF is necessary, benchmark it with realistic input and consider allocation and serialization.
+
+**Trade-offs and prevention:** A UDF can still be appropriate for specialized logic; removing it is not an end in itself. Keep tests for nulls, type conversions, and deterministic behavior.
+
+**Follow-ups:** Why does Spark distribution not automatically make a UDF efficient? What optimizations become harder around opaque functions?
+
+### Scenario 39. A Parquet query scans far more data than expected.
+
+**Interview problem:** A query filtered to one date reads hundreds of gigabytes.
+
+**Clarify first:** Is the dataset directory-partitioned by the filtered date? Is the predicate expressed on the partition column directly? Are only necessary columns selected?
+
+**Diagnosis and resolution:** Inspect the formatted plan for PartitionFilters and PushedFilters, and compare expected versus actual input bytes/files. A function or cast on a partition column can interfere with pruning in some query shapes. Express a compatible predicate and project only required columns. If recurring workload predicates do not align with the storage layout, consider a controlled rewrite with a sensible partition design; avoid high-cardinality directory partitions without evidence.
+
+**Trade-offs and prevention:** A partition layout optimized for one query may hurt others or create small files. Use a workload-based design and monitor scan size per query.
+
+**Follow-ups:** Distinguish partition pruning from predicate pushdown. What if a filter is logically correct but the data source cannot push it down?
 
 ### Scenario 40. An upstream producer emits out-of-order updates.
 
-Ask for business version/sequence and rules for stale updates. Compare event/ingestion time and version; watermarks do not define business ordering. Use deterministic versioned upserts and a correction path. Follow-up: why is event time not a substitute for entity version?
+**Interview problem:** Multiple status events for the same order arrive out of order, and an older update can overwrite a newer one.
+
+**Clarify first:** Does every event carry a monotonic version/sequence? Is event time reliable? Should late updates be corrected, ignored, or audited?
+
+**Diagnosis and resolution:** Compare event time, ingestion time, business sequence, entity ID, and observed output. Event time alone is not a reliable ordering contract: clocks can be skewed, and events can be delayed. Use a deterministic business version rule in the sink, such as accepting an update only when its sequence is newer than the stored version. Preserve late updates for audit/reconciliation if required. Watermarks govern certain stateful event-time computations; they do not automatically define business conflict resolution.
+
+**Trade-offs and prevention:** Version-aware upserts protect current state but may require a separate event history to retain every transition. Add producer contracts and tests for duplicates and reordered delivery.
+
+**Follow-ups:** What happens if two updates have the same sequence? How would you distinguish “latest status” from “complete event history”?
 
 ---
+
+### A repeatable incident-triage sequence
+
+Use this order in interviews and production. It prevents premature configuration changes.
+
+~~~mermaid
+flowchart TD
+  A[State expected result and SLO] --> B[Identify slow job, stage, or streaming batch]
+  B --> C[Compare task duration, input, shuffle, spill, GC, and sink latency]
+  C --> D{Where is time or backlog accumulating?}
+  D -->|Scan / files| E[Check pruning, schema, file count, input layout]
+  D -->|Shuffle / skew| F[Check join plan, cardinality, key distribution, partitions]
+  D -->|Memory / GC| G[Check heap, overhead, cache, broadcast, task size]
+  D -->|Streaming / sink| H[Check lag, rates, watermark/state, sink capacity, commit window]
+  E --> I[Change one evidence-based factor]
+  F --> I
+  G --> I
+  H --> I
+  I --> J[Verify output correctness and compare the same metrics]
+  J --> K[Add prevention: alerts, tests, runbook, or capacity guardrail]
+~~~
+
+The investigation is not complete merely because runtime improves. Confirm output counts, key uniqueness, aggregates, offset coverage, and replay behavior where those properties matter.
 
 ## 21. Mock interviews and revision
 
@@ -1170,8 +1560,9 @@ Use documentation matching the deployed Spark version; the latest URLs change as
 - [RDD programming guide](https://spark.apache.org/docs/latest/rdd-programming-guide.html)
 - [Spark SQL, DataFrames, and Datasets](https://spark.apache.org/docs/latest/sql-programming-guide.html)
 - [Structured Streaming overview](https://spark.apache.org/docs/latest/streaming/index.html)
-- [Structured Streaming programming guide](https://spark.apache.org/docs/latest/streaming/getting-started.html)
-- [Structured Streaming Kafka integration](https://spark.apache.org/docs/latest/structured-streaming-kafka-integration.html)
+- [Structured Streaming quick start](https://spark.apache.org/docs/latest/streaming/getting-started.html)
+- [Structured Streaming APIs, query lifecycle, monitoring, and checkpoint recovery](https://spark.apache.org/docs/latest/streaming/apis-on-dataframes-and-datasets.html)
+- [Structured Streaming Kafka integration](https://spark.apache.org/docs/latest/streaming/structured-streaming-kafka-integration.html)
 - [Spark tuning guide](https://spark.apache.org/docs/latest/tuning.html)
 - [Spark on Kubernetes](https://spark.apache.org/docs/latest/running-on-kubernetes.html)
 - [Spark configuration](https://spark.apache.org/docs/latest/configuration.html)
