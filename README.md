@@ -8,6 +8,7 @@ Choose a handbook by topic:
 
 - [Java Interview Handbook](Java/Java-Interview-QA.md)
 - [Git Interview Revision Handbook](Git/Git-Interview-QA.md) — 55 focused questions with detailed answers across Git internals, branching, collaboration, recovery, releases, and security.
+- [CI/CD Interview Handbook](CI-CD/CI-CD-Interview-QA.md) — developer-focused delivery for Java/Spring Boot: Jenkins, GitHub Actions, testing, quality gates, immutable artifacts, release safety, database migrations, troubleshooting, and senior-level scenarios.
 - [Design Patterns & LLD Interview Handbook](Design-Patterns-LLD/Design-Patterns-LLD-Interview-QA.md) — object-oriented design, SOLID, GoF patterns, UML, concurrency-aware object models, and practical LLD case studies.
 - [System Design HLD Interview Handbook](System-Design-HLD/System-Design-HLD-Interview-QA.md) — 300 numbered Q&As, 80 senior-level scenarios, capacity estimation, consistency, scaling, resilience, and multi-stage mock interviews; make this a priority for dedicated HLD rounds.
 - [Spring Framework + Spring Boot Interview Handbook](Spring/Spring-Interview-QA.md)
@@ -30,6 +31,7 @@ Each topic has one primary Markdown handbook. Open the linked file above to read
 Interview-Preparation/
 ├── README.md
 ├── Git/Git-Interview-QA.md
+├── CI-CD/CI-CD-Interview-QA.md
 ├── System-Design-HLD/System-Design-HLD-Interview-QA.md
 ├── Java/Java-Interview-QA.md
 ├── Design-Patterns-LLD/Design-Patterns-LLD-Interview-QA.md
@@ -50,19 +52,20 @@ Interview-Preparation/
 
 1. **Java** — language fundamentals, collections, concurrency, JVM, and modern Java.
 2. **Git** — repository internals, collaboration, history safety, releases, and recovery; use it alongside daily development.
-3. **Design Patterns & LLD** — object-oriented design, SOLID, design-pattern selection, UML, and realistic low-level design problems.
-4. **System Design HLD (highest priority)** — study this in parallel with the remaining guides. Start with the interview method and quality attributes, then capacity estimation, architecture fundamentals, and the senior scenario bank. Revisit it repeatedly; a dedicated HLD round requires deliberate practice, not just reading.
-5. **Spring** — dependency injection, Spring Boot, framework behavior, transactions, security, testing, and production behavior.
-6. **Microservices & REST APIs** — service boundaries, HTTP semantics, API contracts, resilience, security, and service-level communication.
-7. **Distributed Systems & Event-Driven Architecture** — cross-service correctness, consistency, failure handling, coordination, sagas, messaging semantics, and production reliability.
-8. **Hibernate + JPA** — persistence context, mappings, fetching, transactions, query performance, and concurrency.
-9. **SQL & databases** — query logic, joins, indexes, transactions, isolation, and database-specific behavior.
-10. **Elasticsearch & Search Systems** — focused interview Q&A, practical Query DSL examples, relevance, mappings, pagination, production troubleshooting, Java integration, and SQL/Kafka indexing pipelines.
-11. **Redis & Caching** — Redis data structures, cache consistency, coordination, Spring integration, and resilience across the cache/database boundary.
-12. **Kafka** — broker architecture, topics and partitions, producer/consumer behavior, delivery semantics, and production scenarios.
-13. **Apache Spark & Structured Streaming** — study after Kafka and distributed systems: execution, Spark SQL, shuffles and joins, performance, event-time processing, checkpointing, and reliable Kafka pipelines.
-14. **Apache Iceberg, Avro & Schema Evolution** — connect event contracts and compatibility with table snapshots, streaming ingestion, compaction, and replay.
-15. **Docker, Kubernetes & Helm** — containerize and run the service, understand its runtime constraints, configure workload health and resources, debug connectivity, and deliver releases safely.
+3. **CI/CD** — build and test automation, artifact traceability, pipeline security, and safe application releases.
+4. **Design Patterns & LLD** — object-oriented design, SOLID, design-pattern selection, UML, and realistic low-level design problems.
+5. **System Design HLD (highest priority)** — study this in parallel with the remaining guides. Start with the interview method and quality attributes, then capacity estimation, architecture fundamentals, and the senior scenario bank. Revisit it repeatedly; a dedicated HLD round requires deliberate practice, not just reading.
+6. **Spring** — dependency injection, Spring Boot, framework behavior, transactions, security, testing, and production behavior.
+7. **Microservices & REST APIs** — service boundaries, HTTP semantics, API contracts, resilience, security, and service-level communication.
+8. **Distributed Systems & Event-Driven Architecture** — cross-service correctness, consistency, failure handling, coordination, sagas, messaging semantics, and production reliability.
+9. **Hibernate + JPA** — persistence context, mappings, fetching, transactions, query performance, and concurrency.
+10. **SQL & databases** — query logic, joins, indexes, transactions, isolation, and database-specific behavior.
+11. **Elasticsearch & Search Systems** — focused interview Q&A, practical Query DSL examples, relevance, mappings, pagination, production troubleshooting, Java integration, and SQL/Kafka indexing pipelines.
+12. **Redis & Caching** — Redis data structures, cache consistency, coordination, Spring integration, and resilience across the cache/database boundary.
+13. **Kafka** — broker architecture, topics and partitions, producer/consumer behavior, delivery semantics, and production scenarios.
+14. **Apache Spark & Structured Streaming** — study after Kafka and distributed systems: execution, Spark SQL, shuffles and joins, performance, event-time processing, checkpointing, and reliable Kafka pipelines.
+15. **Apache Iceberg, Avro & Schema Evolution** — connect event contracts and compatibility with table snapshots, streaming ingestion, compaction, and replay.
+16. **Docker, Kubernetes & Helm** — containerize and run the service, understand its runtime constraints, configure workload health and resources, debug connectivity, and deliver releases safely.
 
 The order moves from language and application fundamentals toward distributed behavior and then application delivery. You can study Docker/Kubernetes earlier if your current project requires it. For data-engineering interviews, study Kafka and distributed systems before Spark, then revisit system design and operational reliability.
 
