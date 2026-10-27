@@ -294,7 +294,7 @@ DataFrames are lazy descriptions, not automatically materialized results. If cod
 
 A partition is a logical chunk of distributed data that a task processes for an operation. A stage with 100 runnable partitions can expose about 100 tasks of parallel work, but concurrency is limited by available executor task slots; partitions and executors are different quantities. Input-file partitions, shuffle partitions, and output directory partitions are also different concepts.
 
-For DataFrames, `repartition(n, col("customer_id"))` redistributes rows using hash partitioning on the supplied expression(s), which is useful when equal keys need to be brought together. `repartitionByRange(n, col("event_time"))` lays out partitions by ordered ranges, which can help range-oriented workloads but has its own sampling and shuffle cost. Neither guarantees even work if the key distribution is skewed. Too few partitions limit parallelism; too many tiny partitions add scheduling overhead and may create small files. Choose based on stage metrics, row sizes, and cluster capacity.
+For DataFrames, `repartition(n, col("customer_id"))` redistributes rows using hash partitioning on the supplied expression(s), which is useful when equal keys need to be brought together. `repartitionByRange(n, col("event_time"))` assigns rows to sampled ordered ranges, which can help range-oriented workloads but has its own sampling and shuffle cost. It does not guarantee that rows are sorted within each output partition; use an explicit sort when row order is required. Because range boundaries are estimated by sampling, exact boundaries can vary. Neither hash nor range partitioning guarantees even work if the key distribution is skewed. Too few partitions limit parallelism; too many tiny partitions add scheduling overhead and may create small files. Choose based on stage metrics, row sizes, and cluster capacity.
 
 ### Q34. What causes a shuffle and why is it expensive?
 
@@ -342,7 +342,7 @@ Broadcast a small dimension table when the materialized relation can safely fit 
 
 ### Q43. What is Adaptive Query Execution?
 
-Adaptive Query Execution (AQE) lets Spark revise eligible parts of a physical query plan after it has measured runtime statistics, rather than committing to every decision from estimates alone. Common capabilities include coalescing small post-shuffle partitions, splitting qualifying skewed join partitions, and converting a planned sort-merge join to a broadcast hash join when runtime sizes justify it. The current Spark 4.2 documentation enables AQE by default; verify the effective configuration and supported rules for the version actually deployed.
+Adaptive Query Execution (AQE) lets Spark revise eligible parts of a physical query plan after it has measured runtime statistics, rather than committing to every decision from estimates alone. Common capabilities include coalescing small post-shuffle partitions, splitting qualifying skewed join partitions, and converting a planned sort-merge join to a broadcast hash join when runtime sizes justify it. The current Spark 4.2 documentation enables AQE by default through `spark.sql.adaptive.enabled`; verify the effective configuration and supported rules for the version actually deployed.
 
 A useful workflow is to compare the initial and final adaptive plans and correlate the change with stage metrics. AQE can make a better decision when estimates were wrong, but it cannot repair a missing join predicate, make a huge result set small, or automatically fix every skewed aggregation.
 
@@ -558,7 +558,7 @@ Dataset<Row> perWindow = events
     .agg(sum("amount").alias("total_amount"));
 
 // Session windows: sessions for a customer extend when activity continues
-// within the gap duration (API availability depends on Spark version).
+// within the gap duration. The session_window function is available since Spark 3.2.
 Dataset<Row> sessions = events
     .withWatermark("event_time", "10 minutes")
     .groupBy(expr("session_window(event_time, '5 minutes')"), col("customer_id"))
@@ -796,7 +796,7 @@ This distinction matters when the UI shows thousands of tiny input tasks but a r
 
 Spark uses available estimates such as relation size and row counts to choose among eligible plans—for example, whether a relation is small enough to broadcast or which join order is likely to be cheaper. If statistics are missing or stale, a plan can make a poor decision even when the SQL is logically correct. The optimizer cannot estimate well what the source does not expose.
 
-Inspect plan estimates and, where supported for the table/catalog, refresh statistics using the appropriate catalog/`ANALYZE TABLE` workflow. Statistics are an input to planning, not a guarantee: runtime sizes can differ, which is one reason AQE is useful. Do not manufacture a broadcast decision from compressed file size alone.
+Inspect plan estimates and, where supported for the table/catalog, refresh statistics using the appropriate catalog/`ANALYZE TABLE` workflow. Join reordering specifically depends on eligible query shapes and relevant cost-based optimizer settings; basic size statistics can still affect join-strategy selection even when broader cost-based reordering is not applied. Statistics are inputs to planning, not guarantees: runtime sizes can differ, which is one reason AQE is useful. Do not make a broadcast decision from compressed file size alone.
 
 ### Q106. What is a broadcast nested-loop join, and when can it appear?
 
