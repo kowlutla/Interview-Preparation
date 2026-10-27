@@ -388,19 +388,19 @@ Execution memory is used by work such as joins, sorts, and aggregations; storage
 
 ### Q52. Why does Spark spill to disk?
 
-When an operation cannot keep working data in memory, Spark may spill intermediate data to disk rather than immediately failing. Spill avoids some OOMs but adds I/O and often signals large partitions, skew, high cardinality, or memory pressure. Some spill can be normal; large repeated spill merits investigation.
+When an operation such as a sort, join, or aggregation cannot keep all of its working data in memory, Spark may spill intermediate structures to local disk. That can let the task finish instead of failing, but spill adds read/write I/O and can dominate runtime when it happens heavily. Check the stage's memory/disk spill metrics alongside partition sizes, key cardinality, skew, and GC. Small amounts of spill are not automatically a bug; repeated large spill is a signal to investigate the workload and memory distribution before simply increasing heap.
 
 ### Q53. Java serialization versus Kryo?
 
-Java serialization is convenient but can be costly for object-heavy RDD workloads. Kryo can reduce serialization overhead when correctly configured. DataFrame SQL execution often uses internal representations, so changing the serializer is not a universal fix for slow SQL. Measure serialization time and size before tuning.
+Java serialization is convenient but can be verbose and CPU-intensive for object-heavy RDD workloads. Kryo often produces smaller, faster serialized representations when configured and tested correctly, though custom classes and registrations can matter. The benefit is most visible when Spark repeatedly serializes application objects for shuffles or network transfer. Many DataFrame SQL operators use Spark's internal row/columnar representations, so changing `spark.serializer` is not a universal fix for a slow SQL query. Measure serialization time, shuffle size, and task metrics before changing it.
 
 ### Q54. How do you diagnose excessive garbage collection?
 
-Use executor metrics/logs to identify GC time as a share of task runtime. Check object-heavy transformations, broadcasts, cached data, skew, and repeated allocation. Remedies may include SQL expressions instead of object-heavy RDD code, reducing data, fixing skew, or removing unnecessary cache. Increasing heap without understanding allocation can merely delay failure and lengthen pauses.
+Start with executor metrics and logs: is GC taking a large fraction of task time, and is the problem isolated to one stage or spread across the application? Correlate GC with heap occupancy, spill, broadcast size, cached blocks, and task-size skew. Object-heavy RDD code, repeated conversions to Java collections, and large broadcast structures can create allocation pressure. Prefer built-in DataFrame expressions where they express the same logic, reduce unnecessary rows/columns, remove unused caches, and fix skew before adjusting heap settings. A larger heap may postpone the next collection but can also make individual pauses longer.
 
 ### Q55. What is executor memory overhead?
 
-In containerized deployments, overhead covers non-heap/native memory in addition to JVM heap, including direct buffers and process overhead. A container can be killed for exceeding its total limit without a conventional Java heap OOM. Review JVM logs and platform events to distinguish the failure types.
+In a containerized deployment, executor memory overhead accounts for process memory outside the configured JVM heap, including native memory, direct buffers, and other runtime overhead. The scheduler/container limit applies to the whole process footprint, not just Java heap usage. As a result, a pod can be OOM-killed without a `Java heap space` error in the executor log. Check both JVM logs and the cluster manager's exit reason/events before deciding whether to tune `spark.executor.memory`, `spark.executor.memoryOverhead`, task size, or native-memory usage.
 
 ---
 
@@ -428,7 +428,7 @@ Structured Streaming checkpoints track progress and state; they are not equivale
 
 ### Q58. What is lineage?
 
-Lineage records the transformations and dependencies used to compute data. If a partition is lost, Spark can recompute it from ancestors rather than replicating every intermediate. Long lineage can make recomputation expensive, and source availability matters. Checkpointing cuts lineage; caching reduces recomputation during normal execution.
+Lineage records the dependency graph Spark uses to produce an RDD partition or a derived dataset. If a cached partition is lost, Spark may be able to recompute it by replaying the required transformations from its parents. This is a key recovery mechanism, but recomputing a long pipeline can be expensive, and recovery is impossible if the needed source data is no longer available. Caching can speed up repeated access; reliable checkpointing materializes a recovery point and truncates lineage. Those mechanisms solve related but different problems.
 
 ---
 
@@ -440,19 +440,19 @@ Identify the slow job/stage, compare task durations, inspect input bytes, shuffl
 
 ### Q60. What does the Spark UI tell you?
 
-Jobs and Stages show progress, task distribution, failures, and shuffle metrics. Executors show active tasks, storage, GC, and failures. SQL pages can connect query plans with runtime metrics. Compare median and maximum task duration, not just overall runtime. Configure event logging/history server for completed applications.
+The Spark UI is where you turn a vague complaint like “the job is slow” into a specific bottleneck. Jobs and Stages show task counts, duration distributions, shuffle read/write, spill, and failures; Executors show task activity, cached storage, GC time, and executor loss; the SQL page connects query plans to runtime metrics when available. Compare median, tail, and maximum task times. A completed application's UI may disappear unless event logging and a history server are configured, so enable those for production troubleshooting.
 
 ### Q61. Why are small files harmful?
 
-Many tiny files increase listing, open, metadata, and task scheduling overhead. Compaction or a controlled rewrite can help. Output size depends on partitioning, volume, compression, and writer behavior; forcing one partition for a large dataset can create a bottleneck.
+Thousands of tiny files impose costs before Spark has processed much data: listing and metadata work, opening each file, building input partitions, and scheduling many small tasks. This can make a query spend more time on overhead than on scanning records. A distributed compaction/rewrite can combine files, but the target size depends on query parallelism, data volume, codec, and storage system. Do not solve the problem by writing a huge dataset through `coalesce(1)`; that replaces many small tasks with one serial bottleneck and can create a very large file.
 
 ### Q62. What is dynamic allocation?
 
-Dynamic allocation requests/releases executors based on workload demand when supported and configured. It affects available resources, while AQE adjusts eligible query plans. Executor churn and shuffle preservation matter; dynamic allocation does not solve skew or a single-threaded sink.
+Dynamic allocation lets Spark request additional executors when work is queued and release idle executors, subject to the cluster manager and configuration. It can improve utilization for workloads whose demand changes over time, but scaling is not instantaneous and executor removal interacts with shuffle-data preservation. AQE is different: it adjusts eligible query-plan decisions using runtime statistics, while dynamic allocation changes available compute resources. Neither fixes a single hot partition, an incorrect query, or a sink that can accept only a limited write rate.
 
 ### Q63. How should tuning experiments be performed?
 
-Change one factor at a time, use representative input, record baseline and after metrics, and verify result correctness. Compare end-to-end runtime and cost, not only one stage. Small samples can hide skew and cardinality effects. Keep a rollback plan for production changes.
+Choose a representative dataset and record a baseline before changing a setting: wall-clock runtime, stage duration, input bytes, shuffle, spill, GC, task variance, and output correctness. Change one factor at a time so you can attribute the result. Small samples often hide the very problems that dominate production—skew, large join cardinality, state growth, and sink saturation—so verify at realistic scale where feasible. Compare end-to-end time and resource cost, not only one stage. Keep a rollback path for production settings and confirm that totals and row counts remain correct.
 
 ---
 
@@ -460,15 +460,15 @@ Change one factor at a time, use representative input, record baseline and after
 
 ### Q64. Why is Parquet common for analytics?
 
-Parquet is columnar. Queries needing only a few columns can avoid reading others, and metadata can help skip data. Compression is often effective for typed column values. JSON is useful for raw/nested input, CSV is interoperable but weakly typed, and ORC is another columnar format. Layout and schema discipline remain important.
+Parquet stores values by column rather than as a whole row, so a query that needs `customer_id` and `amount` can often avoid reading unrelated columns. Column statistics and row-group metadata can help skip data when predicates are selective, while column-friendly compression can reduce storage and I/O. The trade-off is that parsing/writing and row-oriented access patterns may differ from text formats. JSON is handy for raw or nested events; CSV is widely interoperable but has weak type information; ORC is another analytical columnar format. Parquet helps most when schemas, partition layout, and file sizes are designed for the query workload.
 
 ### Q65. Why does a Spark write create a directory of part files?
 
-Spark writes distributed output from multiple tasks, so the destination commonly contains multiple part files and possibly metadata/commit files. File count depends on tasks, writer behavior, and partitioned output. Downstream readers generally read the directory as a dataset. Avoid coalesce(1) for large output because it funnels data through one task.
+Each writing task normally produces its own output file for the data it handled, so a Spark dataset is commonly represented as a directory of `part-...` files rather than one monolithic file. The final file count depends on execution partitions, dynamic partition values, writer behavior, and the output committer—not simply on how many executors exist. Downstream Spark readers treat the directory as a dataset. If a consumer needs a single export file, create it as a deliberate bounded export step after confirming the data is small enough; do not funnel a large production dataset through one task.
 
 ### Q66. What is schema evolution?
 
-Schema evolution is a change to fields or types over time. File formats and table formats differ in how they reconcile schemas; a directory of mixed-schema files does not guarantee automatic correct merging. Define compatibility rules, use explicit schemas at critical boundaries, and test old and new data together.
+Schema evolution means a dataset's contract changes over time—for example, a new optional field is added, a field is renamed, or a number becomes a string. An additive optional field is often easier to support than a type change or rename, because old files may not contain the new field and different files may carry different schema metadata. Directory reads do not guarantee automatic reconciliation of every incompatible file. Define compatibility rules, normalize inputs to a canonical schema, validate casts/nulls, and test queries against both historical and new partitions.
 
 ### Q67. What should you know about object storage?
 
@@ -480,7 +480,7 @@ Object storage scales well for durable lake data, but its request, listing, and 
 
 ### Q68. What is Structured Streaming?
 
-Structured Streaming is Spark's scalable stream-processing engine built on DataFrame/Dataset APIs. You describe a query over an unbounded input table; Spark incrementally processes new records and tracks progress using checkpoints. Stateful operations maintain recoverable state. The default engine uses micro-batches, and streaming has constraints that do not apply identically to batch queries.
+Structured Streaming lets you describe a continuous computation with familiar DataFrame/Dataset operations, while Spark manages source progress and incremental execution. Conceptually, an unbounded stream is a table that keeps receiving rows; the query defines how the result should be updated as new input arrives. By default, Spark runs it as micro-batches and stores the progress—and state for stateful operators—in a checkpoint. This model simplifies development, but streaming queries have constraints around output modes, state cleanup, late data, and sink behavior that do not apply in exactly the same way to bounded batch queries.
 
 ### Q69. Describe a streaming query lifecycle.
 
@@ -494,11 +494,11 @@ flowchart LR
   State -. recovery state .-> CP
 ~~~
 
-Create a streaming DataFrame with readStream, transform it, and call writeStream.start(). Each trigger processes available input, updates progress and state, and commits according to source/sink protocols. Restart with the same compatible checkpoint to recover progress/state. This alone does not make arbitrary external effects exactly once.
+Build a streaming query with `readStream`, apply supported transformations, and call `writeStream.start()` to obtain a `StreamingQuery` handle. On each trigger, Spark determines the source offsets for the batch, executes the incremental plan, updates state when needed, writes output, and records query progress through the checkpoint protocol. A restart using the same compatible checkpoint can recover the recorded progress and state. The order and guarantees at the sink boundary depend on the source/sink implementation; a checkpoint cannot make arbitrary external side effects atomic or prevent duplicates in a non-idempotent sink.
 
 ### Q70. What are sources and sinks?
 
-Sources include Kafka, files, and connectors available in the chosen Spark distribution. Sinks include files, Kafka, and supported external systems. Options, dependencies, and guarantees are version-specific. foreachBatch gives control over each micro-batch but makes the application responsible for safe external writes.
+A source is the system Spark reads incrementally, such as Kafka or a directory of newly arriving files. A sink is where the query writes its result, such as a file sink or Kafka topic. Connector packages and options must match the Spark version, and the sink's fault-tolerance contract matters as much as the query's checkpoint. `foreachBatch` is a useful escape hatch for a custom batch writer, but Spark cannot infer whether arbitrary code is transactional or idempotent; the application must design safe retries and partial-failure recovery.
 
 ### Q71. Explain append, update, and complete output modes.
 
@@ -529,11 +529,11 @@ A trigger interval is not a batch-completion SLA. If processing takes longer tha
 
 ### Q73. What is a checkpoint directory?
 
-It stores query progress and, for stateful queries, state required for recovery. For Kafka, Spark records offsets in the checkpoint; Kafka consumer-group committed offsets are not the sole restart authority. The location must be durable, accessible, and dedicated to a compatible query lifecycle. Deleting/reusing it can cause replay, lost state, or incompatible recovery.
+A checkpoint directory stores the query's progress log and, for stateful queries, the state needed to continue from a prior micro-batch. For Kafka, Spark records the offsets it has processed in the checkpoint rather than relying only on a conventional consumer-group commit. The directory must be durable, writable/readable by the runtime identity, and kept with the query it belongs to. Do not reuse it for a logically different query or delete it to “unstick” a stream: you may lose state or start a new replay history. Checkpoint compatibility must be assessed when the query changes.
 
 ### Q74. Query ID versus run ID?
 
-A query identifier is associated with the checkpointed query identity; a run ID identifies a particular execution instance. Restarting from the same checkpoint can preserve query identity while creating a new run. Correlate progress, batch IDs, offsets, and sink records. IDs are not business idempotency keys.
+`StreamingQuery.id()` identifies the query across restarts from checkpoint data, while `runId()` identifies a particular execution and changes when the query is started again. This distinction helps correlate logs and progress across a restart: the query may be the same logical stream even though the run has changed. Use batch IDs and source offsets to investigate processing progress, and a separate stable event/business key for idempotent output; query/run IDs do not deduplicate business records.
 
 ### Q75. Does Structured Streaming guarantee exactly-once processing?
 
@@ -579,7 +579,7 @@ For supported window aggregations, an event that is less than the configured wat
 
 ### Q80. How do stateful aggregation and deduplication work?
 
-Stateful aggregation retains partial results by key/window across triggers. Streaming deduplication remembers IDs for a supported state lifetime. State is checkpointed so a restarted query can recover it. Cost depends on key cardinality, window length, lateness threshold, and input rate. Define the duplicate horizon and use stable event IDs.
+A stateful aggregation keeps intermediate values keyed by grouping columns and, for event-time aggregates, by window. On a new micro-batch, Spark updates that state rather than recomputing the aggregate from all historical input. Streaming deduplication similarly remembers keys that have already appeared. State is checkpointed for recovery and consumes memory, disk, and I/O as cardinality grows. A watermark can bound state only where the operator and query shape support cleanup; without a realistic duplicate horizon, deduplication may need to retain every seen ID. Use stable event IDs and choose the retention policy from business semantics.
 
 ### Q81. Stream-static versus stream-stream joins?
 
@@ -603,7 +603,7 @@ This is a pattern, not a complete application; valid join types and state cleanu
 
 ### Q82. What is the state store?
 
-The state store persists intermediate state for stateful streaming operators between micro-batches. State growth, checkpoint I/O, key cardinality, and implementation affect latency. Monitor state rows/bytes, update/commit duration, and watermark progress where available.
+The state store is the mechanism Spark uses to read and update an operator's keyed state between micro-batches. It enables incremental aggregations, deduplication, and stream-stream joins, but the size and update cost depend on key cardinality, window/lateness policy, and how much state changes in each batch. A growing state store can increase batch duration and checkpoint cost even if the input rate is unchanged. Track state rows/bytes, update and commit time, watermark progress, and recovery duration; do not assume more executor heap can fix state that the query never evicts.
 
 ### Q83. Why might a watermark not reduce state?
 
@@ -736,7 +736,7 @@ stream.writeStream()
 
 ### Q94. What should observability and exception handling include?
 
-Log query/run identity, batch context, and failure cause; export input/processing rate, batch duration, sink latency, lag, state size, malformed records, and data freshness. Do not log secrets or sensitive payloads. Health checks should distinguish process health from active query health.
+Log the application ID, query ID/run ID, batch context, and failure cause so an incident can be traced across driver, executor, and sink logs. Export input and processing rates, batch duration, sink latency, lag, state growth, malformed-record counts, and output freshness. Avoid putting credentials or sensitive payloads into logs. A process can remain alive after its streaming query has failed, so health checks should verify the query is active and making progress rather than relying on process liveness alone.
 
 ---
 
@@ -744,15 +744,15 @@ Log query/run identity, batch context, and failure cause; export input/processin
 
 ### Q95. What happens if an executor is lost?
 
-Tasks running there may fail and be retried elsewhere. Cached partitions may be recomputed from lineage. Shuffle files can become unavailable depending on executor loss and shuffle configuration. Repeated executor loss can indicate memory pressure, node instability, container limits, or disk/network problems. Inspect executor logs, platform events, GC, and task failures before increasing retries.
+When an executor disappears, its running tasks fail and Spark may retry them on surviving executors. Cached partitions held only there can be recomputed from lineage. Shuffle output is more subtle: if the required shuffle files are no longer available, downstream tasks can fail with fetch errors and Spark may need to rerun upstream work. Repeated loss is not normal noise to hide with retries. Correlate the executor exit reason with GC, memory/container events, disk capacity, network errors, and the stage/task that was running.
 
 ### Q96. What happens if the driver fails?
 
-The application usually terminates because the driver coordinates execution. A cluster manager may restart it, but streaming recovery depends on the application restarting with the correct checkpoint and compatible query. Batch jobs may need resubmission, and output correctness depends on sink commit behavior. Checkpointing does not make arbitrary batch side effects resumable.
+The driver owns the application's scheduling and query coordination, so losing it generally ends that application. Whether a new driver is launched is a deployment/orchestration decision; Spark does not guarantee every environment automatically restarts the process. A restarted Structured Streaming application can recover recorded offsets and state when it reuses the correct compatible checkpoint, but the sink may still have duplicate or partial effects depending on its commit protocol. Batch jobs commonly need resubmission, and output paths/transactions must be designed so resubmitting does not corrupt or duplicate results.
 
 ### Q97. How do you investigate shuffle fetch failures?
 
-A downstream task could not retrieve shuffle output. Causes include executor loss, unavailable shuffle files, disk issues, network timeouts, or resource exhaustion. Determine whether failures cluster around one node and inspect executor/worker logs, disk, network, and cluster events. Retries can recover transient problems but do not fix unstable infrastructure.
+A shuffle fetch failure means a downstream task asked for map-side shuffle data and could not retrieve it. Common causes include an executor/node disappearing after producing shuffle files, local disk failure/full disks, network timeouts, corruption, or resource pressure. Use the exception details and executor/worker logs to see whether failures concentrate on one host or block across the cluster. Retries can recover a transient network blip; if shuffle files keep disappearing or a node is unhealthy, fix the infrastructure or ensure shuffle data can be preserved before increasing retry counts.
 
 ### Q98. What if a streaming checkpoint is unavailable or corrupted?
 
@@ -760,7 +760,7 @@ Preserve logs and investigate storage connectivity, permissions, deletion, and c
 
 ### Q99. How should corrupt input be handled?
 
-Define schema and parsing policy. Quarantine malformed records with source metadata and reason, or fail fast when invalid input threatens correctness. Avoid silently replacing business-critical fields with defaults. Ensure a poison record does not create an endless retry loop without an alert and remediation path.
+Agree on what the pipeline does with malformed input before deploying it. For recoverable bad records, preserve safe source identifiers such as topic/partition/offset or file path, record a rejection reason, and write the record to a quarantine path for later repair. For critical fields such as payment amount or event time, failing fast may be safer than silently substituting zero or null and publishing incorrect metrics. Quarantine writes should be replay-safe, and alerts/runbooks should prevent a poison record from either blocking progress indefinitely or disappearing unnoticed.
 
 ### Q100. What should a production Spark pipeline monitor?
 
@@ -780,7 +780,7 @@ Use a JDK supported by the exact Spark distribution and matching Spark/Scala con
 
 ### Q103. How do you debug local success but cluster failure?
 
-Compare Spark/JDK/connector versions, deployment mode, classpath, credentials, DNS, storage access, executor logs, and container limits. Local mode hides distributed serialization and resource constraints. Collect driver, executor, and cluster-manager logs with application ID and timestamps.
+Start by classifying the symptom: class-not-found/linkage errors suggest dependency mismatch; serialization errors point to closures or unsupported objects; permission errors point to identity/configuration; executor loss or OOM points to runtime resources; timeouts may indicate networking or storage. Compare Spark/JDK/connector versions, deployment mode, classpath, credentials, DNS, file-system configuration, and container limits. Local mode often hides executor serialization, network reachability, and resource isolation issues. Collect driver, executor, and cluster-manager logs using the application ID and timestamps, then reproduce the smallest failing operation in a staging cluster.
 
 ---
 
