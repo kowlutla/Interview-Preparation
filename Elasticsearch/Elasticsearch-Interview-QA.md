@@ -889,11 +889,11 @@ GET products-v1/_search
     { "createdAt": "desc" },
     { "productId": "asc" }
   ],
-  "search_after": ["2026-06-10T13:45:00Z", "P1001"]
+  "search_after": [1781099100000, "P1001"]
 }
 ~~~
 
-Use the complete sort values from the last hit of the previous response; keep the query and sort unchanged. Add a unique tie-breaker.
+Use the complete sort values from the last hit of the previous response; keep the query and sort unchanged. The timestamp here is an illustrative epoch-millisecond value for the date sort; in a real request, copy the exact returned sort array. Add a unique tie-breaker.
 
 ### Pattern 14 — Point in time (PIT)
 
