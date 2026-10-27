@@ -3011,16 +3011,16 @@ These changes are reasons to test Java 25 with representative data, not to assum
 
 Java 25's primitive types in patterns, instanceof, and switch are in their third preview (JEP 507), not final. Flexible constructor bodies, module import declarations, and compact source files/instance main methods are final in Java 25, so they do not require --enable-preview. Structured concurrency remains preview in Java 25; Scoped Values are final. Stable Values are preview.
 
-#### Key Derivation Function API (preview)
+#### Key Derivation Function API (final)
 
-Java 25 introduced the KDF API as a preview API for deriving keys from input keying material and optional additional data. It requires preview-feature enablement and may change in a later release. Use established cryptographic guidance and approved algorithms rather than inventing a custom key derivation scheme.
+Java 24 introduced the KDF API as a preview (JEP 478); Java 25 finalized it as JEP 510. It provides a standard API for deriving key material from input keying material and parameters such as salt and context information. The Java 25 API includes implementations such as HKDF through the JDK's cryptographic provider. Use established cryptographic guidance, approved algorithms, and carefully selected parameters; the API does not make an insecure key-derivation design safe by itself.
 
 #### Features that remain preview or incubating in Java 25
 
 - **Primitive types in patterns, `instanceof`, and `switch`:** still a preview feature in Java 25; do not present it as finalized.
 - **Structured concurrency:** preview API, still evolving.
 - **Vector API:** incubating API, still evolving.
-- **Key Derivation Function API:** preview in Java 25; it is not a finalized Java SE API in that release.
+- **Key Derivation Function API:** final in Java 25 (JEP 510); it was previewed in Java 24 as JEP 478.
 - **Stable Values:** preview in Java 25.
 - **PEM Encodings of Cryptographic Objects:** preview in Java 25.
 - **Other preview features:** check the exact JDK release documentation and build/runtime flags before experimenting.
@@ -3080,14 +3080,15 @@ Use the official release documentation to verify details, especially when a feat
 - [JEP 515 — Ahead-of-Time Method Profiling](https://openjdk.org/jeps/515)
 - [JEP 521 — Generational Shenandoah](https://openjdk.org/jeps/521)
 - [JEP 509 — JFR CPU-Time Profiling](https://openjdk.org/jeps/509)
-- [JEP 510 — Key Derivation Function API (Preview)](https://openjdk.org/jeps/510)
+- [JEP 478 — Key Derivation Function API (Preview in Java 24)](https://openjdk.org/jeps/478)
+- [JEP 510 — Key Derivation Function API (final in Java 25)](https://openjdk.org/jeps/510)
 - [JEP 502 — Stable Values (Preview)](https://openjdk.org/jeps/502)
 
 ---
 
 ## 18. Senior-level mock interview rounds
 
-These mock rounds are designed to be answered aloud. Start with a direct answer, explain your reasoning, and discuss trade-offs. The answers are model responses, not scripts to memorize.
+These mock rounds are designed to be answered aloud. Start with a direct answer, explain your reasoning, and discuss trade-offs. The answers are model responses, not scripts to memorize. For Java 25 feature-status questions, note that the KDF API is final in Java 25, while structured concurrency and primitive patterns remain preview features.
 
 ### Round 1 — Java 8 to modern Java
 
