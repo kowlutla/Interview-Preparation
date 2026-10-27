@@ -26,7 +26,6 @@ A focused, version-aware handbook for Java backend engineers preparing for exper
 14. [Production, senior-level scenarios, and engineering judgement](#14-production-senior-level-scenarios-and-engineering-judgement)
 15. [Last-minute revision](#15-last-minute-revision)
 16. [Java Version Features (Java 8–25)](#16-java-version-features-java-825)
-17. [Official references](#17-official-references)
 18. [Senior-level mock interview rounds](#18-senior-level-mock-interview-rounds)
 19. [Official references](#19-official-references)
 20. [Editorial and validation notes](#20-editorial-and-validation-notes)
@@ -3154,13 +3153,11 @@ Use official specifications and API documentation as the final authority for lan
 
 ---
 
----
-
 ## 20. Editorial and validation notes
 
 - The handbook retains its numbered core Q&A inventory and adds six structured senior-level mock interview rounds.
 - Every question has one primary topic location; the last-minute revision section links back rather than duplicating question content.
 - The section order follows one learning path: language/OOP, strings and exceptions, generics, Collections, functional APIs and Streams, concurrency, JVM, engineering APIs and practices, Java-version evolution, code reading, then production/senior scenarios.
 - The Java release matrix highlights LTS milestones and preview/incubator caveats. Java 25 runtime changes and preview statuses are linked to official JEPs; this remains a revision map, not a replacement for release notes.
-- Structural checks cover question inventory, topic assignment, section organization, TOC anchors, and Markdown fences. They do not establish that every code snippet was compiled or every technical claim was independently audited line by line.
+- For this revision, table-of-contents anchors and fenced-code-block balance were checked. The code snippets were not compiled, and this should not be interpreted as a complete line-by-line audit of every pre-existing answer.
 - The Java directory was consolidated to this single handbook; the former chapter-wise Markdown files and folders were removed as part of the requested cleanup. Other technology guides outside the Java directory were left untouched.
